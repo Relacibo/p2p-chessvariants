@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 
 import { useAppSelector, useAppDispatch } from '../../app/hooks';
-import { Chessboard } from '../chessboard/Chessboard';
 
 export function SetupUI() {
     return (

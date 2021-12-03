@@ -1,20 +1,32 @@
-export interface VariantState {
-    status: VariantStatus,
-    boardStates: BoardState | BoardState[],
+export interface VariantState<T extends VariantStatus = VariantStatus> {
+    status: T,
+    boardState: BoardState | BoardState[],
     reservePile: ReservePileState | ReservePileState[],
 }
 
-export type VariantStatus = {
+export interface VariantStatus {
+    type: VariantStatusType;
+}
+
+export interface NotStarted extends VariantStatus {
     type: VariantStatusType.NotStarted,
-} | {
+}
+
+export interface Ongoing extends VariantStatus {
     type: VariantStatusType.Ongoing,
     onMoveIndex: number | number[],
-} | {
+}
+
+export interface NeverStarted extends VariantStatus {
     type: VariantStatusType.NeverStarted,
     reason: string,
-} | {
+}
+
+export interface Draw extends VariantStatus {
     type: VariantStatusType.Draw
-} | {
+}
+
+export interface Decisive extends VariantStatus {
     type: VariantStatusType.Decisive,
     winnerIndex: number,
     reason: string,
@@ -39,8 +51,22 @@ export type EmptyTile = {
 
 export type Piece = {
     type: TileDataType.Piece,
-    color: number,
-    piece: number,
+    color: PieceColor,
+    piece: PieceType,
+}
+
+export enum PieceType {
+    Pawn = 0,
+    Knight = 1,
+    Bishop = 2,
+    Rook = 3,
+    Queen = 4,
+    King = 5
+}
+
+export enum PieceColor {
+    White = 0,
+    Black = 1,
 }
 
 export enum TileDataType {
