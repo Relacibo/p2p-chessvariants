@@ -3,11 +3,12 @@ import assert from "assert";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
-import { Coords, Ongoing, SquareCoords, TileDataType, VariantState, VariantStatusType } from "./Types";
+import { Coords, VariantState } from "./types";
 import { VariantDescription } from "./variantDescription";
 import * as hardcoded from "./hardcodedVariants";
+import { getPieceAt } from "./util";
 
-export type DescriptionLocation = { source: "online", url: string } | { source: "hardcoded", key: string }
+export type DescriptionLocation = { source: "url", url: string } | { source: "hardcoded", key: string }
 export type DescriptionInfo = { name: string, description?: string };
 
 const temporaryVariantDescriptions = new Map<DescriptionLocation, VariantDescription>();
@@ -41,7 +42,7 @@ export const slice = createSlice({
 
 export const { setVariantState, saveVariantDescriptionInfo } = slice.actions;
 
-export const move = (key: string, source: Coords, destination: Coords, playerIndex: number): AppThunk => async (
+export const move = (key: string, source: Coords, destination: Coords, playerIndex: number, possibleDestinations?: Coords[]): AppThunk => async (
     dispatch,
     getState
 ) => {
@@ -51,16 +52,27 @@ export const move = (key: string, source: Coords, destination: Coords, playerInd
         return;
     }
     const { descriptionLocation, state } = variant;
-    if (state.status.type !== VariantStatusType.Ongoing) {
-        return;
-    }
     const description = await dispatch(getDescription(descriptionLocation));
-    if (!description) {
+    if (!description ||
+        (
+            (typeof state.onMoveIndex == 'number' && state.onMoveIndex != playerIndex) ||
+            (Array.isArray(state.onMoveIndex) && !state.onMoveIndex.includes(playerIndex))
+        ) ||
+        !description.canMoveEnemyPieces && (getPieceAt(state, source)?.color != description.playerIndex2Color(playerIndex))) {
         return;
     }
+    if (typeof possibleDestinations == "undefined") {
+        possibleDestinations = description.possibleDestinations(state, source, playerIndex);
+    }
+
+    const isMovePossible = typeof possibleDestinations.find((possible) => destination.equals(possible)) != "undefined";
+    if (!isMovePossible) {
+        return;
+    }
+
     let newState: VariantState | null = null;
     try {
-        newState = description.move(state as VariantState<Ongoing>, source, destination, playerIndex);
+        newState = description.move(state, source, destination, playerIndex);
         if (newState === null) {
             toast.error("Calculated state is null after making move!")
         }
@@ -85,7 +97,7 @@ const getDescription = (location: DescriptionLocation): AppThunk<Promise<Variant
             return description;
         }
         switch (location.source) {
-            case "online": {
+            case "url": {
                 let descriptionString = selectDescriptions(getState()).get(location)?.description;
                 if (!descriptionString) {
                     let res;
