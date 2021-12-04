@@ -1,6 +1,6 @@
 import { Coords, Piece, VariantState, BoardState, TileData, ReservePileState, BoardCoords, ReservePileCoords } from "./types";
 
-export function getPieceAt(state: VariantState, coords: Coords): Piece | null {
+export function getPieceAt(state: { boardState?: BoardState | BoardState[], reservePile?: ReservePileState | ReservePileState[] }, coords: Coords): Piece | null {
     if (coords instanceof BoardCoords) {
         const { gameIndex, c, r } = coords;
         let board: BoardState;

@@ -1,5 +1,5 @@
 import { assert } from "console";
-import { BoardCoords, BoardOrientation, BoardState, Coords, Ongoing, Piece, PieceColor, PieceType, VariantState } from "./types";
+import { BoardCoords, BoardOrientation, BoardState, Coords, EmptyTile, Ongoing, Piece, PieceColor, PieceType, VariantState } from "./types";
 import { getPieceAt } from "./util";
 import { VariantDescription } from "./variantDescription";
 
@@ -30,20 +30,17 @@ export const chess: VariantDescription = {
         const opponentColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
         const capturablePiece = (piece: Piece | null): boolean => piece?.color === opponentColor;
         let king = new Piece(color, PieceType.King);
-        let kingPosition = null;
-        for (let r = 0; r < boardState.length; r++) {
-            for (let c = 0; c < boardState[r].length; c++) {
-                const tileData = boardState[r][c];
-                if (king.equals(tileData)) {
-                    kingPosition = new BoardCoords(c, r);
-                    break;
-                }
-            }
-            if (kingPosition != null) {
-                break;
-            }
+        let kingPosition = boardState.flatMap((row, r) => row.map((data, c) => { return { c, r, data } })).find(({ data }) => king.equals(data))
+        if (typeof kingPosition === "undefined") {
+            return [];
         }
+        const findAttackedPieces = (state: BoardState, source: BoardCoords, piece?: Piece) => {
+            if (typeof piece === "undefined") {
+                piece = getPieceAt({boardState: board})
+            }
+        } 
         const isLegalPosition = (board: BoardState, kingPosition: BoardCoords) => {
+
         };
         switch (piece) {
             case PieceType.Pawn: {
@@ -59,6 +56,13 @@ export const chess: VariantDescription = {
         return [];
     },
     move: function (state: ChessVariantState, source: BoardCoords, destination: BoardCoords): ChessVariantState {
+        const boardState = state.boardState as BoardState;
+        const { c: cSource, r: rSource } = source;
+        const { c: cDestination, r: rDestination } = destination
+        const piece = boardState[rSource][cSource] as Piece;
+        boardState[rSource][cSource] = new EmptyTile();
+        boardState[rDestination][cDestination] = piece;
+        return state;
     },
     initialState: function (base: VariantState<Ongoing>, playerIndex: number): ChessVariantState {
         const boardState: BoardState = [];
@@ -73,7 +77,7 @@ export const chess: VariantDescription = {
                 blackLong: true,
             },
             noPawnMoveAndCaptureSince: 0,
-            fens: []
+            positionHashes: []
         };
     },
     playerIndex2Color: function (index: 0 | 1): PieceColor {
