@@ -1,43 +1,46 @@
 import { Coords, Piece, VariantState, BoardState, TileData, ReservePileState, BoardCoords, ReservePileCoords } from "./types";
 
-export function getPieceAt(state: { boardState?: BoardState | BoardState[], reservePile?: ReservePileState | ReservePileState[] }, coords: Coords): Piece | null {
+export function getPieceAt({ boardState, reservePile }: { boardState?: BoardState | BoardState[], reservePile?: null | ReservePileState | ReservePileState[] }, coords: Coords): Piece | null {
     if (coords instanceof BoardCoords) {
+        if (typeof boardState == "undefined") {
+            return null;
+        }
         const { gameIndex, c, r } = coords;
         let board: BoardState;
-        if (isSingularBoardState(state.boardState)) {
+        if (isSingularBoardState(boardState)) {
             if (gameIndex != 0) {
                 return null;
             }
-            board = state.boardState;
+            board = boardState;
         } else {
             if (typeof gameIndex == "undefined") {
                 return null;
             }
-            board = state.boardState[gameIndex];
+            board = boardState[gameIndex];
         }
         const tileData = board[r][c];
         return tileData instanceof Piece ? tileData : null;
     } else if (coords instanceof ReservePileCoords) {
-        if (state.reservePile === null) {
+        if (typeof reservePile == "undefined" || reservePile === null) {
             return null;
         }
         const { gameIndex, index } = coords;
         if (index == null) {
             return null;
         }
-        let reservePile: ReservePileState;
-        if (isSingularReservePile(state.reservePile)) {
+        let pile: ReservePileState;
+        if (isSingularReservePile(reservePile)) {
             if (gameIndex != 0) {
                 return null;
             }
-            reservePile = state.reservePile;
+            pile = reservePile;
         } else {
             if (typeof gameIndex == "undefined") {
                 return null;
             }
-            reservePile = state.reservePile[gameIndex];
+            pile = reservePile[gameIndex];
         }
-        const piece = reservePile[index];
+        const piece = pile[index];
         return piece ? piece : null;
     }
     return null;

@@ -24,41 +24,41 @@ export const chess: VariantDescription = {
         const boardState = state.boardState as BoardState;
         const { c, r } = coords as BoardCoords;
         const { color, piece } = boardState[r][c] as Piece;
-        const isInBounds = (coords: { r: number, c: number }): boolean => {
+        const isInBounds = (coords: { r: number; c: number; }): boolean => {
             return r >= 0 && c >= 0 && r < 8 && c < 8;
-        }
+        };
         const opponentColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
         const capturablePiece = (piece: Piece | null): boolean => piece?.color === opponentColor;
         let king = new Piece(color, PieceType.King);
-        let kingPosition = boardState.flatMap((row, r) => row.map((data, c) => { return { c, r, data } })).find(({ data }) => king.equals(data))
+        let kingPosition = boardState.flatMap((row, r) => row.map((data, c) => { return { c, r, data }; })).find(({ data }) => king.equals(data));
         if (typeof kingPosition === "undefined") {
             return [];
         }
-        const findAttackedPieces = (state: BoardState, source: BoardCoords, piece?: Piece) => {
-            if (typeof piece === "undefined") {
-                piece = getPieceAt({boardState: board})
+        const findAttackedTiles = (state: BoardState, source: BoardCoords, p?: Piece): BoardCoords[] => {
+            const { piece, color } = (typeof p === "undefined") ? getPieceAt({ boardState: state }, coords)! : p;
+            switch (piece) {
+                case PieceType.Rook: {
+                }
+                case PieceType.Pawn: {
+                    const pawnDirection = color == PieceColor.White ? 1 : -1;
+                    const captureSquares = [
+                        new BoardCoords(r + pawnDirection, c - 1),
+                        new BoardCoords(r + pawnDirection, c + 1)
+                    ].filter(isInBounds).filter(coords => capturablePiece(getPieceAt({ boardState: state }, coords)));
+                    const moveSquares = [];
+                    return captureSquares;
+                }
             }
-        } 
-        const isLegalPosition = (board: BoardState, kingPosition: BoardCoords) => {
-
+            return [];
         };
-        switch (piece) {
-            case PieceType.Pawn: {
-                const pawnDirection = color == PieceColor.White ? 1 : -1;
-                const captureSquares = [
-                    new BoardCoords(r + pawnDirection, c - 1),
-                    new BoardCoords(r + pawnDirection, c - 1)
-                ].filter(isInBounds).filter(coords => capturablePiece(getPieceAt(state, coords)));
-                const moveSquares = 
-                return captureSquares;
-            }
-        }
-        return [];
+        const isLegalPosition = (board: BoardState, kingPosition: BoardCoords) => {
+        };
+        return findAttackedTiles(boardState, coords);
     },
     move: function (state: ChessVariantState, source: BoardCoords, destination: BoardCoords): ChessVariantState {
         const boardState = state.boardState as BoardState;
         const { c: cSource, r: rSource } = source;
-        const { c: cDestination, r: rDestination } = destination
+        const { c: cDestination, r: rDestination } = destination;
         const piece = boardState[rSource][cSource] as Piece;
         boardState[rSource][cSource] = new EmptyTile();
         boardState[rDestination][cDestination] = piece;
@@ -80,10 +80,10 @@ export const chess: VariantDescription = {
             positionHashes: []
         };
     },
-    playerIndex2Color: function (index: 0 | 1): PieceColor {
+    playerIndex2Color: function (index: number): PieceColor {
         switch (index) {
-            case 0: return PieceColor.White;
             case 1: return PieceColor.Black;
+            default: return PieceColor.White;
         }
     },
     color2PlayerIndex: function (color: PieceColor): number {
@@ -92,10 +92,13 @@ export const chess: VariantDescription = {
             case PieceColor.Black: return 1;
         }
     },
-    playerIndex2Orientation: function (playerIndex: 0 | 1): BoardOrientation | BoardOrientation[] {
+    playerIndex2Orientation: function (playerIndex: number): BoardOrientation | BoardOrientation[] {
         switch (playerIndex) {
-            case 0: return BoardOrientation.NoRotiation;
             case 1: return BoardOrientation.Rotation180;
+            default: return BoardOrientation.NoRotiation;
         }
+    },
+    promote: function (state: VariantState, destination: Coords, piece: Piece): VariantState {
+        throw new Error("Function not implemented.");
     }
 }

@@ -1,4 +1,4 @@
-import { BoardOrientation, BoardState, Coords, PieceColor, VariantState } from "./types";
+import { BoardOrientation, BoardState, Coords, Piece, PieceColor, VariantState } from "./types";
 
 export interface VariantDescription {
     name: string;
@@ -12,4 +12,5 @@ export interface VariantDescription {
     color2PlayerIndex(color: PieceColor): number | null;
     playerIndex2Orientation(playerIndex: number): BoardOrientation | BoardOrientation[];
     createPositionString?(state: VariantState): string;
+    promote(state: VariantState, destination: Coords, piece: Piece): VariantState;
 }
