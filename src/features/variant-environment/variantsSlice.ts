@@ -123,7 +123,7 @@ const getDescription = (location: DescriptionLocation): AppThunk<Promise<Variant
                 }
                 dispatch(saveVariantDescriptionInfo({
                     location,
-                    info: { name: description.name, description: descriptionString }
+                    info: { name: description.name(), description: descriptionString }
                 }));
                 break;
             }
@@ -140,6 +140,6 @@ export const loadHardcodedVariants = (): AppThunk => (dispatch, getState) => {
         const value: VariantDescription = (hardcoded as any)[key];
         const location: DescriptionLocation = { source: "hardcoded", key }
         temporaryVariantDescriptions.set(location, value);
-        dispatch(saveVariantDescriptionInfo({ location, info: { name: value.name } }));
+        dispatch(saveVariantDescriptionInfo({ location, info: { name: value.name() } }));
     }
 }

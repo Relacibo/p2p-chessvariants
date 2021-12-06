@@ -1,10 +1,10 @@
 import { BoardOrientation, BoardState, Coords, Piece, PieceColor, VariantState } from "./types";
 
 export interface VariantDescription {
-    name: string;
-    canMoveEnemyPieces: boolean;
-    minimumPlayers: number;
-    maximumPlayers:number;
+    name(): string;
+    canMoveEnemyPieces(): boolean;
+    minimumPlayers(): number;
+    maximumPlayers():number;
     possibleDestinations(state: VariantState, coords: Coords, playerIndex?: number): Coords[];
     move(state: VariantState, source: Coords, destination: Coords, playerIndex?: number): VariantState;
     initialState(base: VariantState, playerCount: number, localPlayerIndex: number): VariantState;

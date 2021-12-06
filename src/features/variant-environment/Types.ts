@@ -1,5 +1,5 @@
-export interface VariantState<T extends VariantStatus = VariantStatus> {
-    status: T,
+export interface VariantState {
+    status: VariantStatus,
     onMoveIndex: number | number[],
     canClaimDraw: number | number[],
     boardState: BoardState | BoardState[],
@@ -41,17 +41,17 @@ export class Piece {
     }
 }
 export enum PieceType {
-    Pawn = 0,
-    Knight = 1,
-    Bishop = 2,
-    Rook = 3,
-    Queen = 4,
-    King = 5
+    Pawn = "pawn",
+    Knight = "knight",
+    Bishop = "bishop",
+    Rook = "rook",
+    Queen = "queen",
+    King = "king"
 }
 
 export enum PieceColor {
-    White = 0,
-    Black = 1,
+    White = "white",
+    Black = "black",
 }
 
 export enum BoardOrientation {
@@ -72,6 +72,18 @@ export class BoardCoords implements Coords {
             return false;
         }
         return this.c == other.c && this.r == other.r && this.gameIndex == other.gameIndex;
+    }
+    toArray() {
+        return [this.c, this.r];
+    }
+    static fromArray([c, r]: number[], gameIndex?: number) {
+        return new BoardCoords(c, r, gameIndex);
+    }
+    addArray([c, r]: number[]): BoardCoords {
+        return new BoardCoords(this.c + c, this.r + r, this.gameIndex);
+    }
+    add({ c, r }: BoardCoords): BoardCoords {
+        return new BoardCoords(this.c + c, this.r + r, this.gameIndex);
     }
 }
 
