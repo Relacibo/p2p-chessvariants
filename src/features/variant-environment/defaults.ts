@@ -31,7 +31,7 @@ export const bishopMoves: PieceDescription<{}> = {
 }
 
 export const queenMoves: PieceDescription<{}> = {
-    type: PieceType.Bishop,
+    type: PieceType.Queen,
     move: (
         _extraInfo,
         _source,
@@ -48,7 +48,7 @@ export const queenMoves: PieceDescription<{}> = {
 }
 
 export const rookMoves: PieceDescription<{}> = {
-    type: PieceType.Bishop,
+    type: PieceType.Rook,
     move: (
         _extraInfo,
         _source,
