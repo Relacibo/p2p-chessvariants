@@ -4,5 +4,5 @@ export interface PlaygroundState {
 
 export type Variant = {
     source: "online",
-    address: string
+    address: string,
 }

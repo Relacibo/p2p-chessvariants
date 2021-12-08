@@ -9,7 +9,7 @@ export function PlaygroundUI() {
     return (
         <Routes>
             <Route path="/">
-
+                
             </Route>
             <Route path=":id">
                 <div>

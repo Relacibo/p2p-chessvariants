@@ -96,3 +96,40 @@ export class ReservePileCoords implements Coords {
         return this.index == other.index && this.gameIndex == other.gameIndex;
     }
 }
+
+export enum Direction {
+    Top = 0,
+    TopRight = 1,
+    Right = 2,
+    BottomRight = 3,
+    Bottom = 4,
+    BottomLeft = 5,
+    Left = 6,
+    TopLeft = 7,
+}
+
+export interface VariantDescription {
+    name(): string;
+    canMoveEnemyPieces(): boolean;
+    minimumPlayers(): number;
+    maximumPlayers(): number;
+    possibleDestinations(state: VariantState, coords: Coords, playerIndex?: number): Coords[];
+    move(state: VariantState, source: Coords, destination: Coords, playerIndex?: number): VariantState;
+    initialState(base: VariantState, playerCount: number, localPlayerIndex: number): VariantState;
+    playerIndex2Color(index: number): PieceColor | null;
+    color2PlayerIndex(color: PieceColor): number | null;
+    playerIndex2Orientation(playerIndex: number): BoardOrientation | BoardOrientation[];
+    createPositionString?(state: VariantState): string;
+    promote(state: VariantState, destination: Coords, piece: Piece): VariantState;
+}
+
+export interface PieceDescription<T> {
+    type: PieceType,
+    move: (
+        extraInfo: T,
+        source: BoardCoords,
+        ownColor: PieceColor,
+        ray: (direction: Direction) => { coords: BoardCoords, tile: TileData }[],
+        singleSquares: (jumps: number[][]) => { coords: BoardCoords, tile: TileData }[]
+    ) => Set<BoardCoords>,
+}
