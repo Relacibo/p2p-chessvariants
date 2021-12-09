@@ -110,7 +110,6 @@ export enum Direction {
 
 export interface VariantDescription {
     name(): string;
-    canMoveEnemyPieces(): boolean;
     minimumPlayers(): number;
     maximumPlayers(): number;
     possibleDestinations(state: VariantState, coords: Coords, playerIndex?: number): Coords[];
@@ -128,8 +127,10 @@ export interface PieceDescription<T> {
     move: (
         extraInfo: T,
         source: BoardCoords,
-        ownColor: PieceColor,
-        ray: (direction: Direction) => { coords: BoardCoords, tile: TileData }[],
-        singleSquares: (jumps: number[][]) => { coords: BoardCoords, tile: TileData }[]
-    ) => Set<BoardCoords>,
+        moveAllowed: (delta: number[]) => boolean,
+        canCapture: (tile: Piece, coords?: BoardCoords) => boolean,
+        ray: (direction: Direction) => { empty: BoardCoords[], hit?: { coords: BoardCoords, piece: Piece } },
+        singleSquare: (jumps: number[]) => { coords: BoardCoords, tile: TileData },
+        isSquareAttacked: (coords: BoardCoords) => boolean
+    ) => BoardCoords[],
 }

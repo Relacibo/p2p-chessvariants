@@ -93,31 +93,28 @@ export function directionToVec(direction: Direction): number[] {
     }
 }
 
-export function castRay(state: BoardState | BoardState[], coords: BoardCoords, direction: Direction): { coords: BoardCoords; tile: TileData; }[] {
-    let ret = [];
+export function castRay(state: BoardState | BoardState[], coords: BoardCoords, direction: Direction): { empty: BoardCoords[], hit?: { coords: BoardCoords, tile: TileData } } {
+    let empty = [];
     const vec = directionToVec(direction);
-    let tile: TileData | null = new EmptyTile();
     while (true) {
         coords = coords.addArray(vec);
-        tile = getTileAt(state, coords);
+        const tile = getTileAt(state, coords);
         if (tile == null) {
-            break;
+            return { empty }
         }
-        ret.push({ coords, tile });
-        if (!(tile instanceof EmptyTile)) {
-            break;
+        if (tile instanceof EmptyTile) {
+            empty.push(coords);
+        } else {
+            return {
+                empty,
+                hit: { coords, tile }
+            };
         }
     }
-
-    return ret;
 }
-export function singleSquares(state: BoardState | BoardState[], source: BoardCoords, squares: number[][]): { coords: BoardCoords; tile: TileData; }[] {
-    return squares
-        .map(delta => source.addArray(delta))
-        .flatMap(coords => {
-            const tile = getTileAt(state, coords);
-            return tile !== null ? [{ coords, tile }] : [];
-        })
+
+export function singleSquare(state: BoardState | BoardState[], source: BoardCoords, delta: number[]): TileData | null {
+    return getTileAt(state, source.addArray(delta));
 }
 
 export function getDiagonalDirections() {
@@ -126,4 +123,10 @@ export function getDiagonalDirections() {
 
 export function getPerpendicularDirections() {
     return [Direction.Top, Direction.Right, Direction.Bottom, Direction.Left]
+}
+
+export function removeDuplicates(input: number[][]): number[][] {
+    const map = new Map();
+    input.forEach((item) => map.set(item.join(), item));
+    return Array.from(map.values());
 }
