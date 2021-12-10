@@ -122,15 +122,18 @@ export interface VariantDescription {
     promote(state: VariantState, destination: Coords, piece: Piece): VariantState;
 }
 
-export interface PieceDescription<T> {
+export interface PieceInfo {
+    source: BoardCoords,
+    color: PieceColor
+}
+
+export interface PieceDescription<T extends PieceInfo> {
     type: PieceType,
     move: (
-        extraInfo: T,
-        source: BoardCoords,
-        moveAllowed: (delta: number[]) => boolean,
-        canCapture: (tile: Piece, coords?: BoardCoords) => boolean,
+        info: T,
         ray: (direction: Direction) => { empty: BoardCoords[], hit?: { coords: BoardCoords, piece: Piece } },
         singleSquare: (jumps: number[]) => { coords: BoardCoords, tile: TileData },
+        kingInCheckAfter: (coords: BoardCoords) => boolean,
         isSquareAttacked: (coords: BoardCoords) => boolean
     ) => BoardCoords[],
 }

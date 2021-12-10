@@ -18,100 +18,10 @@ class Chess implements VariantDescription {
     maximumPlayers = () => 2;
     rows = () => 8;
     columns = () => 8;
-    isInBounds({ r, c }: { r: number; c: number; }): boolean {
-        return r >= 0 && c >= 0 && r < this.rows() && c < this.columns();
-    };
-    canPieceMoveOnSquare(tile: TileData | null, ownColor: PieceColor) {
-        return tile != null && (tile instanceof EmptyTile || this.isPieceCapturable(ownColor!, tile as Piece));
+    possibleDestinations(state: VariantState, coords: Coords, playerIndex?: number): Coords[] {
+        throw new Error("Method not implemented.");
     }
-    isPieceCapturable(ownColor: PieceColor, piece: Piece | null) {
-        return piece?.color === (ownColor === PieceColor.White ? PieceColor.Black : PieceColor.White);
-    }
-    rookMoves({ state: { boardState }, source, ownColor, directionFilter }: MoveFinderOptions) {
-        let directions = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-        if (typeof directionFilter !== "undefined") {
-            directions = directions.filter(directionFilter);
-        }
-        return this.castRays(boardState, source, directions)
-            .filter(({ tile }) => this.canPieceMoveOnSquare(tile, ownColor!))
-            .map(({ coords }) => coords);
-    }
-    queenMoves({ state: { boardState }, source, ownColor, directionFilter }: MoveFinderOptions) {
-        let directions = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, -1], [-1, 1]];
-        if (typeof directionFilter !== "undefined") {
-            directions = directions.filter(directionFilter);
-        }
-        return this.castRays(boardState, source, directions)
-            .filter(({ tile }) => this.canPieceMoveOnSquare(tile, ownColor!))
-            .map(({ coords }) => coords);
-    }
-    knightMoves({ state: { boardState }, source, ownColor }: MoveFinderOptions) {
-        return this.singleSquares(boardState, source, [[2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]])
-            .filter(({ tile }) => this.canPieceMoveOnSquare(tile, ownColor!))
-            .map(({ coords }) => coords);
-    }
-    kingMoves({ state, source, ownColor }: MoveFinderOptions) {
-        const { boardState } = state;
-        const normalMoves = this.singleSquares(boardState, source, [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]])
-            .filter(({ tile }) => this.canPieceMoveOnSquare(tile, ownColor!))
-            .map(({ coords }) => coords);
-        return [...normalMoves, ...this.castleMoves(state, source, ownColor)];
-    }
-    canCastleInDirection(state: ChessVariantState, ownColor: PieceColor, cDirection: number): boolean {
-        const { boardState } = state;
-        const kingSquare = new BoardCoords(4, ownColor == PieceColor.White ? 0 : this.rows() - 1);
-        const ray = this.castRays(boardState, kingSquare, [[0, -1]]);
-        const { coords: lastTileCoords } = ray[ray.length - 1];
-        const expectedRookColumn = cDirection == 1 ? this.columns() - 1 : 0;
-        if (lastTileCoords.c != expectedRookColumn) {
-            return false;
-        }
-        const squaresAreEmpty = ray.slice(0, -1).every(({ tile }) => tile instanceof EmptyTile);
-        if (!squaresAreEmpty) {
-            return false;
-        }
-        const squaresAreNotAttacked = ray.slice(0, 1).every(({ coords }) =>
-            !this.isSquareAttacked(state, coords, ownColor)
-        );
-        return squaresAreNotAttacked;
-    }
-    castleMoves(state: ChessVariantState, source: BoardCoords, ownColor: PieceColor) {
-        const { boardState, castleRights } = state;
-        const castle = castleRights[ownColor];
-        let castleSquares: BoardCoords[] = [];
-        if (castle.short && this.canCastleInDirection(state, ownColor, 1)) {
-            castleSquares = [...castleSquares, ...this.singleSquares(boardState, source, [[0, 2]]).map(({ coords }) => coords)];
-        }
-        if (castle.long && this.canCastleInDirection(state, ownColor, -1)) {
-            castleSquares = [...castleSquares, ...this.singleSquares(boardState, source, [[0, -2]]).map(({ coords }) => coords)];
-        }
-        return castleSquares;
-    }
-    pawnMoves({ state: { boardState, enPassantSquare }, source, ownColor }: MoveFinderOptions) {
-        const isWhite = ownColor === PieceColor.White;
-        let moves = this.singleSquares(boardState, source, isWhite ? [[1, 0]] : [[-1, 0]])
-            .filter(({ tile }) =>
-                tile instanceof EmptyTile
-            )
-            .map(({ coords }) => coords);
-        if (moves.length > 0 && (isWhite && source.r == 1 || !isWhite && source.r == 6)) {
-            const startingJump = this.singleSquares(boardState, source, isWhite ? [[2, 0]] : [[-2, 0]]).filter(({ tile }) =>
-                tile instanceof EmptyTile
-            ).map(({ coords }) => coords);
-            moves = [...moves, ...startingJump]
-        }
-        const captures = this.singleSquares(boardState, source, ownColor === PieceColor.White ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]])
-            .filter(({ coords, tile }) =>
-                tile != null &&
-                (
-                    (tile instanceof Piece && this.isPieceCapturable(ownColor!, tile)) ||
-                    enPassantSquare != null && coords.equals(enPassantSquare)
-                )
-            )
-            .map(({ coords }) => coords);
-        return [...moves, ...captures];
-    }
-    getAttackers({ boardState }: ChessVariantState, source: BoardCoords, ownColor: PieceColor): {
+    /*getAttackers({ boardState }: ChessVariantState, source: BoardCoords, ownColor: PieceColor): {
         diagonal: {
             coords: BoardCoords;
             tile: Piece;
@@ -204,14 +114,6 @@ class Chess implements VariantDescription {
         );
         return typeof pawnAttacker !== "undefined";
     }
-    getPieceMovesFunctions = {
-        pawn: this.pawnMoves,
-        knight: this.knightMoves,
-        bishop: this.bishopMoves,
-        rook: this.rookMoves,
-        queen: this.queenMoves,
-        king: this.kingMoves
-    }
     findMovesForPiece(state: ChessVariantState, source: BoardCoords, piece?: PieceType, ownColor?: PieceColor, directionFilter?: (direction: number[]) => boolean): BoardCoords[] {
         if (typeof piece === "undefined" || typeof ownColor === "undefined") {
             const p = getPieceAt(state, source);
@@ -269,7 +171,7 @@ class Chess implements VariantDescription {
                 return !this.isSquareAttacked(newState, kingPosition, ownColor);
             }).map(({ destination }) => destination);
         }
-    }
+    }*/
     move(state: ChessVariantState, source: BoardCoords, destination: BoardCoords): ChessVariantState {
         const boardState = state.boardState as BoardState;
         const { c: cSource, r: rSource } = source;

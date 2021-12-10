@@ -1,38 +1,34 @@
-import { BoardCoords, Direction, EmptyTile, Piece, PieceDescription, PieceType } from "./types";
+import { BoardCoords, Direction, EmptyTile, Piece, PieceDescription, PieceInfo, PieceType } from "./types";
 import { getDiagonalDirections, getPerpendicularDirections } from "./util";
 
-export type KingExtraInfo = {
+export interface KingInfo extends PieceInfo {
     shortCastleRight: boolean,
     longCastleRight: boolean
 }
 
-export type PawnExtraInfo = {
+export interface PawnInfo extends PieceInfo {
     enPassantSquare: BoardCoords | null
 }
 
-export const bishopMoves: PieceDescription<Object> = {
+export const bishopMoves: PieceDescription<PieceInfo> = {
     type: PieceType.Bishop,
     move: (
-        _extraInfo,
-        _source,
-        ownColor,
+        { color },
         ray,
         _singleSquares,
         _isSquareAttacked): BoardCoords[] => {
         return getDiagonalDirections()
             .map(ray)
             .flatMap(({ empty, hit }) =>
-                hit && hit.piece.color !== ownColor ? [...empty, hit.coords] : empty
+                hit && hit.piece.color !== color ? [...empty, hit.coords] : empty
             );
     }
 }
 
-export const queenMoves: PieceDescription<Object> = {
+export const queenMoves: PieceDescription<PieceInfo> = {
     type: PieceType.Queen,
     move: (
-        _extraInfo,
-        _source,
-        ownColor,
+        { color },
         ray,
         _singleSquares,
         _isSquareAttacked): BoardCoords[] => {
@@ -40,105 +36,74 @@ export const queenMoves: PieceDescription<Object> = {
             .concat(getPerpendicularDirections())
             .map(ray)
             .flatMap(({ empty, hit }) =>
-                hit && hit.piece.color !== ownColor ? [...empty, hit.coords] : empty
+                hit && hit.piece.color !== color ? [...empty, hit.coords] : empty
             );
     }
 }
 
-export const rookMoves: PieceDescription<Object> = {
+export const rookMoves: PieceDescription<PieceInfo> = {
     type: PieceType.Rook,
     move: (
-        _extraInfo,
-        _source,
-        ownColor,
+        { color },
         ray,
-        _singleSquares,
+        _singleSquare,
+        _kingInCheckAfter: (coords: BoardCoords) => boolean,
         _isSquareAttacked): BoardCoords[] => {
         return getPerpendicularDirections()
             .map(ray)
             .flatMap(({ empty, hit }) =>
-                hit && hit.piece.color !== ownColor ? [...empty, hit.coords] : empty
+                hit && hit.piece.color !== color ? [...empty, hit.coords] : empty
             );
     }
 }
 
-export const knightMoves: PieceDescription<Object> = {
+export const knightMoves: PieceDescription<PieceInfo> = {
     type: PieceType.Knight,
     move: (
-        _extraInfo,
-        _source,
-        ownColor,
+        { color },
         _ray,
         singleSquare,
+        _kingInCheckAfter: (coords: BoardCoords) => boolean,
         _isSquareAttacked): BoardCoords[] => {
-        return [[2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]].map(singleSquare)
-            .filter(({ tile }) =>
-                tile instanceof EmptyTile || (tile as Piece).color !== ownColor
-            )
-            .map(({ coords }) => coords);
+        return [[2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]]
+            .map(singleSquare)
+            .filter(({ tile }) => tile instanceof EmptyTile || (tile as Piece).color === color)
+            .map(({ coords }) => coords)
     }
 }
 
-export const kingMoves: PieceDescription<KingExtraInfo> = {
+export const kingMoves: PieceDescription<KingInfo> = {
     type: PieceType.King,
     move: (
-        { shortCastleRight, longCastleRight },
-        _source,
-        _moveAllowed,
-        canCapture,
+        { source, color, shortCastleRight, longCastleRight },
         ray,
         singleSquare,
+        _kingInCheckAfter: (coords: BoardCoords) => boolean,
         isSquareAttacked): BoardCoords[] => {
         const normalMoves = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]]
             .map(singleSquare)
-            .filter(square => !isSquareAttacked(square))
             .filter(square => square != null)
-            .map(({ coords }) => coords);
-
-        const castleMoves = [
-            { cr: shortCastleRight, dir: Direction.Right, rookC: 7, relativeMove: [0, 2] },
-            { cr: longCastleRight, dir: Direction.Left, rookC: 0, relativeMove: [0, 2] }
-        ].filter(({ cr }) => cr)
-            .map(({ dir, rookC, relativeMove }) => { return { r: ray(dir), rookC, relativeMove } })
+            .filter(({ tile }) => tile instanceof EmptyTile || (tile as Piece).color === color)
+            .map(({ coords }) => coords)
+            .filter((coords) => !isSquareAttacked(coords));
+        const check = isSquareAttacked(source);
+        const castleMoves = check ? [] : [
+            { cr: shortCastleRight, dir: Direction.Right, rookC: 7},
+            { cr: longCastleRight, dir: Direction.Left, rookC: 0 }
+        ]
+            .filter(({ cr }) => cr)
+            .map(({ dir, rookC }) => { return { r: ray(dir), rookC } })
             .filter(({ r: { hit } }, rookC) => {
                 return hit && hit.coords.c == rookC;
             })
             .filter(({ r: { empty } }) => { empty.slice(0, 1).every((t) => !isSquareAttacked(t)) })
-            .
-            return[...normalMoves, ...castleMoves];
+            .map(({ r: { empty } }) => empty[1])
+
+        return [...normalMoves, ...castleMoves];
     }
 }
+
 /*
-canCastleInDirection(state: ChessVariantState, ownColor: PieceColor, cDirection: number): boolean {
-    const { boardState } = state;
-    const kingSquare = new BoardCoords(4, ownColor == PieceColor.White ? 0 : this.rows() - 1);
-    const ray = this.castRays(boardState, kingSquare, [[0, -1]]);
-    const { coords: lastTileCoords } = ray[ray.length - 1];
-    const expectedRookColumn = cDirection == 1 ? this.columns() - 1 : 0;
-    if (lastTileCoords.c != expectedRookColumn) {
-        return false;
-    }
-    const squaresAreEmpty = ray.slice(0, -1).every(({ tile }) => tile instanceof EmptyTile);
-    if (!squaresAreEmpty) {
-        return false;
-    }
-    const squaresAreNotAttacked = ray.slice(0, 1).every(({ coords }) =>
-        !this.isSquareAttacked(state, coords, ownColor)
-    );
-    return squaresAreNotAttacked;
-}
-castleMoves(state: ChessVariantState, source: BoardCoords, ownColor: PieceColor) {
-    const { boardState, castleRights } = state;
-    const castle = castleRights[ownColor];
-    let castleSquares: BoardCoords[] = [];
-    if (castle.short && this.canCastleInDirection(state, ownColor, 1)) {
-        castleSquares = [...castleSquares, ...this.singleSquares(boardState, source, [[0, 2]]).map(({ coords }) => coords)];
-    }
-    if (castle.long && this.canCastleInDirection(state, ownColor, -1)) {
-        castleSquares = [...castleSquares, ...this.singleSquares(boardState, source, [[0, -2]]).map(({ coords }) => coords)];
-    }
-    return castleSquares;
-}
 
 pawnMoves({ state: { boardState, enPassantSquare }, source, ownColor }: MoveFinderOptions) {
     const isWhite = ownColor === PieceColor.White;
