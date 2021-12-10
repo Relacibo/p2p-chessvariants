@@ -45,3 +45,5 @@ function App() {
     </Grommet>
   )
 }
+
+export default App;
