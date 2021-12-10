@@ -7,15 +7,16 @@ import { Chessboard } from '../chessboard/Chessboard';
 export function PlaygroundUI() {
     const { id } = useParams();
     return (
-        <Routes>
-            <Route path="/">
-                
-            </Route>
-            <Route path=":id">
-                <div>
-                    <Chessboard/>
-                </div>
-            </Route>
-        </Routes>
+        <div>
+            <Routes>
+                <Route path="/">
+                    <Route path=":id">
+                        <div>
+                            <Chessboard />
+                        </div>
+                    </Route>
+                </Route>
+            </Routes>
+        </div>
     )
 }

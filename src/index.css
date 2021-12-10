@@ -13,3 +13,6 @@ code {
     monospace;
 }
 */
+body {
+  margin: 0;
+}

@@ -4,7 +4,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
 import { Coords, VariantState } from "./types";
-import { VariantDescription } from "./variantDescription";
+import { VariantDescription } from "./types";
 import * as hardcoded from "./hardcodedVariants";
 import { getPieceAt } from "./util";
 
@@ -58,7 +58,7 @@ export const move = (key: string, source: Coords, destination: Coords, playerInd
             (typeof state.onMoveIndex == 'number' && state.onMoveIndex != playerIndex) ||
             (Array.isArray(state.onMoveIndex) && !state.onMoveIndex.includes(playerIndex))
         ) ||
-        !description.canMoveEnemyPieces && (getPieceAt(state, source)?.color != description.playerIndex2Color(playerIndex))) {
+        (getPieceAt(state, source)?.color != description.playerIndex2Color(playerIndex))) {
         return;
     }
     if (typeof possibleDestinations == "undefined") {
@@ -87,8 +87,6 @@ export const move = (key: string, source: Coords, destination: Coords, playerInd
 export const selectState = (state: RootState) => state.variantEnvironment
 export const selectGames = (state: RootState) => state.variantEnvironment.games
 export const selectDescriptions = (state: RootState) => state.variantEnvironment.descriptions
-
-export const variantEnvironmentReducer = slice.reducer;
 
 const getDescription = (location: DescriptionLocation): AppThunk<Promise<VariantDescription | null>> => {
     return async (dispatch, getState) => {
@@ -143,3 +141,5 @@ export const loadHardcodedVariants = (): AppThunk => (dispatch, getState) => {
         dispatch(saveVariantDescriptionInfo({ location, info: { name: value.name() } }));
     }
 }
+
+export default slice.reducer;

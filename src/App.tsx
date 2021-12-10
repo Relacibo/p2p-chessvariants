@@ -1,38 +1,44 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import logo from './logo.svg';
 import './App.css';
 import { PlaygroundUI } from './features/playground/PlaygroundUI';
-import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import { Route, BrowserRouter, Routes } from 'react-router-dom';
 import { SetupUI } from './features/setup/SetupUI';
-import { ToastContainer } from 'react-toastify';
-import { Grommet, ThemeType } from 'grommet';
+import { Icons, ToastContainer } from 'react-toastify';
+import { Anchor, dark, Grommet, Header, Heading, Nav, ThemeType } from 'grommet';
+import DarkmodeSelector from './features/darkmode/DarkmodeSelector';
+import { selectDarkmodeActive } from './features/darkmode/darkmodeSlice';
+import { RootState } from './app/store';
+import { connect, ConnectedProps } from 'react-redux';
+import theme from './theme';
 
-const theme: ThemeType = {
-  global: {
-    font: {
-      family: 'Roboto',
-      size: '18px',
-      height: '20px',
-    },
-  },
-};
-
-function App() {
+function App({ darkmodeActive }: Props) {
+  useEffect(() => {
+    console.log(darkmodeActive);
+  })
   return (
-    <Grommet theme={theme}>
-      <Router>
+    <Grommet full theme={theme} themeMode={darkmodeActive ? "dark" : "light"}>
+      <Header flex align="center" justify='between' direction="row" background="brand" pad="medium">
+        <Heading level='3' margin="none">pawn-connect.org</Heading>
+        <DarkmodeSelector />
+      </Header>
+      <BrowserRouter>
         <Routes>
-          <Route path="/game/*">
-            <PlaygroundUI />
-          </Route>
-          <Route path="/">
-            <SetupUI />
-          </Route>
+          <Route path="/game/*" element={<PlaygroundUI />} />
+          <Route path="/" element={<SetupUI />} />
         </Routes>
-      </Router>
+      </BrowserRouter>
       <ToastContainer />
     </Grommet>
   )
 }
 
-export default App;
+function mapState(state: RootState) {
+  return {
+    darkmodeActive: selectDarkmodeActive(state)
+  }
+}
+
+const connector = connect(mapState);
+type Props = ConnectedProps<typeof connector>
+export default connector(App);

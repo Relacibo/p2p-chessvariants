@@ -1,6 +1,4 @@
 import { configureStore, ThunkAction, Action, combineReducers } from '@reduxjs/toolkit';
-
-import { counterReducer } from '../features/counter/counterSlice';
 import {
   persistStore,
   persistReducer,
@@ -12,7 +10,8 @@ import {
   REGISTER,
 } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
-import { variantEnvironmentReducer } from '../features/variant-environment/variantsSlice';
+import darkmode from '../features/darkmode/darkmodeSlice';
+import variantEnvironment from '../features/variant-environment/variantsSlice';
 
 const persistConfig = {
   key: 'root',
@@ -21,7 +20,8 @@ const persistConfig = {
 }
 
 const rootReducer = combineReducers({
-  variantEnvironment: variantEnvironmentReducer
+  darkmode,
+  variantEnvironment
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer)
