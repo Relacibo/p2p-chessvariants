@@ -1,8 +1,8 @@
 export interface PlaygroundState {
-    variant: Variant
+  variant: Variant
 }
 
 export type Variant = {
-    source: "online",
-    address: string,
+  source: "online",
+  address: string,
 }

@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-
-import { useAppSelector, useAppDispatch } from '../../app/hooks';
+import { useSelector } from 'react-redux';
+import { useAppDispatch } from '../../app/hooks';
+import { useParams } from 'react-router-dom';
 
 export function Chessboard() {
-    return (
-        <div>
+  const { id: string } = useParams()
+  return (
+    <div>
 
-        </div>
-    )
+    </div>
+  )
 }
+
+export default Chessboard;

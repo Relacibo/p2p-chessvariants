@@ -1,18 +1,15 @@
 import { connect, ConnectedProps } from "react-redux"
-import { DarkmodeState, selectDarkmodeActive, setDarkmode } from "./darkmodeSlice"
+import { selectDarkmodeActive, setDarkmode } from "./darkmodeSlice"
 import { RootState } from "../../app/store";
 import { CheckBox } from "grommet";
+import { useSelector } from 'react-redux';
+import { useAppDispatch } from '../../app/hooks';
 
-function DarkmodeSelector({ dark, setDarkmode }: Props) {
-  return (<CheckBox checked={dark} label="Dark mode" onChange={event => setDarkmode(event.target.checked)}></CheckBox>);
+function DarkmodeSelector() {
+  const dispatch = useAppDispatch();
+  const dark = useSelector(selectDarkmodeActive);
+  return (<CheckBox checked={dark} label="Dark mode" onChange={({ target: { checked } }) => dispatch(setDarkmode(checked))
+  }></CheckBox >);
 }
 
-function mapState(state: RootState) {
-  return {
-    dark: selectDarkmodeActive(state)
-  };
-}
-
-const connector = connect(mapState, { setDarkmode });
-type Props = ConnectedProps<typeof connector>
-export default connector(DarkmodeSelector);
+export default DarkmodeSelector;

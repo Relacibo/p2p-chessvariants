@@ -5,6 +5,9 @@ import { deepMerge } from "grommet/utils";
 
 const theme: ThemeType = {
     global: {
+        font: {
+            family: "Source Sans Pro"
+        },
         colors: {
             text: {
                 dark: "#f8f8f8",
@@ -16,8 +19,12 @@ const theme: ThemeType = {
                 light: "#c27bec",
             },
             "neutral-2": {
-                dark: "#721ca6",
+                dark: "#462857",
                 light: "#daaaf7",
+            },
+            "neutral-3": {
+                dark: "#634973",
+                light: "#f4e0ff",
             },
             "light-1": {
                 dark: "#505050",
