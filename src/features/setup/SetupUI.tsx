@@ -1,4 +1,6 @@
 import { Box, Button, Form, FormField, Heading, TextInput } from 'grommet';
+import { useCallback, useEffect } from 'react';
+import { toast } from 'react-toastify';
 
 
 function SetupUI() {
@@ -10,7 +12,7 @@ function SetupUI() {
       pad={{ top: 'medium' }}
     >
       <Box width='large' pad={{ horizontal: 'small', bottom: 'medium', top: 'small' }} round background="neutral-1" elevation='small'>
-        <Form>
+        <Form onSubmit={() => toast.info("Hier gibt es wirklich nichts!")}>
           <Heading textAlign='center' margin={{ top: "small", bottom: "medium" }}>Setup</Heading>
           <FormField align='center' label="Gebe was ein!">
             <TextInput />

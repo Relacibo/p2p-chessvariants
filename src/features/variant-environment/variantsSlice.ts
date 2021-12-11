@@ -13,7 +13,10 @@ export type DescriptionInfo = { name: string, description?: string };
 
 const temporaryVariantDescriptions = new Map<DescriptionLocation, VariantDescription>();
 
-export const slice = createSlice({
+export const { actions: {
+  setVariantState,
+  saveVariantDescriptionInfo
+}, reducer } = createSlice({
   name: 'chessboard',
   initialState: {
     descriptions: new Map<DescriptionLocation, DescriptionInfo>(),
@@ -40,13 +43,11 @@ export const slice = createSlice({
   }
 });
 
-export const { setVariantState, saveVariantDescriptionInfo } = slice.actions;
-
 export const move = (key: string, source: Coords, destination: Coords, playerIndex: number, possibleDestinations?: Coords[]): AppThunk => async (
   dispatch,
   getState
 ) => {
-  const { descriptions, games } = selectState(getState());
+  const { games } = selectState(getState());
   const variant = games.get(key);
   if (!variant) {
     return;
@@ -91,7 +92,7 @@ export const selectDescriptions = (state: RootState) => state.variantEnvironment
 const getDescription = (location: DescriptionLocation): AppThunk<Promise<VariantDescription | null>> => {
   return async (dispatch, getState) => {
     let description = temporaryVariantDescriptions.get(location);
-    if (description) {
+    if (typeof description !== "undefined") {
       return description;
     }
     switch (location.source) {
@@ -112,13 +113,15 @@ const getDescription = (location: DescriptionLocation): AppThunk<Promise<Variant
           }
         }
         try {
-          description = eval(descriptionString) as VariantDescription;
+          const worker: Worker = new Worker('');
+          description = [] as any; //TODO
         } catch (e) {
           if (e instanceof Error) {
             toast.error(e.message);
           }
           return null;
         }
+        assert(typeof description !== 'undefined')
         dispatch(saveVariantDescriptionInfo({
           location,
           info: { name: description.name(), description: descriptionString }
@@ -129,11 +132,11 @@ const getDescription = (location: DescriptionLocation): AppThunk<Promise<Variant
         return null;
     }
     temporaryVariantDescriptions.set(location, description);
-    return description;
+    return description!;
   }
 }
 
-export const loadHardcodedVariants = (): AppThunk => (dispatch, getState) => {
+export const loadHardcodedVariants = (): AppThunk => (dispatch, _getState) => {
   for (const key in hardcoded) {
     const value: VariantDescription = (hardcoded as any)[key];
     const location: DescriptionLocation = { source: "hardcoded", key }
@@ -142,4 +145,4 @@ export const loadHardcodedVariants = (): AppThunk => (dispatch, getState) => {
   }
 }
 
-export default slice.reducer;
+export default reducer;

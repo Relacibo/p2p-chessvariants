@@ -5,7 +5,7 @@ export type DarkmodeState = {
   dark: boolean
 }
 
-export const slice = createSlice({
+export const { actions: { setDarkmode }, reducer } = createSlice({
   name: 'darkmode',
   initialState: {
     dark: false,
@@ -17,8 +17,6 @@ export const slice = createSlice({
   }
 });
 
-export const { setDarkmode } = slice.actions;
-
 export const selectDarkmodeActive = (state: RootState) => state.darkmode.dark;
 
-export default slice.reducer;
+export default reducer;
