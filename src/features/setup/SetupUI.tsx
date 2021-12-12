@@ -1,7 +1,5 @@
 import { Box, Button, Form, FormField, Heading, TextInput } from 'grommet';
-import { useCallback, useEffect } from 'react';
 import { toast } from 'react-toastify';
-
 
 function SetupUI() {
   return (

@@ -7,11 +7,15 @@ import { Coords, VariantState } from "./types";
 import { VariantDescription } from "./types";
 import * as hardcoded from "./hardcodedVariants";
 import { getPieceAt } from "./util";
+import { spawn, Thread, Worker } from "threads"
 
 export type DescriptionLocation = { source: "url", url: string } | { source: "hardcoded", key: string }
 export type DescriptionInfo = { name: string, description?: string };
 
-const temporaryVariantDescriptions = new Map<DescriptionLocation, VariantDescription>();
+(async () => {
+  const worker = await spawn(new Worker('../../worker/worker.ts'))
+})()
+
 
 export const { actions: {
   setVariantState,
@@ -88,61 +92,5 @@ export const move = (key: string, source: Coords, destination: Coords, playerInd
 export const selectState = (state: RootState) => state.variantEnvironment
 export const selectGames = (state: RootState) => state.variantEnvironment.games
 export const selectDescriptions = (state: RootState) => state.variantEnvironment.descriptions
-
-const getDescription = (location: DescriptionLocation): AppThunk<Promise<VariantDescription | null>> => {
-  return async (dispatch, getState) => {
-    let description = temporaryVariantDescriptions.get(location);
-    if (typeof description !== "undefined") {
-      return description;
-    }
-    switch (location.source) {
-      case "url": {
-        let descriptionString = selectDescriptions(getState()).get(location)?.description;
-        if (!descriptionString) {
-          let res;
-          try {
-            res = await axios.get(location.url);
-          } catch (e) {
-            toast.error("Could not fetch variant url!");
-            return null;
-          }
-          descriptionString = res.data;
-          if (!descriptionString) {
-            toast.error("Could not fetch variant url!");
-            return null;
-          }
-        }
-        try {
-          const worker: Worker = new Worker('');
-          description = [] as any; //TODO
-        } catch (e) {
-          if (e instanceof Error) {
-            toast.error(e.message);
-          }
-          return null;
-        }
-        assert(typeof description !== 'undefined')
-        dispatch(saveVariantDescriptionInfo({
-          location,
-          info: { name: description.name(), description: descriptionString }
-        }));
-        break;
-      }
-      default:
-        return null;
-    }
-    temporaryVariantDescriptions.set(location, description);
-    return description!;
-  }
-}
-
-export const loadHardcodedVariants = (): AppThunk => (dispatch, _getState) => {
-  for (const key in hardcoded) {
-    const value: VariantDescription = (hardcoded as any)[key];
-    const location: DescriptionLocation = { source: "hardcoded", key }
-    temporaryVariantDescriptions.set(location, value);
-    dispatch(saveVariantDescriptionInfo({ location, info: { name: value.name() } }));
-  }
-}
 
 export default reducer;
