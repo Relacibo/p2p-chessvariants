@@ -20,8 +20,7 @@ const persistConfig = {
 }
 
 const rootReducer = combineReducers({
-  darkmode,
-  variantEnvironment
+  darkmode
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer)

@@ -1,4 +1,4 @@
-import { Coords, Piece, VariantState, BoardState, TileData, ReservePileState, BoardCoords, ReservePileCoords, PieceColor, PieceType, Direction, EmptyTile } from "./types";
+import { Coords, Piece, BoardState, TileData, ReservePileState, BoardCoords, ReservePileCoords, Direction, EmptyTile } from "./types";
 
 export function getPieceAt({ boardState, reservePile }: { boardState?: BoardState | BoardState[], reservePile?: null | ReservePileState | ReservePileState[] }, coords: Coords): Piece | null {
   if (coords instanceof BoardCoords) {

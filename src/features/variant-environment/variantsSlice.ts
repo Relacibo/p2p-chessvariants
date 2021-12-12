@@ -1,19 +1,12 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import assert from "assert";
-import axios from "axios";
 import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
-import { Coords, VariantState } from "./types";
-import { VariantDescription } from "./types";
-import * as hardcoded from "./hardcodedVariants";
-import { getPieceAt } from "./util";
-import { spawn, Thread, Worker } from "threads"
-
-export type DescriptionLocation = { source: "url", url: string } | { source: "hardcoded", key: string }
-export type DescriptionInfo = { name: string, description?: string };
+import { Coords, VariantState } from "../../game-worker/types";
+import { getPieceAt } from "../../game-worker/util";
+import { spawn, Worker } from "threads"
 
 (async () => {
-  const worker = await spawn(new Worker('../../worker/worker.ts'))
+  const worker = await spawn(new Worker('../../worker/worker.ts'));
 })()
 
 
