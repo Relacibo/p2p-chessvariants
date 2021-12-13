@@ -195,7 +195,8 @@ export const pawnMoves: PieceDescription<PawnInfo> = {
           ((tile instanceof Piece && (tile as Piece).color !== color) ||
             (enPassantSquare != null && coords.equals(enPassantSquare)))
       )
-      .map(({ coords }) => coords);
+      .map(({ coords }) => coords)
+      .filter((coords) => !kingInCheckAfter(coords));
 
     return [...moves, ...captures];
   },
