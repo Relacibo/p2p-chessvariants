@@ -1,6 +1,4 @@
-import { connect, ConnectedProps } from "react-redux";
 import { selectDarkmodeActive, setDarkmode } from "./darkmodeSlice";
-import { RootState } from "../../app/store";
 import { CheckBox } from "grommet";
 import { useSelector } from "react-redux";
 import { useAppDispatch } from "../../app/hooks";
