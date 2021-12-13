@@ -1,25 +1,25 @@
 export interface VariantState {
-  status: VariantStatus,
-  onMoveIndex: number | number[],
-  canClaimDraw: number | number[],
-  boardState: BoardState | BoardState[],
-  reservePile: null | ReservePileState | ReservePileState[],
+  status: VariantStatus;
+  onMoveIndex: number | number[];
+  canClaimDraw: number | number[];
+  boardState: BoardState | BoardState[];
+  reservePile: null | ReservePileState | ReservePileState[];
 }
 
-export interface VariantStatus { }
+export interface VariantStatus {}
 
-export class NotStarted implements VariantStatus { }
+export class NotStarted implements VariantStatus {}
 
-export class Ongoing implements VariantStatus { }
+export class Ongoing implements VariantStatus {}
 
 export class NeverStarted implements VariantStatus {
-  constructor(readonly reason: string) { }
+  constructor(readonly reason: string) {}
 }
 
-export class Draw implements VariantStatus { }
+export class Draw implements VariantStatus {}
 
 export class Decisive implements VariantStatus {
-  constructor(readonly winnerIndex: number, readonly reason: string) { }
+  constructor(readonly winnerIndex: number, readonly reason: string) {}
 }
 
 export type BoardState = (TileData | null)[][];
@@ -35,9 +35,13 @@ export class EmptyTile {
   }
 }
 export class Piece {
-  constructor(readonly color: PieceColor, readonly piece: PieceType) { }
+  constructor(readonly color: PieceColor, readonly piece: PieceType) {}
   equals(other: TileData | null): boolean {
-    return (other instanceof Piece) && this.color == other.color && this.piece == other.piece;
+    return (
+      other instanceof Piece &&
+      this.color == other.color &&
+      this.piece == other.piece
+    );
   }
 }
 export enum PieceType {
@@ -46,7 +50,7 @@ export enum PieceType {
   Bishop = "bishop",
   Rook = "rook",
   Queen = "queen",
-  King = "king"
+  King = "king",
 }
 
 export enum PieceColor {
@@ -66,12 +70,20 @@ export interface Coords {
 }
 
 export class BoardCoords implements Coords {
-  constructor(readonly c: number, readonly r: number, readonly gameIndex?: number) { }
+  constructor(
+    readonly c: number,
+    readonly r: number,
+    readonly gameIndex?: number
+  ) {}
   equals(other: Coords): boolean {
     if (!(other instanceof BoardCoords)) {
       return false;
     }
-    return this.c == other.c && this.r == other.r && this.gameIndex == other.gameIndex;
+    return (
+      this.c == other.c &&
+      this.r == other.r &&
+      this.gameIndex == other.gameIndex
+    );
   }
   toArray() {
     return [this.c, this.r];
@@ -88,7 +100,10 @@ export class BoardCoords implements Coords {
 }
 
 export class ReservePileCoords implements Coords {
-  constructor(readonly index: number | null = null, readonly gameIndex?: number) { }
+  constructor(
+    readonly index: number | null = null,
+    readonly gameIndex?: number
+  ) {}
   equals(other: Coords): boolean {
     if (!(other instanceof ReservePileCoords)) {
       return false;
@@ -112,30 +127,48 @@ export interface VariantDescription {
   name(): string;
   minimumPlayers(): number;
   maximumPlayers(): number;
-  possibleDestinations(state: VariantState, coords: Coords, playerIndex?: number): Coords[];
-  move(state: VariantState, source: Coords, destination: Coords, playerIndex?: number): VariantState;
-  initialState(base: VariantState, playerCount: number, localPlayerIndex: number): VariantState;
+  possibleDestinations(
+    state: VariantState,
+    coords: Coords,
+    playerIndex?: number
+  ): Coords[];
+  move(
+    state: VariantState,
+    source: Coords,
+    destination: Coords,
+    playerIndex?: number
+  ): VariantState;
+  initialState(
+    base: VariantState,
+    playerCount: number,
+    localPlayerIndex: number
+  ): VariantState;
   promote(state: VariantState, destination: Coords, piece: Piece): VariantState;
   playerIndex2Color(index: number): PieceColor | null;
   color2PlayerIndex(color: PieceColor): number | null;
-  playerIndex2Orientation(playerIndex: number): BoardOrientation | BoardOrientation[];
+  playerIndex2Orientation(
+    playerIndex: number
+  ): BoardOrientation | BoardOrientation[];
   state2StorageString?(state: VariantState): string | null;
   storageString2StateArray?(storageString: string): VariantState[];
   createPositionString?(state: VariantState): string | null;
 }
 
 export interface PieceInfo {
-  source: BoardCoords,
-  color: PieceColor
+  source: BoardCoords;
+  color: PieceColor;
 }
 
 export interface PieceDescription<T extends PieceInfo> {
-  type: PieceType,
+  type: PieceType;
   move: (
     info: T,
-    ray: (direction: Direction) => { empty: BoardCoords[], hit?: { coords: BoardCoords, piece: Piece } },
-    singleSquare: (jumps: number[]) => { coords: BoardCoords, tile: TileData },
+    ray: (direction: Direction) => {
+      empty: BoardCoords[];
+      hit?: { coords: BoardCoords; piece: Piece };
+    },
+    singleSquare: (jumps: number[]) => { coords: BoardCoords; tile: TileData },
     kingInCheckAfter: (coords: BoardCoords) => boolean,
     isSquareAttacked: (coords: BoardCoords) => boolean
-  ) => BoardCoords[],
+  ) => BoardCoords[];
 }

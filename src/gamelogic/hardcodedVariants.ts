@@ -1,14 +1,23 @@
-import { BoardCoords, BoardOrientation, BoardState, Coords, EmptyTile, Ongoing, Piece, PieceColor, PieceType, TileData, VariantDescription, VariantState } from "./types";
-import { getPositionsOfPiece, getPieceAt, isSingularBoardState, getTileAt } from "./util";
+import {
+  BoardCoords,
+  BoardOrientation,
+  BoardState,
+  Coords,
+  EmptyTile,
+  Piece,
+  PieceColor,
+  VariantDescription,
+  VariantState,
+} from "./types";
 
 export interface ChessVariantState extends VariantState {
-  enPassantSquare: BoardCoords | null,
+  enPassantSquare: BoardCoords | null;
   castleRights: {
-    white: { short: boolean, long: boolean },
-    black: { short: boolean, long: boolean },
-  },
-  noPawnMoveAndCaptureSince: number,
-  positionHashes: string[],
+    white: { short: boolean; long: boolean };
+    black: { short: boolean; long: boolean };
+  };
+  noPawnMoveAndCaptureSince: number;
+  positionHashes: string[];
 }
 
 class Chess implements VariantDescription {
@@ -18,7 +27,11 @@ class Chess implements VariantDescription {
   maximumPlayers = () => 2;
   rows = () => 8;
   columns = () => 8;
-  possibleDestinations(state: VariantState, coords: Coords, playerIndex?: number): Coords[] {
+  possibleDestinations(
+    state: VariantState,
+    coords: Coords,
+    playerIndex?: number
+  ): Coords[] {
     throw new Error("Method not implemented.");
   }
   /*getAttackers({ boardState }: ChessVariantState, source: BoardCoords, ownColor: PieceColor): {
@@ -172,7 +185,11 @@ class Chess implements VariantDescription {
           }).map(({ destination }) => destination);
       }
   }*/
-  move(state: ChessVariantState, source: BoardCoords, destination: BoardCoords): ChessVariantState {
+  move(
+    state: ChessVariantState,
+    source: BoardCoords,
+    destination: BoardCoords
+  ): ChessVariantState {
     const boardState = state.boardState as BoardState;
     const { c: cSource, r: rSource } = source;
     const { c: cDestination, r: rDestination } = destination;
@@ -187,30 +204,45 @@ class Chess implements VariantDescription {
       ...base,
       boardState,
       enPassantSquare: null,
-      castleRights: { white: { short: true, long: true }, black: { short: true, long: true } },
+      castleRights: {
+        white: { short: true, long: true },
+        black: { short: true, long: true },
+      },
       noPawnMoveAndCaptureSince: 0,
-      positionHashes: []
+      positionHashes: [],
     };
   }
   playerIndex2Color(index: number): PieceColor {
     switch (index) {
-      case 1: return PieceColor.Black;
-      default: return PieceColor.White;
+      case 1:
+        return PieceColor.Black;
+      default:
+        return PieceColor.White;
     }
   }
   color2PlayerIndex(color: PieceColor): number {
     switch (color) {
-      case PieceColor.Black: return 1;
-      default: return 0;
+      case PieceColor.Black:
+        return 1;
+      default:
+        return 0;
     }
   }
-  playerIndex2Orientation(playerIndex: number): BoardOrientation | BoardOrientation[] {
+  playerIndex2Orientation(
+    playerIndex: number
+  ): BoardOrientation | BoardOrientation[] {
     switch (playerIndex) {
-      case 1: return BoardOrientation.Rotation180;
-      default: return BoardOrientation.NoRotiation;
+      case 1:
+        return BoardOrientation.Rotation180;
+      default:
+        return BoardOrientation.NoRotiation;
     }
   }
-  promote(state: VariantState, destination: Coords, piece: Piece): VariantState {
+  promote(
+    state: VariantState,
+    destination: Coords,
+    piece: Piece
+  ): VariantState {
     throw new Error("Function not implemented.");
   }
 }

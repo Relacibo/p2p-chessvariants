@@ -1,4 +1,9 @@
-import { configureStore, ThunkAction, Action, combineReducers } from '@reduxjs/toolkit';
+import {
+  configureStore,
+  ThunkAction,
+  Action,
+  combineReducers,
+} from "@reduxjs/toolkit";
 import {
   persistStore,
   persistReducer,
@@ -8,22 +13,23 @@ import {
   PERSIST,
   PURGE,
   REGISTER,
-} from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
-import darkmode from '../features/darkmode/darkmodeSlice';
-import variantEnvironment from '../features/variant-environment/variantsSlice';
+} from "redux-persist";
+import storage from "redux-persist/lib/storage";
+import darkmode from "../features/darkmode/darkmodeSlice";
+import variantEnvironment from "../features/variant-environment/variantsSlice";
 
 const persistConfig = {
-  key: 'root',
+  key: "root",
   version: 1,
   storage,
-}
+};
 
 const rootReducer = combineReducers({
-  darkmode
+  darkmode,
+  variantEnvironment,
 });
 
-const persistedReducer = persistReducer(persistConfig, rootReducer)
+const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 export const store = configureStore({
   reducer: persistedReducer,

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Route, Routes, useParams } from 'react-router';
+import React, { useState } from "react";
+import { Route, Routes, useParams } from "react-router";
 
-import { useAppSelector, useAppDispatch } from '../../app/hooks';
-import { Chessboard } from '../chessboard/Chessboard';
-import StorageDisplay from '../StorageDisplay';
+import { useAppSelector, useAppDispatch } from "../../app/hooks";
+import { Chessboard } from "../chessboard/Chessboard";
+import StorageDisplay from "../StorageDisplay";
 
 function PlaygroundUI() {
   const { id } = useParams();
@@ -16,7 +16,7 @@ function PlaygroundUI() {
         </Route>
       </Routes>
     </div>
-  )
+  );
 }
 
 export default PlaygroundUI;

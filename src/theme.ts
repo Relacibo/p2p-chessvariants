@@ -1,17 +1,17 @@
 import { ThemeType } from "grommet";
 
-import { grommet } from 'grommet';
+import { grommet } from "grommet";
 import { deepMerge } from "grommet/utils";
 
 const theme: ThemeType = {
   global: {
     font: {
-      family: "Source Sans Pro"
+      family: "Source Sans Pro",
     },
     colors: {
       text: {
         dark: "#f8f8f8",
-        light: "#150022"
+        light: "#150022",
       },
       brand: "#540c7d",
       "neutral-1": {
@@ -76,5 +76,5 @@ const theme: ThemeType = {
       },
     },
   },
-}
+};
 export default deepMerge(grommet, theme);

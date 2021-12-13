@@ -1,8 +1,7 @@
-@import url('https://fonts.googleapis.com/css?family=Strait&family=Source+Sans+Pro:regular,bold,italic&subset=latin,latin-ext&display=swap');
-
+@import url("https://fonts.googleapis.com/css?family=Strait&family=Source+Sans+Pro:regular,bold,italic&subset=latin,latin-ext&display=swap");
 
 .navbar-title {
-  font-family: 'Strait';
+  font-family: "Strait";
   color: inherit;
   text-decoration: none;
 }
