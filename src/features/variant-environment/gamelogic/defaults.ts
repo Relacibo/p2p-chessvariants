@@ -3,6 +3,7 @@ import {
   Direction,
   EmptyTile,
   Piece,
+  PieceColor,
   PieceDescription,
   PieceInfo,
   PieceType,
@@ -16,7 +17,6 @@ export interface KingInfo extends PieceInfo {
 
 export interface PawnInfo extends PieceInfo {
   enPassantSquare: BoardCoords | null;
-  pawnRDirection: number;
 }
 
 export const bishopMoves: PieceDescription<PieceInfo> = {
@@ -96,7 +96,7 @@ export const knightMoves: PieceDescription<PieceInfo> = {
       .map(singleSquare)
       .filter(
         ({ tile }) =>
-          tile instanceof EmptyTile || (tile as Piece).color === color
+          tile instanceof EmptyTile || (tile as Piece).color !== color
       )
       .map(({ coords }) => coords)
       .filter((coords) => !kingInCheckAfter(coords));
@@ -126,7 +126,7 @@ export const kingMoves: PieceDescription<KingInfo> = {
       .filter((square) => square != null)
       .filter(
         ({ tile }) =>
-          tile instanceof EmptyTile || (tile as Piece).color === color
+          tile instanceof EmptyTile || (tile as Piece).color !== color
       )
       .map(({ coords }) => coords)
       .filter((coords) => !isSquareAttacked(coords));
@@ -156,44 +156,47 @@ export const kingMoves: PieceDescription<KingInfo> = {
 export const pawnMoves: PieceDescription<PawnInfo> = {
   type: PieceType.Pawn,
   move: (
-    { source, color, enPassantSquare, pawnRDirection },
-    ray,
+    { source, color, enPassantSquare },
+    _ray,
     singleSquare,
-    _kingInCheckAfter: (coords: BoardCoords) => boolean,
+    kingInCheckAfter: (coords: BoardCoords) => boolean,
     _isSquareAttacked
   ): BoardCoords[] => {
+    let pawnRDirection;
+    let startingR;
+    if (color === PieceColor.White) {
+      pawnRDirection = 1;
+      startingR = 1;
+    } else {
+      pawnRDirection = -1;
+      startingR = 6;
+    }
     let moves = [];
     const { coords, tile } = singleSquare([pawnRDirection, 0]);
-    if (tile instanceof EmptyTile) {
+    const tileEmpty = tile instanceof EmptyTile;
+    if (tileEmpty && !kingInCheckAfter(coords)) {
       moves.push(coords);
     }
-    return moves;
+    if (tileEmpty && source.r == startingR) {
+      const { coords, tile } = singleSquare([pawnRDirection * 2, 0]);
+      if (tile instanceof EmptyTile && !kingInCheckAfter(coords)) {
+        moves.push(coords);
+      }
+    }
+
+    const captures = [
+      [pawnRDirection, -1],
+      [pawnRDirection, 1],
+    ]
+      .map(singleSquare)
+      .filter(
+        ({ coords, tile }) =>
+          tile != null &&
+          ((tile instanceof Piece && (tile as Piece).color !== color) ||
+            (enPassantSquare != null && coords.equals(enPassantSquare)))
+      )
+      .map(({ coords }) => coords);
+
+    return [...moves, ...captures];
   },
 };
-
-/*
-
-pawnMoves({ state: { boardState, enPassantSquare }, source, ownColor }: MoveFinderOptions) {
-    const isWhite = ownColor === PieceColor.White;
-    let moves = this.singleSquares(boardState, source, isWhite ? [[1, 0]] : [[-1, 0]])
-        .filter(({ tile }) =>
-            tile instanceof EmptyTile
-        )
-        .map(({ coords }) => coords);
-    if (moves.length > 0 && (isWhite && source.r == 1 || !isWhite && source.r == 6)) {
-        const startingJump = this.singleSquares(boardState, source, isWhite ? [[2, 0]] : [[-2, 0]]).filter(({ tile }) =>
-            tile instanceof EmptyTile
-        ).map(({ coords }) => coords);
-        moves = [...moves, ...startingJump]
-    }
-    const captures = this.singleSquares(boardState, source, ownColor === PieceColor.White ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]])
-        .filter(({ coords, tile }) =>
-            tile != null &&
-            (
-                (tile instanceof Piece && this.isPieceCapturable(ownColor!, tile)) ||
-                enPassantSquare != null && coords.equals(enPassantSquare)
-            )
-        )
-        .map(({ coords }) => coords);
-    return [...moves, ...captures];
-}*/

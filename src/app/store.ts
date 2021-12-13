@@ -22,6 +22,7 @@ const persistConfig = {
   key: "root",
   version: 1,
   storage,
+  blacklist: ["variantEnvironment.workerLoaded"]
 };
 
 const rootReducer = combineReducers({

@@ -1,9 +1,80 @@
 import { expose } from "threads";
+import {
+  BoardCoords,
+  VariantDescription,
+  VariantState,
+} from "./gamelogic/types";
+import { MoveParams } from "./variantsSlice";
 
-export interface WorkerFunctions {}
+export type DescriptionLocation =
+  | { source: "url"; url: string }
+  | { source: "hardcoded"; key: string };
+export type DescriptionInfo = { name: string; description?: string };
 
-const workerFunctions: WorkerFunctions = {
-  test() {},
+export interface VariantsWorker {
+  move(
+    variantKey: string,
+    oldState: VariantState,
+    params: MoveParams
+  ): VariantState;
+  loadScript(url: string): Promise<string>;
+}
+
+const workerFunctions: VariantsWorker = {
+  move(
+    variantKey: string,
+    oldState: VariantState,
+    params: MoveParams
+  ): VariantState {
+    const { source, destination, playerIndex } = params;
+    /* Lookup if move is allowed */
+    const description = getDescription(descriptionLocation);
+    if (
+      !description ||
+      (typeof state.onMoveIndex == "number" &&
+        state.onMoveIndex != playerIndex) ||
+      (Array.isArray(state.onMoveIndex) &&
+        !state.onMoveIndex.includes(playerIndex)) ||
+      getPieceAt(state, source)?.color !=
+        description.playerIndex2Color(playerIndex)
+    ) {
+      return;
+    }
+    if (typeof possibleDestinations == "undefined") {
+      possibleDestinations = description.possibleDestinations(
+        state,
+        source,
+        playerIndex
+      );
+    }
+
+    const isMovePossible =
+      typeof possibleDestinations.find((possible) =>
+        destination.equals(possible)
+      ) != "undefined";
+    if (!isMovePossible) {
+      return;
+    }
+    let newState: VariantState | null = null;
+    try {
+      newState = description.move(state, source, destination, playerIndex);
+      if (newState === null) {
+        toast.error("Calculated state is null after making move!");
+      }
+    } catch (e) {
+      toast.error(
+        `Error executing move! ${source} -> ${destination} ${
+          playerIndex ? `Player: ${playerIndex}` : ""
+        }`
+      );
+      return;
+    }
+    toast(
+      `Move: ${source} -> ${destination} ${
+        playerIndex ? `Player: ${playerIndex}` : ""
+      }`
+    );
+  },
 };
 
 expose(workerFunctions as any);

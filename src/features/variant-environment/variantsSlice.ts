@@ -1,14 +1,16 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { toast } from "react-toastify";
+import { spawn } from "threads";
 import { AppThunk, RootState } from "../../app/store";
-import { Coords, VariantState } from "../../gamelogic/types";
-import { getPieceAt } from "../../gamelogic/util";
-import { spawn, Worker } from "threads";
-import { DescriptionLocation } from "../../gameworker/gameworker";
+import { Coords, VariantState } from "./gamelogic/types";
+import { VariantsWorker } from "./worker";
 
-(async () => {
-  const worker = await spawn(new Worker("../../worker/worker.ts"));
-})();
+export let worker: VariantsWorker | null = null;
+
+export type MoveParams = {
+  source: Coords;
+  destination: Coords;
+  playerIndex: number;
+};
 
 export type GameInfo = {
   variantKey: string;
@@ -16,20 +18,56 @@ export type GameInfo = {
 };
 
 export type URLVariantInfo = {
-  name: string;
+  loadingState: "loading" | "loaded" | "error";
   url: string;
+  name?: string;
 };
-
 export const {
-  actions: { changeGameState, addCustomVariant },
+  actions: {
+    loadingScript,
+    loadedScript,
+    failedLoadingScript,
+    startGame,
+    changeGameState,
+    setWorkerLoaded,
+  },
   reducer,
 } = createSlice({
   name: "chessboard",
   initialState: {
     games: new Map<string, GameInfo>(),
     customVariants: new Map<string, URLVariantInfo>(),
+    workerLoaded: false,
   },
   reducers: {
+    loadingScript: (
+      { customVariants },
+      action: PayloadAction<{ key: string; url: string }>
+    ) => {
+      const { key, url } = action.payload;
+      customVariants.set(key, { loadingState: "loading", url });
+    },
+    loadedScript: (
+      { customVariants },
+      action: PayloadAction<{ key: string; name: string }>
+    ) => {
+      const { key, name } = action.payload;
+      const entry = customVariants.get(key);
+      if (entry == null) {
+        return;
+      }
+      customVariants.set(key, {
+        ...entry,
+        loadingState: "loaded",
+        name,
+      });
+    },
+    failedLoadingScript: (
+      { customVariants },
+      action: PayloadAction<string>
+    ) => {
+      customVariants.delete(action.payload);
+    },
     startGame: (
       { games },
       action: PayloadAction<{
@@ -55,83 +93,46 @@ export const {
       }
       variantState.state = newState;
     },
-    addCustomVariant: (
-      { customVariants },
-      action: PayloadAction<{ key: string; name: string; url: string }>
-    ) => {
-      const { key, name, url } = action.payload;
-      customVariants.set(key, { name, url });
+    setWorkerLoaded: (state, action: PayloadAction<boolean>) => {
+      state.workerLoaded = action.payload;
     },
   },
 });
 
+export const initializeWorker = (): AppThunk => async (dispatch) => {
+  worker = (await spawn(new Worker("worker.ts"))) as any as VariantsWorker;
+  dispatch(setWorkerLoaded(true));
+};
+
+export const loadScript =
+  (url: string): AppThunk =>
+  async (dispatch) => {
+    dispatch(loadingScript({ key: url, url }));
+    try {
+      const name = await worker!.loadScript(url);
+      dispatch(loadedScript({ key: url, name }));
+    } catch {
+      dispatch(failedLoadingScript(url));
+    }
+  };
+
 export const move =
-  (
-    key: string,
-    source: Coords,
-    destination: Coords,
-    playerIndex: number,
-    possibleDestinations?: Coords[]
-  ): AppThunk =>
+  (key: string, moveParams: MoveParams): AppThunk =>
   async (dispatch, getState) => {
     const { games } = selectState(getState());
-    const variant = games.get(key);
-    if (!variant) {
+    const game = games.get(key);
+    if (!game) {
       return;
     }
-    const { descriptionLocation, state } = variant;
-    const description = await dispatch(getDescription(descriptionLocation));
-    if (
-      !description ||
-      (typeof state.onMoveIndex == "number" &&
-        state.onMoveIndex != playerIndex) ||
-      (Array.isArray(state.onMoveIndex) &&
-        !state.onMoveIndex.includes(playerIndex)) ||
-      getPieceAt(state, source)?.color !=
-        description.playerIndex2Color(playerIndex)
-    ) {
-      return;
-    }
-    if (typeof possibleDestinations == "undefined") {
-      possibleDestinations = description.possibleDestinations(
-        state,
-        source,
-        playerIndex
-      );
-    }
-
-    const isMovePossible =
-      typeof possibleDestinations.find((possible) =>
-        destination.equals(possible)
-      ) != "undefined";
-    if (!isMovePossible) {
-      return;
-    }
-
-    let newState: VariantState | null = null;
-    try {
-      newState = description.move(state, source, destination, playerIndex);
-      if (newState === null) {
-        toast.error("Calculated state is null after making move!");
-      }
-    } catch (e) {
-      toast.error(
-        `Error executing move! ${source} -> ${destination} ${
-          playerIndex ? `Player: ${playerIndex}` : ""
-        }`
-      );
-      return;
-    }
-    toast(
-      `Move: ${source} -> ${destination} ${
-        playerIndex ? `Player: ${playerIndex}` : ""
-      }`
-    );
-    dispatch(setVariantState({ key, newState }));
+    const { variantKey, state } = game;
+    const newState = worker!.move(variantKey, state, moveParams);
+    dispatch(changeGameState({ key, newState }));
   };
 
 export const selectState = (state: RootState) => state.variantEnvironment;
 export const selectGames = (state: RootState) => state.variantEnvironment.games;
+export const selectWorkerLoaded = (state: RootState) =>
+  state.variantEnvironment.workerLoaded;
 export const selectCustomVariants = (state: RootState) =>
   state.variantEnvironment.customVariants;
 
