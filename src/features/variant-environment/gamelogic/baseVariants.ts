@@ -1,4 +1,9 @@
 import {
+  ChessPieceDescription,
+  ChessPieceInfo,
+  defaultPieces as chessPieces,
+} from "./defaults";
+import {
   BoardCoords,
   BoardOrientation,
   BoardState,
@@ -6,6 +11,8 @@ import {
   EmptyTile,
   Piece,
   PieceColor,
+  PieceDescription,
+  PieceInfo,
   VariantDescription,
   VariantState,
 } from "./types";
@@ -20,20 +27,27 @@ export interface ChessVariantState extends VariantState {
   positionHashes: string[];
 }
 
-class Chess implements VariantDescription {
+export class Chess
+  implements VariantDescription<ChessVariantState>
+{
+  pieces(): PieceDescription<PieceInfo>[] {
+    return chessPieces as PieceDescription<PieceInfo>[];
+  }
+  derivePieceInfo(
+    state: ChessVariantState,
+    _gameIndex?: number
+  ): Partial<ChessPieceInfo> {
+    return {
+      enPassantSquare: state.enPassantSquare,
+      castleRights: state.castleRights,
+    };
+  }
   name = () => "chess";
   canMoveEnemyPieces = () => false;
   minimumPlayers = () => 2;
   maximumPlayers = () => 2;
   rows = () => 8;
   columns = () => 8;
-  possibleDestinations(
-    state: VariantState,
-    coords: Coords,
-    playerIndex?: number
-  ): Coords[] {
-    throw new Error("Method not implemented.");
-  }
   /*getAttackers({ boardState }: ChessVariantState, source: BoardCoords, ownColor: PieceColor): {
       diagonal: {
           coords: BoardCoords;
@@ -239,11 +253,14 @@ class Chess implements VariantDescription {
     }
   }
   promote(
-    state: VariantState,
+    state: ChessVariantState,
     destination: Coords,
     piece: Piece
-  ): VariantState {
+  ): ChessVariantState {
     throw new Error("Function not implemented.");
   }
 }
-export const chess = new Chess();
+export default [["chess", new Chess()]] as [
+  string,
+  VariantDescription
+][];

@@ -123,35 +123,32 @@ export enum Direction {
   TopLeft = 7,
 }
 
-export interface VariantDescription {
+export interface VariantDescription<T extends VariantState = VariantState> {
+  pieces: () => PieceDescription<PieceInfo>[];
+  derivePieceInfo(state: VariantState, gameIndex?: number): Partial<PieceInfo>;
   name(): string;
   minimumPlayers(): number;
   maximumPlayers(): number;
-  possibleDestinations(
-    state: VariantState,
-    coords: Coords,
-    playerIndex?: number
-  ): Coords[];
   move(
-    state: VariantState,
+    state: T,
     source: Coords,
     destination: Coords,
     playerIndex?: number
-  ): VariantState;
+  ): T;
   initialState(
-    base: VariantState,
+    base: T,
     playerCount: number,
     localPlayerIndex: number
-  ): VariantState;
-  promote(state: VariantState, destination: Coords, piece: Piece): VariantState;
+  ): T;
+  promote(state: T, destination: Coords, piece: Piece): T;
   playerIndex2Color(index: number): PieceColor | null;
   color2PlayerIndex(color: PieceColor): number | null;
   playerIndex2Orientation(
     playerIndex: number
   ): BoardOrientation | BoardOrientation[];
-  state2StorageString?(state: VariantState): string | null;
-  storageString2StateArray?(storageString: string): VariantState[];
-  createPositionString?(state: VariantState): string | null;
+  state2StorageString?(state: T): string | null;
+  storageString2StateArray?(storageString: string): T[];
+  createPositionString?(state: T): string | null;
 }
 
 export interface PieceInfo {
@@ -159,7 +156,7 @@ export interface PieceInfo {
   color: PieceColor;
 }
 
-export interface PieceDescription<T extends PieceInfo> {
+export interface PieceDescription<T extends PieceInfo = PieceInfo> {
   type: PieceType;
   move: (
     info: T,

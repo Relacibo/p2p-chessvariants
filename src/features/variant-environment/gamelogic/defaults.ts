@@ -10,16 +10,17 @@ import {
 } from "./types";
 import { getDiagonalDirections, getPerpendicularDirections } from "./util";
 
-export interface KingInfo extends PieceInfo {
-  shortCastleRight: boolean;
-  longCastleRight: boolean;
-}
-
-export interface PawnInfo extends PieceInfo {
+export interface ChessPieceInfo extends PieceInfo {
+  castleRights: {
+    white: { short: boolean; long: boolean };
+    black: { short: boolean; long: boolean };
+  };
   enPassantSquare: BoardCoords | null;
 }
 
-export const bishopMoves: PieceDescription<PieceInfo> = {
+export type ChessPieceDescription = PieceDescription<ChessPieceInfo>;
+
+export const bishop: ChessPieceDescription = {
   type: PieceType.Bishop,
   move: (
     { color },
@@ -37,7 +38,7 @@ export const bishopMoves: PieceDescription<PieceInfo> = {
   },
 };
 
-export const queenMoves: PieceDescription<PieceInfo> = {
+export const queen: ChessPieceDescription = {
   type: PieceType.Queen,
   move: (
     { color },
@@ -56,7 +57,7 @@ export const queenMoves: PieceDescription<PieceInfo> = {
   },
 };
 
-export const rookMoves: PieceDescription<PieceInfo> = {
+export const rook: ChessPieceDescription = {
   type: PieceType.Rook,
   move: (
     { color },
@@ -74,7 +75,7 @@ export const rookMoves: PieceDescription<PieceInfo> = {
   },
 };
 
-export const knightMoves: PieceDescription<PieceInfo> = {
+export const knight: ChessPieceDescription = {
   type: PieceType.Knight,
   move: (
     { color },
@@ -103,15 +104,16 @@ export const knightMoves: PieceDescription<PieceInfo> = {
   },
 };
 
-export const kingMoves: PieceDescription<KingInfo> = {
+export const king: PieceDescription<ChessPieceInfo> = {
   type: PieceType.King,
   move: (
-    { source, color, shortCastleRight, longCastleRight },
+    { source, color, castleRights },
     ray,
     singleSquare,
     _kingInCheckAfter,
     isSquareAttacked
   ): BoardCoords[] => {
+    const { short, long } = castleRights[color];
     const normalMoves = [
       [1, 0],
       [1, 1],
@@ -134,8 +136,8 @@ export const kingMoves: PieceDescription<KingInfo> = {
     const castleMoves = check
       ? []
       : [
-          { cr: shortCastleRight, dir: Direction.Right, rookC: 7 },
-          { cr: longCastleRight, dir: Direction.Left, rookC: 0 },
+          { cr: short, dir: Direction.Right, rookC: 7 },
+          { cr: long, dir: Direction.Left, rookC: 0 },
         ]
           .filter(({ cr }) => cr)
           .map(({ dir, rookC }) => {
@@ -153,7 +155,7 @@ export const kingMoves: PieceDescription<KingInfo> = {
   },
 };
 
-export const pawnMoves: PieceDescription<PawnInfo> = {
+export const pawn: ChessPieceDescription = {
   type: PieceType.Pawn,
   move: (
     { source, color, enPassantSquare },
@@ -201,3 +203,5 @@ export const pawnMoves: PieceDescription<PawnInfo> = {
     return [...moves, ...captures];
   },
 };
+
+export const defaultPieces = [pawn, knight, bishop, rook, queen, king];

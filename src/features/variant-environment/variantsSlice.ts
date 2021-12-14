@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { toast } from "react-toastify";
 import { spawn } from "threads";
 import { AppThunk, RootState } from "../../app/store";
 import { Coords, VariantState } from "./gamelogic/types";
@@ -119,13 +120,18 @@ export const loadScript =
 export const move =
   (key: string, moveParams: MoveParams): AppThunk =>
   async (dispatch, getState) => {
-    const { games } = selectState(getState());
-    const game = games.get(key);
+    const game = selectGames(getState()).get(key);
     if (!game) {
       return;
     }
     const { variantKey, state } = game;
-    const newState = worker!.move(variantKey, state, moveParams);
+    let newState;
+    try {
+      newState = await worker!.move(variantKey, key, state, moveParams);
+    } catch (e) {
+      toast.error(e);
+      return;
+    }
     dispatch(changeGameState({ key, newState }));
   };
 
