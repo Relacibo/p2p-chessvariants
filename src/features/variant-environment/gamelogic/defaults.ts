@@ -5,7 +5,7 @@ import {
   Piece,
   PieceColor,
   PieceDescription,
-  PieceContext,
+  PieceMoveContext,
   PieceType,
 } from "./types";
 import { getDiagonalDirections, getPerpendicularDirections } from "./util";
@@ -23,11 +23,7 @@ export type ChessPieceDescription = PieceDescription<ChessPieceInfo>;
 export const bishop: ChessPieceDescription = {
   type: PieceType.Bishop,
   move: (
-    { color },
-    ray,
-    _singleSquares,
-    kingInCheckAfter,
-    _isSquareAttacked
+    { color }
   ): BoardCoords[] => {
     return getDiagonalDirections()
       .map(ray)
@@ -204,4 +200,4 @@ export const pawn: ChessPieceDescription = {
   },
 };
 
-export const defaultPieces = [pawn, knight, bishop, rook, queen, king];
+export const chessPieces = [pawn, knight, bishop, rook, queen, king];

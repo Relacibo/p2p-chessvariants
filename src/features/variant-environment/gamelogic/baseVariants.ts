@@ -1,7 +1,7 @@
 import {
   ChessPieceDescription,
   ChessPieceInfo,
-  defaultPieces as chessPieces,
+  chessPieces as chessPieces,
 } from "./defaults";
 import {
   BoardCoords,
@@ -12,7 +12,7 @@ import {
   Piece,
   PieceColor,
   PieceDescription,
-  PieceInfo,
+  PieceMoveContext,
   VariantDescription,
   VariantState,
 } from "./types";
@@ -30,8 +30,8 @@ export interface ChessVariantState extends VariantState {
 export class Chess
   implements VariantDescription<ChessVariantState>
 {
-  pieces(): PieceDescription<PieceInfo>[] {
-    return chessPieces as PieceDescription<PieceInfo>[];
+  pieces(): PieceDescription<PieceMoveContext>[] {
+    return chessPieces as PieceDescription<PieceMoveContext>[];
   }
   derivePieceInfo(
     state: ChessVariantState,
