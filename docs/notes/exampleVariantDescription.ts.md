@@ -1,14 +1,14 @@
 ## Example Script file
 
 ```javascript
-const { util } = context;
+const { util, default } = context;
 const fakeVariant = {
     name: "fake",
     uuid: "1a651e33-4228-4ee7-927f-889ddbfa3a89"
     version: "1.0.0",
     minimumPlayers: 2,
     maximumPlayers: 4,
-    pieces: () => PieceDescription<Partial<U>>[],
+    pieces: () => default.chessPieces,
     deriveCustomContext(
         state: VariantState,
         gameIndex?: number
@@ -29,4 +29,4 @@ const fakeVariant = {
 register(fakeVariant);
 ```
 
-_Vscode Preview: `Ctrl+Shift+V`/`Ctrl+K V`_
+_VSCode Preview: `Ctrl+Shift+V`/`Ctrl+K V`_
