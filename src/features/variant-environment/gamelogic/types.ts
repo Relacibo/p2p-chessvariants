@@ -123,23 +123,18 @@ export enum Direction {
   TopLeft = 7,
 }
 
-export interface VariantDescription<T extends VariantState = VariantState> {
-  pieces: () => PieceDescription<PieceInfo>[];
-  derivePieceInfo(state: VariantState, gameIndex?: number): Partial<PieceInfo>;
-  name(): string;
-  minimumPlayers(): number;
-  maximumPlayers(): number;
-  move(
-    state: T,
-    source: Coords,
-    destination: Coords,
-    playerIndex?: number
-  ): T;
-  initialState(
-    base: T,
-    playerCount: number,
-    localPlayerIndex: number
-  ): T;
+export interface VariantDescription<U = {}, T extends VariantState = VariantState> {
+  name: string;
+  version: string;
+  minimumPlayers: number;
+  maximumPlayers: number;
+  pieces: () => PieceDescription<Partial<U>>[];
+  deriveCustomContext(
+    state: VariantState,
+    gameIndex?: number
+  ): U;
+  move(state: T, source: Coords, destination: Coords, playerIndex?: number): T;
+  initialState(base: T, playerCount: number, localPlayerIndex: number): T;
   promote(state: T, destination: Coords, piece: Piece): T;
   playerIndex2Color(index: number): PieceColor | null;
   color2PlayerIndex(color: PieceColor): number | null;
@@ -151,21 +146,19 @@ export interface VariantDescription<T extends VariantState = VariantState> {
   createPositionString?(state: T): string | null;
 }
 
-export interface PieceInfo {
+export interface PieceMoveContext {
   source: BoardCoords;
   color: PieceColor;
+  ray: (direction: Direction) => {
+    empty: BoardCoords[];
+    hit?: { coords: BoardCoords; piece: Piece };
+  };
+  singleSquare: (jumps: number[]) => { coords: BoardCoords; tile: TileData };
+  kingInCheckAfter: (coords: BoardCoords) => boolean;
+  isSquareAttacked: (coords: BoardCoords) => boolean;
 }
 
-export interface PieceDescription<T extends PieceInfo = PieceInfo> {
+export interface PieceDescription<T = {}> {
   type: PieceType;
-  move: (
-    info: T,
-    ray: (direction: Direction) => {
-      empty: BoardCoords[];
-      hit?: { coords: BoardCoords; piece: Piece };
-    },
-    singleSquare: (jumps: number[]) => { coords: BoardCoords; tile: TileData },
-    kingInCheckAfter: (coords: BoardCoords) => boolean,
-    isSquareAttacked: (coords: BoardCoords) => boolean
-  ) => BoardCoords[];
+  move: (context: PieceMoveContext, customContext?: T) => BoardCoords[];
 }

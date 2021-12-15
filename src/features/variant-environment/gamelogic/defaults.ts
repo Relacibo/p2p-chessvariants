@@ -5,12 +5,12 @@ import {
   Piece,
   PieceColor,
   PieceDescription,
-  PieceInfo,
+  PieceContext,
   PieceType,
 } from "./types";
 import { getDiagonalDirections, getPerpendicularDirections } from "./util";
 
-export interface ChessPieceInfo extends PieceInfo {
+export interface ChessPieceInfo {
   castleRights: {
     white: { short: boolean; long: boolean };
     black: { short: boolean; long: boolean };
