@@ -18,23 +18,23 @@ function Layout(props: LayoutProps) {
       columns={["flex", "small"]}
       gap="small"
       areas={[["main", "sidebar"]]}
-    ><Sidebar
-    width="small"
-    gridArea="sidebar"
-    background={{
-      color: "brand",
-      image: "url(navbar-texture.png)",
-    }}
-    
-  >
-    <Link className={style.navbarTitle} to={"/"}>
-      pawn-connect.org
-    </Link>
-    <Nav>
-      <AnchorLink to={"game"}>Games</AnchorLink>
-    </Nav>
-    <DarkmodeSelector />
-  </Sidebar>
+    >
+      <Sidebar
+        width="small"
+        gridArea="sidebar"
+        background={{
+          color: "brand",
+          image: "url(navbar-texture.png)",
+        }}
+      >
+        <Link className={style.navbarTitle} to={"/"}>
+          pawn-connect.org
+        </Link>
+        <Nav>
+          <AnchorLink to={"game"}>Games</AnchorLink>
+        </Nav>
+        <DarkmodeSelector />
+      </Sidebar>
       <Box gridArea="main">{children}</Box>
     </Grid>
   );

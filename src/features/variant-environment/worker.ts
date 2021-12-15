@@ -8,13 +8,22 @@ import {
 } from "./gamelogic/types";
 import { MoveParams } from "./variantsSlice";
 import * as ls from "local-storage";
-import baseVariants from "./gamelogic/baseVariants";
-import { getPieceAt } from "./gamelogic/util";
+import util from "./gamelogic/util";
 import variantDescriptionContext from "./gamelogic/variantDescriptionContext";
 
 export type DescriptionInfo = { name: string; description?: string };
 
-const variants = new Map<string, VariantDescription>(baseVariants);
+const variants = new Map<string, VariantDescription>();
+
+(() => {
+  const { variants: v, util } = variantDescriptionContext;
+  for (let key in v) {
+    const { description: d } = v[key];
+    const { uuid } = d;
+    variants.set(uuid, d);
+  }
+})();
+
 const cachedPossibleDestinations = new Map<
   string,
   { source: Coords; destinations: Coords[] }[]
@@ -69,7 +78,7 @@ const workerFunctions: VariantsWorker = {
           state.onMoveIndex != playerIndex) ||
         (Array.isArray(state.onMoveIndex) &&
           !state.onMoveIndex.includes(playerIndex)) ||
-        getPieceAt(state, source)?.color !=
+        util.getPieceAt(state, source)?.color !=
           description.playerIndex2Color(playerIndex)
       ) {
         reject("Preconditions not met!");
@@ -123,7 +132,7 @@ const workerFunctions: VariantsWorker = {
               createVariantDescription(data);
             variants.set(url, variantDescription);
             ls.set("variant-worker", data);
-            resolve(variantDescription.name());
+            resolve(variantDescription.name);
           } catch (e) {
             reject(e);
           }
@@ -160,18 +169,15 @@ const workerFunctions: VariantsWorker = {
 
 function createVariantDescription(data: string): VariantDescription {
   let ret: VariantDescription | null = null;
-  const register = (variantDescription: VariantDescription) => {
+  const resolve = (variantDescription: VariantDescription) => {
     ret = variantDescription;
   };
   const context = variantDescriptionContext;
-  (new Function("context", data))({
-    ...context,
-    register,
-  });
+  new Function("context", "resolve", data)(context, resolve);
   if (ret == null) {
     throw "Variant description is not defined!";
-  } 
-  return ret; 
+  }
+  return ret;
 }
 
 function getPossibleDestinations(

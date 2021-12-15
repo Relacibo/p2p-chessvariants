@@ -3,7 +3,7 @@ export interface VariantState {
   onMoveIndex: number | number[];
   canClaimDraw: number | number[];
   boardState: BoardState | BoardState[];
-  reservePile: null | ReservePileState | ReservePileState[];
+  reservePile?: ReservePileState | ReservePileState[];
 }
 
 export interface VariantStatus {}
@@ -123,16 +123,20 @@ export enum Direction {
   TopLeft = 7,
 }
 
-export interface VariantDescription<U = {}, T extends VariantState = VariantState> {
+export interface VariantDescription<
+  T extends VariantState = VariantState
+> {
   name: string;
+  uuid: string;
   version: string;
+  apiVersion: string;
   minimumPlayers: number;
   maximumPlayers: number;
-  pieces: () => PieceDescription<Partial<U>>[];
-  deriveCustomContext(
-    state: VariantState,
-    gameIndex?: number
-  ): U;
+  rows: number;
+  columns: number;
+  
+  pieces: () => { [piece: string]: PieceDescription<any> };
+  deriveCustomContext(state: VariantState): any | any[];
   move(state: T, source: Coords, destination: Coords, playerIndex?: number): T;
   initialState(base: T, playerCount: number, localPlayerIndex: number): T;
   promote(state: T, destination: Coords, piece: Piece): T;
@@ -160,5 +164,5 @@ export interface PieceMoveContext {
 
 export interface PieceDescription<T = {}> {
   type: PieceType;
-  move: (context: PieceMoveContext, customContext?: T) => BoardCoords[];
+  move: (context: PieceMoveContext, customContext: T) => BoardCoords[];
 }

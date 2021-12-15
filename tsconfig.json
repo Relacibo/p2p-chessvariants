@@ -18,5 +18,5 @@
     "plugins": [{ "name": "typescript-plugin-css-modules" }]
   },
   "include": ["src"],
-  "exclude": ["resources", "public", "node_modules"],
+  "exclude": ["resources", "public", "node_modules"]
 }
