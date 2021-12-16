@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/static/css/main.968ebec4.css",
-    "main.js": "/static/js/main.011ad18b.js",
-    "index.html": "/index.html",
-    "main.968ebec4.css.map": "/static/css/main.968ebec4.css.map",
-    "main.011ad18b.js.map": "/static/js/main.011ad18b.js.map"
+    "main.css": "https://relacibo.github.io/p2p-chessvariants/static/css/main.968ebec4.css",
+    "main.js": "https://relacibo.github.io/p2p-chessvariants/static/js/main.8bc79832.js",
+    "index.html": "https://relacibo.github.io/p2p-chessvariants/index.html",
+    "main.968ebec4.css.map": "https://relacibo.github.io/p2p-chessvariants/static/css/main.968ebec4.css.map",
+    "main.8bc79832.js.map": "https://relacibo.github.io/p2p-chessvariants/static/js/main.8bc79832.js.map"
   },
   "entrypoints": [
     "static/css/main.968ebec4.css",
-    "static/js/main.011ad18b.js"
+    "static/js/main.8bc79832.js"
   ]
 }
