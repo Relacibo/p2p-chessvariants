@@ -8,10 +8,9 @@ import {
   Piece,
   PieceColor,
   PieceDescription,
-  PieceMoveContext,
   PieceType,
   VariantDescription,
-  VariantState,
+  VariantState
 } from "./types";
 import util from "./util";
 

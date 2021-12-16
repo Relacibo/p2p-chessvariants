@@ -1,52 +1,29 @@
 import axios from "axios";
+import { DBSchema, IDBPDatabase, openDB } from "idb";
 import { expose } from "threads/worker";
 import {
-  BoardCoords,
   Coords,
   VariantDescription,
-  VariantState,
+  VariantState
 } from "./gamelogic/types";
-import { MoveParams } from "./variantsSlice";
-import * as ls from "local-storage";
 import util from "./gamelogic/util";
 import variantDescriptionContext from "./gamelogic/variantDescriptionContext";
+import { MoveParams } from "./variantsSlice";
+
+const VARIANT_WORKER_DB = "variant-worker";
+const VARIANT_OBJECT_STORE = "variants";
+
+interface VariantDBSchema extends DBSchema {
+  [VARIANT_OBJECT_STORE]: {
+    key: string;
+    value: { uuid: string; script: string };
+  };
+}
 
 export type DescriptionInfo = { name: string; description?: string };
 
-const variants = new Map<string, VariantDescription>();
-
-(() => {
-  const { variants: v, util } = variantDescriptionContext;
-  for (let key in v) {
-    const { description: d } = v[key];
-    const { uuid } = d;
-    variants.set(uuid, d);
-  }
-})();
-
-const cachedPossibleDestinations = new Map<
-  string,
-  { source: Coords; destinations: Coords[] }[]
->();
-
-(() => {
-  const descriptions = ls.get<{ [key: string]: string }>("variant-worker");
-  let changed = false;
-  for (let url in descriptions) {
-    try {
-      const variantDescription = createVariantDescription(descriptions[url]);
-      variants.set(url, variantDescription);
-    } catch {
-      delete descriptions[url];
-      changed = true;
-    }
-  }
-  if (changed) {
-    ls.set("variant-worker", descriptions);
-  }
-})();
-
 export interface VariantsWorker {
+  init(): Promise<void>;
   move(
     url: string,
     gameKey: string,
@@ -58,7 +35,47 @@ export interface VariantsWorker {
   listScripts(): Promise<string[]>;
 }
 
-const workerFunctions: VariantsWorker = {
+class ChessWorker implements VariantsWorker {
+  variants = new Map<string, VariantDescription>();
+  db: IDBPDatabase<VariantDBSchema> | null = null;
+  cachedPossibleDestinations = new Map<
+    string,
+    { source: Coords; destinations: Coords[] }[]
+  >();
+  constructor() {}
+  init(): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      // Load project variants
+      const { variants: v } = variantDescriptionContext;
+      for (let key in v) {
+        const { description: d } = v[key];
+        const { uuid } = d;
+        this.variants.set(uuid, d);
+      }
+      await this.initializeDB();
+      // Load descriptions from storage
+      (await this.db?.getAll(VARIANT_OBJECT_STORE)!).forEach(
+        ({ uuid, script }) => {
+          try {
+            const variantDescription = readInVariantDescription(script);
+            this.variants.set(uuid, variantDescription);
+          } catch {
+            this.db?.delete(VARIANT_OBJECT_STORE, uuid)!;
+          }
+        }
+      );
+      resolve();
+    });
+  }
+  async initializeDB() {
+    this.db = await openDB(VARIANT_WORKER_DB, 1, {
+      upgrade(db) {
+        db.createObjectStore(VARIANT_OBJECT_STORE, {
+          keyPath: "uuid",
+        });
+      },
+    });
+  }
   move(
     url: string,
     gameKey: string,
@@ -68,7 +85,7 @@ const workerFunctions: VariantsWorker = {
     return new Promise((resolve, reject) => {
       const { source, destination, playerIndex } = params;
       /* Lookup if move is allowed */
-      const description = variants.get(url);
+      const description = this.variants.get(url);
       if (!description) {
         reject("Description not available!");
         return;
@@ -84,7 +101,8 @@ const workerFunctions: VariantsWorker = {
         reject("Preconditions not met!");
         return;
       }
-      let possibleDestinationsArray = cachedPossibleDestinations.get(gameKey);
+      let possibleDestinationsArray =
+        this.cachedPossibleDestinations.get(gameKey);
       let possibleDestinations: Coords[] | undefined;
       if (typeof possibleDestinationsArray !== "undefined") {
         possibleDestinations = possibleDestinationsArray.find(
@@ -121,63 +139,66 @@ const workerFunctions: VariantsWorker = {
       }
       resolve(newState);
     });
-  },
+  }
   loadScript(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      let data: string;
       try {
-        axios.get(url).then((res) => {
-          const data = res.data;
-          try {
-            const variantDescription: VariantDescription =
-              createVariantDescription(data);
-            variants.set(url, variantDescription);
-            ls.set("variant-worker", data);
-            resolve(variantDescription.name);
-          } catch (e) {
-            reject(e);
-          }
-        });
+        data = (await axios.get(url)).data;
       } catch {
         reject("Could not fetch variant url!");
+        return;
+      }
+      try {
+        const variantDescription: VariantDescription =
+          readInVariantDescription(data);
+        const { uuid } = variantDescription;
+        this.variants.set(uuid, variantDescription);
+
+        this.db!.add(VARIANT_OBJECT_STORE, {
+          uuid,
+          script: data,
+        });
+        resolve(uuid);
+      } catch (e) {
+        reject(e);
       }
     });
-  },
-  removeScript(url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+  }
+  removeScript(uuid: string): Promise<void> {
+    return new Promise(async (resolve, reject) => {
       try {
-        const scripts = ls.get<{ [key: string]: string }>("variant-worker");
-        delete scripts[url];
-        ls.set("variant-worker", scripts);
-        variants.delete(url);
+        await this.db!.delete(VARIANT_OBJECT_STORE, uuid);
+        this.variants.delete(uuid);
         resolve();
       } catch {
-        reject("Could not delete from local storage!");
+        reject("Could not delete!");
       }
     });
-  },
+  }
   listScripts(): Promise<string[]> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
-        const scripts = ls.get<{ [key: string]: string }>("variant-worker");
-        resolve(Object.keys(scripts));
+        const scripts = await this.db!.getAllKeys(VARIANT_OBJECT_STORE);
+        resolve(scripts);
       } catch {
-        reject("Could not read local storage!");
+        reject("Could find scripts!");
       }
     });
-  },
-};
+  }
+}
 
-function createVariantDescription(data: string): VariantDescription {
-  let ret: VariantDescription | null = null;
-  const resolve = (variantDescription: VariantDescription) => {
-    ret = variantDescription;
-  };
+function readInVariantDescription(script: string): VariantDescription {
   const context = variantDescriptionContext;
-  new Function("context", "resolve", data)(context, resolve);
-  if (ret == null) {
+  let resolved: VariantDescription | null = null;
+  const resolve = (desc: VariantDescription) => {
+    resolved = desc;
+  };
+  new Function("context", "resolve", script)(context, resolve);
+  if (resolved == null) {
     throw "Variant description is not defined!";
   }
-  return ret;
+  return resolved;
 }
 
 function getPossibleDestinations(
@@ -189,4 +210,4 @@ function getPossibleDestinations(
   return [];
 }
 
-expose(workerFunctions as any);
+expose(new ChessWorker() as any);

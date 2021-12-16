@@ -1,12 +1,11 @@
-import React, { useState } from "react";
-import { Route, Routes, useParams } from "react-router";
-
-import { useAppSelector, useAppDispatch } from "../../app/hooks";
+import React from "react";
+import { Route, Routes } from "react-router";
 import { Chessboard } from "../chessboard/Chessboard";
 import StorageDisplay from "../StorageDisplay";
 
-function PlaygroundUI() {
-  const { id } = useParams();
+
+function PlaygroundUI() {/*
+  const { id } = useParams();*/
   return (
     <div>
       <StorageDisplay />

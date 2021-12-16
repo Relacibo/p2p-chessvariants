@@ -1,16 +1,13 @@
-import "react-toastify/dist/ReactToastify.css";
-import PlaygroundUI from "./features/playground/PlaygroundUI";
-import { Route, BrowserRouter, Routes, Link } from "react-router-dom";
-import SetupUI from "./features/setup/SetupUI";
-import { Box, Grommet, Header, Heading, Nav } from "grommet";
-import DarkmodeSelector from "./features/darkmode/DarkmodeSelector";
-import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
+import { Grommet } from "grommet";
 import { useSelector } from "react-redux";
-import theme from "./theme";
-import AnchorLink from "./AnchorLink";
+import { Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
-import style from "./App.module.css";
+import "react-toastify/dist/ReactToastify.css";
+import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
+import PlaygroundUI from "./features/playground/PlaygroundUI";
+import SetupUI from "./features/setup/SetupUI";
 import Layout from "./Layout";
+import theme from "./theme";
 
 function App() {
   const darkmodeActive = useSelector(selectDarkmodeActive);

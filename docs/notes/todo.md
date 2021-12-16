@@ -9,7 +9,10 @@
 - [ ] Game start options
 - [ ] Variants collection
   - [ ] Everyone can add custom url as variant description (sanitize)
+  - [ ] Have option to show code 
   - [ ] Everyone can update variant description (sanitize)
+  - [ ] Have a list with recommended urls
+      - [ ] list should have hash of script for validation.
 - [ ] Lobby/Host game controls
   - [ ] Host can move positions of players (for now) (sanitize)
   - [ ] People can join hosts by hostid or gameid
@@ -31,6 +34,8 @@
 - [ ] Add some additional hooks like useRandom
 - [ ] Every instance validates move. Every instance uses same random values.
 - [ ] cache possibleDestinations
-- [ ] implement api
+- [ ] replace Description if it has same uuid
+- [ ] Validate description
+- [ ] (implement rust server with small api)
 
 _VSCode Preview: `Ctrl+Shift+V`/`Ctrl+K V`_

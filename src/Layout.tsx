@@ -1,9 +1,9 @@
-import { Box, Grid, Header, Heading, Layer, Nav, Sidebar } from "grommet";
+import { Box, Grid, Nav, Sidebar } from "grommet";
 import React from "react";
 import { Link } from "react-router-dom";
 import AnchorLink from "./AnchorLink";
-import DarkmodeSelector from "./features/darkmode/DarkmodeSelector";
 import style from "./App.module.css";
+import DarkmodeSelector from "./features/darkmode/DarkmodeSelector";
 
 type LayoutProps = {
   children: JSX.Element | JSX.Element[] | never[];
