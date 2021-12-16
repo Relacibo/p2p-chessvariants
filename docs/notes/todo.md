@@ -28,9 +28,9 @@
 
 ### Worker / defaults / VariantDescription
 
-- [ ] uuids as key
-- [ ] indexeddb instead of localstorage
-- [ ] typing of context
+- [x] uuids as key
+- [x] indexeddb instead of localstorage
+- [x] typing of context
 - [ ] Add some additional hooks like useRandom
 - [ ] Every instance validates move. Every instance uses same random values.
 - [ ] cache possibleDestinations
