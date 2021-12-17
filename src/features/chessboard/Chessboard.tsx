@@ -1,8 +1,11 @@
+import { BoardState } from "../../gamelogic/types";
 
-export function Chessboard() {
-  /*
-  const { id: string } = useParams();
-  const games = useSelector(selectGames);*/
+export type ChessboardProps = {
+  boardState: BoardState;
+};
+
+export function Chessboard(props: ChessboardProps) {
+  
   return <div></div>;
 }
 

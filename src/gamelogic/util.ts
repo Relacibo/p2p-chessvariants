@@ -51,7 +51,7 @@ const util = {
     }
     return null;
   },
-  
+
   getTileAt: (
     boardState: BoardState | BoardState[],
     { gameIndex, c, r }: BoardCoords

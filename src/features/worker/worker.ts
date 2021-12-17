@@ -4,11 +4,11 @@ import { expose } from "threads/worker";
 import {
   Coords,
   VariantDescription,
-  VariantState
-} from "./gamelogic/types";
-import util from "./gamelogic/util";
-import variantDescriptionContext from "./gamelogic/variantDescriptionContext";
-import { MoveParams } from "./variantsSlice";
+  VariantState,
+} from "../../gamelogic/types";
+import util from "../../gamelogic/util";
+import variantDescriptionContext from "../../gamelogic/variantDescriptionContext";
+import { MoveParams } from "../variant-environment/variantsSlice";
 
 const VARIANT_WORKER_DB = "variant-worker";
 const VARIANT_OBJECT_STORE = "variants";

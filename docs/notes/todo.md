@@ -25,6 +25,7 @@
   - [ ] Promote
   - [ ] Reserve Pile
   - [ ] At some point clock
+  - [ ] Some sort of display for the mod (maybe with md)
 
 ### Worker / defaults / VariantDescription
 

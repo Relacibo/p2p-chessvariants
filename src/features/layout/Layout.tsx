@@ -1,9 +1,9 @@
 import { Box, Grid, Nav, Sidebar } from "grommet";
 import React from "react";
 import { Link } from "react-router-dom";
-import AnchorLink from "./AnchorLink";
-import style from "./App.module.css";
-import DarkmodeSelector from "./features/darkmode/DarkmodeSelector";
+import AnchorLink from "../../AnchorLink";
+import style from "./Layout.module.css";
+import DarkmodeSelector from "../darkmode/DarkmodeSelector";
 
 type LayoutProps = {
   children: JSX.Element | JSX.Element[] | never[];
@@ -11,6 +11,7 @@ type LayoutProps = {
 
 function Layout(props: LayoutProps) {
   const { children } = props;
+
   return (
     <Grid
       fill

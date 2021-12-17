@@ -1,7 +1,7 @@
 import { Box, Button, Form, FormField, Heading, TextInput } from "grommet";
 import { toast } from "react-toastify";
 
-function SetupUI() {
+function SetupView() {
   return (
     <Box
       tag="header"
@@ -40,4 +40,4 @@ function SetupUI() {
   );
 }
 
-export default SetupUI;
+export default SetupView;

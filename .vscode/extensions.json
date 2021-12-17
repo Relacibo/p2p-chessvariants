@@ -1,8 +1,6 @@
 {
   "recommendations": [
     "editorconfig.editorconfig",
-    "esbenp.prettier-vscode",
-    "bierner.markdown-preview-github-styles",
-    "ozaki.markdown-github-dark"
+    "esbenp.prettier-vscode"
   ]
 }

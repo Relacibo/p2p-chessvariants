@@ -1,10 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "../../app/store";
 
-export type DarkmodeState = {
-  dark: boolean;
-};
-
 export const {
   actions: { setDarkmode },
   reducer,
@@ -12,7 +8,7 @@ export const {
   name: "darkmode",
   initialState: {
     dark: false,
-  } as DarkmodeState,
+  },
   reducers: {
     setDarkmode: (state, action: PayloadAction<boolean>) => {
       state.dark = action.payload;
