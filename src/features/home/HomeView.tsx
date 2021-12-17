@@ -1,7 +1,7 @@
 import { Box, Button, Form, FormField, Heading, TextInput } from "grommet";
 import { toast } from "react-toastify";
 
-function SetupView() {
+function HomeView() {
   return (
     <Box
       tag="header"
@@ -40,4 +40,4 @@ function SetupView() {
   );
 }
 
-export default SetupView;
+export default HomeView;
