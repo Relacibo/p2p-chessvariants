@@ -6,7 +6,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
 import PlaygroundView from "./features/game/PlaygroundView";
-import HomeView from "./features/setup/SetupView";
+import HomeView from "./features/home/HomeView";
 import Layout from "./features/layout/Layout";
 import theme from "./theme";
 import GameListView from "./features/game/GameListView";
