@@ -1,6 +1,5 @@
-import { Box, Button, Grid, Nav, ResponsiveContext, Sidebar } from "grommet";
+import { Box, Button, Grid, Nav, Sidebar } from "grommet";
 import React, { createContext, useState } from "react";
-import { Link } from "react-router-dom";
 import AnchorLink from "../../AnchorLink";
 import style from "./Layout.module.css";
 import DarkmodeSelector from "../darkmode/DarkmodeSelector";
@@ -61,7 +60,18 @@ function Layout(props: LayoutProps) {
           <Sidebar
             gridArea="sidebar"
             width="15vw"
-            style={{ position: "relative", minWidth: "10em" }}
+            style={
+              sidebarIsOverlay
+                ? {
+                    position: "absolute",
+                    right: 0,
+                    minWidth: "10em",
+                  }
+                : {
+                    position: "relative",
+                    minWidth: "10em",
+                  }
+            }
             background={{
               color: "brand",
             }}

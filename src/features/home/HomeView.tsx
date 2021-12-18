@@ -6,7 +6,7 @@ import { LayoutContext } from "../layout/Layout";
 function HomeView() {
   const { extendDefault } = useContext(LayoutContext);
   useEffect(() => {
-    extendDefault({ sidebarCollapsed: false, sidebarCollapsable: true });
+    extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
   }, []);
   return (
     <Box

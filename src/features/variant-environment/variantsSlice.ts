@@ -56,16 +56,18 @@ export const {
 export const move =
   (key: string, moveParams: MoveParams): AppThunk =>
   async (dispatch, getState) => {
-    const game = selectGames(getState()).get(key);
+    const game = selectGame(key)(getState());
     if (!game) {
       return;
     }
     const { variant, state } = game;
     let newState: VariantState;
     try {
-      newState = await dispatch(doWithWorker((worker: VariantsWorker) => {
-        return worker.move(variant, key, state, moveParams);
-      }))!;
+      newState = await dispatch(
+        doWithWorker((worker: VariantsWorker) => {
+          return worker.move(variant, key, state, moveParams);
+        })
+      )!;
     } catch (e) {
       toast.error(e);
       return;
