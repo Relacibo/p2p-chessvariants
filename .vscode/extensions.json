@@ -1,7 +1,6 @@
 {
   "recommendations": [
     "editorconfig.editorconfig",
-    "esbenp.prettier-vscode",
-    "bierner.markdown-checkbox"
+    "esbenp.prettier-vscode"
   ]
 }
