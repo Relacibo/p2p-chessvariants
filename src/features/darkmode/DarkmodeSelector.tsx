@@ -8,6 +8,7 @@ function DarkmodeSelector() {
   const dark = useSelector(selectDarkmodeActive);
   return (
     <CheckBox
+      toggle
       checked={dark}
       label="Dark mode"
       onChange={({ target: { checked } }) => dispatch(setDarkmode(checked))}

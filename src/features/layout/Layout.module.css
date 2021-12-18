@@ -4,8 +4,5 @@
   font-family: "Strait";
   color: inherit;
   text-decoration: none;
-}
-
-.navbarTitle:hover {
-  color: #eecc00;
+  font-size: 1.7em;
 }

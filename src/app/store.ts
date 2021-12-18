@@ -17,20 +17,18 @@ import {
 import storage from "redux-persist/lib/storage";
 import darkmode from "../features/darkmode/darkmodeSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
-import layout from "../features/layout/layoutSlice"
 import worker from "../features/worker/workerSlice"
 
 const persistConfig = {
   key: "root",
   version: 1,
   storage,
-  blacklist: ["worker", "layout"],
+  blacklist: ["worker"],
 };
 
 const rootReducer = combineReducers({
   variantEnvironment,
   darkmode,
-  layout,
   worker,
 });
 
