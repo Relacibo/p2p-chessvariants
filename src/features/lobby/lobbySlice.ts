@@ -18,13 +18,12 @@ export const {
   reducers: {
     createLobby: (
       state,
-      action: PayloadAction<{ peerjsOption: PeerJSOption }>
+      action: PayloadAction<{  }>
     ) => {
-      state.lobby = action.payload;
     },
     tryJoiningLobby: (
       state,
-      action: PayloadAction<{ peerConnectOption: PeerConnectOption }>
+      action: PayloadAction<{  }>
     ) => {},
     joinLobby: (state, action: PayloadAction<string>) => {},
   },

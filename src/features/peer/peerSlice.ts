@@ -16,20 +16,20 @@ type PeerState = {
   connections: { peerId: string }[];
 };
 
-const receivedMessageFromPeer = createAction<{
+export const receivedMessageFromPeer = createAction<{
   from: string;
   message: PeerMessage;
 }>("peer/receivedMessageFromPeer");
 
-const disconnectedFromPeer = createAction<{ peerId: string }>(
+export const disconnectedFromPeer = createAction<{ peerId: string }>(
   "peer/disconnectedFromPeer"
 );
-const createdPeer = createAction<{ peerId: string }>("peer/createdPeer");
-const connectingToPeer = createAction<{ peerId: string }>(
+export const createdPeer = createAction<{ peerId: string }>("peer/createdPeer");
+export const connectingToPeer = createAction<{ peerId: string }>(
   "peer/connectingToPeer"
 );
 
-const deletedPeer = createAction("peer/deletedPeer");
+export const deletedPeer = createAction("peer/deletedPeer");
 
 const slice = createSlice({
   name: "peer",
