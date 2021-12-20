@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from "react";
+import React, { useContext, useLayoutEffect } from "react";
 import { useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -12,7 +12,7 @@ function PlaygroundView() {
   const isStateSet = state != null;
   const failed = false;
   const { extendDefault } = useContext(LayoutContext);
-  useEffect(() => {
+  useLayoutEffect(() => {
     extendDefault({
       sidebarCollapsed: true,
       sidebarCollapsable: true,
@@ -20,7 +20,7 @@ function PlaygroundView() {
     });
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (failed) {
       toast.error("Could not open the game!");
     }

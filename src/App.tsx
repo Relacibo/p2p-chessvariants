@@ -11,6 +11,7 @@ import Layout from "./features/layout/Layout";
 import theme from "./theme";
 import GameListView from "./features/game/GameListView";
 import MatchFail from "./MatchFail";
+import { useAppDispatch as dispatch } from "./app/hooks"
 
 function App() {
   const darkmodeActive = useSelector(selectDarkmodeActive);

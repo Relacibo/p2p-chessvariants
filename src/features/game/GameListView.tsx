@@ -1,13 +1,12 @@
 import { Table, TableBody, TableCell, TableRow } from "grommet";
-import React, { useContext, useEffect } from "react";
+import React, { useContext, useLayoutEffect } from "react";
 import { useSelector } from "react-redux";
 import { LayoutContext } from "../layout/Layout";
-import StorageDisplay from "../StorageDisplay";
 import { selectGames, GameInfo } from "../variant-environment/variantsSlice";
 
 const GameListView = () => {
   const { extendDefault } = useContext(LayoutContext);
-  useEffect(() => {
+  useLayoutEffect(() => {
     extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
   }, []);
   const games = useSelector(selectGames);

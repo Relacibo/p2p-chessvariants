@@ -1,11 +1,11 @@
 import { Box, Button, Form, FormField, Heading, TextInput } from "grommet";
-import { useContext, useEffect } from "react";
+import { useContext, useLayoutEffect } from "react";
 import { toast } from "react-toastify";
 import { LayoutContext } from "../layout/Layout";
 
 function HomeView() {
   const { extendDefault } = useContext(LayoutContext);
-  useEffect(() => {
+  useLayoutEffect(() => {
     extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
   }, []);
   return (
