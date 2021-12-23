@@ -4,6 +4,7 @@ import AnchorLink from "../../AnchorLink";
 import style from "./Layout.module.css";
 import DarkmodeSelector from "../darkmode/DarkmodeSelector";
 import { FormNext, FormPrevious } from "grommet-icons";
+import PeerDisplay from "../peer/PeerDisplay";
 
 export type LayoutProps = {
   children: JSX.Element | JSX.Element[] | never[];
@@ -59,7 +60,7 @@ function Layout(props: LayoutProps) {
         {!sidebarCollapsed && (
           <Sidebar
             gridArea="sidebar"
-            width="15vw"
+            width="15.4vw"
             style={
               sidebarIsOverlay
                 ? {
@@ -114,8 +115,11 @@ function Layout(props: LayoutProps) {
                 </AnchorLink>
               </Nav>
             </Box>
-            <Box alignSelf="end" margin={{ top: "auto" }}>
-              <DarkmodeSelector />
+            <Box gap="medium" margin={{ left: "0", top: "auto" }}>
+              <PeerDisplay />
+              <Box alignSelf="end">
+                <DarkmodeSelector />
+              </Box>
             </Box>
           </Sidebar>
         )}

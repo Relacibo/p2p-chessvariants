@@ -1,5 +1,5 @@
 import { Grommet } from "grommet";
-import React from "react";
+import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -11,10 +11,15 @@ import Layout from "./features/layout/Layout";
 import theme from "./theme";
 import GameListView from "./features/game/GameListView";
 import MatchFail from "./MatchFail";
-import { useAppDispatch as dispatch } from "./app/hooks"
+import { useAppDispatch } from "./app/hooks"
+import initializeReduxState from "./features/init/initializeReduxState";
 
 function App() {
   const darkmodeActive = useSelector(selectDarkmodeActive);
+  const dispatch = useAppDispatch();
+  useEffect(() => {
+    dispatch(initializeReduxState());
+  }, [])
   return (
     <>
       <Grommet full theme={theme} themeMode={darkmodeActive ? "dark" : "light"}>

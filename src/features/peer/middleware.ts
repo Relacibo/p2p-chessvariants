@@ -3,14 +3,14 @@ import Peer, { DataConnection } from "peerjs";
 import { AppDispatch, RootState } from "../../app/store";
 import { PayloadAction } from "@reduxjs/toolkit";
 import { receivedMessageFromPeer } from "./peerSlice";
-import { handleMessage } from "./messageHandler";
+import { handlePacket } from "./messageHandler";
 
 const middleware: ThunkMiddleware =
-  (api) => (next) => (action: PayloadAction<string>) => {
+  api => next => <T>(action: PayloadAction<T>) => {
     const { dispatch }: { dispatch: AppDispatch } = api;
     let history = next(action);
     if (receivedMessageFromPeer.match(action)) {
-      dispatch(handleMessage(receivedMessageFromPeer));
+      dispatch(handlePacket(action.payload));
     }
     return history;
   };
