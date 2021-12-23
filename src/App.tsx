@@ -1,7 +1,7 @@
 import { Grommet } from "grommet";
 import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
@@ -19,7 +19,7 @@ function App() {
   const dispatch = useAppDispatch();
   useEffect(() => {
     dispatch(initializeReduxState());
-  }, [])
+  }, [dispatch])
   return (
     <>
       <Grommet full theme={theme} themeMode={darkmodeActive ? "dark" : "light"}>

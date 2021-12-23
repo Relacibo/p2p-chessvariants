@@ -8,7 +8,7 @@ const GameListView = () => {
   const { extendDefault } = useContext(LayoutContext);
   useLayoutEffect(() => {
     extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
-  }, []);
+  }, [extendDefault]);
   const games = useSelector(selectGames);
   let gameInfos: { key: string; info: GameInfo }[] = [];
   for (let key in games) {
@@ -19,7 +19,7 @@ const GameListView = () => {
     <Table>
       <TableBody>
         {gameInfos.map(({ key, info: { state, variant } }) => {
-          const {} = variant;
+          //const {} = variant;
           return (
             <TableRow key={key}>
               <TableCell></TableCell>

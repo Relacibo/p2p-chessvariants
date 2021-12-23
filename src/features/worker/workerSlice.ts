@@ -34,10 +34,9 @@ export const {
       action: PayloadAction<{ url: string; key: string }>
     ) => {
       const { url, key } = action.payload;
-      const entry = scriptLoadingStates[url];
       scriptLoadingStates[url] = {
         type: "loaded",
-        key,
+        key
       };
     },
     failedLoadingScript: (

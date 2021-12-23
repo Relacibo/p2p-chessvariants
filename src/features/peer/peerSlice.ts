@@ -1,5 +1,4 @@
 import {
-  Action,
   createAction,
   createSlice,
   PayloadAction,
@@ -13,7 +12,7 @@ import { handlePacket } from "./messageHandler";
 
 let peer: Peer | undefined;
 const connections: Map<string, DataConnection> = new Map();
-const outgoingMessageQueue: Map<string, PeerMessage[]> = new Map();
+//const outgoingMessageQueue: Map<string, PeerMessage[]> = new Map();
 
 type ConnectionState = {
   state: "disconnected" | "connecting" | "connected";
@@ -43,7 +42,7 @@ const {
   actions: {
     initializeUUID,
     createdPeer,
-    peerConnected,
+    //peerConnected,
     resetConnectionStates,
   },
   reducer,
@@ -99,11 +98,11 @@ export function initializePeer(): AppThunk {
   };
 }
 
-function sendPacket(toUUID: string, packet: Packet): AppThunk {
+/*function sendPacket(toUUID: string, packet: Packet): AppThunk {
   return async (dispatch, getState) => {
     const other = connections.get(toUUID);
   };
-}
+}*/
 
 function onConnection(connection: DataConnection): AppThunk {
   return (dispatch) => {
