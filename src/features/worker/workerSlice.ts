@@ -23,29 +23,29 @@ export const {
   initialState: {
     workerState: false,
     availableScripts: new Set<string>(),
-    scriptLoadingStates: new Map<string, LoadingState>(),
+    scriptLoadingStates: {} as { [key: string]: LoadingState },
   },
   reducers: {
     loadingScript: ({ scriptLoadingStates }, action: PayloadAction<string>) => {
-      scriptLoadingStates.set(action.payload, { type: "loading" });
+      scriptLoadingStates[action.payload] = { type: "loading" };
     },
     loadedScript: (
       { scriptLoadingStates },
       action: PayloadAction<{ url: string; key: string }>
     ) => {
       const { url, key } = action.payload;
-      const entry = scriptLoadingStates.get(url);
-      scriptLoadingStates.set(url, {
+      const entry = scriptLoadingStates[url];
+      scriptLoadingStates[url] = {
         type: "loaded",
         key,
-      });
+      };
     },
     failedLoadingScript: (
       { scriptLoadingStates },
       action: PayloadAction<{ url: string; message: string }>
     ) => {
       const { url, message } = action.payload;
-      scriptLoadingStates.set(url, { type: "error", message });
+      scriptLoadingStates[url] = { type: "error", message };
     },
     loadedWorker: (state, action: PayloadAction<boolean>) => {
       state.workerState = action.payload;
@@ -81,6 +81,6 @@ export const loadScript =
 export const selectWorkerLoaded = (state: RootState) =>
   state.worker.workerState;
 export const selectScriptLoadingState = (key: string) => (state: RootState) =>
-  state.worker.scriptLoadingStates.get(key);
+  state.worker.scriptLoadingStates[key];
 
 export default reducer;

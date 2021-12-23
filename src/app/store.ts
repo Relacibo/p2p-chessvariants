@@ -18,7 +18,6 @@ import storage from "redux-persist/lib/storage";
 import darkmode from "../features/darkmode/darkmodeSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
 import worker from "../features/worker/workerSlice";
-import peerMiddleware from "../features/peer/middleware";
 import peer from "../features/peer/peerSlice";
 
 const persistConfig = {
@@ -40,7 +39,6 @@ const persistedReducer = persistReducer(persistConfig, rootReducer);
 export const store = configureStore({
   reducer: persistedReducer,
   middleware: (getDefaultMiddleware) => [
-    peerMiddleware,
     ...getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],

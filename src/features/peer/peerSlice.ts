@@ -4,11 +4,12 @@ import {
   createSlice,
   PayloadAction,
 } from "@reduxjs/toolkit";
-import Peer, { DataConnection, PeerJSOption } from "peerjs";
+import Peer, { DataConnection } from "peerjs";
 import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
 import { Packet, PeerMessage } from "./types";
 import { v4 as uuidv4, validate as validateUUID } from "uuid";
+import { handlePacket } from "./messageHandler";
 
 let peer: Peer | undefined;
 const connections: Map<string, DataConnection> = new Map();
@@ -89,12 +90,12 @@ const {
 });
 
 export function initializePeer(): AppThunk {
-  return (dispatch, getState) => {
+  return async (dispatch, getState) => {
     if (typeof selectPeerUUID(getState()) === "undefined") {
       dispatch(initializeUUID(uuidv4()));
     }
     dispatch(resetConnectionStates());
-    dispatch(connectPeer())
+    await dispatch(connectPeer());
   };
 }
 
@@ -122,7 +123,7 @@ function onConnection(connection: DataConnection): AppThunk {
         console.log("Could not parse package!");
         return;
       }
-      dispatch(receivedMessageFromPeer({ from: peerId, message }));
+      dispatch(handlePacket({ from: peerId, message }));
     });
     connection.on("close", () => {
       dispatch(disconnectedFromPeer(peerId));
