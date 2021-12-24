@@ -7,7 +7,7 @@ function HomeView() {
   const { extendDefault } = useContext(LayoutContext);
   useLayoutEffect(() => {
     extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
-  }, [extendDefault]);
+  }, []);
   return (
     <Box
       tag="header"

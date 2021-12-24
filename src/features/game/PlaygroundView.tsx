@@ -14,7 +14,7 @@ function PlaygroundView() {
       sidebarCollapsable: true,
       sidebarIsOverlay: true,
     });
-  }, [extendDefault]);
+  }, []);
   const { id } = useParams();
   const state = useSelector(selectGame(id!));
   const failed = state == null;

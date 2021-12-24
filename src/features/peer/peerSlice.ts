@@ -1,8 +1,4 @@
-import {
-  createAction,
-  createSlice,
-  PayloadAction,
-} from "@reduxjs/toolkit";
+import { createAction, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import Peer, { DataConnection } from "peerjs";
 import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
@@ -36,12 +32,13 @@ export const connectingToPeer = createAction<{ uuid?: string; peerId: string }>(
   "peer/connectingToPeer"
 );
 
-export const deletedPeer = createAction("peer/deletedPeer");
-
 const {
   actions: {
     initializeUUID,
-    createdPeer,
+    connectingPeer,
+    connectedPeer,
+    disconnectedPeer,
+    connectedToPeer,
     //peerConnected,
     resetConnectionStates,
   },
@@ -58,14 +55,26 @@ const {
     initializeUUID: (state, action: PayloadAction<string>) => {
       state.myUUID = action.payload;
     },
-    createdPeer: (state, action: PayloadAction<string>) => {
+    connectingPeer: (state) => {
+      state.connectionState = {
+        ...state.connectionState,
+        state: "connecting",
+      };
+    },
+    connectedPeer: (state, action: PayloadAction<string>) => {
       const peerId = action.payload;
       state.connectionState = {
         state: "connected",
         peerId,
       };
     },
-    peerConnected: (
+    disconnectedPeer: (state) => {
+      state.connectionState = {
+        ...state.connectionState,
+        state: "disconnected",
+      };
+    },
+    connectedToPeer: (
       state,
       action: PayloadAction<{ uuid: string; peerId: string }>
     ) => {
@@ -132,13 +141,17 @@ function onConnection(connection: DataConnection): AppThunk {
 
 export function connectPeer(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
+    dispatch(connectingPeer());
     const oldPeerId = selectPeerId(getState());
     try {
-      await createPeer(oldPeerId);
+      peer = await createPeer(oldPeerId);
     } catch (err) {
       throw err;
     }
-    dispatch(createdPeer(peer!.id));
+    dispatch(connectedPeer(peer!.id));
+    peer!.on("disconnected", () => {
+      dispatch(disconnectedPeer());
+    });
 
     peer!.on("connection", function (connection: DataConnection) {
       dispatch(onConnection(connection));
@@ -148,18 +161,24 @@ export function connectPeer(): AppThunk<Promise<void>> {
 
 function createPeer(wanted?: string): Promise<Peer> {
   return new Promise((resolve, reject) => {
-    peer = new Peer(wanted);
+    const p = new Peer(wanted);
     let errorHandle = (err: any) => {
-      if (peer) {
-        peer.destroy();
+      if (p) {
+        p.destroy();
+      }
+      if (err.type === "unavailable-id") {
+        createPeer()
+          .then((p) => resolve(p))
+          .catch((err) => reject(err));
+        return;
       }
       reject(err);
       return;
     };
-    peer.on("error", errorHandle);
-    peer.on("open", () => {
-      peer?.off("error", errorHandle);
-      resolve(peer!);
+    p.on("error", errorHandle);
+    p.on("open", () => {
+      p?.off("error", errorHandle);
+      resolve(p!);
     });
   });
 }
@@ -175,7 +194,7 @@ export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
           reject();
           return;
         }
-        dispatch(createdPeer(peer!.id));
+        dispatch(connectedPeer(peer!.id));
       }
       const { myUUID: uuid } = selectPeerState(getState());
       const connection = peer!.connect(peerId, {
@@ -201,15 +220,6 @@ export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
       });
       peer!.on("error", errorHandle);
     });
-  };
-}
-
-export function disconnectPeer(): AppThunk {
-  return (dispatch) => {
-    peer?.destroy();
-    connections.clear();
-    dispatch(deletedPeer());
-    peer = undefined;
   };
 }
 
