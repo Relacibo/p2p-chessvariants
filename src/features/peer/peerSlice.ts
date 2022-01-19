@@ -8,6 +8,7 @@ import { handlePacket } from "./messageHandler";
 
 let peer: Peer | undefined;
 const connections: Map<string, DataConnection> = new Map();
+const connectionsWithoutUUID: Map<string, DataConnection> = new Map();
 //const outgoingMessageQueue: Map<string, PeerMessage[]> = new Map();
 
 type ConnectionState = {
@@ -18,7 +19,8 @@ type ConnectionState = {
 type PeerState = {
   myUUID: string;
   connectionState: ConnectionState;
-  connections: { [key: string]: ConnectionState };
+  connections: { [uuid: string]: string };
+  connecting: string[];
 };
 
 export const receivedMessageFromPeer = createAction<Packet>(
@@ -28,9 +30,6 @@ export const receivedMessageFromPeer = createAction<Packet>(
 export const disconnectedFromPeer = createAction<string>(
   "peer/disconnectedFromPeer"
 );
-export const connectingToPeer = createAction<{ uuid?: string; peerId: string }>(
-  "peer/connectingToPeer"
-);
 
 const {
   actions: {
@@ -38,8 +37,9 @@ const {
     connectingPeer,
     connectedPeer,
     disconnectedPeer,
-    connectedToPeer,
+    connectingToPeer,
     //peerConnected,
+    failedConnectingToPeer,
     resetConnectionStates,
   },
   reducer,
@@ -79,20 +79,24 @@ const {
       action: PayloadAction<{ uuid: string; peerId: string }>
     ) => {
       const { uuid, peerId } = action.payload;
-      state.connections[uuid] = {
-        state: "connected",
-        peerId,
-      };
+      state.connecting = state.connecting.filter((id) => {
+        peerId !== id;
+      });
+      state.connections[uuid] = peerId;
+    },
+    connectingToPeer: (state, action: PayloadAction<string>) => {
+      state.connecting.push(action.payload);
+    },
+    failedConnectingToPeer: (state, action: PayloadAction<string>) => {
+      const peerId = action.payload;
+      state.connecting = state.connecting.filter((id) => peerId == id);
     },
     resetConnectionStates: (state) => {
       state.connectionState = {
-        ...state.connectionState,
         state: "disconnected",
       };
-      for (const key in state.connections) {
-        const value = state.connections[key];
-        state.connections[key] = { ...value, state: "disconnected" };
-      }
+      state.connections = {};
+      state.connecting = [];
     },
   },
 });
@@ -102,8 +106,17 @@ export function initializePeer(): AppThunk {
     if (typeof selectPeerUUID(getState()) === "undefined") {
       dispatch(initializeUUID(uuidv4()));
     }
+    const oldConnections = selectPeerConnections(getState());
+    let oldPeerIds = selectPeerConnecting(getState());
+    for (const key in oldConnections) {
+      oldPeerIds.push(oldConnections[key]);
+    }
     dispatch(resetConnectionStates());
     await dispatch(connectPeer());
+    dispatch(errorHandler());
+    for (const peerId in oldPeerIds) {
+      dispatch(connectToPeer(peerId));
+    }
   };
 }
 
@@ -134,6 +147,7 @@ function onConnection(connection: DataConnection): AppThunk {
       dispatch(handlePacket({ from: peerId, message }));
     });
     connection.on("close", () => {
+      dispatch(resetConnectionStates());
       dispatch(disconnectedFromPeer(peerId));
     });
   };
@@ -183,42 +197,29 @@ function createPeer(wanted?: string): Promise<Peer> {
   });
 }
 
-export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
+function errorHandler(): AppThunk {
   return (dispatch, getState) => {
-    return new Promise(async (resolve, reject) => {
-      if (!peer) {
-        try {
-          await createPeer();
-        } catch (err) {
-          toast.error("Peer server problem. Try again later!");
-          reject();
+    peer!.on("error", (err) => {
+      switch (err.type) {
+        case "peer-unavailable": {
+          dispatch(failedConnectingToPeer(err.peerId));
           return;
         }
-        dispatch(connectedPeer(peer!.id));
       }
-      const { myUUID: uuid } = selectPeerState(getState());
-      const connection = peer!.connect(peerId, {
-        reliable: true,
-        metadata: { uuid },
-      });
-      dispatch(connectingToPeer({ peerId }));
-      let errorHandle = (err: any) => {
-        console.log("could not connect");
-        switch (err.type) {
-          case "peer-unavailable": {
-            toast.error("Peer not available!");
-            peer!.off("error", errorHandle);
-            reject();
-            return;
-          }
-        }
-      };
-      connection.on("open", () => {
-        peer!.off("error", errorHandle);
-        dispatch(onConnection(connection));
-        resolve();
-      });
-      peer!.on("error", errorHandle);
+    });
+  };
+}
+
+export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
+  return async (dispatch, getState) => {
+    const { myUUID: uuid } = selectPeerState(getState());
+    const connection = peer!.connect(peerId, {
+      reliable: true,
+      metadata: { uuid },
+    });
+    dispatch(connectingToPeer(peerId));
+    connection.on("open", () => {
+      dispatch(onConnection(connection));
     });
   };
 }
@@ -230,5 +231,8 @@ export const selectPeerId = (state: RootState) =>
   state.peer.connectionState.peerId;
 export const selectPeerConnectionState = (state: RootState) =>
   state.peer.connectionState.state;
+export const selectPeerConnections = (state: RootState) =>
+  state.peer.connections;
+export const selectPeerConnecting = (state: RootState) => state.peer.connecting;
 
 export default reducer;
