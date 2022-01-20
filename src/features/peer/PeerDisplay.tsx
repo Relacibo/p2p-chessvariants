@@ -1,8 +1,24 @@
-import { Box, Text, TextInput, Tip } from "grommet";
+import {
+  Box,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+  Text,
+  TextInput,
+  Tip,
+} from "grommet";
 import React from "react";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import { selectPeerConnecting, selectPeerConnections, selectPeerConnectionState, selectPeerId } from "./peerSlice";
+import {
+  selectPeerConnecting,
+  selectPeerConnections,
+  selectPeerConnectionState,
+  selectPeerId,
+} from "./peerSlice";
 
 const COLOR_DISCONNECTED = "#CCCCCC";
 const COLOR_CONNECTING = "#FFAA15";
@@ -11,10 +27,41 @@ const COLOR_CONNECTED = "#00C781";
 function createTooltip() {
   const connecting = useSelector(selectPeerConnecting);
   const connections = useSelector(selectPeerConnections);
-  const connectingElement = connecting.map((peerId) => );
-  const connectedElement = 
+  const connectingElements = connecting.map((peerId) => (
+    <TableRow style={{ color: COLOR_CONNECTING }}>
+      <TableCell>{peerId}</TableCell>
+      <TableCell>
+        <Spinner />
+      </TableCell>
+    </TableRow>
+  ));
+  const connectedElements = Object.entries(connections).map(
+    ([uuid, peerId]) => (
+      <TableRow style={{ color: COLOR_CONNECTED }}>
+        <TableCell>{peerId}</TableCell>
+        <TableCell>{uuid}</TableCell>
+      </TableRow>
+    )
+  );
 
-  return (<Box>{connectingElement}{connectedElement}</Box>)
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableCell scope="col" border="bottom">
+            PeerId
+          </TableCell>
+          <TableCell scope="col" border="bottom">
+            UUID
+          </TableCell>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {connectingElements}
+        {connectedElements}
+      </TableBody>
+    </Table>
+  );
 }
 
 const PeerDisplay = () => {
@@ -23,19 +70,17 @@ const PeerDisplay = () => {
   let color;
   switch (peerState) {
     case "disconnected":
-      color = "#CCCCCC";
+      color = COLOR_DISCONNECTED;
       break;
     case "connecting":
-      color = "#FFAA15";
+      color = COLOR_CONNECTING;
       break;
     case "connected":
-      color = "#00C781";
+      color = COLOR_CONNECTED;
       break;
   }
   return (
-    <Tip content={
-      createTooltip()
-    }>
+    <Tip content={createTooltip()}>
       <Box gap="xsmall">
         <Text margin={{ left: "xsmall" }} color="accent-1">
           Peer ID
