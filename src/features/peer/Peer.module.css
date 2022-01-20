@@ -1,0 +1,11 @@
+.disconnected {
+  color: "#CCCCCC";
+}
+
+.connecting {
+  color: "#FFAA15";
+}
+
+.connected {
+  color: "#00C781";
+}
