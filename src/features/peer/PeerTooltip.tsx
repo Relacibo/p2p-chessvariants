@@ -20,23 +20,6 @@ const PeerTooltip = (props: PeerTooltipProps) => {
   const { children } = props;
   const connecting = useSelector(selectPeerConnecting);
   const connections = useSelector(selectPeerConnections);
-  const connectingElements = connecting.map((peerId) => (
-    <TableRow className={style.connecting}>
-      <TableCell>{peerId}</TableCell>
-      <TableCell>
-        <Spinner />
-      </TableCell>
-    </TableRow>
-  ));
-  const connectedElements = Object.entries(connections).map(
-    ([uuid, peerId]) => (
-      <TableRow className={style.connected}>
-        <TableCell>{peerId}</TableCell>
-        <TableCell>{uuid}</TableCell>
-      </TableRow>
-    )
-  );
-
   return (
     <Tip
       content={
@@ -52,8 +35,20 @@ const PeerTooltip = (props: PeerTooltipProps) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {connectingElements}
-            {connectedElements}
+            {connecting.map((peerId) => (
+              <TableRow className={style.connecting}>
+                <TableCell>{peerId}</TableCell>
+                <TableCell>
+                  <Spinner />
+                </TableCell>
+              </TableRow>
+            ))}
+            {Object.entries(connections).map(([uuid, peerId]) => (
+              <TableRow className={style.connected}>
+                <TableCell>{peerId}</TableCell>
+                <TableCell>{uuid}</TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       }
