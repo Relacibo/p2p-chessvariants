@@ -22,7 +22,6 @@ export const {
   name: "worker",
   initialState: {
     workerState: false,
-    availableScripts: new Set<string>(),
     scriptLoadingStates: {} as { [key: string]: LoadingState },
   },
   reducers: {
@@ -73,7 +72,7 @@ export const loadScript =
       const uuid = await worker!.loadScript(url);
       dispatch(loadedScript({ url, key: uuid }));
     } catch (e) {
-      dispatch(failedLoadingScript({ url, message: e }));
+      dispatch(failedLoadingScript({ url, message: e + "" }));
     }
   };
 

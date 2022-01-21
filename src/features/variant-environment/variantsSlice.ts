@@ -22,7 +22,7 @@ export const {
 } = createSlice({
   name: "variantsSlice",
   initialState: {
-    games: new Map<string, GameInfo>(),
+    games: {} as { [key: string]: GameInfo },
   },
   reducers: {
     startGame: (
@@ -34,7 +34,7 @@ export const {
       }>
     ) => {
       const { key, variant, state } = action.payload;
-      games.set(key, { variant, state });
+      games[key] = { variant, state };
     },
     changeGameState: (
       { games },
@@ -44,7 +44,7 @@ export const {
       }>
     ) => {
       const { key, newState } = action.payload;
-      const variantState = games.get(key);
+      const variantState = games[key];
       if (!variantState) {
         return;
       }
@@ -69,7 +69,7 @@ export const move =
         })
       )!;
     } catch (e) {
-      toast.error(e);
+      toast.error(e + "");
       return;
     }
     dispatch(changeGameState({ key, newState }));
@@ -78,6 +78,6 @@ export const move =
 export const selectState = (state: RootState) => state.variantEnvironment;
 export const selectGames = (state: RootState) => state.variantEnvironment.games;
 export const selectGame = (id: string) => (state: RootState) =>
-  state.variantEnvironment.games.get(id);
+  state.variantEnvironment.games[id];
 
 export default reducer;

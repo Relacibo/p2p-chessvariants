@@ -8,7 +8,6 @@ import { handlePacket } from "./messageHandler";
 
 let peer: Peer | undefined;
 const connections: Map<string, DataConnection> = new Map();
-const connectionsWithoutUUID: Map<string, DataConnection> = new Map();
 //const outgoingMessageQueue: Map<string, PeerMessage[]> = new Map();
 
 type ConnectionState = {
@@ -17,7 +16,7 @@ type ConnectionState = {
 };
 
 type PeerState = {
-  myUUID: string;
+  myUUID?: string;
   connectionState: ConnectionState;
   connections: { [uuid: string]: string };
   connecting: string[];
@@ -27,10 +26,6 @@ export const receivedMessageFromPeer = createAction<Packet>(
   "peer/receivedMessageFromPeer"
 );
 
-export const disconnectedFromPeer = createAction<string>(
-  "peer/disconnectedFromPeer"
-);
-
 const {
   actions: {
     initializeUUID,
@@ -38,9 +33,10 @@ const {
     connectedPeer,
     disconnectedPeer,
     connectingToPeer,
-    //peerConnected,
-    failedConnectingToPeer,
+    peerIsConnecting,
     resetConnectionStates,
+    disconnectedFromPeer,
+    connectedToPeer,
   },
   reducer,
 } = createSlice({
@@ -50,6 +46,7 @@ const {
       state: "disconnected",
     },
     connections: {},
+    connecting: [] as string[],
   } as PeerState,
   reducers: {
     initializeUUID: (state, action: PayloadAction<string>) => {
@@ -79,17 +76,18 @@ const {
       action: PayloadAction<{ uuid: string; peerId: string }>
     ) => {
       const { uuid, peerId } = action.payload;
-      state.connecting = state.connecting.filter((id) => {
-        peerId !== id;
-      });
+      state.connecting = state.connecting.filter((id) => peerId !== id);
       state.connections[uuid] = peerId;
     },
     connectingToPeer: (state, action: PayloadAction<string>) => {
-      state.connecting.push(action.payload);
+      if (!state.connecting.includes(action.payload)) {
+        state.connecting.push(action.payload);
+      }
     },
-    failedConnectingToPeer: (state, action: PayloadAction<string>) => {
-      const peerId = action.payload;
-      state.connecting = state.connecting.filter((id) => peerId == id);
+    peerIsConnecting: (state, action: PayloadAction<string>) => {
+      if (!state.connecting.includes(action.payload)) {
+        state.connecting.push(action.payload);
+      }
     },
     resetConnectionStates: (state) => {
       state.connectionState = {
@@ -97,6 +95,11 @@ const {
       };
       state.connections = {};
       state.connecting = [];
+    },
+    disconnectedFromPeer: (state, action: PayloadAction<string>) => {
+      const peerId = action.payload;
+      state.connecting = state.connecting.filter((id) => peerId !== id);
+      delete state.connections[peerId];
     },
   },
 });
@@ -107,16 +110,15 @@ export function initializePeer(): AppThunk {
       dispatch(initializeUUID(uuidv4()));
     }
     const oldConnections = selectPeerConnections(getState());
-    let oldPeerIds = selectPeerConnecting(getState());
-    for (const key in oldConnections) {
-      oldPeerIds.push(oldConnections[key]);
-    }
+    let oldPeerIds = selectPeerConnecting(getState()).concat(
+      Object.values(oldConnections)
+    );
     dispatch(resetConnectionStates());
     await dispatch(connectPeer());
     dispatch(errorHandler());
-    for (const peerId in oldPeerIds) {
+    oldPeerIds.forEach((peerId) => {
       dispatch(connectToPeer(peerId));
-    }
+    });
   };
 }
 
@@ -130,11 +132,12 @@ function onConnection(connection: DataConnection): AppThunk {
   return (dispatch) => {
     const { peer: peerId, metadata } = connection;
     const { uuid } = metadata;
+    console.log(metadata);
     if (typeof uuid !== "string" || !validateUUID(uuid)) {
       connection.close();
       return;
     }
-    connections.set(uuid, connection);
+    connectedToPeer({ uuid, peerId });
 
     connection.on("data", (data: string) => {
       let message: PeerMessage;
@@ -145,10 +148,6 @@ function onConnection(connection: DataConnection): AppThunk {
         return;
       }
       dispatch(handlePacket({ from: peerId, message }));
-    });
-    connection.on("close", () => {
-      dispatch(resetConnectionStates());
-      dispatch(disconnectedFromPeer(peerId));
     });
   };
 }
@@ -168,6 +167,13 @@ export function connectPeer(): AppThunk<Promise<void>> {
     });
 
     peer!.on("connection", function (connection: DataConnection) {
+      const peerId = connection.peer;
+      connection.on("close", () => {
+        connections.delete(peerId);
+        dispatch(disconnectedFromPeer(peerId));
+      });
+      connections.set(peerId, connection);
+      dispatch(peerIsConnecting(peerId));
       dispatch(onConnection(connection));
     });
   };
@@ -198,13 +204,15 @@ function createPeer(wanted?: string): Promise<Peer> {
 }
 
 function errorHandler(): AppThunk {
-  return (dispatch, getState) => {
+  return (dispatch) => {
     peer!.on("error", (err) => {
       switch (err.type) {
-        case "peer-unavailable": {
-          dispatch(failedConnectingToPeer(err.peerId));
-          return;
-        }
+        case "peer-unavailable":
+          toast.error(err);
+          console.error(err);
+          const peerId = (err.message as String).substring(26);
+          dispatch(disconnectedFromPeer(peerId));
+          break;
       }
     });
   };
@@ -212,15 +220,29 @@ function errorHandler(): AppThunk {
 
 export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
+    if (peerId === "") {
+      return;
+    }
     const { myUUID: uuid } = selectPeerState(getState());
     const connection = peer!.connect(peerId, {
       reliable: true,
       metadata: { uuid },
     });
+    connections.set(peerId, connection);
     dispatch(connectingToPeer(peerId));
+    connection.on("close", () => {
+      connections.delete(peerId);
+      dispatch(disconnectedFromPeer(peerId));
+    });
     connection.on("open", () => {
       dispatch(onConnection(connection));
     });
+  };
+}
+
+export function disconnectFromPeer(peerId: string): AppThunk<Promise<void>> {
+  return async () => {
+    connections.get(peerId)?.close();
   };
 }
 

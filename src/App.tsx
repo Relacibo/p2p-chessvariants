@@ -33,7 +33,7 @@ function App() {
         </Layout>
       </Grommet>
       <ToastContainer
-        position="bottom-right"
+        position="bottom-left"
         theme={darkmodeActive ? "dark" : "light"}
       />
     </>

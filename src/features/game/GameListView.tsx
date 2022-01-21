@@ -10,15 +10,10 @@ const GameListView = () => {
     extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
   }, []);
   const games = useSelector(selectGames);
-  let gameInfos: { key: string; info: GameInfo }[] = [];
-  for (let key in games) {
-    const info = games.get(key)!;
-    gameInfos.push({ key, info });
-  }
   return (
     <Table>
       <TableBody>
-        {gameInfos.map(({ key, info: { state, variant } }) => {
+        {Object.entries(games).map(([key, { state, variant }]) => {
           //const {} = variant;
           return (
             <TableRow key={key}>

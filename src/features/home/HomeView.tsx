@@ -1,10 +1,13 @@
 import { Box, Button, Form, FormField, Heading, TextInput } from "grommet";
-import { useContext, useLayoutEffect } from "react";
-import { toast } from "react-toastify";
+import { useContext, useLayoutEffect, useState } from "react";
 import { LayoutContext } from "../layout/Layout";
+import { connectToPeer } from "../peer/peerSlice";
+import { useAppDispatch } from "../../app/hooks";
 
 function HomeView() {
+  const dispatch = useAppDispatch();
   const { extendDefault } = useContext(LayoutContext);
+  const [peerId, setPeerId] = useState("");
   useLayoutEffect(() => {
     extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
   }, []);
@@ -16,19 +19,15 @@ function HomeView() {
       justify="center"
       pad={{ top: "medium" }}
     >
-      <Form onSubmit={() => toast.info("Hier gibt es wirklich nichts!")}>
+      <Form onSubmit={() => dispatch(connectToPeer(peerId))}>
         <Heading textAlign="center" margin={{ top: "small", bottom: "medium" }}>
-          Setup
+          Connect to peer
         </Heading>
-        <FormField align="center" label="Gebe was ein!">
-          <TextInput />
-        </FormField>
-        <FormField align="center" label="es wird nichts ausmachen!">
-          <TextInput />
+        <FormField align="center" label="Peer ID">
+          <TextInput value={peerId} onChange={(e) => setPeerId(e.target.value)}/>
         </FormField>
         <Box justify="center" direction="row" gap="medium">
           <Button type="submit" primary label="Submit" />
-          <Button type="reset" label="Reset" />
         </Box>
       </Form>
     </Box>
