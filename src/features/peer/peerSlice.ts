@@ -117,6 +117,11 @@ export function initializePeer(): AppThunk {
   };
 }
 
+function isConnected(state: RootState, uuid: string): boolean {
+  const cs = selectPeerConnections(state);
+  return Object.keys(cs).includes(uuid);
+}
+
 function sendPacket(uuid: string, packet: Packet): AppThunk {
   return async (_dispatch, getState) => {
     const peerIds = selectPeerConnections(getState());
@@ -137,7 +142,7 @@ function peerMessageHandler(packet: Packet): AppThunk {
       return;
     }
     const connection = connections.get(peerId)!;
-    if (!validateUUID(uuid)) {
+    if (!validateUUID(uuid) || isConnected(getState(), uuid)) {
       connection.close();
       return;
     }
@@ -187,19 +192,19 @@ export function connectPeer(): AppThunk<Promise<void>> {
         dispatch(disconnectedFromPeer(peerId));
       });
       connections.set(peerId, connection);
-      const { uuid } = metadata;
-      if (!validateUUID(uuid)) {
-        connection.close();
-        return;
-      }
       connection.on("open", () => {
+        const { uuid } = metadata;
+        if (!validateUUID(uuid) || isConnected(getState(), uuid)) {
+          connection.close();
+          return;
+        }
         dispatch(connectedToPeer({ uuid, peerId }));
         connection.on("data", (data: Packet) => {
           dispatch(handlePacket({ ...data, peerId }));
         });
         const myUUID = selectPeerUUID(getState());
         connection.send({ type: "peer", uuid: myUUID });
-      })
+      });
     });
   };
 }
