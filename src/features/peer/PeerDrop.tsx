@@ -7,12 +7,17 @@ import {
   TableRow,
   Drop,
   Button,
+  Box,
 } from "grommet";
 import { Clear, Close } from "grommet-icons/icons";
 import React from "react";
 import { useSelector } from "react-redux";
 import style from "./Peer.module.css";
-import { disconnectFromPeer, selectPeerConnecting, selectPeerConnections } from "./peerSlice";
+import {
+  disconnectFromPeer,
+  selectPeerConnecting,
+  selectPeerConnections,
+} from "./peerSlice";
 import { useAppDispatch } from "../../app/hooks";
 
 type PeerTooltipProps = {
@@ -52,9 +57,11 @@ const PeerDrop = (props: PeerTooltipProps) => {
                     <Spinner color="status-warning" />
                   </TableCell>
                   <TableCell>
-                      <Button onClick={() => dispatch(disconnectFromPeer(peerId))}>
-                        <Clear />
-                      </Button>
+                    <Button
+                      onClick={() => dispatch(disconnectFromPeer(peerId))}
+                    >
+                      <Clear />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -64,7 +71,9 @@ const PeerDrop = (props: PeerTooltipProps) => {
                     <TableCell>{peerId}</TableCell>
                     <TableCell>{uuid}</TableCell>
                     <TableCell>
-                      <Button onClick={() => dispatch(disconnectFromPeer(peerId))}>
+                      <Button
+                        onClick={() => dispatch(disconnectFromPeer(peerId))}
+                      >
                         <Clear />
                       </Button>
                     </TableCell>
@@ -74,7 +83,7 @@ const PeerDrop = (props: PeerTooltipProps) => {
           </TableBody>
         </Table>
       ) : (
-        <>Keine Verbindungen</>
+        <Box margin={{ right: "1.7rem" }}>Keine Verbindungen</Box>
       )}
     </Drop>
   );

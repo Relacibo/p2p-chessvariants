@@ -11,7 +11,9 @@ export function addMessageHandler(
 }
 
 export function handlePacket(packet: Packet): AppThunk {
-  return handlers[packet.message.type](packet);
+  return (dispatch) => {
+    dispatch(handlers[packet.type](packet));
+  };
 }
 
 export function deleteMessageHandler(messageType: string) {

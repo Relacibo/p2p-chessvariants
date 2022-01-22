@@ -3,6 +3,8 @@ import { useContext, useLayoutEffect, useState } from "react";
 import { LayoutContext } from "../layout/Layout";
 import { connectToPeer } from "../peer/peerSlice";
 import { useAppDispatch } from "../../app/hooks";
+import { validate as validateUUID } from "uuid";
+import { toast } from "react-toastify";
 
 function HomeView() {
   const dispatch = useAppDispatch();
@@ -19,12 +21,23 @@ function HomeView() {
       justify="center"
       pad={{ top: "medium" }}
     >
-      <Form onSubmit={() => dispatch(connectToPeer(peerId))}>
+      <Form
+        onSubmit={() => {
+          if (!validateUUID(peerId)) {
+            toast.error("Not an uuid!");
+            return;
+          }
+          dispatch(connectToPeer(peerId));
+        }}
+      >
         <Heading textAlign="center" margin={{ top: "small", bottom: "medium" }}>
           Connect to peer
         </Heading>
         <FormField align="center" label="Peer ID">
-          <TextInput value={peerId} onChange={(e) => setPeerId(e.target.value)}/>
+          <TextInput
+            value={peerId}
+            onChange={(e) => setPeerId(e.target.value)}
+          />
         </FormField>
         <Box justify="center" direction="row" gap="medium">
           <Button type="submit" primary label="Submit" />
