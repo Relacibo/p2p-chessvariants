@@ -48,7 +48,10 @@ const PeerDisplay = () => {
               styles={(theme: MantineTheme) => ({
                 root: {
                   background: "none !important",
-                  color: theme.colorScheme === "dark" ? theme.white : theme.colors.dark[2],
+                  color:
+                    theme.colorScheme === "dark"
+                      ? theme.white
+                      : theme.colors.dark[2],
                   "&:hover": {
                     color: theme.colors.green[4],
                   },
@@ -61,7 +64,7 @@ const PeerDisplay = () => {
         />
       }
       onClose={() => setShowPopover((s) => !s)}
-      styles={{ root: { width: "auto" } }}
+      style={{ width: "100%" }}
     />
   );
 };

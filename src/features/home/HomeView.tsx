@@ -21,7 +21,7 @@ function HomeView() {
   const dispatch = useAppDispatch();
   useLayoutConfigSetter({
     sidebarCollapsed: false,
-    sidebarCollapsable: true,
+    sidebarCollapsable: false,
   });
   return (
     <Container>
