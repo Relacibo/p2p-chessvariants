@@ -127,9 +127,7 @@ function Layout(props: LayoutProps) {
               <Navbar.Section mt="auto">
                 <Group position="apart">
                   <PeerDisplay />
-                  <div>
-                    <DarkmodeSelector />
-                  </div>
+                  <DarkmodeSelector />
                 </Group>
               </Navbar.Section>
             </Navbar>
