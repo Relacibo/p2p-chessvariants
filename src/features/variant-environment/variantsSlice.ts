@@ -1,5 +1,4 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
 import { Coords, VariantState } from "../../gamelogic/types";
 import { VariantsWorker } from "../worker/worker";
@@ -69,7 +68,7 @@ export const move =
         })
       )!;
     } catch (e) {
-      toast.error(e + "");
+      console.log(e);
       return;
     }
     dispatch(changeGameState({ key, newState }));

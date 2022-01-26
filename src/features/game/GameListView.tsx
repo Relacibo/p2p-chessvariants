@@ -1,29 +1,25 @@
-import { Table, TableBody, TableCell, TableRow } from "grommet";
-import React, { useContext, useLayoutEffect } from "react";
+import { Table } from "@mantine/core";
 import { useSelector } from "react-redux";
-import { LayoutContext } from "../layout/Layout";
-import { selectGames, GameInfo } from "../variant-environment/variantsSlice";
+import { useLayoutConfigSetter } from "../layout/hooks";
+import { selectGames } from "../variant-environment/variantsSlice";
 
 const GameListView = () => {
-  const { extendDefault } = useContext(LayoutContext);
-  useLayoutEffect(() => {
-    extendDefault({ sidebarCollapsed: false, sidebarCollapsable: false });
-  }, []);
+  useLayoutConfigSetter({ sidebarCollapsed: false, sidebarCollapsable: false });
   const games = useSelector(selectGames);
   return (
     <Table>
-      <TableBody>
+      <tbody>
         {Object.entries(games).map(([key, { state, variant }]) => {
           //const {} = variant;
           return (
-            <TableRow key={key}>
-              <TableCell></TableCell>
-              <TableCell></TableCell>
-              <TableCell></TableCell>
-            </TableRow>
+            <tr key={key}>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
           );
         })}
-      </TableBody>
+      </tbody>
     </Table>
   );
 };

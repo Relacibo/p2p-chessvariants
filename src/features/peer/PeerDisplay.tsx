@@ -1,17 +1,17 @@
-import { Box, Button, Grid, Text, TextInput } from "grommet";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import { toast } from "react-toastify";
 import { selectPeerConnectionState, selectPeerId } from "./peerSlice";
-import PeerDrop from "./PeerDrop";
+import { useClipboard } from "@mantine/hooks";
+import { IconClipboardCheck, IconClipboard } from "@tabler/icons";
+import PeerPopover from "./PeerPopover";
 import style from "./Peer.module.css";
-import { Copy } from "grommet-icons/icons";
+import { Button, Group, MantineTheme, Popover, TextInput } from "@mantine/core";
 
 const PeerDisplay = () => {
+  const clipboard = useClipboard();
   const peerId = useSelector(selectPeerId);
   const peerState = useSelector(selectPeerConnectionState);
-  const dropTargetRef = useRef() as React.MutableRefObject<HTMLInputElement>;
-  const [showDrop, setShowDrop] = useState(false);
+  const [showPopover, setShowPopover] = useState(false);
   let className;
   switch (peerState) {
     case "disconnected":
@@ -25,42 +25,44 @@ const PeerDisplay = () => {
       break;
   }
   return (
-    <>
-      <Box gap="xsmall" ref={dropTargetRef}>
-        <Text margin={{ left: "xsmall" }} color="accent-1">
-          Peer ID
-        </Text>
-        <Grid columns={["flex", "auto"]} align="center">
-          <TextInput
-            readOnly
-            width="auto"
-            value={peerId || ""}
-            className={className}
-            style={{ cursor: "pointer", fontSize: "0.7em" }}
-            onClick={() => setShowDrop(!showDrop)}
-          />
-          <Button
-            onClick={() => {
-              if (typeof peerId !== "undefined") {
-                navigator.clipboard.writeText(peerId);
-                toast.info(`Copied peer id to clipboard!`);
-              }
-            }}
-            margin={{ left: ".5rem" }}
-          >
-            <Copy />
-          </Button>
-        </Grid>
-      </Box>
-      {showDrop && (
-        <PeerDrop
-          target={dropTargetRef}
-          close={() => {
-            setShowDrop(false);
+    <PeerPopover
+      opened={showPopover}
+      target={
+        <TextInput
+          readOnly
+          label="Peer ID"
+          value={peerId || ""}
+          className={className}
+          styles={{
+            input: { cursor: "pointer", fontSize: "0.7em" },
           }}
+          onClick={() => setShowPopover((s) => !s)}
+          rightSection={
+            <Button
+              compact
+              onClick={() => {
+                if (typeof peerId !== "undefined") {
+                  clipboard.copy(peerId);
+                }
+              }}
+              styles={(theme: MantineTheme) => ({
+                root: {
+                  background: "none !important",
+                  color: theme.colorScheme === "dark" ? theme.white : theme.colors.dark[2],
+                  "&:hover": {
+                    color: theme.colors.green[4],
+                  },
+                },
+              })}
+            >
+              {clipboard.copied ? <IconClipboardCheck /> : <IconClipboard />}
+            </Button>
+          }
         />
-      )}
-    </>
+      }
+      onClose={() => setShowPopover((s) => !s)}
+      styles={{ root: { width: "auto" } }}
+    />
   );
 };
 export default PeerDisplay;

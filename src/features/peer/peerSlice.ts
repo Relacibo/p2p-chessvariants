@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import Peer, { DataConnection } from "peerjs";
-import { toast } from "react-toastify";
 import { AppThunk, RootState } from "../../app/store";
 import { Packet } from "./types";
 import { v4 as uuidv4, validate as validateUUID } from "uuid";
@@ -14,10 +13,10 @@ const connections: Map<string, DataConnection> = new Map();
 type ConnectionState = {
   state: "disconnected" | "connecting" | "connected";
   peerId?: string;
+  uuid?: string;
 };
 
 type PeerState = {
-  myUUID?: string;
   connectionState: ConnectionState;
   connections: { [uuid: string]: string };
   connecting: string[];
@@ -46,7 +45,7 @@ const {
   } as PeerState,
   reducers: {
     initializeUUID: (state, action: PayloadAction<string>) => {
-      state.myUUID = action.payload;
+      state.connectionState.uuid = action.payload;
     },
     connectingPeer: (state) => {
       state.connectionState = {
@@ -57,6 +56,7 @@ const {
     connectedPeer: (state, action: PayloadAction<string>) => {
       const peerId = action.payload;
       state.connectionState = {
+        ...state.connectionState,
         state: "connected",
         peerId,
       };
@@ -152,7 +152,7 @@ function peerMessageHandler(packet: Packet): AppThunk {
 
 export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
-    const { myUUID: uuid } = selectPeerState(getState());
+    const uuid = selectPeerUUID(getState());
     const connection = peer!.connect(peerId, {
       reliable: true,
       metadata: { uuid },
@@ -238,7 +238,6 @@ function errorHandler(): AppThunk {
     peer!.on("error", (err) => {
       switch (err.type) {
         case "peer-unavailable":
-          toast.error(err);
           console.error(err);
           const peerId = (err.message as String).substring(26);
           dispatch(disconnectedFromPeer(peerId));
@@ -256,7 +255,8 @@ export function disconnectFromPeer(peerId: string): AppThunk<Promise<void>> {
 
 export const selectPeerState = (state: RootState) => state.peer;
 
-export const selectPeerUUID = (state: RootState) => state.peer.myUUID;
+export const selectPeerUUID = (state: RootState) =>
+  state.peer.connectionState.uuid;
 export const selectPeerId = (state: RootState) =>
   state.peer.connectionState.peerId;
 export const selectPeerConnectionState = (state: RootState) =>

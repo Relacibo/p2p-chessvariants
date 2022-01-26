@@ -1,18 +1,17 @@
 import { selectDarkmodeActive, setDarkmode } from "./darkmodeSlice";
-import { CheckBox } from "grommet";
 import { useSelector } from "react-redux";
 import { useAppDispatch } from "../../app/hooks";
+import { Checkbox, Switch } from "@mantine/core";
 
 function DarkmodeSelector() {
   const dispatch = useAppDispatch();
   const dark = useSelector(selectDarkmodeActive);
   return (
-    <CheckBox
-      toggle
+    <Switch
       checked={dark}
       label="Dark mode"
-      onChange={({ target: { checked } }) => dispatch(setDarkmode(checked))}
-    ></CheckBox>
+      onChange={({ currentTarget: { checked } }) => dispatch(setDarkmode(checked))}
+    />
   );
 }
 
