@@ -66,7 +66,9 @@ function Layout(props: LayoutProps) {
         padding={0}
         sx={(theme) => ({
           backgroundColor:
-            theme.colorScheme === "dark" ? theme.colors.dark[6] : theme.white,
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[6]
+              : theme.colors.gray[0],
           color:
             theme.colorScheme === "dark" ? theme.colors.dark[0] : theme.black,
           height: "100vh",

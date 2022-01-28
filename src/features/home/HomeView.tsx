@@ -28,13 +28,7 @@ function HomeView() {
       <Paper
         padding="sm"
         mt="lg"
-        sx={(theme) => ({
-          borderRadius: ".5rem",
-          border:
-            theme.colorScheme === "dark"
-              ? "none"
-              : `${theme.colors.green[1]} 1px solid`,
-        })}
+        shadow="xs"
       >
         <form
           onSubmit={form.onSubmit(({ peerId }) => {
