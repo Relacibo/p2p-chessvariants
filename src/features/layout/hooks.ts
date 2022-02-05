@@ -1,4 +1,4 @@
-import { useCallback, useContext, useLayoutEffect } from "react";
+import { useContext, useLayoutEffect } from "react";
 import { LayoutConfig, LayoutContext } from "./Layout";
 
 export const useLayoutConfigSetter = (config: Partial<LayoutConfig>) => {

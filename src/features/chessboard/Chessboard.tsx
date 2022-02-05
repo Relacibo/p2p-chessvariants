@@ -5,7 +5,6 @@ export type ChessboardProps = {
 };
 
 export function Chessboard(props: ChessboardProps) {
-  
   return <div></div>;
 }
 

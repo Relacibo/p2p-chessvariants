@@ -1,13 +1,13 @@
 import {
-  Coords,
-  Piece,
-  BoardState,
-  TileData,
-  ReservePileState,
   BoardCoords,
-  ReservePileCoords,
+  BoardState,
+  Coords,
   Direction,
   EmptyTile,
+  Piece,
+  ReservePileCoords,
+  ReservePileState,
+  TileData,
 } from "./types";
 
 const util = {

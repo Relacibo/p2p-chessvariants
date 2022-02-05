@@ -1,22 +1,10 @@
+import { Anchor, AppShell, Button, Group, Navbar } from "@mantine/core";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons";
 import React, { createContext, useState } from "react";
-import style from "./Layout.module.css";
+import { Link } from "react-router-dom";
 import DarkmodeSelector from "../darkmode/DarkmodeSelector";
 import PeerDisplay from "../peer/PeerDisplay";
-import {
-  Box,
-  Anchor,
-  Button,
-  Container,
-  Grid,
-  Group,
-  Navbar,
-  Paper,
-  AppShell,
-} from "@mantine/core";
-import { Link } from "react-router-dom";
-import { IconChevronRight, IconChevronLeft } from "@tabler/icons";
-import { useCallback } from "react";
-import { useColorScheme } from "@mantine/hooks";
+import style from "./Layout.module.css";
 
 export type LayoutProps = {
   children: JSX.Element | JSX.Element[] | never[];

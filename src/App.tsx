@@ -1,16 +1,16 @@
+import { MantineProvider } from "@mantine/core";
+import { NotificationsProvider } from "@mantine/notifications";
 import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Route, Routes } from "react-router-dom";
-import { MantineProvider } from "@mantine/core";
+import { useAppDispatch } from "./app/hooks";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
+import GameListView from "./features/game/GameListView";
 import PlaygroundView from "./features/game/PlaygroundView";
 import HomeView from "./features/home/HomeView";
-import Layout from "./features/layout/Layout";
-import GameListView from "./features/game/GameListView";
-import MatchFail from "./MatchFail";
-import { useAppDispatch } from "./app/hooks";
 import initializeReduxState from "./features/init/initializeReduxState";
-import { NotificationsProvider } from "@mantine/notifications";
+import Layout from "./features/layout/Layout";
+import MatchFail from "./MatchFail";
 
 function App() {
   const dispatch = useAppDispatch();

@@ -1,7 +1,4 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import Peer, { DataConnection, PeerJSOption, PeerConnectOption } from "peerjs";
-import { createContext } from "react";
-import { AppThunk } from "../../app/store";
 
 type State = {
   lobby?: {
@@ -16,15 +13,8 @@ export const {
   name: "lobby",
   initialState: {} as State,
   reducers: {
-    createLobby: (
-      state,
-      action: PayloadAction<{  }>
-    ) => {
-    },
-    tryJoiningLobby: (
-      state,
-      action: PayloadAction<{  }>
-    ) => {},
+    createLobby: (state, action: PayloadAction<{}>) => {},
+    tryJoiningLobby: (state, action: PayloadAction<{}>) => {},
     joinLobby: (state, action: PayloadAction<string>) => {},
   },
 });

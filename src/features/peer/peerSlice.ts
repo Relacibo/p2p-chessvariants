@@ -1,10 +1,10 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import Peer, { DataConnection } from "peerjs";
-import { AppThunk, RootState } from "../../app/store";
-import { Packet } from "./types";
 import { v4 as uuidv4, validate as validateUUID } from "uuid";
-import { addMessageHandler, handlePacket } from "./messageHandler";
+import { AppThunk, RootState } from "../../app/store";
 import { reverseLookup } from "../../util/util";
+import { addMessageHandler, handlePacket } from "./messageHandler";
+import { Packet } from "./types";
 
 let peer: Peer | undefined;
 const connections: Map<string, DataConnection> = new Map();

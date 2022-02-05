@@ -10,7 +10,7 @@ import {
   PieceDescription,
   PieceType,
   VariantDescription,
-  VariantState
+  VariantState,
 } from "./types";
 import util from "./util";
 

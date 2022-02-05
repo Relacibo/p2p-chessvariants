@@ -1,24 +1,24 @@
 import {
-  configureStore,
-  ThunkAction,
   Action,
   combineReducers,
+  configureStore,
+  ThunkAction,
 } from "@reduxjs/toolkit";
 import {
-  persistStore,
-  persistReducer,
   FLUSH,
-  REHYDRATE,
   PAUSE,
   PERSIST,
+  persistReducer,
+  persistStore,
   PURGE,
   REGISTER,
+  REHYDRATE,
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import darkmode from "../features/darkmode/darkmodeSlice";
+import peer from "../features/peer/peerSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
 import worker from "../features/worker/workerSlice";
-import peer from "../features/peer/peerSlice";
 
 const persistConfig = {
   key: "root",

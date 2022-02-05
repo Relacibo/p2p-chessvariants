@@ -123,9 +123,7 @@ export enum Direction {
   TopLeft = 7,
 }
 
-export interface VariantDescription<
-  T extends VariantState = VariantState
-> {
+export interface VariantDescription<T extends VariantState = VariantState> {
   name: string;
   uuid: string;
   version: string;
@@ -134,7 +132,7 @@ export interface VariantDescription<
   maximumPlayers: number;
   rows: number;
   columns: number;
-  
+
   pieces: () => { [piece: string]: PieceDescription<any> };
   deriveCustomContext(state: VariantState): any | any[];
   move(state: T, source: Coords, destination: Coords, playerIndex?: number): T;

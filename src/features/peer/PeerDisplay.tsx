@@ -1,11 +1,11 @@
+import { Button, MantineTheme, TextInput } from "@mantine/core";
+import { useClipboard } from "@mantine/hooks";
+import { IconClipboard, IconClipboardCheck } from "@tabler/icons";
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import { selectPeerConnectionState, selectPeerId } from "./peerSlice";
-import { useClipboard } from "@mantine/hooks";
-import { IconClipboardCheck, IconClipboard } from "@tabler/icons";
-import PeerPopover from "./PeerPopover";
 import style from "./Peer.module.css";
-import { Button, Group, MantineTheme, Popover, TextInput } from "@mantine/core";
+import PeerPopover from "./PeerPopover";
+import { selectPeerConnectionState, selectPeerId } from "./peerSlice";
 
 const PeerDisplay = () => {
   const clipboard = useClipboard();

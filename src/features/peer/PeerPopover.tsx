@@ -1,14 +1,14 @@
+import { Button, Loader, Popover, PopoverProps, Table } from "@mantine/core";
+import { IconUnlink } from "@tabler/icons";
 import React from "react";
 import { useSelector } from "react-redux";
+import { useAppDispatch } from "../../app/hooks";
 import style from "./Peer.module.css";
 import {
   disconnectFromPeer,
   selectPeerConnecting,
   selectPeerConnections,
 } from "./peerSlice";
-import { useAppDispatch } from "../../app/hooks";
-import { Button, Loader, Popover, PopoverProps, Table } from "@mantine/core";
-import { IconUnlink } from "@tabler/icons";
 
 type PeerPopoverProps = Partial<PopoverProps> & {
   target: React.ReactElement;

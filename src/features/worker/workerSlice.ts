@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { spawn } from "threads";
 import { AppThunk, RootState } from "../../app/store";
 import { VariantsWorker } from "./worker";
-import { spawn } from "threads";
 
 export let worker: VariantsWorker | null = null;
 
@@ -35,7 +35,7 @@ export const {
       const { url, key } = action.payload;
       scriptLoadingStates[url] = {
         type: "loaded",
-        key
+        key,
       };
     },
     failedLoadingScript: (

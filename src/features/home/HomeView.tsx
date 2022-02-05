@@ -1,9 +1,16 @@
-import { connectToPeer } from "../peer/peerSlice";
-import { useAppDispatch } from "../../app/hooks";
-import { validate as validateUUID } from "uuid";
+import {
+  Button,
+  Container,
+  Paper,
+  Space,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useForm } from "@mantine/hooks";
+import { validate as validateUUID } from "uuid";
+import { useAppDispatch } from "../../app/hooks";
 import { useLayoutConfigSetter } from "../layout/hooks";
-import { Button, Container, Paper, Space, TextInput, Title } from "@mantine/core";
+import { connectToPeer } from "../peer/peerSlice";
 
 function HomeView() {
   const form = useForm({
@@ -25,11 +32,7 @@ function HomeView() {
   });
   return (
     <Container>
-      <Paper
-        padding="sm"
-        mt="lg"
-        shadow="xs"
-      >
+      <Paper padding="sm" mt="lg" shadow="xs">
         <form
           onSubmit={form.onSubmit(({ peerId }) => {
             dispatch(connectToPeer(peerId));
