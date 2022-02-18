@@ -1,8 +1,7 @@
 import { Button, Loader, Popover, PopoverProps, Table } from "@mantine/core";
 import { IconUnlink } from "@tabler/icons";
 import React from "react";
-import { useSelector } from "react-redux";
-import { useAppDispatch } from "../../app/hooks";
+import { useDispatch, useSelector } from "../../app/hooks";
 import style from "./Peer.module.css";
 import {
   disconnectFromPeer,
@@ -17,7 +16,7 @@ type PeerPopoverProps = Partial<PopoverProps> & {
 };
 
 const PeerPopover = (props: PeerPopoverProps) => {
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch();
   const connecting = useSelector(selectPeerConnecting);
   const connections = useSelector(selectPeerConnections);
   const createCloseButton = (peerId: string) => (

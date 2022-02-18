@@ -1,5 +1,5 @@
 import { Table } from "@mantine/core";
-import { useSelector } from "react-redux";
+import { useSelector } from "../../app/hooks";
 import { useLayoutConfigSetter } from "../layout/hooks";
 import { selectGames } from "../variant-environment/variantsSlice";
 

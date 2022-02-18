@@ -1,9 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import { NotificationsProvider } from "@mantine/notifications";
 import React, { useEffect } from "react";
-import { useSelector } from "react-redux";
 import { Route, Routes } from "react-router-dom";
-import { useAppDispatch } from "./app/hooks";
+import { useDispatch, useSelector} from "./app/hooks";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
 import GameListView from "./features/game/GameListView";
 import PlaygroundView from "./features/game/PlaygroundView";
@@ -13,7 +12,7 @@ import Layout from "./features/layout/Layout";
 import MatchFail from "./MatchFail";
 
 function App() {
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch();
   useEffect(() => {
     dispatch(initializeReduxState());
     // eslint-disable-next-line react-hooks/exhaustive-deps

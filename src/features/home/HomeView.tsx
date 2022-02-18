@@ -8,7 +8,7 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/hooks";
 import { validate as validateUUID } from "uuid";
-import { useAppDispatch } from "../../app/hooks";
+import { useDispatch } from "../../app/hooks";
 import { useLayoutConfigSetter } from "../layout/hooks";
 import { connectToPeer } from "../peer/peerSlice";
 
@@ -25,7 +25,7 @@ function HomeView() {
     },
   });
 
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch();
   useLayoutConfigSetter({
     sidebarCollapsed: false,
     sidebarCollapsable: false,

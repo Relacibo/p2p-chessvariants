@@ -1,10 +1,10 @@
 import { Switch } from "@mantine/core";
 import { useSelector } from "react-redux";
-import { useAppDispatch } from "../../app/hooks";
+import { useDispatch } from "../../app/hooks";
 import { selectDarkmodeActive, setDarkmode } from "./darkmodeSlice";
 
 function DarkmodeSelector() {
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch();
   const dark = useSelector(selectDarkmodeActive);
   return (
     <Switch

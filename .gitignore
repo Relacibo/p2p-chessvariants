@@ -25,3 +25,6 @@ yarn-error.log*
 *.png~
 *.kra~
 *.blend1
+
+.env*
+!.env.project
