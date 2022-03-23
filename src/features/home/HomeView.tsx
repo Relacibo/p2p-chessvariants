@@ -32,7 +32,7 @@ function HomeView() {
   });
   return (
     <Container>
-      <Paper padding="sm" mt="lg" shadow="xs">
+      <Paper p="sm" mt="lg" shadow="xs">
         <form
           onSubmit={form.onSubmit(({ peerId }) => {
             dispatch(connectToPeer(peerId));

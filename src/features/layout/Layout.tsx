@@ -64,7 +64,7 @@ function Layout(props: LayoutProps) {
         navbar={
           !sidebarCollapsed ? (
             <Navbar
-              padding="sm"
+              p="sm"
               width={{ base: 300 }}
               style={
                 sidebarIsOverlay

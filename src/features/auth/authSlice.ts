@@ -12,6 +12,7 @@ const {
   reducers: {},
 });
 
-google.identitytoolkit({version: "v3", auth: });
+// TODO: Implement oauth
+// google.identitytoolkit({version: "v3", auth: });
 
 export default reducer;
