@@ -19,6 +19,7 @@ import darkmode from "../features/darkmode/darkmodeSlice";
 import peer from "../features/peer/peerSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
 import worker from "../features/worker/workerSlice";
+import auth from "../features/auth/authSlice"
 
 const persistConfig = {
   key: "root",
@@ -32,6 +33,7 @@ const rootReducer = combineReducers({
   darkmode,
   worker,
   peer,
+  auth
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

@@ -1,4 +1,4 @@
-import { Anchor, AppShell, Button, Group, Navbar } from "@mantine/core";
+import { Anchor, AppShell, Button, Group, Navbar, Stack } from "@mantine/core";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons";
 import React, { createContext, useState } from "react";
 import { Link } from "react-router-dom";
@@ -105,14 +105,14 @@ function Layout(props: LayoutProps) {
                 pawn-connect.org
               </Navbar.Section>
               <Navbar.Section>
-                <Group direction="column" spacing="sm">
+                <Stack spacing="sm">
                   <Anchor size="xl" component={Link} to={"/"}>
                     Join Lobby
                   </Anchor>
                   <Anchor size="xl" component={Link} to={"game"}>
                     Games
                   </Anchor>
-                </Group>
+                </Stack>
               </Navbar.Section>
               <Navbar.Section mt="auto">
                 <Group position="apart">

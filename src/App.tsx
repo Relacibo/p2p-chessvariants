@@ -3,6 +3,7 @@ import { NotificationsProvider } from "@mantine/notifications";
 import React, { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { useDispatch, useSelector} from "./app/hooks";
+import LoginSession from "./features/auth/LoginSession";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
 import GameListView from "./features/game/GameListView";
 import PlaygroundView from "./features/game/PlaygroundView";
@@ -21,6 +22,7 @@ function App() {
   return (
     <MantineProvider theme={{ colorScheme }}>
       <NotificationsProvider>
+        <LoginSession/>
         <Layout>
           <Routes>
             <Route path="/game/" element={<GameListView />} />
