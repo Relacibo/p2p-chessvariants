@@ -164,8 +164,8 @@ export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
       dispatch(disconnectedFromPeer(peerId));
     });
     connection.on("open", () => {
-      connection.on("data", (data: Packet) => {
-        dispatch(handlePacket({ ...data, peerId }));
+      connection.on("data", (data: unknown) => {
+        dispatch(handlePacket({ ...(data as Packet), peerId }));
       });
     });
   };
@@ -199,8 +199,8 @@ export function connectPeer(): AppThunk<Promise<void>> {
           return;
         }
         dispatch(connectedToPeer({ uuid, peerId }));
-        connection.on("data", (data: Packet) => {
-          dispatch(handlePacket({ ...data, peerId }));
+        connection.on("data", (data: unknown) => {
+          dispatch(handlePacket({ ...(data as Packet), peerId }));
         });
         const myUUID = selectPeerUUID(getState());
         connection.send({ type: "peer", uuid: myUUID });
@@ -211,7 +211,12 @@ export function connectPeer(): AppThunk<Promise<void>> {
 
 function createPeer(wanted?: string): Promise<Peer> {
   return new Promise((resolve, reject) => {
-    const p = new Peer(wanted);
+    let p: Peer;
+    if (wanted) {
+      p = new Peer(wanted);
+    } else {
+      p = new Peer();
+    }
     let errorHandle = (err: any) => {
       if (p) {
         p.destroy();
@@ -236,7 +241,7 @@ function createPeer(wanted?: string): Promise<Peer> {
 function errorHandler(): AppThunk {
   return (dispatch) => {
     peer!.on("error", (err) => {
-      switch (err.type) {
+      switch ((err as any).type) {
         case "peer-unavailable":
           console.error(err);
           const peerId = (err.message as String).substring(26);
