@@ -3,6 +3,7 @@
   "private": false,
   "version": "0.1.1-snapshot",
   "license": "GPLV3",
+  "repository": "github:Relacibo/p2p-chessvariants",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
