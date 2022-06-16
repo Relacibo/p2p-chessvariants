@@ -1,20 +1,14 @@
+import { useGoogleOneTapLogin } from 'react-google-one-tap-login';
 const GoogleAutoSignin = () => {
-  return (
-    <div
-      dangerouslySetInnerHTML={{
-        __html: `<div
-  id="g_id_onload"
-  data-client_id=${process.env.REACT_APP_GOOGLE_IDENTITY_CLIENT_ID}
-  data-context="signin"
-  data-login_uri=${process.env.REACT_APP_API_ENDPOINT}/oauth/google
-  data-auto_select="true"
-  data-prompt_parent_id="g_id_onload"
-  style="position: absolute; bottom: 260px; right: 400px;
-      width: 0; height: 0; z-index: 1001;">
-</div>`,
-      }}
-    ></div>
-  );
+
+useGoogleOneTapLogin({
+  onError: error => console.log(error),
+  onSuccess: response => console.log(response),
+  googleAccountConfigs: {
+    client_id: import.meta.env.VITE_GOOGLE_IDENTITY_CLIENT_ID
+  },
+});
+  return <></>;
 };
 
 export default GoogleAutoSignin;

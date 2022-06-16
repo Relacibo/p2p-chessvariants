@@ -5,7 +5,9 @@ import { Stack } from "@mantine/core"
 
 const LoginSession = () => {
   const sessionToken = useSelector(selectSessionToken);
-  return !sessionToken ? <></> : <Stack></Stack>;
+  return <></>;
+  // return <GoogleAutoSignin/>;
   // return !sessionToken ? <GoogleAutoSignin/> : <Stack></Stack>;
+  // return !sessionToken ? <></> : <Stack></Stack>;
 };
 export default LoginSession;

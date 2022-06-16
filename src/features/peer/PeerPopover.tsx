@@ -26,7 +26,7 @@ const PeerPopover = (props: PeerPopoverProps) => {
       variant="subtle"
       onClick={() => dispatch(disconnectFromPeer(peerId))}
     >
-      <IconUnlink size="xs" />
+      <IconUnlink size={16} />
     </Button>
   );
   const connectionTable = connecting
@@ -53,13 +53,11 @@ const PeerPopover = (props: PeerPopoverProps) => {
       {connecting.length + Object.keys(connections).length > 0 ? (
         <Table>
           <thead>
-            <th>
-              <tr>
-                <th>PeerId</th>
-                <th>UUID</th>
-                <th> </th>
-              </tr>
-            </th>
+            <tr>
+              <th>PeerId</th>
+              <th>UUID</th>
+              <th> </th>
+            </tr>
           </thead>
           <tbody>{connectionTable}</tbody>
         </Table>

@@ -1,21 +1,21 @@
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
-import { BrowserRouter } from "react-router-dom";
-import { PersistGate } from "redux-persist/integration/react";
-import App from "./App";
-import { persistor, store } from "./app/store";
+import { store } from "./app/store";
+import GoogleAutoSignin from "./features/auth/GoogleAutoSignin";
 import "./index.css";
 
-ReactDOM.render(
+const container = document.getElementById("root");
+const root = createRoot(container!);
+root.render(
   <React.StrictMode>
     <Provider store={store}>
-      <PersistGate loading={null} persistor={persistor}>
+      <GoogleAutoSignin />
+      {/* <PersistGate loading={null} persistor={persistor}>
         <BrowserRouter basename={import.meta.env.PUBLIC_URL}>
           <App />
         </BrowserRouter>
-      </PersistGate>
+      </PersistGate> */}
     </Provider>
-  </React.StrictMode>,
-  document.getElementById("root")
+  </React.StrictMode>
 );

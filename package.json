@@ -2,7 +2,7 @@
   "name": "p2p-chessvariants",
   "private": false,
   "version": "0.1.1-snapshot",
-  "license": "GPLV3",
+  "license": "GPL-3.0-or-later",
   "repository": "github:Relacibo/p2p-chessvariants",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
     "peerjs": "^1.4.6",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "react-google-one-tap-login": "^0.1.1",
     "react-redux": "^8.0.2",
     "react-router-dom": "^6.3.0",
     "styled-components": "^5.3.5",
