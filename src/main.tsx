@@ -1,7 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
-import { store } from "./app/store";
+import { BrowserRouter } from "react-router-dom";
+import { PersistGate } from "redux-persist/integration/react";
+import App from "./App";
+import { persistor, store } from "./app/store";
 import GoogleAutoSignin from "./features/auth/GoogleAutoSignin";
 import "./index.css";
 
@@ -11,11 +14,11 @@ root.render(
   <React.StrictMode>
     <Provider store={store}>
       <GoogleAutoSignin />
-      {/* <PersistGate loading={null} persistor={persistor}>
+      {<PersistGate loading={null} persistor={persistor}>
         <BrowserRouter basename={import.meta.env.PUBLIC_URL}>
           <App />
         </BrowserRouter>
-      </PersistGate> */}
+      </PersistGate>}
     </Provider>
   </React.StrictMode>
 );
