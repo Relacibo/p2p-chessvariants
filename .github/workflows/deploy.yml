@@ -18,6 +18,7 @@ jobs:
           BASE_URL: https://relacibo.github.io/p2p-chessvariants
           VITE_API_URL: http://localhost:8000
         run: |
+          echo BASE_URL
           yarn install --immutable --immutable-cache --check-cache
           yarn run build
 
