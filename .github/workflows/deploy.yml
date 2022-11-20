@@ -15,7 +15,7 @@ jobs:
       - name: Install and Build
         run: |
           yarn install --immutable --immutable-cache --check-cache
-          tsc && vite build
+          yarn run build
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
