@@ -62,7 +62,7 @@ const PeerPopover = (props: PeerPopoverProps) => {
           <tbody>{connectionTable}</tbody>
         </Table>
       ) : (
-        <div>Keine Verbindungen</div>
+        <></>
       )}
     </Popover>
   );

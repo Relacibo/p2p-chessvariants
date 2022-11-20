@@ -1,10 +1,10 @@
 import { Table } from "@mantine/core";
 import { useSelector } from "../../app/hooks";
-import { useLayoutConfigSetter } from "../layout/hooks";
+import useSwitchSzene from "../layout/hooks";
 import { selectGames } from "../variant-environment/variantsSlice";
 
 const GameListView = () => {
-  useLayoutConfigSetter({ sidebarCollapsed: false, sidebarCollapsable: false });
+  useSwitchSzene(() => ({ sidebarAlwaysExtendedInLarge: true }));
   const games = useSelector(selectGames);
   return (
     <Table>

@@ -1,7 +1,7 @@
 import { Button, MantineTheme, TextInput } from "@mantine/core";
 import { useClipboard } from "@mantine/hooks";
 import { IconClipboard, IconClipboardCheck } from "@tabler/icons";
-import React, { useState } from "react";
+import { useState } from "react";
 import { useSelector } from "react-redux";
 import style from "./Peer.module.css";
 import PeerPopover from "./PeerPopover";
@@ -64,7 +64,7 @@ const PeerDisplay = () => {
         />
       }
       onClose={() => setShowPopover((s) => !s)}
-      style={{ width: "100%" }}
+      width="target"
     />
   );
 };

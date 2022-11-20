@@ -1,10 +1,14 @@
 import { useContext, useLayoutEffect } from "react";
 import { LayoutConfig, LayoutContext } from "./Layout";
 
-export const useLayoutConfigSetter = (config: Partial<LayoutConfig>) => {
-  const { extendDefault } = useContext(LayoutContext);
+const useSwitchSzene = (
+  fun: (config: LayoutConfig) => Partial<LayoutConfig>
+) => {
+  let { config, setConfig, setSidebarCollapsed } = useContext(LayoutContext);
   useLayoutEffect(() => {
-    extendDefault(config);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let partial = fun(config);
+    setConfig((config) => ({ ...config, ...partial }));
+    setSidebarCollapsed(true);
   }, []);
 };
+export default useSwitchSzene;

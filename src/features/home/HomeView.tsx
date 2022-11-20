@@ -6,10 +6,10 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { useForm } from "@mantine/hooks";
+import { useForm } from "@mantine/form";
 import { validate as validateUUID } from "uuid";
 import { useDispatch } from "../../app/hooks";
-import { useLayoutConfigSetter } from "../layout/hooks";
+import useSwitchSzene from "../layout/hooks";
 import { connectToPeer } from "../peer/peerSlice";
 
 function HomeView() {
@@ -17,19 +17,13 @@ function HomeView() {
     initialValues: {
       peerId: "",
     },
-    validationRules: {
-      peerId: validateUUID,
-    },
-    errorMessages: {
-      peerId: "Must be valid uuid!",
+    validate: {
+      peerId: (v) => (!validateUUID(v) ? "Must be valid uuid!" : null),
     },
   });
 
   const dispatch = useDispatch();
-  useLayoutConfigSetter({
-    sidebarCollapsed: false,
-    sidebarCollapsable: false,
-  });
+  useSwitchSzene(() => ({ sidebarAlwaysExtendedInLarge: true }));
   return (
     <Container>
       <Paper p="sm" mt="lg" shadow="xs">
