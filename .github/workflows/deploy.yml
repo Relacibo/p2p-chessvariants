@@ -8,6 +8,8 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: 
+      name: dev
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@v3
