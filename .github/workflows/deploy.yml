@@ -8,15 +8,14 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: 
-      name: dev
+    environment: development
     steps:
       - name: Checkout 🛎️
         uses: actions/checkout@v3
 
       - name: Install and Build
         env: 
-          VITE_GOOGLE_IDENTITY_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IDENTITY_CLIENT_ID }}
+          VITE_GOOGLE_IDENTITY_CLIENT_ID: ${{ secrets.GOOGLE_IDENTITY_CLIENT_ID }}
           BASE_URL: https://relacibo.github.io/p2p-chessvariants/
           VITE_API_URL: http://localhost:8000
         run: |
