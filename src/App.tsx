@@ -16,7 +16,7 @@ function App() {
   const dispatch = useDispatch();
   useEffect(() => {
     dispatch(initializeReduxState());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps 
   }, []);
   const colorScheme = useSelector(selectDarkmodeActive) ? "dark" : "light";
   return (
