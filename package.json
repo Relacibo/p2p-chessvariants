@@ -6,7 +6,7 @@
   "repository": "github:Relacibo/p2p-chessvariants",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build --base=$BASE_URL",
     "preview": "vite preview"
   },
   "dependencies": {
