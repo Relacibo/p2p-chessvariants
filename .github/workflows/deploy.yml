@@ -13,6 +13,11 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install and Build
+        env: 
+          VITE_GOOGLE_IDENTITY_CLIENT_ID: ${{ secrets.VITE_GOOGLE_IDENTITY_CLIENT_ID }}
+          PUBLIC_URL: https://relacibo.github.io/p2p-chessvariants
+          VITE_API_URL: http://localhost:8000
+
         run: |
           yarn install --immutable --immutable-cache --check-cache
           yarn run build
