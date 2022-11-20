@@ -15,7 +15,7 @@ root.render(
     <Provider store={store}>
       <GoogleAutoSignin />
       {<PersistGate loading={null} persistor={persistor}>
-        <BrowserRouter basename={import.meta.env.PUBLIC_URL}>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <App />
         </BrowserRouter>
       </PersistGate>}
