@@ -7,6 +7,7 @@ type State = {
   sessionToken: string | null;
 };
 
+
 const {
   actions: { login, logout },
   reducer,
