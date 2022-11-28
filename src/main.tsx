@@ -8,7 +8,7 @@ import { persistor, store } from "./app/store";
 import GoogleAutoSignin from "./features/auth/GoogleAutoSignin";
 import "./index.css";
 
-const container = document.getElementById("root");
+const container = document.getElementById("app");
 const root = createRoot(container!);
 root.render(
   <React.StrictMode>
