@@ -1,8 +1,8 @@
 import { MantineProvider } from "@mantine/core";
 import { NotificationsProvider } from "@mantine/notifications";
-import React, { useEffect } from "react";
-import { Route, Routes } from "react-router-dom";
-import { useDispatch, useSelector} from "./app/hooks";
+import { useEffect } from "react";
+import { Route, Routes, useLocation } from "react-router-dom";
+import { useDispatch, useSelector } from "./app/hooks";
 import LoginSession from "./features/auth/LoginSession";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
 import GameListView from "./features/game/GameListView";
@@ -16,13 +16,14 @@ function App() {
   const dispatch = useDispatch();
   useEffect(() => {
     dispatch(initializeReduxState());
-    // eslint-disable-next-line react-hooks/exhaustive-deps 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const colorScheme = useSelector(selectDarkmodeActive) ? "dark" : "light";
+  let location = useLocation();
   return (
     <MantineProvider theme={{ colorScheme }}>
       <NotificationsProvider>
-        <LoginSession/>
+        <LoginSession />
         <Layout>
           <Routes>
             <Route path="/game/" element={<GameListView />} />

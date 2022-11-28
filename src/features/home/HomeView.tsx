@@ -11,6 +11,7 @@ import { validate as validateUUID } from "uuid";
 import { useDispatch } from "../../app/hooks";
 import useSwitchSzene from "../layout/hooks";
 import { connectToPeer } from "../peer/peerSlice";
+import UserOverview from "../users/UserOverview";
 
 function HomeView() {
   const form = useForm({
@@ -37,6 +38,9 @@ function HomeView() {
           <Space h="lg"></Space>
           <Button type="submit">Submit</Button>
         </form>
+      </Paper>
+      <Paper p="sm" mt="lg" shadow="xs">
+        <UserOverview></UserOverview>
       </Paper>
     </Container>
   );

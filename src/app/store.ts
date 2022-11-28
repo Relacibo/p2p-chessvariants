@@ -4,6 +4,7 @@ import {
   configureStore,
   ThunkAction,
 } from "@reduxjs/toolkit";
+import { setupListeners } from "@reduxjs/toolkit/dist/query/react";
 import {
   FLUSH,
   PAUSE,
@@ -15,11 +16,12 @@ import {
   REHYDRATE,
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
+import { api } from "../api/api";
+import auth from "../features/auth/authSlice";
 import darkmode from "../features/darkmode/darkmodeSlice";
 import peer from "../features/peer/peerSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
 import worker from "../features/worker/workerSlice";
-import auth from "../features/auth/authSlice"
 
 const persistConfig = {
   key: "root",
@@ -33,7 +35,9 @@ const rootReducer = combineReducers({
   darkmode,
   worker,
   peer,
-  auth
+  auth,
+  // Add the generated reducer as a specific top-level slice
+  [api.reducerPath]: api.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -45,7 +49,9 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
-    }),
+      // Adding the api middleware enables caching, invalidation, polling,
+      // and other useful features of `rtk-query`.
+    }).concat(api.middleware),
   ],
 });
 
@@ -59,3 +65,7 @@ export type AppThunk<ReturnType = void> = ThunkAction<
   unknown,
   Action<string>
 >;
+
+// optional, but required for refetchOnFocus/refetchOnReconnect behaviors
+// see `setupListeners` docs - takes an optional callback as the 2nd arg for customization
+setupListeners(store.dispatch);
