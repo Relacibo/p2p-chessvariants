@@ -8,7 +8,7 @@ type State = {
 };
 
 
-const {
+export const {
   actions: { login, logout },
   reducer,
 } = createSlice({

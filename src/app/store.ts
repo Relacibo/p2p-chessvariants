@@ -27,7 +27,7 @@ const persistConfig = {
   key: "root",
   version: 1,
   storage,
-  blacklist: ["worker"],
+  blacklist: ["worker", api.reducerPath],
 };
 
 const rootReducer = combineReducers({
