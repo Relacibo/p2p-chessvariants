@@ -5,7 +5,7 @@ import type { PublicUser, User } from "./types/users";
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({ baseUrl: import.meta.env.VITE_API_URL }),
+  baseQuery: fetchBaseQuery({ baseUrl: import.meta.env.VITE_API_URL, timeout: 1000 }),
   endpoints: (builder) => ({
     getUser: builder.query<User, string>({
       query: (user_id) => `users/${user_id}`,
