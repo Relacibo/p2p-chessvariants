@@ -1,9 +1,9 @@
 import { MantineProvider } from "@mantine/core";
-import { NotificationsProvider } from "@mantine/notifications";
+import { ModalsProvider } from "@mantine/modals";
+import { Notifications } from "@mantine/notifications";
 import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { useDispatch, useSelector } from "./app/hooks";
-import GoogleAutoSignin from "./features/auth/GoogleAutoSignin";
 import LoginSession from "./features/auth/LoginSession";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
 import GameListView from "./features/game/GameListView";
@@ -21,7 +21,8 @@ function App() {
   const colorScheme = useSelector(selectDarkmodeActive) ? "dark" : "light";
   return (
     <MantineProvider theme={{ colorScheme }}>
-      <NotificationsProvider>
+      <ModalsProvider>
+        <Notifications />
         <LoginSession />
         <Layout>
           <Routes>
@@ -31,7 +32,7 @@ function App() {
             <Route path="*" element={<MatchFail />} />
           </Routes>
         </Layout>
-      </NotificationsProvider>
+      </ModalsProvider>
     </MantineProvider>
   );
 }

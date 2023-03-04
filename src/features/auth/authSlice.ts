@@ -1,12 +1,12 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { User } from "../../api/types/users";
 import { RootState } from "../../app/store";
 
-const initialState: State = { sessionToken: null };
+const initialState: State = { session: null };
 
 type State = {
-  sessionToken: string | null;
+  session: { token: string; user: User } | null;
 };
-
 
 export const {
   actions: { login, logout },
@@ -15,15 +15,15 @@ export const {
   name: "auth",
   initialState,
   reducers: {
-    login: (state, action: PayloadAction<string>) => {
-      state.sessionToken = action.payload;
+    login: (state, action: PayloadAction<{ token: string; user: User }>) => {
+      state.session = action.payload;
     },
     logout: (state) => {
-      state.sessionToken = null;
+      state.session = null;
     },
   },
 });
 
-export const selectSessionToken = (state: RootState) => state.auth.sessionToken;
+export const selectSession = (state: RootState) => state.auth.session;
 
 export default reducer;

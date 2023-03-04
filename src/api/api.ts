@@ -1,5 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { LoginResponse, OAuthPayload } from "./types/google";
+import { LoginResponse, SigninPayload, SignupPayload } from "./types/google";
 import type { PublicUser, User } from "./types/users";
 
 // Define a service using a base URL and expected endpoints
@@ -16,8 +16,11 @@ export const api = createApi({
     listUsers: builder.query<PublicUser[], void>({
       query: () => ({ url: "users" }),
     }),
-    signInWithGoogle: builder.mutation<LoginResponse, OAuthPayload>({
-      query: (body) => ({ url: "auth/google", method: "post", body }),
+    signInWithGoogle: builder.mutation<LoginResponse, SigninPayload>({
+      query: (body) => ({ url: "auth/google/signin", method: "post", body }),
+    }),
+    signUpWithGoogle: builder.mutation<LoginResponse, SignupPayload>({
+      query: (body) => ({ url: "auth/google/signup", method: "post", body }),
     }),
   }),
 });
@@ -29,4 +32,5 @@ export const {
   useListUsersQuery,
   useDeleteUserMutation,
   useSignInWithGoogleMutation,
+  useSignUpWithGoogleMutation,
 } = api;

@@ -1,11 +1,7 @@
-import React from 'react'
+type Props = {};
 
-type Props = {}
+const Auth = ({}: Props) => {
+  return <div>Auth</div>;
+};
 
-function Auth({}: Props) {
-  return (
-    <div>Auth</div>
-  )
-}
-
-export default Auth
+export default Auth;
