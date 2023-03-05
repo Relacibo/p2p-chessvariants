@@ -1,10 +1,10 @@
 import { Table } from "@mantine/core";
 import { useSelector } from "../../app/hooks";
-import useSwitchSzene from "../layout/hooks";
+import useSwitchView from "../layout/hooks";
 import { selectGames } from "../variant-environment/variantsSlice";
 
 const GameListView = () => {
-  useSwitchSzene(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: true }));
   const games = useSelector(selectGames);
   return (
     <Table>

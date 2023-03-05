@@ -1,10 +1,9 @@
-import { Stack } from "@mantine/core";
 import { useSelector } from "react-redux";
-import { selectSession } from "./authSlice";
+import { selectState } from "./authSlice";
 import GoogleAutoSignin from "./GoogleAutoSignin";
 
 const LoginSession = () => {
-  const sessionToken = useSelector(selectSession);
-  return !sessionToken ? <GoogleAutoSignin /> : <></>;
+  const sessionState = useSelector(selectState);
+  return sessionState === "logged-out" ? <GoogleAutoSignin /> : <></>;
 };
 export default LoginSession;

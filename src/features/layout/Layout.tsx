@@ -5,18 +5,13 @@ import {
   Button,
   Group,
   Header,
-  Navbar,
-  Stack,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons";
+import { IconChevronRight } from "@tabler/icons";
 import { createContext, useState } from "react";
-import DarkmodeSelector from "../darkmode/DarkmodeSelector";
-import PeerDisplay from "../peer/PeerDisplay";
-import style from "./Layout.module.css";
 import Logo from "./logo";
-import MainLink from "./MainLink";
+import Sidebar from "./Sidebar";
 
 export type LayoutProps = {
   children: JSX.Element | JSX.Element[] | never[];
@@ -73,49 +68,12 @@ function Layout(props: LayoutProps) {
         })}
         navbar={
           (sidebarAlwaysExtendedInLarge && !isSmall) || !sidebarCollapsed ? (
-            <Navbar p="sm" width={{ base: isSmall ? "100%" : 300 }}>
-              {!isSmall && (
-                <Navbar.Section className={style.navbarTitle}>
-                  <Logo imageSize={"3rem"} />
-                </Navbar.Section>
-              )}
-              <Navbar.Section grow mt="md">
-                <Stack spacing="sm">
-                  <MainLink to={"/"}>Join Lobby</MainLink>
-                  <MainLink to={"game"}>Games</MainLink>
-                </Stack>
-              </Navbar.Section>
-              <Navbar.Section mt="auto">
-                <Group position="apart">
-                  <PeerDisplay />
-                  <DarkmodeSelector />
-                </Group>
-              </Navbar.Section>
-              {!sidebarAlwaysExtendedInLarge && !isSmall && (
-                <div
-                  style={{
-                    zIndex: 30,
-                    position: "absolute",
-                    right: ".5em",
-                    bottom: ".5em",
-                  }}
-                >
-                  <Button
-                    compact
-                    variant="outline"
-                    style={{
-                      padding: 0,
-                      width: "small",
-                    }}
-                    onClick={() => {
-                      setSidebarCollapsed(true);
-                    }}
-                  >
-                    <IconChevronLeft />
-                  </Button>
-                </div>
-              )}
-            </Navbar>
+            <Sidebar
+              sidebarAlwaysExtendedInLarge={sidebarAlwaysExtendedInLarge}
+              collapse={() => {
+                setSidebarCollapsed(true);
+              }}
+            />
           ) : undefined
         }
         header={

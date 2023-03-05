@@ -3,11 +3,11 @@ import { useSelector } from "react-redux";
 import { Navigate, useParams } from "react-router-dom";
 import { showError } from "../../util/notification";
 import { Chessboard } from "../chessboard/Chessboard";
-import useSwitchSzene from "../layout/hooks";
+import useSwitchView from "../layout/hooks";
 import { selectGame } from "../variant-environment/variantsSlice";
 
 function PlaygroundView() {
-  useSwitchSzene(() => ({ sidebarAlwaysExtendedInLarge: false }));
+  useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: false }));
   const { id } = useParams();
   const state = useSelector(selectGame(id!));
   const failed = state == null;

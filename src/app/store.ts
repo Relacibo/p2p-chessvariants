@@ -17,6 +17,7 @@ import {
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import { api } from "../api/api";
+import { rtkQueryErrorLogger } from "../api/errorHandler";
 import auth from "../features/auth/authSlice";
 import darkmode from "../features/darkmode/darkmodeSlice";
 import peer from "../features/peer/peerSlice";
@@ -49,6 +50,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
+      rtkQueryErrorLogger,
       // Adding the api middleware enables caching, invalidation, polling,
       // and other useful features of `rtk-query`.
     }).concat(api.middleware),

@@ -1,32 +1,21 @@
-import { useGoogleOneTapLogin } from "@react-oauth/google";
+import { Box } from "@mantine/core";
+import { GoogleLogin } from "@react-oauth/google";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import { useSignInWithGoogleMutation } from "../../api/api";
-import { useDispatch } from "../../app/hooks";
+import useSwitchView from "../layout/hooks";
 import { login } from "./authSlice";
 import { openSignupModal, SignupResult } from "./SignupModal";
-const GoogleAutoSignin = () => {
+
+type Props = {};
+const LoginWithGoogleView = ({}: Props) => {
   const dispatch = useDispatch();
+  useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: true }));
+
   let [updatePost, signinResult] = useSignInWithGoogleMutation();
   let [credential, setCredential] = useState<string | null>(null);
   let [signupResult, setSignupResult] = useState<SignupResult | null>();
-
-  useGoogleOneTapLogin({
-    onSuccess: (response) => {
-      let { credential } = response;
-      if (!credential) {
-        return;
-      }
-      // Get's activated, if the user clicks on the one tap
-      setCredential(credential);
-      updatePost({
-        credential,
-      });
-    },
-    onError: () => {
-      console.log("Login Failed");
-    },
-  });
 
   useEffect(() => {
     if (signinResult.status === QueryStatus.fulfilled) {
@@ -48,12 +37,28 @@ const GoogleAutoSignin = () => {
     }
     if (signupResult.result === "success") {
       dispatch(login(signupResult));
-    } else {
-      // canceled
-      signinResult.reset();
+      return;
     }
+    // canceled
+    signinResult.reset();
   }, [signupResult]);
-  return <></>;
+  return (
+    <Box style={{width: 200}}><GoogleLogin
+      onSuccess={(response) => {
+        let { credential } = response;
+        if (!credential) {
+          return;
+        }
+        // Get's activated, if the user clicks on the one tap
+        setCredential(credential);
+        updatePost({
+          credential,
+        });
+      }}
+      onError={() => {
+        console.log("Login Failed");
+      }}
+    /></Box>
+  );
 };
-
-export default GoogleAutoSignin;
+export default LoginWithGoogleView;

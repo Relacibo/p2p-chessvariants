@@ -9,7 +9,7 @@ import {
 import { useForm } from "@mantine/form";
 import { validate as validateUUID } from "uuid";
 import { useDispatch } from "../../app/hooks";
-import useSwitchSzene from "../layout/hooks";
+import useSwitchView from "../layout/hooks";
 import { connectToPeer } from "../peer/peerSlice";
 import UserOverview from "../users/UserOverview";
 
@@ -24,7 +24,7 @@ function HomeView() {
   });
 
   const dispatch = useDispatch();
-  useSwitchSzene(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: true }));
   return (
     <Container>
       <Paper p="sm" mt="lg" shadow="xs">

@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { useDispatch, useSelector } from "./app/hooks";
 import LoginSession from "./features/auth/LoginSession";
+import LoginWithGoogleView from "./features/auth/LoginWithGoogleView";
 import { selectDarkmodeActive } from "./features/darkmode/darkmodeSlice";
 import GameListView from "./features/game/GameListView";
 import PlaygroundView from "./features/game/PlaygroundView";
@@ -26,6 +27,10 @@ function App() {
         <LoginSession />
         <Layout>
           <Routes>
+            <Route
+              path="/auth/google/login"
+              element={<LoginWithGoogleView />}
+            ></Route>
             <Route path="/game/" element={<GameListView />} />
             <Route path="/game/:id" element={<PlaygroundView />} />
             <Route path="/" element={<HomeView />} />

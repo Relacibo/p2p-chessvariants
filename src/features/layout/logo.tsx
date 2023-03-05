@@ -11,7 +11,7 @@ function Logo({ imageSize, textSize }: LogoProps) {
       <Image
         width={imageSize}
         radius="md"
-        src="logo192.png"
+        src="/logo192.png"
         alt="gg"
       ></Image>
       <Text size={textSize}>ggchess.org</Text>
