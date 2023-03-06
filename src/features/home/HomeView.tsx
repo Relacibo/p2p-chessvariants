@@ -8,7 +8,8 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { validate as validateUUID } from "uuid";
-import { useDispatch } from "../../app/hooks";
+import { useDispatch, useSelector } from "../../app/hooks";
+import { selectUser } from "../auth/authSlice";
 import useSwitchView from "../layout/hooks";
 import { connectToPeer } from "../peer/peerSlice";
 import UserOverview from "../users/UserOverview";
@@ -25,6 +26,7 @@ function HomeView() {
 
   const dispatch = useDispatch();
   useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  const user = useSelector(selectUser);
   return (
     <Container>
       <Paper p="sm" mt="lg" shadow="xs">

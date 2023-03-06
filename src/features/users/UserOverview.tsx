@@ -1,12 +1,12 @@
 import { Image, Loader, Table } from "@mantine/core";
-import dateFns from "date-fns";
 import { useListUsersQuery } from "../../api/api";
 import { PublicUser } from "../../api/types/auth/users";
+import { useSelector } from "../../app/hooks";
+import { selectUser } from "../auth/authSlice";
 
 function UserOverview() {
   let { data, isLoading, isSuccess, isError, error } = useListUsersQuery();
   let users = data ?? [];
-  let out = null;
   return isLoading ? (
     <Loader />
   ) : isSuccess ? (

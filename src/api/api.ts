@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { RootState, store } from "../app/store";
 import {
   LoginResponse,
   SigninPayload,
@@ -12,6 +13,14 @@ export const api = createApi({
   baseQuery: fetchBaseQuery({
     baseUrl: import.meta.env.VITE_API_URL,
     timeout: 1000,
+    prepareHeaders(headers, api) {
+      const state = api.getState() as RootState;
+      let session = state.auth.session;
+      if (session.state === "logged-in") {
+        headers.set("authorization", `Bearer ${session.token}`);
+        return headers;
+      }
+    },
   }),
   endpoints: (builder) => ({
     getUser: builder.query<User, string>({

@@ -17,7 +17,7 @@ import {
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import { api } from "../api/api";
-import { rtkQueryErrorLogger } from "../api/errorHandler";
+import { errorHandler } from "../api/errorHandler";
 import authMiddleware from "../features/auth/authMiddleware";
 import auth from "../features/auth/authSlice";
 import darkmode from "../features/darkmode/darkmodeSlice";
@@ -54,7 +54,7 @@ export const store = configureStore({
       // Adding the api middleware enables caching, invalidation, polling,
       // and other useful features of `rtk-query`.
     }).concat(api.middleware),
-    rtkQueryErrorLogger,
+    errorHandler,
     authMiddleware,
   ],
 });

@@ -4,15 +4,15 @@ export type Claims = {
   sub: string;
   aud: string[];
   iss: string[];
-  exp: Date;
-  iat: Date;
+  exp: number;
+  iat: number;
 };
 
 export const decodeAuthClaims = (token: string): Claims => {
   let decodedClaims: any = jwtDecode(token);
   return {
     ...decodedClaims,
-    exp: decodedClaims.exp * 1000,
-    iat: decodedClaims.iat * 1000,
+    exp: decodedClaims.exp,
+    iat: decodedClaims.iat,
   };
 };
