@@ -10,12 +10,13 @@ import {
 } from "./peerSlice";
 
 type PeerPopoverProps = Partial<PopoverProps> & {
-  target: React.ReactElement;
+  children: React.ReactElement;
   opened: boolean;
   onClose: () => void;
 };
 
-const PeerPopover = (props: PeerPopoverProps) => {
+const PeerPopover = ({ children, opened, onClose }: PeerPopoverProps) => {
+  const popoverProps = { opened, onClose };
   const dispatch = useDispatch();
   const connecting = useSelector(selectPeerConnecting);
   const connections = useSelector(selectPeerConnections);
@@ -49,21 +50,24 @@ const PeerPopover = (props: PeerPopoverProps) => {
       )) || []
     );
   return (
-    <Popover {...props}>
-      {connecting.length + Object.keys(connections).length > 0 ? (
-        <Table>
-          <thead>
-            <tr>
-              <th>PeerId</th>
-              <th>UUID</th>
-              <th> </th>
-            </tr>
-          </thead>
-          <tbody>{connectionTable}</tbody>
-        </Table>
-      ) : (
-        <></>
-      )}
+    <Popover {...popoverProps}>
+      <Popover.Target>{children}</Popover.Target>
+      <Popover.Dropdown>
+        {connecting.length + Object.keys(connections).length > 0 ? (
+          <Table>
+            <thead>
+              <tr>
+                <th>PeerId</th>
+                <th>UUID</th>
+                <th> </th>
+              </tr>
+            </thead>
+            <tbody>{connectionTable}</tbody>
+          </Table>
+        ) : (
+          <></>
+        )}
+      </Popover.Dropdown>
     </Popover>
   );
 };

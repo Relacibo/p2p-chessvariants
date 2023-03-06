@@ -1,38 +1,24 @@
 import { Button, Paper } from "@mantine/core";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { User } from "../../api/types/users";
 import { logout, selectUser } from "./authSlice";
+import LoginWithGoogleButton from "./LoginWithGoogleButton";
 
 type Props = {};
 
 const Auth = ({}: Props) => {
   let user = useSelector(selectUser);
-  let navigate = useNavigate();
+  let dispatch = useDispatch();
   return (
     <Paper>
       {user ? (
-        <UserInfo user={user}></UserInfo>
-      ) : (
-        <Button
-          onClick={() => {
-            navigate("/auth/google/login");
-          }}
-        >
-          Log In
+        <Button onClick={() => dispatch(logout())}>
+          {user.userName} (Log out)
         </Button>
+      ) : (
+        <LoginWithGoogleButton />
       )}
     </Paper>
-  );
-};
-
-const UserInfo = ({ user }: { user: User }) => {
-  let dispatch = useDispatch();
-  let { userName } = user;
-  return (
-    <Button onClick={() => dispatch(logout())}>
-      {userName} (Log out)
-    </Button>
   );
 };
 

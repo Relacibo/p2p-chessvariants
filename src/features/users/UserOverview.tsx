@@ -1,7 +1,7 @@
 import { Image, Loader, Table } from "@mantine/core";
-import moment from "moment";
+import dateFns from "date-fns";
 import { useListUsersQuery } from "../../api/api";
-import { PublicUser } from "../../api/types/users";
+import { PublicUser } from "../../api/types/auth/users";
 
 function UserOverview() {
   let { data, isLoading, isSuccess, isError, error } = useListUsersQuery();
@@ -31,7 +31,7 @@ function userRow(user: PublicUser) {
     <tr key={id}>
       <td>{picture ? <Image src={picture} width={40} height={40} /> : "-"}</td>
       <td>{nickName ?? "-"}</td>
-      <td>{moment(createdAt).format("DD.MM.YYYY hh:mm:ss")}</td>
+      <td>{new Date(createdAt).toLocaleString()}</td>
     </tr>
   );
 }

@@ -1,11 +1,18 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { LoginResponse, SigninPayload, SignupPayload } from "./types/google";
-import type { PublicUser, User } from "./types/users";
+import {
+  LoginResponse,
+  SigninPayload,
+  SignupPayload,
+} from "./types/auth/google";
+import type { PublicUser, User } from "./types/auth/users";
 
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({ baseUrl: import.meta.env.VITE_API_URL, timeout: 1000 }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: import.meta.env.VITE_API_URL,
+    timeout: 1000,
+  }),
   endpoints: (builder) => ({
     getUser: builder.query<User, string>({
       query: (user_id) => `users/${user_id}`,

@@ -1,10 +1,17 @@
-import { Box, Button, LoadingOverlay, Stack, TextInput } from "@mantine/core";
+import {
+  Box,
+  Button,
+  Group,
+  LoadingOverlay,
+  Stack,
+  TextInput,
+} from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
 import { useSignUpWithGoogleMutation } from "../../api/api";
-import { User } from "../../api/types/users";
+import { User } from "../../api/types/auth/users";
 
 export type SignupResult =
   | {
@@ -48,18 +55,36 @@ const SignupModal = ({ credential, setResult, usernameSuggestion }: Props) => {
   return (
     <Box>
       <LoadingOverlay visible={submitted} />
-      {!submitted ? <form
-        onSubmit={() => {
-          setSubmitted(true);
-          let username = form.values.username;
-          updatePost({ credential, username });
-        }}
-      >
-        <Stack>
-          <TextInput {...form.getInputProps("username")}></TextInput>
-          <Button type="submit">Submit</Button>
-        </Stack>
-      </form> : <></>}
+      {!submitted ? (
+        <form
+          onSubmit={() => {
+            setSubmitted(true);
+            let username = form.values.username;
+            updatePost({ credential, username });
+          }}
+        >
+          <Stack>
+            <TextInput {...form.getInputProps("username")} />
+            <Group ml="auto">
+              <Button color="red"
+                onClick={() =>
+                  {
+                  setResult({
+                    result: "canceled",
+                  });
+                  modals.closeAll()
+                }
+                }
+              >
+                Cancel
+              </Button>
+              <Button color="green" type="submit">Submit</Button>
+            </Group>
+          </Stack>
+        </form>
+      ) : (
+        <></>
+      )}
     </Box>
   );
 };
@@ -70,6 +95,8 @@ export const openSignupModal = (
   setResult: (response: SignupResult) => void
 ) => {
   modals.open({
+    // NOTE: Cannot use close button, cannot call update components from there
+    withCloseButton: false,
     title: "Please choose a unique username!",
     children: (
       <SignupModal
@@ -78,10 +105,6 @@ export const openSignupModal = (
         setResult={setResult}
       ></SignupModal>
     ),
-    onClose: () =>
-      setResult({
-        result: "canceled",
-      }),
   });
 };
 

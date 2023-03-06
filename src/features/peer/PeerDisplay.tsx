@@ -12,6 +12,50 @@ const PeerDisplay = () => {
   const peerId = useSelector(selectPeerId);
   const peerState = useSelector(selectPeerConnectionState);
   const [showPopover, setShowPopover] = useState(false);
+  return (
+    <PeerPopover
+      opened={showPopover}
+      onClose={() => setShowPopover(false)}
+      width="target"
+    >
+      <TextInput
+        readOnly
+        value={peerId ?? ""}
+        className={getStyle(peerState)}
+        styles={{
+          input: { cursor: "pointer", fontSize: "0.7em" },
+        }}
+        onClick={() => setShowPopover((s) => !s)}
+        rightSection={
+          <Button
+            compact
+            onClick={() => {
+              if (typeof peerId !== "undefined") {
+                clipboard.copy(peerId);
+              }
+            }}
+            styles={(theme: MantineTheme) => ({
+              root: {
+                background: "none !important",
+                color:
+                  theme.colorScheme === "dark"
+                    ? theme.white
+                    : theme.colors.dark[2],
+                "&:hover": {
+                  color: theme.colors.green[4],
+                },
+              },
+            })}
+          >
+            {clipboard.copied ? <IconClipboardCheck /> : <IconClipboard />}
+          </Button>
+        }
+      />
+    </PeerPopover>
+  );
+};
+
+const getStyle = (peerState: "disconnected" | "connecting" | "connected") => {
   let className;
   switch (peerState) {
     case "disconnected":
@@ -24,48 +68,6 @@ const PeerDisplay = () => {
       className = style.connected;
       break;
   }
-  return (
-    <PeerPopover
-      opened={showPopover}
-      target={
-        <TextInput
-          readOnly
-          label="Peer ID"
-          value={peerId || ""}
-          className={className}
-          styles={{
-            input: { cursor: "pointer", fontSize: "0.7em" },
-          }}
-          onClick={() => setShowPopover((s) => !s)}
-          rightSection={
-            <Button
-              compact
-              onClick={() => {
-                if (typeof peerId !== "undefined") {
-                  clipboard.copy(peerId);
-                }
-              }}
-              styles={(theme: MantineTheme) => ({
-                root: {
-                  background: "none !important",
-                  color:
-                    theme.colorScheme === "dark"
-                      ? theme.white
-                      : theme.colors.dark[2],
-                  "&:hover": {
-                    color: theme.colors.green[4],
-                  },
-                },
-              })}
-            >
-              {clipboard.copied ? <IconClipboardCheck /> : <IconClipboard />}
-            </Button>
-          }
-        />
-      }
-      onClose={() => setShowPopover((s) => !s)}
-      width="target"
-    />
-  );
+  return className;
 };
 export default PeerDisplay;

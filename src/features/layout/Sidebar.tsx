@@ -1,4 +1,4 @@
-import { Button, Group, Navbar, Stack, useMantineTheme } from "@mantine/core";
+import { Button, Navbar, Stack, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronLeft } from "@tabler/icons";
 import Auth from "../auth/Auth";
@@ -31,12 +31,10 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
         </Stack>
       </Navbar.Section>
       <Navbar.Section mt="auto">
-        <Stack>
+        <Stack spacing={"sm"}> 
+          <PeerDisplay />
+          <DarkmodeSelector />
           <Auth />
-          <Group position="apart">
-            <PeerDisplay />
-            <DarkmodeSelector />
-          </Group>
         </Stack>
       </Navbar.Section>
       {!sidebarAlwaysExtendedInLarge && !isSmall && (

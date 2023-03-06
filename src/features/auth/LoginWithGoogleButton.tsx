@@ -1,33 +1,19 @@
-import { CredentialResponse, useGoogleOneTapLogin } from "@react-oauth/google";
+import { Box } from "@mantine/core";
+import { GoogleLogin } from "@react-oauth/google";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { useSignInWithGoogleMutation } from "../../api/api";
-import { useDispatch, useSelector } from "../../app/hooks";
+import { useDispatch } from "../../app/hooks";
 import { login, selectLogoutCause } from "./authSlice";
 import { openSignupModal, SignupResult } from "./SignupModal";
-const GoogleAutoSignin = () => {
+
+const LoginWithGoogleButton = () => {
   const dispatch = useDispatch();
   const [updatePost, signinResult] = useSignInWithGoogleMutation();
   const [credential, setCredential] = useState<string | null>(null);
   const [signupResult, setSignupResult] = useState<SignupResult | null>();
-  // const logoutCause = useSelector(selectLogoutCause);
-
-  useGoogleOneTapLogin({
-    onSuccess: (response) => {
-      let { credential } = response;
-      if (!credential) {
-        return;
-      }
-      // Get's activated, if the user clicks on the one tap
-      setCredential(credential);
-      updatePost({
-        credential,
-      });
-    },
-    onError: () => {
-      console.log("Login Failed");
-    },
-  });
+  const logoutCause = useSelector(selectLogoutCause);
 
   useEffect(() => {
     if (signinResult.status === QueryStatus.fulfilled) {
@@ -49,12 +35,29 @@ const GoogleAutoSignin = () => {
     }
     if (signupResult.result === "success") {
       dispatch(login(signupResult));
-    } else {
-      // canceled
-      signinResult.reset();
+      return;
     }
+    // canceled
+    signinResult.reset();
   }, [signupResult]);
-  return <></>;
+  return (
+    <Box style={{ width: 200 }}>
+      <GoogleLogin
+        onSuccess={(response) => {
+          let { credential } = response;
+          if (!credential) {
+            return;
+          }
+          // Get's activated, if the user clicks on the one tap
+          setCredential(credential);
+          updatePost({ credential });
+        }}
+        onError={() => {
+          console.log("Login Failed");
+        }}
+      />
+    </Box>
+  );
 };
 
-export default GoogleAutoSignin;
+export default LoginWithGoogleButton;
