@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useSignInWithGoogleMutation } from "../../api/api";
 import { useDispatch } from "../../app/hooks";
-import { login, selectLogoutCause } from "./authSlice";
+import { login, selectLoggedOutCause } from "./authSlice";
 import { openSignupModal, SignupResult } from "./SignupModal";
 
 const LoginWithGoogleButton = () => {
@@ -13,7 +13,9 @@ const LoginWithGoogleButton = () => {
   const [updatePost, signinResult] = useSignInWithGoogleMutation();
   const [credential, setCredential] = useState<string | null>(null);
   const [signupResult, setSignupResult] = useState<SignupResult | null>();
-  const logoutCause = useSelector(selectLogoutCause);
+  // autoSelect doesn't seem to work: https://github.com/MomenSherif/react-oauth/issues/210
+  // const loggedOutCause = useSelector(selectLoggedOutCause);
+  // const autoSelect = loggedOutCause === "invalid-token";
 
   useEffect(() => {
     if (signinResult.status === QueryStatus.fulfilled) {
@@ -55,6 +57,9 @@ const LoginWithGoogleButton = () => {
         onError={() => {
           console.log("Login Failed");
         }}
+        // autoSelect doesn't seem to work: https://github.com/MomenSherif/react-oauth/issues/210
+        // auto_select={autoSelect}
+        // useOneTap={autoSelect}
       />
     </Box>
   );

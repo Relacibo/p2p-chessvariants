@@ -3,14 +3,13 @@ import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
 import { useSignInWithGoogleMutation } from "../../api/api";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { login, selectLogoutCause } from "./authSlice";
+import { login, selectLoggedOutCause } from "./authSlice";
 import { openSignupModal, SignupResult } from "./SignupModal";
 const GoogleAutoSignin = () => {
   const dispatch = useDispatch();
   const [updatePost, signinResult] = useSignInWithGoogleMutation();
   const [credential, setCredential] = useState<string | null>(null);
   const [signupResult, setSignupResult] = useState<SignupResult | null>();
-  // const logoutCause = useSelector(selectLogoutCause);
 
   useGoogleOneTapLogin({
     onSuccess: (response) => {

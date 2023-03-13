@@ -53,7 +53,7 @@ export const selectClaims = (state: RootState) => {
   return session.state === "logged-in" ? session.claims : null;
 };
 
-export const selectLogoutCause = (state: RootState) => {
+export const selectLoggedOutCause = (state: RootState) => {
   let session = state.auth.session;
   return session.state === "logged-out" ? session.loggedOutCause : null;
 };

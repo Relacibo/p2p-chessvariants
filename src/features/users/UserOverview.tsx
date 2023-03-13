@@ -1,4 +1,5 @@
 import { Image, Loader, Table } from "@mantine/core";
+import { IconArrowsCross, IconCross, IconEraser, IconError404, IconExclamationCircle } from "@tabler/icons";
 import { useListUsersQuery } from "../../api/api";
 import { PublicUser } from "../../api/types/auth/users";
 import { useSelector } from "../../app/hooks";
@@ -21,7 +22,7 @@ function UserOverview() {
       <tbody>{users.map(userRow)}</tbody>
     </Table>
   ) : (
-    <>{error}</>
+    <IconExclamationCircle color="red"/>
   );
 }
 

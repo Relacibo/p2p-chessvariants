@@ -23,20 +23,20 @@ function App() {
   return (
     <MantineProvider theme={{ colorScheme }}>
       <ModalsProvider>
-        <Notifications />
-        <LoginSession />
-        <Layout>
-          <Routes>
-            <Route
-              path="/auth/google/login"
-              element={<LoginWithGoogleView />}
-            ></Route>
-            <Route path="/game/" element={<GameListView />} />
-            <Route path="/game/:id" element={<PlaygroundView />} />
-            <Route path="/" element={<HomeView />} />
-            <Route path="*" element={<MatchFail />} />
-          </Routes>
-        </Layout>
+          <Notifications />
+          <LoginSession />
+          <Layout>
+            <Routes>
+              <Route
+                path="/auth/google/login"
+                element={<LoginWithGoogleView />}
+              />
+              <Route path="/game/" element={<GameListView />} />
+              <Route path="/game/:id" element={<PlaygroundView />} />
+              <Route path="/" element={<HomeView />} />
+              <Route path="*" element={<MatchFail />} />
+            </Routes>
+          </Layout>
       </ModalsProvider>
     </MantineProvider>
   );

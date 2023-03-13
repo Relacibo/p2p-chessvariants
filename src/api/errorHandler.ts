@@ -1,4 +1,5 @@
 import {
+  isRejected,
   isRejectedWithValue,
   Middleware,
   MiddlewareAPI,
@@ -10,8 +11,11 @@ import { BackendError } from "./types/backendError";
 export const errorHandler: Middleware =
   (api: MiddlewareAPI) => (next) => (action) => {
     // RTK Query uses `createAsyncThunk` from redux-toolkit under the hood, so we're able to utilize these matchers!
-    if (isRejectedWithValue(action)) {
-      console.warn("We got a rejected action!");
+    if (isRejected(action)) {
+      const {message} = action.error;
+      console.error(JSON.stringify(action))
+      showError(message);
+    } else if (isRejectedWithValue(action)) {
       const payload = action.payload;
       const status = payload.status;
       if (typeof status !== "undefined") {
