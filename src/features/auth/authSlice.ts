@@ -40,22 +40,22 @@ export const selectSession = (state: RootState) => state.auth.session;
 
 export const selectUser = (state: RootState) => {
   let session = state.auth.session;
-  return session.state === "logged-in" ? session.user : null;
+  return session?.state === "logged-in" ? session.user : null;
 };
 
 export const selectToken = (state: RootState) => {
   let session = state.auth.session;
-  return session.state === "logged-in" ? session.token : null;
+  return session?.state === "logged-in" ? session.token : null;
 };
 
 export const selectClaims = (state: RootState) => {
   let session = state.auth.session;
-  return session.state === "logged-in" ? session.claims : null;
+  return session?.state === "logged-in" ? session.claims : null;
 };
 
 export const selectLoggedOutCause = (state: RootState) => {
   let session = state.auth.session;
-  return session.state === "logged-out" ? session.loggedOutCause : null;
+  return session?.state === "logged-out" ? session.loggedOutCause : null;
 };
 
 export const selectState = (state: RootState) => state.auth.session?.state;
