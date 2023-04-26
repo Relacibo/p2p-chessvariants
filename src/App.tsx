@@ -12,6 +12,7 @@ import PlaygroundView from "./features/game/PlaygroundView";
 import HomeView from "./features/home/HomeView";
 import initializeReduxState from "./features/init/initializeReduxState";
 import Layout from "./features/layout/Layout";
+import UserProfileView from "./features/users/UserProfileView";
 import MatchFail from "./MatchFail";
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
               />
               <Route path="/game/" element={<GameListView />} />
               <Route path="/game/:id" element={<PlaygroundView />} />
+              <Route path="/user-profile/*" element={<UserProfileView />}/>
               <Route path="/" element={<HomeView />} />
               <Route path="*" element={<MatchFail />} />
             </Routes>

@@ -28,6 +28,7 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
         <Stack spacing="sm">
           <MainLink to={"/"}>Join Lobby</MainLink>
           <MainLink to={"game"}>Games</MainLink>
+          <MainLink to={"user-profile"}>User profile</MainLink>
         </Stack>
       </Navbar.Section>
       <Navbar.Section mt="auto">

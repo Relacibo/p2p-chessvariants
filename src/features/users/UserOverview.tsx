@@ -1,9 +1,7 @@
 import { Image, Loader, Table } from "@mantine/core";
-import { IconArrowsCross, IconCross, IconEraser, IconError404, IconExclamationCircle } from "@tabler/icons";
 import { useListUsersQuery } from "../../api/api";
 import { PublicUser } from "../../api/types/auth/users";
-import { useSelector } from "../../app/hooks";
-import { selectUser } from "../auth/authSlice";
+import ErrorDisplay from "../error/ErrorDisplay";
 
 function UserOverview() {
   let { data, isLoading, isSuccess, isError, error } = useListUsersQuery();
@@ -22,7 +20,7 @@ function UserOverview() {
       <tbody>{users.map(userRow)}</tbody>
     </Table>
   ) : (
-    <IconExclamationCircle color="red"/>
+    <ErrorDisplay/>
   );
 }
 

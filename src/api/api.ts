@@ -1,11 +1,12 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { RootState, store } from "../app/store";
+import { RootState } from "../app/store";
 import {
   LoginResponse,
   SigninPayload,
   SignupPayload,
 } from "./types/auth/google";
 import type { PublicUser, User } from "./types/auth/users";
+import { FriendRequestFrom, FriendRequestTo } from "./types/friendRequests";
 
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
@@ -38,6 +39,12 @@ export const api = createApi({
     signUpWithGoogle: builder.mutation<LoginResponse, SignupPayload>({
       query: (body) => ({ url: "auth/google/signup", method: "post", body }),
     }),
+    listFriendRequestsTo: builder.query<FriendRequestFrom[], string>({
+      query: (user_id) => `friend-requests/to/${user_id}`,
+    }),
+    listFriendRequestsFrom: builder.query<FriendRequestTo[], string>({
+      query: (user_id) => `friend-requests/from/${user_id}`,
+    }),
   }),
 });
 
@@ -49,4 +56,6 @@ export const {
   useDeleteUserMutation,
   useSignInWithGoogleMutation,
   useSignUpWithGoogleMutation,
+  useListFriendRequestsFromQuery,
+  useListFriendRequestsToQuery,
 } = api;

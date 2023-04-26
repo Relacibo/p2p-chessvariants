@@ -42,7 +42,7 @@ function HomeView() {
         </form>
       </Paper>
       <Paper p="sm" mt="lg" shadow="xs">
-        <UserOverview></UserOverview>
+        <UserOverview/>
       </Paper>
     </Container>
   );
