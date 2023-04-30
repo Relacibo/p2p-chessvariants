@@ -1,4 +1,14 @@
-import { Box, Divider, Modal, Stack, Table, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Box,
+  Divider,
+  Modal,
+  Stack,
+  Table,
+  Text,
+  Tooltip,
+} from "@mantine/core";
+import { IconHeartHandshake } from "@tabler/icons";
 import {
   useListFriendRequestsFromQuery,
   useListFriendRequestsToQuery,
@@ -40,16 +50,27 @@ const FriendRequestToList = ({ userId }: { userId: string }) => {
         <tr>
           <th>User name</th>
           <th>Sent at</th>
-          <th>Ignore?</th>
+          <th>Message</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {data.map(({ from: { userId, userName }, createdAt }) => (
-          <tr key={userId}>
-            <td>{userName}</td>
-            <td>{createdAt.toLocaleString()}</td>
-          </tr>
-        ))}
+        {data.friendRequests.map(
+          ({ receiver: { id, userName }, createdAt, message }) => (
+            <tr key={id}>
+              <td>{userName}</td>
+              <td>{createdAt.toLocaleString()}</td>
+              <td>{message ?? "-"}</td>
+              <td>
+                <Tooltip label="Accept friend request">
+                  <ActionIcon color="green" onClick={() => onClickAccept(id)}>
+                    <IconHeartHandshake />
+                  </ActionIcon>
+                </Tooltip>
+              </td>
+            </tr>
+          )
+        )}
       </tbody>
     </Table>
   ) : (
@@ -62,5 +83,7 @@ const FriendRequestFromList = ({ userId }: { userId: string }) => {
     useListFriendRequestsFromQuery(userId);
   return isLoading ? <AppLoader /> : isSuccess ? <></> : <ErrorDisplay />;
 };
+
+function onClickAccept(id: string) {}
 
 export default FriendRequestsModal;

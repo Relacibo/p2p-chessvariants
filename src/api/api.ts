@@ -5,8 +5,12 @@ import {
   SigninPayload,
   SignupPayload,
 } from "./types/auth/google";
-import type { PublicUser, User } from "./types/auth/users";
-import { FriendRequestFrom, FriendRequestTo } from "./types/friendRequests";
+import {
+  FriendRequestFrom as FriendRequestFromResponse,
+  FriendRequestToResponse,
+  SendFriendRequest as SendFriendRequestPayload,
+} from "./types/friends/friendRequests";
+import type { PublicUser, User } from "./types/user/users";
 
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
@@ -39,11 +43,23 @@ export const api = createApi({
     signUpWithGoogle: builder.mutation<LoginResponse, SignupPayload>({
       query: (body) => ({ url: "auth/google/signup", method: "post", body }),
     }),
-    listFriendRequestsTo: builder.query<FriendRequestFrom[], string>({
-      query: (user_id) => `friend-requests/to/${user_id}`,
+    listFriendRequestsTo: builder.query<FriendRequestToResponse, string>({
+      query: (userId) => `users/${userId}/friend-requests/outgoing`,
     }),
-    listFriendRequestsFrom: builder.query<FriendRequestTo[], string>({
-      query: (user_id) => `friend-requests/from/${user_id}`,
+    listFriendRequestsFrom: builder.query<FriendRequestFromResponse, string>({
+      query: (userId) => `users/${userId}/friend-requests/incoming`,
+    }),
+    sendFriendRequest: builder.mutation<void, SendFriendRequestPayload>({
+      query: (body) => {
+        const { userId, receiverId, message } = body;
+        return {
+          url: `users/${userId}/friends-requests/send-to/${receiverId}`,
+          method: "post",
+          body: {
+            message,
+          },
+        };
+      },
     }),
   }),
 });

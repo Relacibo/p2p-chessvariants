@@ -1,4 +1,4 @@
-import { User } from "./users";
+import { User } from "../user/users";
 
 export const google = 0;
 export type LoginResponse =

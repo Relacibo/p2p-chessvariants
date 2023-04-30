@@ -16,7 +16,7 @@ export type User = {
 
 export type PublicUser = {
   id: string;
-  nickName?: string;
+  userName: string;
   picture?: string;
   createdAt: Date;
 };

@@ -11,7 +11,7 @@ import { modals } from "@mantine/modals";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
 import { useSignUpWithGoogleMutation } from "../../api/api";
-import { User } from "../../api/types/auth/users";
+import { User } from "../../api/types/user/users";
 
 export type SignupResult =
   | {

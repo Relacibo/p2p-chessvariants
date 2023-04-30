@@ -1,5 +1,5 @@
 import { Group, Paper } from "@mantine/core";
-import { User } from "../../api/types/auth/users";
+import { User } from "../../api/types/user/users";
 
 type Props = {
   user: User;
