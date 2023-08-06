@@ -32,3 +32,12 @@ jobs:
           AWS_REGION: ${{ vars.AWS_REGION }}
           AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
           SOURCE_DIR: 'dist'
+
+      - name: Invalidate cloudfront
+        uses: chetan/invalidate-cloudfront-action@master
+          env:
+            DISTRIBUTION: ${{ vars.AWS_CLOUDFRONT_DIST }}
+            PATHS: '/*'
+            AWS_REGION: ${{ vars.AWS_REGION }}
+            AWS_ACCESS_KEY_ID: ${{ vars.AWS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }
