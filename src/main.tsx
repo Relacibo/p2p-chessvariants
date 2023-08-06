@@ -18,10 +18,10 @@ root.render(
         <GoogleOAuthProvider
           clientId={import.meta.env.VITE_GOOGLE_IDENTITY_CLIENT_ID}
         >
-          {/* <BrowserRouter basename={import.meta.env.BASE_URL}> */}
+          <BrowserRouter>
             <Paper>Why the fuck doesn't this work?</Paper>
             {/* <App /> */}
-          {/* </BrowserRouter> */}
+          </BrowserRouter>
         </GoogleOAuthProvider>
       </PersistGate>
     </Provider>
