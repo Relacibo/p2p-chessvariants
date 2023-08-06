@@ -7,9 +7,7 @@ const authMiddleware: Middleware = (store) => (next) => (action) => {
     next(action);
     const state: RootState = store.getState();
     const session = selectSession(state);
-    if (!session) {
-      return;
-    }
+    // session will not be null
     const isTokenInvalid =
       session.state === "logged-in" &&
       new Date(session.claims.exp) < new Date(Date.now());
