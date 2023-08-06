@@ -14,16 +14,16 @@ const root = createRoot(container!);
 root.render(
   <React.StrictMode>
     <Provider store={store}>
-      {/* <PersistGate loading={<Loader />} persistor={persistor}> */}
-      <GoogleOAuthProvider
-        clientId={import.meta.env.VITE_GOOGLE_IDENTITY_CLIENT_ID}
-      >
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
-          <Paper>Why the fuck doesn't this work?</Paper>
-          {/* <App /> */}
-        </BrowserRouter>
-      </GoogleOAuthProvider>
-      {/* </PersistGate> */}
+      <PersistGate loading={<Loader />} persistor={persistor}>
+        <GoogleOAuthProvider
+          clientId={import.meta.env.VITE_GOOGLE_IDENTITY_CLIENT_ID}
+        >
+          {/* <BrowserRouter basename={import.meta.env.BASE_URL}> */}
+            <Paper>Why the fuck doesn't this work?</Paper>
+            {/* <App /> */}
+          {/* </BrowserRouter> */}
+        </GoogleOAuthProvider>
+      </PersistGate>
     </Provider>
   </React.StrictMode>,
 );
