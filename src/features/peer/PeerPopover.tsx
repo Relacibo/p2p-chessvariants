@@ -1,5 +1,5 @@
 import { Button, Loader, Popover, PopoverProps, Table } from "@mantine/core";
-import { IconUnlink } from "@tabler/icons";
+import { IconUnlink } from "@tabler/icons-react";
 import React from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import style from "./Peer.module.css";

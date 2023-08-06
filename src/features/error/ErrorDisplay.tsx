@@ -1,5 +1,5 @@
 import { Group } from "@mantine/core";
-import { IconExclamationCircle } from "@tabler/icons";
+import { IconExclamationCircle } from "@tabler/icons-react";
 import { PropsWithChildren } from "react";
 
 type Props = PropsWithChildren & {};

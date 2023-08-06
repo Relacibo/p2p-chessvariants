@@ -8,7 +8,7 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
-import { IconHeartHandshake } from "@tabler/icons";
+import { IconHeartHandshake } from "@tabler/icons-react";
 import {
   useListFriendRequestsFromQuery,
   useListFriendRequestsToQuery,

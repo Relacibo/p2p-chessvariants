@@ -1,6 +1,6 @@
 import { Button, MantineTheme, TextInput } from "@mantine/core";
 import { useClipboard } from "@mantine/hooks";
-import { IconClipboard, IconClipboardCheck } from "@tabler/icons";
+import { IconClipboard, IconClipboardCheck } from "@tabler/icons-react";
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import style from "./Peer.module.css";

@@ -1,6 +1,6 @@
 import { Button, Navbar, Stack, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { IconChevronLeft } from "@tabler/icons";
+import { IconChevronLeft } from "@tabler/icons-react";
 import Auth from "../auth/Auth";
 import DarkmodeSelector from "../darkmode/DarkmodeSelector";
 import PeerDisplay from "../peer/PeerDisplay";

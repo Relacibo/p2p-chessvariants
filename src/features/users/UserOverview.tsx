@@ -1,11 +1,11 @@
 import { ActionIcon, Image, Loader, Table, Tooltip } from "@mantine/core";
-import { IconHeartHandshake } from "@tabler/icons";
 import { useListUsersQuery } from "../../api/api";
 import { PublicUser } from "../../api/types/user/users";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { selectState as selectAuthState } from "../auth/authSlice";
 import { openConfirmModal } from "../confirmModal/ConfirmModal";
 import ErrorDisplay from "../error/ErrorDisplay";
+import { IconHeartHandshake } from "@tabler/icons-react";
 
 function UserOverview() {
   const authState = useSelector(selectAuthState);
