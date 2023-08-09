@@ -36,7 +36,8 @@
     "threads": "^1.7.0",
     "typed-css-modules": "^0.7.2",
     "typescript-plugin-css-modules": "^5.0.1",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "p2pcv-fe-wasm": "rust/pgk"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^5.16.5",
