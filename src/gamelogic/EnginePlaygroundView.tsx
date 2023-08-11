@@ -1,8 +1,8 @@
 import { Box, Container, Paper, Title } from "@mantine/core";
 import useConfigureLayout from "../features/layout/hooks";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { AppError, ChessvariantEngine } from "chessvariant-engine";
-import { showError } from "../util/notification";
+import { CvJsError, ChessvariantEngine } from "chessvariant-engine";
+import { handleError } from "../util/notification";
 
 const EnginePlaygroundView = () => {
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
@@ -16,10 +16,9 @@ fn my_js_fun(param0, param1) {
     try {
       const engine = new ChessvariantEngine(script);
       // setEngine(engine);
-      return engine!.run_something(12);
-    } catch (e: any) {
-      let err = e as AppError;
-      showError(`${err.type}: ${err.message}`);
+      return engine!.run_something(500);
+    } catch (e) {
+      handleError(e);
       return null;
     }
   }, []);

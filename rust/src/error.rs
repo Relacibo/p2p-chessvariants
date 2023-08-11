@@ -1,51 +1,97 @@
-use std::fmt::Display;
+use std::{
+    backtrace::{self, Backtrace},
+    fmt::Display,
+};
 
+use js_sys::JsString;
 use rhai::{EvalAltResult, ParseError};
 use serde::{ser::SerializeStruct, Serialize};
 use thiserror::Error;
 use wasm_bindgen::{convert::ReturnWasmAbi, prelude::*};
 
-#[derive(Error, Debug)]
-pub enum AppError {
+#[derive(Debug, Error)]
+pub enum CvError {
     #[error("Rhai Eval Alt: {0:?}")]
-    RhaiEvalAlt(#[from] Box<EvalAltResult>),
+    RhaiEvalAlt(#[from] Box<EvalAltResult>, Backtrace),
     #[error("Rhai Parse: {0:?}")]
-    RhaiParse(#[from]ParseError),
+    RhaiParse(#[from] ParseError, Backtrace),
     #[error("Unexpected")]
-    Unexpected,
+    Unexpected(Backtrace),
 }
 
-#[wasm_bindgen(typescript_custom_section)]
-const TS_APP_ERROR: &'static str = r#"
-export type AppError = {
-    result: "error";
-    type: String;
-    message: String;
-}"#;
-
-impl Serialize for AppError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use AppError::*;
-        let (error_type, message): (&str, String) = match self {
-            RhaiEvalAlt(err) => ("rhai-eval-alt", err.to_string()),
-            RhaiParse(err) => ("rhai-parse", err.to_string()),
-            Unexpected => ("unexpected", "Unexpected Error occured".to_owned()),
-        };
-
-        let mut state = serializer.serialize_struct("AppError", 3)?;
-        state.serialize_field("result", "error")?;
-        state.serialize_field("type", error_type)?;
-        state.serialize_field("message", &message)?;
-        state.end()
+impl CvError {
+    pub fn unexpected() -> Self {
+        let bt = Backtrace::capture();
+        Self::Unexpected(bt)
     }
 }
 
-impl From<AppError> for JsValue {
-    fn from(value: AppError) -> Self {
-        match serde_wasm_bindgen::to_value(&value) {
+#[wasm_bindgen]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CvJsError {
+    name: String,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stack: Option<String>,
+}
+
+impl CvJsError {
+    pub fn new(name: String, message: String) -> Self {
+        Self {
+            name,
+            message,
+            stack: None,
+        }
+    }
+
+    pub fn with_stack(mut self, stack: Backtrace) -> Self {
+        self.stack = Some(stack.to_string());
+        self
+    }
+}
+
+#[wasm_bindgen]
+impl CvJsError {
+    #[wasm_bindgen(getter)]
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn message(&self) -> String {
+        self.message.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn stack(&self) -> Option<String> {
+        self.stack.clone()
+    }
+}
+
+impl From<CvError> for CvJsError {
+    fn from(value: CvError) -> Self {
+        use CvError::*;
+        match value {
+            RhaiEvalAlt(err, backtrace) => {
+                CvJsError::new("rhai-eval-alt".to_owned(), err.to_string()).with_stack(backtrace)
+            }
+            RhaiParse(err, backtrace) => {
+                CvJsError::new("rhai-parse".to_owned(), err.to_string()).with_stack(backtrace)
+            }
+            Unexpected(backtrace) => CvJsError::new(
+                "unexpected".to_owned(),
+                "Unexpected Error occured".to_owned(),
+            )
+            .with_stack(backtrace),
+        }
+    }
+}
+
+impl From<CvError> for JsValue {
+    fn from(value: CvError) -> Self {
+        let js_error: CvJsError = value.into();
+        match serde_wasm_bindgen::to_value(&js_error) {
             Ok(js) => js,
             Err(js_err) => js_err.into(),
         }

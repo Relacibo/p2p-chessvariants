@@ -8,8 +8,9 @@
   "scripts": {
     "dev": "vite",
     "wasm": "cd rust && wasm-pack build",
-    "build": "yarn run wasm && tsc && vite build",
-    "preview": "vite preview"
+    "build": "yarn wasm && tsc && vite build",
+    "preview": "vite preview",
+    "postinstall": "node scripts/postinstall.js"
   },
   "dependencies": {
     "@emotion/react": "^11.10.6",
@@ -23,7 +24,7 @@
     "@reduxjs/toolkit": "^1.9.0",
     "@tabler/icons-react": "^2.30.0",
     "axios": "^1.1.3",
-    "chessvariant-engine": "file:./rust/pkg",
+    "chessvariant-engine": "link:./rust/pkg",
     "date-fns": "^2.29.3",
     "dotenv": "^16.0.3",
     "idb": "^7.1.1",
@@ -33,6 +34,7 @@
     "react-dom": "^18.2.0",
     "react-redux": "^8.0.5",
     "react-router-dom": "^6.4.0",
+    "redux": "^4.2.1",
     "redux-persist": "^6.0.0",
     "styled-components": "^6.0.7",
     "threads": "^1.7.0",
@@ -44,6 +46,7 @@
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^14.0.0",
     "@types/jest": "^29.2.3",
+    "@types/node": "^20.4.9",
     "@types/react": "^18.0.25",
     "@types/react-dom": "^18.0.9",
     "@types/react-redux": "^7.1.25",

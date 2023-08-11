@@ -1,7 +1,7 @@
 import { useLayoutEffect } from "react";
 import { useSelector } from "react-redux";
 import { Navigate, useParams } from "react-router-dom";
-import { showError } from "../../util/notification";
+import { handleError } from "../../util/notification";
 import { Chessboard } from "../chessboard/Chessboard";
 import useConfigureLayout from "../layout/hooks";
 import { selectGame } from "../variant-environment/variantsSlice";
@@ -14,7 +14,7 @@ function PlaygroundView() {
 
   useLayoutEffect(() => {
     if (failed) {
-      showError("Could not open the game!");
+      handleError("Could not open the game!");
     }
   });
   if (failed) {
