@@ -1,5 +1,5 @@
 [package]
-name = "p2pcv-fe-wasm"
+name = "chessvariant-engine"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,8 +18,10 @@ rhai = { version = "1.15.0", default-features = false, features = [
   "no_module",
   "no_custom_syntax",
 ] }
+serde-wasm-bindgen = "0.5.0"
 thiserror = "1.0.44"
 wasm-bindgen = "0.2.87"
+serde = { version = "1.0", features = ["derive"] }
 
 [build]
 target = "wasm32-unknown-unknown"

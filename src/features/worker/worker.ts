@@ -5,9 +5,9 @@ import {
   Coords,
   VariantDescription,
   VariantState,
-} from "../../gamelogic/types";
-import util from "../../gamelogic/util";
-import variantDescriptionContext from "../../gamelogic/variantDescriptionContext";
+} from "../../gamelogicOld/types";
+import util from "../../gamelogicOld/util";
+import variantDescriptionContext from "../../gamelogicOld/variantDescriptionContext";
 import { MoveParams } from "../variant-environment/variantsSlice";
 
 const VARIANT_WORKER_DB = "variant-worker";

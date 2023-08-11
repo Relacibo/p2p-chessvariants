@@ -26,9 +26,10 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
       )}
       <Navbar.Section grow mt="md">
         <Stack spacing="sm">
-          <MainLink to={"/"}>Join Lobby</MainLink>
+          <MainLink to={""}>Join Lobby</MainLink>
           <MainLink to={"game"}>Games</MainLink>
           <MainLink to={"user-profile"}>User profile</MainLink>
+          <MainLink to={"game/playground"}>Engine Playground</MainLink>
         </Stack>
       </Navbar.Section>
       <Navbar.Section mt="auto">

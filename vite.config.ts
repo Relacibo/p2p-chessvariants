@@ -1,4 +1,6 @@
 import react from "@vitejs/plugin-react";
+import wasm from "vite-plugin-wasm";
+import topLevelAwait from "vite-plugin-top-level-await";
 import * as dotenv from "dotenv";
 import { defineConfig, loadEnv } from "vite";
 // https://vitejs.dev/config/
@@ -7,7 +9,7 @@ export default defineConfig(({ command, mode }) => {
   dotenv.config({ path: "./.env.local" });
   dotenv.config();
   return {
-    plugins: [react()],
+    plugins: [react(), wasm(), topLevelAwait()],
     base: env.BASE_URL,
     server: {
       open: env.BASE_URL,

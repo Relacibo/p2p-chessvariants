@@ -1,25 +1,53 @@
 use std::fmt::Display;
 
-use rhai::EvalAltResult;
+use rhai::{EvalAltResult, ParseError};
+use serde::{ser::SerializeStruct, Serialize};
 use thiserror::Error;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{convert::ReturnWasmAbi, prelude::*};
 
 #[derive(Error, Debug)]
 pub enum AppError {
-    RhaiEvalAltResult(#[from] Box<EvalAltResult>),
+    #[error("Rhai Eval Alt: {0:?}")]
+    RhaiEvalAlt(#[from] Box<EvalAltResult>),
+    #[error("Rhai Parse: {0:?}")]
+    RhaiParse(#[from]ParseError),
+    #[error("Unexpected")]
+    Unexpected,
 }
 
-impl Display for AppError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+#[wasm_bindgen(typescript_custom_section)]
+const TS_APP_ERROR: &'static str = r#"
+export type AppError = {
+    result: "error";
+    type: String;
+    message: String;
+}"#;
+
+impl Serialize for AppError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         use AppError::*;
-        match self {
-            RhaiEvalAltResult(err) => f.write_fmt(format_args!("{err:?}")),
-        }
+        let (error_type, message): (&str, String) = match self {
+            RhaiEvalAlt(err) => ("rhai-eval-alt", err.to_string()),
+            RhaiParse(err) => ("rhai-parse", err.to_string()),
+            Unexpected => ("unexpected", "Unexpected Error occured".to_owned()),
+        };
+
+        let mut state = serializer.serialize_struct("AppError", 3)?;
+        state.serialize_field("result", "error")?;
+        state.serialize_field("type", error_type)?;
+        state.serialize_field("message", &message)?;
+        state.end()
     }
 }
 
-impl From<AppError> for String {
+impl From<AppError> for JsValue {
     fn from(value: AppError) -> Self {
-        value.to_string()
+        match serde_wasm_bindgen::to_value(&value) {
+            Ok(js) => js,
+            Err(js_err) => js_err.into(),
+        }
     }
 }
