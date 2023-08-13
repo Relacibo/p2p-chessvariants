@@ -6,7 +6,7 @@
   "repository": "github:Relacibo/p2p-chessvariants",
   "type": "module",
   "scripts": {
-    "dev": "yarn watch 'yarn wasm' ./usr/src & vite",
+    "dev": "yarn wasm && vite & sleep 10 && yarn watch 'yarn wasm' ./rust/src",
     "wasm": "cd rust && wasm-pack build",
     "build": "yarn wasm && tsc && vite build",
     "preview": "vite preview",
