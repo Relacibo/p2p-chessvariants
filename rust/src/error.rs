@@ -1,5 +1,5 @@
 use std::{
-    backtrace::{self, Backtrace},
+    backtrace::{self, Backtrace, BacktraceStatus},
     fmt::Display,
 };
 
@@ -46,8 +46,13 @@ impl CvJsError {
     }
 
     pub fn with_stack(mut self, stack: Backtrace) -> Self {
-        self.stack = Some(stack.to_string());
-        self
+        match stack.status() {
+            BacktraceStatus::Captured => {
+                self.stack = Some(stack.to_string());
+                self
+            }
+            _ => self,
+        }
     }
 }
 

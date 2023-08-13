@@ -1,35 +1,45 @@
 import { Box } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { IconCircleX } from "@tabler/icons-react";
-import { CvJsError } from "chessvariant-engine";
 
 export function handleError(error: unknown) {
   if (typeof error === "string") {
     handleErrorMessage(error);
     return;
   }
-  if (error instanceof CvJsError) {
-    const { free, name, message, stack } = error;
-    showNotification({
-      title: name,
-      message: <Box>{message}</Box>,
-      color: "red",
-      icon: <IconCircleX />,
-    });
-    console.error(name);
-    console.error(message);
-    if (stack) {
-      console.error(stack);
-    }
-    free();
+  if (typeof error === "object") {
+  }
+  switch (typeof error) {
+    case "string":
+      handleErrorMessage(error);
+      return;
+    case "object":
+      handleErrorObject(error);
+      return;
   }
 }
 
-export function handleErrorMessage(message: string) {
+function handleErrorMessage(message: string) {
   showNotification({
     message: <Box>{message}</Box>,
     color: "red",
     icon: <IconCircleX />,
   });
   console.error(message);
+}
+
+function handleErrorObject(err: unknown) {
+  console.error(`An error happened!: ${JSON.stringify(err)}`);
+  const { free, message, name } = err as any;
+  if (message) {
+    showNotification({
+      title: name,
+      message: <Box>{message}</Box>,
+      color: "red",
+      icon: <IconCircleX />,
+    });
+  }
+  if (free) {
+    free();
+  }
 }

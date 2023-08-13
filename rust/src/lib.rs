@@ -41,7 +41,7 @@ impl ChessvariantEngine {
             12,
             scope.get_value::<i32>("ten").ok_or(CvError::unexpected())?,
         );
-        let res = engine.call_fn(&mut scope, ast, "my_js_fun", args)?;
+        let res = engine.call_fn(&mut scope, ast, "main", args)?;
 
         Ok(res)
     }
