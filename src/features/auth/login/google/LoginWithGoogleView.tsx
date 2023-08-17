@@ -1,6 +1,6 @@
 import { useDispatch } from "react-redux";
-import useSwitchView from "../layout/hooks";
 import LoginWithGoogleButton from "./LoginWithGoogleButton";
+import useSwitchView from "../../../layout/hooks";
 
 type Props = {};
 const LoginWithGoogleView = ({}: Props) => {

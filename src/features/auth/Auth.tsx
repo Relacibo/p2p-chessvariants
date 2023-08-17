@@ -1,8 +1,7 @@
 import { Button, Paper } from "@mantine/core";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { logout, selectUser } from "./authSlice";
-import LoginWithGoogleButton from "./LoginWithGoogleButton";
 
 type Props = {};
 
@@ -16,7 +15,9 @@ const Auth = ({}: Props) => {
           {user.userName} (Log out)
         </Button>
       ) : (
-        <LoginWithGoogleButton />
+        <Button component={Link} to={"auth/login"}>
+          Log in
+        </Button>
       )}
     </Paper>
   );

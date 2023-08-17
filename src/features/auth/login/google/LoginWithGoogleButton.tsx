@@ -2,11 +2,10 @@ import { Box } from "@mantine/core";
 import { GoogleLogin } from "@react-oauth/google";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
-import { useSignInWithGoogleMutation } from "../../api/api";
-import { useDispatch } from "../../app/hooks";
-import { login, selectLoggedOutCause } from "./authSlice";
-import { openSignupModal, SignupResult } from "./SignupModal";
+import { useDispatch, useSelector } from "react-redux";
+import { SignupResult, openSignupModal } from "../../SignupModal";
+import { login } from "../../authSlice";
+import { useSignInWithGoogleMutation } from "../../../../api/api";
 
 const LoginWithGoogleButton = () => {
   const dispatch = useDispatch();
