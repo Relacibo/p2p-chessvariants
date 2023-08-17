@@ -1,8 +1,11 @@
 #![feature(error_generic_member_access)]
 #![feature(provide_any)]
 pub mod error;
+pub mod rhai_rust_error;
+mod game;
 use error::CvError;
-use rhai::{Engine, FuncArgs, Scope, AST};
+use game::State;
+use rhai::{Engine, FuncArgs, Scope, AST, Dynamic};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -10,6 +13,7 @@ use wasm_bindgen::prelude::*;
 pub struct ChessvariantEngine {
     engine: Engine,
     ast: AST,
+    game_state: State,
 }
 
 #[wasm_bindgen()]
@@ -28,6 +32,7 @@ impl ChessvariantEngine {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
         engine.register_fn("add3", add3);
+        engine.register_fn::<>("new_state", func);
         Ok(ChessvariantEngine { engine, ast })
     }
 
@@ -45,9 +50,7 @@ impl ChessvariantEngine {
 
         Ok(res)
     }
-}
 
-// Define external function
-fn add3(x: i32) -> i32 {
-    x + 3
+    #[wasm_bindgen]
+    fn make_move(&self) {}
 }

@@ -9,21 +9,21 @@ use serde::{ser::SerializeStruct, Serialize};
 use thiserror::Error;
 use wasm_bindgen::{convert::ReturnWasmAbi, prelude::*};
 
+use crate::rhai_rust_error::RhaiRustError;
+
 #[derive(Debug, Error)]
 pub enum CvError {
-    #[error("Rhai Eval Alt: {0:?}")]
-    RhaiEvalAlt(#[from] Box<EvalAltResult>, Backtrace),
-    #[error("Rhai Parse: {0:?}")]
-    RhaiParse(#[from] ParseError, Backtrace),
+    #[error("Error in script: {0:?}")]
+    RhaiEvalAlt(#[from] Box<EvalAltResult>),
+    #[error("Error in script: {0:?}")]
+    RhaiParse(#[from] ParseError),
+    #[error("Error in script: {0:?}")]
+    RhaiFunctionReturnObject {
+        function_name: String,
+        source: Box<RhaiRustError>,
+    },
     #[error("Unexpected")]
-    Unexpected(Backtrace),
-}
-
-impl CvError {
-    pub fn unexpected() -> Self {
-        let bt = Backtrace::capture();
-        Self::Unexpected(bt)
-    }
+    Unexpected,
 }
 
 #[wasm_bindgen]
@@ -32,27 +32,11 @@ impl CvError {
 pub struct CvJsError {
     name: String,
     message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    stack: Option<String>,
 }
 
 impl CvJsError {
     pub fn new(name: String, message: String) -> Self {
-        Self {
-            name,
-            message,
-            stack: None,
-        }
-    }
-
-    pub fn with_stack(mut self, stack: Backtrace) -> Self {
-        match stack.status() {
-            BacktraceStatus::Captured => {
-                self.stack = Some(stack.to_string());
-                self
-            }
-            _ => self,
-        }
+        Self { name, message }
     }
 }
 
@@ -67,28 +51,22 @@ impl CvJsError {
     pub fn message(&self) -> String {
         self.message.clone()
     }
-
-    #[wasm_bindgen(getter)]
-    pub fn stack(&self) -> Option<String> {
-        self.stack.clone()
-    }
 }
 
 impl From<CvError> for CvJsError {
     fn from(value: CvError) -> Self {
         use CvError::*;
-        match value {
-            RhaiEvalAlt(err, backtrace) => {
-                CvJsError::new("rhai-eval-alt".to_owned(), err.to_string()).with_stack(backtrace)
+        let name = match value {
+            RhaiEvalAlt(err) => "rhai-eval-alt".to_owned(),
+            RhaiParse(err) => "rhai-parse".to_owned(),
+            Unexpected => "unexpected".to_owned(),
+            RhaiFunctionReturnObject(function_name, err) => {
+                "rhai-function-return-object".to_owned()
             }
-            RhaiParse(err, backtrace) => {
-                CvJsError::new("rhai-parse".to_owned(), err.to_string()).with_stack(backtrace)
-            }
-            Unexpected(backtrace) => CvJsError::new(
-                "unexpected".to_owned(),
-                "Unexpected Error occured".to_owned(),
-            )
-            .with_stack(backtrace),
+        };
+        CvJsError {
+            name,
+            message: value.to_string(),
         }
     }
 }
