@@ -57,7 +57,7 @@ impl State {
 }
 
 impl State {
-    fn new(start_player_id: u32, board: Vec<Tile>, reserve_piles: Vec<Tile>) -> Self {
+    pub fn new(start_player_id: u32, board: Vec<Tile>, reserve_piles: Vec<Tile>) -> Self {
         Self {
             player_id_turn: start_player_id,
             board,
