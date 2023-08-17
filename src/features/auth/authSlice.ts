@@ -58,6 +58,6 @@ export const selectLoggedOutCause = (state: RootState) => {
   return session?.state === "logged-out" ? session.loggedOutCause : null;
 };
 
-export const selectState = (state: RootState) => state.auth.session?.state;
+export const selectLoginState = (state: RootState) => state.auth.session?.state;
 
 export default reducer;

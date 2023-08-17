@@ -1,9 +1,9 @@
 import { useSelector } from "react-redux";
-import { selectState } from "./authSlice";
+import { selectLoginState } from "./authSlice";
 import GoogleAutoSignin from "./GoogleAutoSignin";
 
 const LoginSession = () => {
-  const sessionState = useSelector(selectState);
+  const sessionState = useSelector(selectLoginState);
   return sessionState === "logged-out" ? <GoogleAutoSignin /> : <></>;
 };
 export default LoginSession;

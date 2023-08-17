@@ -7,7 +7,7 @@ import { login, selectLoggedOutCause } from "./authSlice";
 import { openSignupModal, SignupResult } from "./SignupModal";
 const GoogleAutoSignin = () => {
   const dispatch = useDispatch();
-  const [updatePost, signinResult] = useSignInWithGoogleMutation();
+  const [signin, signinResult] = useSignInWithGoogleMutation();
   const [credential, setCredential] = useState<string | null>(null);
   const [signupResult, setSignupResult] = useState<SignupResult | null>();
 
@@ -19,12 +19,12 @@ const GoogleAutoSignin = () => {
       }
       // Get's activated, if the user clicks on the one tap
       setCredential(credential);
-      updatePost({
+      signin({
         credential,
       });
     },
     onError: () => {
-      console.log("Login Failed");
+      console.error("Login Failed");
     },
   });
 
@@ -39,6 +39,7 @@ const GoogleAutoSignin = () => {
       let { usernameSuggestion } = data;
       openSignupModal(credential!, usernameSuggestion, setSignupResult);
     } else if (signinResult.status === QueryStatus.rejected) {
+      // TODO
     }
   }, [signinResult]);
 
@@ -48,10 +49,10 @@ const GoogleAutoSignin = () => {
     }
     if (signupResult.result === "success") {
       dispatch(login(signupResult));
-    } else {
-      // canceled
-      signinResult.reset();
+      return;
     }
+    // canceled
+    signinResult.reset();
   }, [signupResult]);
   return <></>;
 };
