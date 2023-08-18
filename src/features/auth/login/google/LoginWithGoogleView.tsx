@@ -4,7 +4,6 @@ import useSwitchView from "../../../layout/hooks";
 
 type Props = {};
 const LoginWithGoogleView = ({}: Props) => {
-  const dispatch = useDispatch();
   useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: true }));
 
   return <LoginWithGoogleButton />;

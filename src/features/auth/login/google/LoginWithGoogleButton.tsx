@@ -9,7 +9,7 @@ import { useSignInWithGoogleMutation } from "../../../../api/api";
 
 const LoginWithGoogleButton = () => {
   const dispatch = useDispatch();
-  const [updatePost, signinResult] = useSignInWithGoogleMutation();
+  const [signin, signinResult] = useSignInWithGoogleMutation();
   const [credential, setCredential] = useState<string | null>(null);
   const [signupResult, setSignupResult] = useState<SignupResult | null>();
   // autoSelect doesn't seem to work: https://github.com/MomenSherif/react-oauth/issues/210
@@ -51,7 +51,7 @@ const LoginWithGoogleButton = () => {
           }
           // Get's activated, if the user clicks on the one tap
           setCredential(credential);
-          updatePost({ credential });
+          signin({ credential });
         }}
         onError={() => {
           console.log("Login Failed");

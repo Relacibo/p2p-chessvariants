@@ -1,10 +1,10 @@
 import { CredentialResponse, useGoogleOneTapLogin } from "@react-oauth/google";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
-import { useSignInWithGoogleMutation } from "../../api/api";
-import { useDispatch, useSelector } from "../../app/hooks";
-import { login, selectLoggedOutCause } from "./authSlice";
-import { openSignupModal, SignupResult } from "./SignupModal";
+import { useSignInWithGoogleMutation } from "../../../../api/api";
+import { useDispatch, useSelector } from "../../../../app/hooks";
+import { login, selectLoggedOutCause } from "../../authSlice";
+import { openSignupModal, SignupResult } from "../../SignupModal";
 const GoogleAutoSignin = () => {
   const dispatch = useDispatch();
   const [signin, signinResult] = useSignInWithGoogleMutation();
