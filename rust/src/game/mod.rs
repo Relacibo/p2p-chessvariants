@@ -35,17 +35,17 @@ pub struct State {
 
 #[wasm_bindgen]
 impl State {
-    pub fn player_on_turn(&self) -> u32 {
-        self.player_on_turn
-    }
-    // ...
-    pub fn board_width(&self) -> u32 {
-        self.board_width
-    }
+    // pub fn player_on_turn(&self) -> u32 {
+    //     self.player_on_turn
+    // }
+    // // ...
+    // pub fn board_width(&self) -> u32 {
+    //     self.board_width
+    // }
 
-    pub fn board_height(&self) -> u32 {
-        self.board_height
-    }
+    // pub fn board_height(&self) -> u32 {
+    //     self.board_height
+    // }
 
     pub fn board(&self) -> *const Tile {
         self.board.as_ptr()

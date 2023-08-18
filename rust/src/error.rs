@@ -17,10 +17,10 @@ pub enum CvError {
     RhaiEvalAlt(#[from] Box<EvalAltResult>),
     #[error("Error in script: {0:?}")]
     RhaiParse(#[from] ParseError),
-    #[error("Error in script: {0:?}")]
+    #[error("Error in script: Function name {function_name:?}")]
     RhaiFunctionReturnObject {
         function_name: String,
-        source: Box<RhaiRustError>,
+        rhai_rust_error: Box<RhaiRustError>,
     },
     #[error("Unexpected")]
     Unexpected,

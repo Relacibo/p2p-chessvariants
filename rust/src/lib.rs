@@ -31,7 +31,6 @@ impl ChessvariantEngine {
     pub fn new(script_content: String) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
-        engine.register_fn("add3", add3);
         engine.register_fn("State", State::new);
 
         let mut scope = Scope::new();
@@ -51,7 +50,7 @@ impl ChessvariantEngine {
         scope.push("number", number);
         let args = (
             12,
-            scope.get_value::<i32>("ten").ok_or(CvError::unexpected())?,
+            scope.get_value::<i32>("ten").ok_or(CvError::Unexpected)?,
         );
         let res = engine.call_fn(&mut scope, ast, "main", args)?;
 
