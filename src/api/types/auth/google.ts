@@ -1,22 +1,6 @@
-import { User } from "../user/users";
+import { SigninPayload, SignupPayload, OauthData } from "./auth";
 
-export const google = 0;
-export type LoginResponse =
-  | {
-      result: "success";
-      token: string;
-      user: User;
-    }
-  | {
-      result: "not-registered";
-      usernameSuggestion: string;
-    };
-
-export type SigninPayload = {
-  credential: string;
-};
-
-export type SignupPayload = {
-  username: String;
-  credential: string;
-};
+export class GoogleOauthData implements OauthData {
+  type = "google";
+  constructor(readonly credential: string) {}
+}
