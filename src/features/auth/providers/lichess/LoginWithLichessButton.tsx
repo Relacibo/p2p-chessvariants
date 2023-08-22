@@ -50,15 +50,16 @@ const LoginWithLichessButton = () => {
   useEffect(() => {
     if (redirect && oauthState && codeChallenge) {
       const { state } = oauthState;
-      window.location.href =
-        `${lichessHost}/oauth?` +
-        `response_type=code&` +
-        `client_id=${lichessClientId}&` +
-        `redirect_uri=${redirectUri}&` +
-        `code_challenge_method=S256&&` +
-        `code_challenge=${codeChallenge}&` +
-        `scope=${scope}&` +
-        `state=${state}&`;
+      const p = new URLSearchParams({
+        response_type: "code",
+        client_id: lichessClientId,
+        redirect_uri: redirectUri,
+        scope,
+        code_challenge_method: "S256",
+        code_challenge: codeChallenge,
+        state: state,
+      });
+      window.location.href = `${lichessHost}/oauth?` + p;
     }
   }, [redirect, oauthState, codeChallenge]);
 
@@ -67,9 +68,7 @@ const LoginWithLichessButton = () => {
   ) => {
     const codeVerifier = generateId(64);
     const state = generateId(30);
-    let codeChallenge = base64Url.encode(await sha256(codeVerifier));
-    alert(codeVerifier);
-    alert(codeChallenge);
+    let codeChallenge = base64Url.encode(await sha256(codeVerifier), "hex");
     setOauthState({ state, codeVerifier });
     setCodeChallenge(codeChallenge);
     setRedirect(true);
