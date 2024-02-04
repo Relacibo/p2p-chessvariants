@@ -2,7 +2,7 @@ import { useContext, useLayoutEffect } from "react";
 import { LayoutConfig, LayoutContext } from "./Layout";
 
 const useSwitchView = (
-  fun: (config: LayoutConfig) => Partial<LayoutConfig>
+  fun: (config: LayoutConfig) => Partial<LayoutConfig>,
 ) => {
   let { config, setConfig, setSidebarCollapsed } = useContext(LayoutContext);
   useLayoutEffect(() => {

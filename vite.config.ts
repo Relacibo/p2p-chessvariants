@@ -15,9 +15,10 @@ export default defineConfig(({ command, mode }) => {
       open: env.BASE_URL,
       proxy: {
         "/api": {
-          target: "http://localhost:8000",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
           secure: false,
+          ws: false,
           rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },

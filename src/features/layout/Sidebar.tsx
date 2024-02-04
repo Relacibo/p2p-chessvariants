@@ -1,4 +1,4 @@
-import { Button, Navbar, Stack, useMantineTheme } from "@mantine/core";
+import { Button, AppShell, Stack, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronLeft } from "@tabler/icons-react";
 import Auth from "../auth/Auth";
@@ -18,26 +18,26 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
   let isSmallQuery = `(max-width: ${theme.breakpoints.sm}px)`;
   let isSmall = useMediaQuery(isSmallQuery);
   return (
-    <Navbar p="sm" width={{ base: isSmall ? "100%" : 300 }}>
+    <AppShell.Navbar p="sm">
       {!isSmall && (
-        <Navbar.Section className={style.navbarTitle}>
+        <AppShell.Section className={style.navbarTitle}>
           <Logo imageSize={"3rem"} />
-        </Navbar.Section>
+        </AppShell.Section>
       )}
-      <Navbar.Section grow mt="md">
-        <Stack spacing="sm">
+      <AppShell.Section grow mt="md">
+        <Stack gap="sm">
           <MainLink to={"/"}>Join Lobby</MainLink>
           <MainLink to={"game"}>Games</MainLink>
           <MainLink to={"user-profile"}>User profile</MainLink>
         </Stack>
-      </Navbar.Section>
-      <Navbar.Section mt="auto">
-        <Stack spacing={"sm"}> 
+      </AppShell.Section>
+      <AppShell.Section mt="auto">
+        <Stack gap={"sm"}>
           <PeerDisplay />
           <DarkmodeSelector />
           <Auth />
         </Stack>
-      </Navbar.Section>
+      </AppShell.Section>
       {!sidebarAlwaysExtendedInLarge && !isSmall && (
         <div
           style={{
@@ -48,8 +48,8 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
           }}
         >
           <Button
-            compact
             variant="outline"
+            size="compact-md"
             style={{
               padding: 0,
               width: "small",
@@ -62,7 +62,7 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
           </Button>
         </div>
       )}
-    </Navbar>
+    </AppShell.Navbar>
   );
 };
 

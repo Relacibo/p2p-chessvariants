@@ -1,0 +1,10 @@
+.app-shell {
+  background-color: var(--mantine-color-gray-0);
+  color: var(--mantine-color-black);
+  height: 100vh;
+}
+
+.app-shell .dark {
+  background-color: var(--mantine-color-dark-6);
+  color: var(--mantine-color-dark-0);
+}

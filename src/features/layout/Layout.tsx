@@ -4,7 +4,8 @@ import {
   Burger,
   Button,
   Group,
-  Header,
+  MantineTheme,
+  useMantineColorScheme,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -12,6 +13,7 @@ import { IconChevronRight } from "@tabler/icons-react";
 import { createContext, useState } from "react";
 import Logo from "./logo";
 import Sidebar from "./Sidebar";
+import style from "./Layout.module.css";
 
 export type LayoutProps = {
   children: JSX.Element | JSX.Element[] | never[];
@@ -57,60 +59,55 @@ function Layout(props: LayoutProps) {
     >
       <AppShell
         padding={0}
-        sx={(theme) => ({
-          backgroundColor:
-            theme.colorScheme === "dark"
-              ? theme.colors.dark[6]
-              : theme.colors.gray[0],
-          color:
-            theme.colorScheme === "dark" ? theme.colors.dark[0] : theme.black,
-          height: "100vh",
-        })}
-        navbar={
-          (sidebarAlwaysExtendedInLarge && !isSmall) || !sidebarCollapsed ? (
-            <Sidebar
-              sidebarAlwaysExtendedInLarge={sidebarAlwaysExtendedInLarge}
-              collapse={() => {
-                setSidebarCollapsed(true);
-              }}
-            />
-          ) : undefined
-        }
-        header={
-          isSmall ? (
-            <Header height={{ base: 50, md: 70 }} p="sm">
-              <Group>
-                <Burger
-                  opened={!sidebarCollapsed}
-                  onClick={() => setSidebarCollapsed((c) => !c)}
-                  size="sm"
-                  mr="xl"
-                />
-                <Box
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                  }}
-                >
-                  <Logo imageSize={"1.5rem"} textSize="lg" />
-                </Box>
-              </Group>
-            </Header>
-          ) : undefined
-        }
+        header={{ height: { base: 50, md: 70 } }}
+        navbar={{
+          collapsed: {
+            mobile: sidebarCollapsed,
+            desktop: !sidebarAlwaysExtendedInLarge && sidebarCollapsed,
+          },
+          breakpoint: "sm",
+          width: { base: isSmall ? "100%" : 300 },
+        }}
+        className={style.appShell}
       >
+        {
+          <Sidebar
+            sidebarAlwaysExtendedInLarge={sidebarAlwaysExtendedInLarge}
+            collapse={() => {
+              setSidebarCollapsed(true);
+            }}
+          />
+        }
+        {isSmall && (
+          <AppShell.Header p="sm">
+            <Group>
+              <Burger
+                opened={!sidebarCollapsed}
+                onClick={() => setSidebarCollapsed((c) => !c)}
+                size="sm"
+                mr="xl"
+              />
+              <Box
+                pos={"absolute"}
+                left={"50%"}
+                style={{
+                  transform: "translateX(-50%)",
+                }}
+              >
+                <Logo imageSize={"1.5rem"} textSize="lg" />
+              </Box>
+            </Group>
+          </AppShell.Header>
+        )}
         {children}
         {!sidebarAlwaysExtendedInLarge && sidebarCollapsed && !isSmall && (
           <Button
-            compact
+            size="compact-md"
             variant="outline"
-            style={{
-              position: "absolute",
-              bottom: "1em",
-              left: "1em",
-              padding: 0,
-            }}
+            pos={"absolute"}
+            bottom={"1em"}
+            left={"1em"}
+            p={0}
             onClick={() => {
               setSidebarCollapsed(false);
             }}

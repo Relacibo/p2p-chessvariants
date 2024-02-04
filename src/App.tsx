@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
+import "@mantine/core/styles.css";
 import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { useDispatch, useSelector } from "./app/hooks";
@@ -20,9 +21,8 @@ function App() {
   useEffect(() => {
     dispatch(initializeReduxState());
   }, [dispatch]);
-  const colorScheme = useSelector(selectDarkmodeActive) ? "dark" : "light";
   return (
-    <MantineProvider theme={{ colorScheme }}>
+    <MantineProvider>
       <ModalsProvider>
         <Notifications />
         <LoginSession />
