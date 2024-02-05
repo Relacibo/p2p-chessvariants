@@ -43,13 +43,16 @@ export const LayoutContext = createContext<{
 
 function Layout(props: LayoutProps) {
   const { children } = props;
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsedState, setSidebarCollapsed] = useState(true);
   const [config, setConfig] = useState(defaultConfig);
-  let { sidebarAlwaysExtendedInLarge } = config;
-  let theme = useMantineTheme();
-  let isSmallQuery = `(max-width: ${theme.breakpoints.sm}px)`;
-  let isSmall = useMediaQuery(isSmallQuery);
+  const { sidebarAlwaysExtendedInLarge } = config;
+  const theme = useMantineTheme();
+  const isSmallQuery = `(max-width: ${theme.breakpoints.sm})`;
+  const isMobile = !!useMediaQuery(isSmallQuery);
 
+  const collapsable = !sidebarAlwaysExtendedInLarge || isMobile;
+
+  const sidebarCollapsed = collapsable && sidebarCollapsedState;
   return (
     <LayoutContext.Provider
       value={{
@@ -60,25 +63,26 @@ function Layout(props: LayoutProps) {
       }}
     >
       <AppShell
-        header={{ height: { base: 50, md: 70, lg: ".05px"} }}
+        header={{ height: { base: 50, md: 70 }, offset: true }}
         navbar={{
           collapsed: {
             mobile: sidebarCollapsed,
-            desktop: !sidebarAlwaysExtendedInLarge && sidebarCollapsed,
+            desktop: sidebarCollapsed,
           },
           breakpoint: "sm",
-          width: { base: isSmall ? "100%" : 300 },
+          width: { base: 300, sm: "100%", md: 300 },
         }}
         className={style.appShell}
       >
         <AppShell.Main>{children}</AppShell.Main>
         <Sidebar
-          sidebarAlwaysExtendedInLarge={sidebarAlwaysExtendedInLarge}
+          isMobile={isMobile}
+          collapsable={collapsable}
           collapse={() => {
             setSidebarCollapsed(true);
           }}
         />
-        {isSmall && (
+        {isMobile && (
           <AppShell.Header p="sm">
             <Group>
               <Burger
@@ -99,7 +103,7 @@ function Layout(props: LayoutProps) {
             </Group>
           </AppShell.Header>
         )}
-        {(!sidebarAlwaysExtendedInLarge || isSmall) && sidebarCollapsed && (
+        {!isMobile && sidebarCollapsed && (
           <Button
             size="compact-md"
             variant="outline"

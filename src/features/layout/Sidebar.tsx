@@ -9,17 +9,16 @@ import MainLink from "./MainLink";
 import style from "./Sidebar.module.css";
 
 type Props = {
-  sidebarAlwaysExtendedInLarge: boolean;
+  isMobile: boolean;
+  collapsable: boolean;
   collapse: () => void;
 };
 
-const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
+const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
   let theme = useMantineTheme();
-  let isSmallQuery = `(max-width: ${theme.breakpoints.sm}px)`;
-  let isSmall = useMediaQuery(isSmallQuery);
   return (
     <AppShell.Navbar p="sm" className={style.sidebar}>
-      {!isSmall && (
+      {!isMobile && (
         <AppShell.Section className={style.navbarTitle}>
           <Logo imageSize={"3rem"} />
         </AppShell.Section>
@@ -38,7 +37,7 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
           <Auth />
         </Stack>
       </AppShell.Section>
-      {!sidebarAlwaysExtendedInLarge && !isSmall && (
+      {!isMobile && collapsable && (
         <div
           style={{
             zIndex: 30,
