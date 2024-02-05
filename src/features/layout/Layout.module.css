@@ -9,5 +9,6 @@
   color: var(--mantine-color-dark-0);
 }
 
-.appBox {
+.appShellMain {
+  padding-top: 0.01px;
 }

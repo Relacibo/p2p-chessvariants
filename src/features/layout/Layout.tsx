@@ -63,7 +63,7 @@ function Layout(props: LayoutProps) {
       }}
     >
       <AppShell
-        header={{ height: { base: 50, md: 70 }, offset: true }}
+        header={{ height: { base: 50, sm: 70 } }}
         navbar={{
           collapsed: {
             mobile: sidebarCollapsed,
@@ -74,7 +74,7 @@ function Layout(props: LayoutProps) {
         }}
         className={style.appShell}
       >
-        <AppShell.Main>{children}</AppShell.Main>
+        <AppShell.Main className={style.appShellMain}>{children}</AppShell.Main>
         <Sidebar
           isMobile={isMobile}
           collapsable={collapsable}
