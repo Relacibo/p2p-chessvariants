@@ -28,7 +28,7 @@ function HomeView() {
   useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: true }));
   const user = useSelector(selectUser);
   return (
-    <Container>
+    <Container >
       <Paper p="sm" mt="lg" shadow="xs">
         <form
           onSubmit={form.onSubmit(({ peerId }) => {
@@ -42,7 +42,7 @@ function HomeView() {
         </form>
       </Paper>
       <Paper p="sm" mt="lg" shadow="xs">
-        <UserOverview/>
+        <UserOverview />
       </Paper>
     </Container>
   );

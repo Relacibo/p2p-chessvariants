@@ -1,8 +1,14 @@
 @import url("https://fonts.googleapis.com/css?family=Strait&family=Source+Sans+Pro:regular,bold,italic&subset=latin,latin-ext&display=swap");
 
+.sidebar {
+  top: 0;
+  height: 100%;
+}
+
 .navbarTitle {
   font-family: "Strait";
   color: inherit;
   text-decoration: none;
   font-size: 1.7em;
 }
+

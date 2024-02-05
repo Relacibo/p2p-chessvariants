@@ -7,14 +7,13 @@ import { PersistGate } from "redux-persist/integration/react";
 import App from "./App";
 import { persistor, store } from "./app/store";
 import "./index.css";
-import { Loader, Paper } from "@mantine/core";
 
 const container = document.getElementById("root");
 const root = createRoot(container!);
 root.render(
   <React.StrictMode>
     <Provider store={store}>
-      <PersistGate loading={<Loader />} persistor={persistor}>
+      <PersistGate persistor={persistor}>
         <GoogleOAuthProvider
           clientId={import.meta.env.VITE_GOOGLE_IDENTITY_CLIENT_ID}
         >

@@ -8,7 +8,7 @@ type Props = {
 const UserDisplay = ({ user }: Props) => {
   return (
     <Group>
-      <Paper>{user!.name}</Paper>
+      <Paper>{user!.userName}</Paper>
     </Group>
   );
 };

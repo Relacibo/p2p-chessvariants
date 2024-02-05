@@ -9,3 +9,14 @@
 .connected {
   color: #00C781 !important;
 }
+
+.peer-button > .root{
+  background: none !important;
+  color: var(--mantine-color-dark-2);
+  .dark {
+    color: var(--mantine-color-white);
+  }
+  @media hover {
+    color: var(--mantine-color-green-4);
+  }
+}

@@ -1,4 +1,4 @@
-import { Group, Image, MantineSize, Text } from "@mantine/core";
+import { Box, Group, Image, MantineSize, Text } from "@mantine/core";
 
 type LogoProps = {
   imageSize?: string | number;
@@ -8,7 +8,9 @@ type LogoProps = {
 function Logo({ imageSize, textSize }: LogoProps) {
   return (
     <Group>
-      <Image width={imageSize} radius="md" src="/logo192.png" alt="gg"></Image>
+      <Box w={imageSize}>
+        <Image radius="md" src="/logo192.png" alt="gg"></Image>
+      </Box>
       <Text size={textSize}>ggchess.org</Text>
     </Group>
   );

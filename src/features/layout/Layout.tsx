@@ -3,8 +3,10 @@ import {
   Box,
   Burger,
   Button,
+  Container,
   Group,
   MantineTheme,
+  Paper,
   useMantineColorScheme,
   useMantineTheme,
 } from "@mantine/core";
@@ -58,8 +60,7 @@ function Layout(props: LayoutProps) {
       }}
     >
       <AppShell
-        padding={0}
-        header={{ height: { base: 50, md: 70 } }}
+        header={{ height: { base: 50, md: 70, lg: ".05px"} }}
         navbar={{
           collapsed: {
             mobile: sidebarCollapsed,
@@ -70,14 +71,13 @@ function Layout(props: LayoutProps) {
         }}
         className={style.appShell}
       >
-        {
-          <Sidebar
-            sidebarAlwaysExtendedInLarge={sidebarAlwaysExtendedInLarge}
-            collapse={() => {
-              setSidebarCollapsed(true);
-            }}
-          />
-        }
+        <AppShell.Main>{children}</AppShell.Main>
+        <Sidebar
+          sidebarAlwaysExtendedInLarge={sidebarAlwaysExtendedInLarge}
+          collapse={() => {
+            setSidebarCollapsed(true);
+          }}
+        />
         {isSmall && (
           <AppShell.Header p="sm">
             <Group>
@@ -94,13 +94,12 @@ function Layout(props: LayoutProps) {
                   transform: "translateX(-50%)",
                 }}
               >
-                <Logo imageSize={"1.5rem"} textSize="lg" />
+                <Logo imageSize={"1.5rem"} textSize={"xl"} />
               </Box>
             </Group>
           </AppShell.Header>
         )}
-        {children}
-        {!sidebarAlwaysExtendedInLarge && sidebarCollapsed && !isSmall && (
+        {(!sidebarAlwaysExtendedInLarge || isSmall) && sidebarCollapsed && (
           <Button
             size="compact-md"
             variant="outline"

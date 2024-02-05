@@ -18,7 +18,7 @@ const Sidebar = ({ sidebarAlwaysExtendedInLarge, collapse }: Props) => {
   let isSmallQuery = `(max-width: ${theme.breakpoints.sm}px)`;
   let isSmall = useMediaQuery(isSmallQuery);
   return (
-    <AppShell.Navbar p="sm">
+    <AppShell.Navbar p="sm" className={style.sidebar}>
       {!isSmall && (
         <AppShell.Section className={style.navbarTitle}>
           <Logo imageSize={"3rem"} />

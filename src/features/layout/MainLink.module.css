@@ -1,17 +1,17 @@
-.main-link {
+.mainLink {
   display: block;
   width: 100%;
   padding: var(--mantine-spacing-xs);
   border-radius: var(--mantine-radius-sm);
-  color: var(--mantine-color-black)
+  color: var(--mantine-color-black);
   @mixin hover {
-    background-color: var(--mantine-color-dark-6);
+    background-color: var(--mantine-color-dark-0);
   }
 }
 
-.main-link .dark {
-  color: var(--mantine-color-dark-0)
+[data-mantine-color-scheme="dark"] .mainLink {
+  color: var(--mantine-color-grey-0);
   @mixin hover {
-    background-color: var(--mantine-color-gray-0);
+    background-color: var(--mantine-color-dark-6);
   }
 }
