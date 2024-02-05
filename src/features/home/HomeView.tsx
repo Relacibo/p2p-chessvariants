@@ -27,7 +27,7 @@ function HomeView() {
   const dispatch = useDispatch();
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
   return (
-    <Container>
+    <Container >
       <Paper p="sm" mt="lg" shadow="xs">
         <form
           onSubmit={form.onSubmit(({ peerId }) => {

@@ -22,8 +22,7 @@ const PeerPopover = ({ children, opened, onClose }: PeerPopoverProps) => {
   const connections = useSelector(selectPeerConnections);
   const createCloseButton = (peerId: string) => (
     <Button
-      compact
-      size="xs"
+      size="compact-xs"
       variant="subtle"
       onClick={() => dispatch(disconnectFromPeer(peerId))}
     >
@@ -47,7 +46,7 @@ const PeerPopover = ({ children, opened, onClose }: PeerPopoverProps) => {
           <td>{uuid}</td>
           <td>{createCloseButton(peerId)}</td>
         </tr>
-      )) || []
+      )) || [],
     );
   return (
     <Popover {...popoverProps}>

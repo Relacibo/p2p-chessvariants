@@ -10,8 +10,10 @@ import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
 import { QueryStatus } from "@reduxjs/toolkit/dist/query";
 import { useEffect, useState } from "react";
-import { useSignUpWithGoogleMutation } from "../../api/api";
 import { User } from "../../api/types/user/users";
+import { useSignUpMutation } from "../../api/api";
+import { OauthData } from "../../api/types/auth/auth";
+import { showError } from "../../util/notification";
 
 export type SignupResult =
   | {
@@ -24,13 +26,13 @@ export type SignupResult =
     };
 
 type Props = {
-  credential: string;
+  oauthData: OauthData;
   usernameSuggestion: string;
   setResult: (response: SignupResult) => void;
 };
 
-const SignupModal = ({ credential, setResult, usernameSuggestion }: Props) => {
-  let [updatePost, result] = useSignUpWithGoogleMutation();
+const SignupModal = ({ oauthData, setResult, usernameSuggestion }: Props) => {
+  let [signup, signupResult] = useSignUpMutation();
   let [submitted, setSubmitted] = useState(false);
   const form = useForm({
     initialValues: {
@@ -38,20 +40,21 @@ const SignupModal = ({ credential, setResult, usernameSuggestion }: Props) => {
     },
   });
   useEffect(() => {
-    if (result.status === QueryStatus.fulfilled) {
-      let { data } = result;
+    if (signupResult.status === QueryStatus.fulfilled) {
+      let { data } = signupResult;
       if (data.result == "success") {
         setResult(data);
         modals.closeAll();
         return;
       }
-      form.values.username = data.usernameSuggestion;
+      const { usernameSuggestion } = data;
+      form.values.username = usernameSuggestion;
       form.setErrors({ username: "Already taken!" });
-    } else if (result.status == QueryStatus.rejected) {
-      form.setErrors({ username: "Unexpected error!" });
+    } else if (signupResult.status == QueryStatus.rejected) {
+      showError("Unexpected error!");
     }
     setSubmitted(false);
-  }, [result]);
+  }, [signupResult]);
   return (
     <Box>
       <LoadingOverlay visible={submitted} />
@@ -60,25 +63,26 @@ const SignupModal = ({ credential, setResult, usernameSuggestion }: Props) => {
           onSubmit={() => {
             setSubmitted(true);
             let username = form.values.username;
-            updatePost({ credential, username });
+            signup({ oauthData, username });
           }}
         >
           <Stack>
             <TextInput {...form.getInputProps("username")} />
             <Group ml="auto">
-              <Button color="red"
-                onClick={() =>
-                  {
+              <Button
+                color="red"
+                onClick={() => {
                   setResult({
                     result: "canceled",
                   });
-                  modals.closeAll()
-                }
-                }
+                  modals.closeAll();
+                }}
               >
                 Cancel
               </Button>
-              <Button color="green" type="submit">Submit</Button>
+              <Button color="green" type="submit">
+                Submit
+              </Button>
             </Group>
           </Stack>
         </form>
@@ -87,25 +91,6 @@ const SignupModal = ({ credential, setResult, usernameSuggestion }: Props) => {
       )}
     </Box>
   );
-};
-
-export const openSignupModal = (
-  credential: string,
-  usernameSuggestion: string,
-  setResult: (response: SignupResult) => void
-) => {
-  modals.open({
-    // NOTE: Cannot use close button, cannot call update components from there
-    withCloseButton: false,
-    title: "Please choose a unique username!",
-    children: (
-      <SignupModal
-        usernameSuggestion={usernameSuggestion}
-        credential={credential}
-        setResult={setResult}
-      ></SignupModal>
-    ),
-  });
 };
 
 export default SignupModal;

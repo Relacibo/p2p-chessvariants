@@ -2,7 +2,7 @@ import { ActionIcon, Image, Loader, Table, Tooltip } from "@mantine/core";
 import { useListUsersQuery } from "../../api/api";
 import { PublicUser } from "../../api/types/user/users";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { selectState as selectAuthState } from "../auth/authSlice";
+import { selectLoginState as selectAuthState } from "../auth/authSlice";
 import { openConfirmModal } from "../confirmModal/ConfirmModal";
 import ErrorDisplay from "../error/ErrorDisplay";
 import { IconHeartHandshake } from "@tabler/icons-react";
@@ -18,7 +18,6 @@ function UserOverview() {
     <Table>
       <thead>
         <tr>
-          <th>Picture</th>
           <th>Username</th>
           <th>Created at</th>
           <th>Actions</th>
@@ -32,10 +31,9 @@ function UserOverview() {
 }
 
 function userRow(isLoggedIn: boolean, user: PublicUser) {
-  let { id, userName, picture, createdAt } = user;
+  let { id, userName, createdAt } = user;
   return (
     <tr key={id}>
-      <td>{picture ? <Image src={picture} width={40} height={40} /> : "-"}</td>
       <td>{userName}</td>
       <td>{new Date(createdAt).toLocaleString()}</td>
       <td>
@@ -52,8 +50,7 @@ function userRow(isLoggedIn: boolean, user: PublicUser) {
 }
 
 function onClickFriendRequest(userId: string) {
-  const onConfirmCallback = () => {
-  };
+  const onConfirmCallback = () => {};
   openConfirmModal(onConfirmCallback);
 }
 

@@ -51,9 +51,10 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
-      // Adding the api middleware enables caching, invalidation, polling,
-      // and other useful features of `rtk-query`.
-    }).concat(api.middleware),
+    }),
+    // Adding the api middleware enables caching, invalidation, polling,
+    // and other useful features of `rtk-query`.
+    api.middleware,
     errorHandler,
     authMiddleware,
   ],

@@ -1,4 +1,4 @@
-import { Button, MantineTheme, TextInput } from "@mantine/core";
+import { Button, TextInput } from "@mantine/core";
 import { useClipboard } from "@mantine/hooks";
 import { IconClipboard, IconClipboardCheck } from "@tabler/icons-react";
 import { useState } from "react";
@@ -28,24 +28,13 @@ const PeerDisplay = () => {
         onClick={() => setShowPopover((s) => !s)}
         rightSection={
           <Button
-            compact
+            className={style.peerButton}
+            size="compact-md"
             onClick={() => {
               if (typeof peerId !== "undefined") {
                 clipboard.copy(peerId);
               }
             }}
-            styles={(theme: MantineTheme) => ({
-              root: {
-                background: "none !important",
-                color:
-                  theme.colorScheme === "dark"
-                    ? theme.white
-                    : theme.colors.dark[2],
-                "&:hover": {
-                  color: theme.colors.green[4],
-                },
-              },
-            })}
           >
             {clipboard.copied ? <IconClipboardCheck /> : <IconClipboard />}
           </Button>

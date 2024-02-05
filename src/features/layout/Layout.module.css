@@ -1,0 +1,14 @@
+.appShell {
+  margin: 0;
+  background-color: var(--mantine-color-gray-0);
+  color: var(--mantine-color-black);
+  height: 100vh;
+}
+[data-mantine-color-scheme="dark"] .appShell {
+  background-color: var(--mantine-color-dark-6);
+  color: var(--mantine-color-dark-0);
+}
+
+.appShellMain {
+  padding-top: 0.01px;
+}
