@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { User } from "../../api/types/user/users";
 import { useSignUpMutation } from "../../api/api";
 import { OauthData } from "../../api/types/auth/auth";
-import { showError } from "../../util/notification";
+import { handleError } from "../../util/notification";
 
 export type SignupResult =
   | {
@@ -51,7 +51,7 @@ const SignupModal = ({ oauthData, setResult, usernameSuggestion }: Props) => {
       form.values.username = usernameSuggestion;
       form.setErrors({ username: "Already taken!" });
     } else if (signupResult.status == QueryStatus.rejected) {
-      showError("Unexpected error!");
+      handleError("Unexpected error!");
     }
     setSubmitted(false);
   }, [signupResult]);

@@ -9,13 +9,12 @@ crate-type = ["cdylib", "rlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rhai = { version = "1.15.0", default-features = false, features = [
+rhai = { version = "1.17.1", default-features = false, features = [
   "wasm-bindgen",
   "std",
   "unchecked",
   "only_i32",
   "f32_float",
-  "no_module",
   "no_custom_syntax",
 ] }
 serde-wasm-bindgen = "0.5.0"

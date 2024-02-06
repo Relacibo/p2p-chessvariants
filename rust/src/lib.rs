@@ -1,12 +1,17 @@
 #![feature(error_generic_member_access)]
-#![feature(provide_any)]
-pub mod error;
-mod game;
-pub mod rhai_rust_error;
+
 use error::CvError;
 use game::State;
 use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
 use wasm_bindgen::prelude::*;
+
+use crate::game::entities::Piece;
+
+
+pub mod error;
+pub mod rhai_rust_error;
+mod game;
+mod modules;
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -31,9 +36,14 @@ impl ChessvariantEngine {
     pub fn new(script_content: String) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
-        engine.register_fn("State", State::new);
+        engine
+            .build_type::<State>()
+            .build_type::<Piece>();
 
         let mut scope = Scope::new();
+        // Call user defined function to initialize the state
+        // args should contain maybe a state that was created from 
+        // the configuration and number of players
         let game_state = engine.call_fn::<State>(&mut scope, &ast, "initializeState", args)?;
         Ok(ChessvariantEngine {
             engine,

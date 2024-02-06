@@ -22,6 +22,10 @@ pub enum CvError {
         function_name: String,
         rhai_rust_error: Box<RhaiRustError>,
     },
+    EnumConversion {
+        enum_type: String,
+        converting_from: String,
+    },
     #[error("Unexpected")]
     Unexpected,
 }
@@ -57,12 +61,11 @@ impl From<CvError> for CvJsError {
     fn from(value: CvError) -> Self {
         use CvError::*;
         let name = match value {
-            RhaiEvalAlt(err) => "rhai-eval-alt".to_owned(),
-            RhaiParse(err) => "rhai-parse".to_owned(),
+            RhaiEvalAlt(_) => "rhai-eval-alt".to_owned(),
+            RhaiParse(_) => "rhai-parse".to_owned(),
             Unexpected => "unexpected".to_owned(),
-            RhaiFunctionReturnObject(function_name, err) => {
-                "rhai-function-return-object".to_owned()
-            }
+            RhaiFunctionReturnObject { .. } => "rhai-function-return-object".to_owned(),
+            EnumConversion { .. } => "enum-conversion".to_owned(),
         };
         CvJsError {
             name,
