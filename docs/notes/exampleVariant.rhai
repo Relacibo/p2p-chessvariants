@@ -62,7 +62,7 @@ fn initialize_state(base_state) {
 
 // Have a function that gets called before each move, 
 // that returns a custom context. ?
-fn make_context(context) {
+fn make_pre_move_custom_context(context) {
 
 }
 
