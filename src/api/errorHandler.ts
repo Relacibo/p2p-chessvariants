@@ -5,7 +5,7 @@ import {
   MiddlewareAPI,
 } from "@reduxjs/toolkit";
 import { invalidToken } from "../features/auth/authSlice";
-import { showError } from "../util/notification";
+import { handleError } from "../util/notification";
 import { BackendError } from "./types/backendError";
 
 export const errorHandler: Middleware =
@@ -14,7 +14,7 @@ export const errorHandler: Middleware =
     if (isRejected(action)) {
       const {message} = action.error;
       console.error(JSON.stringify(action))
-      showError(message);
+      handleError(message);
     } else if (isRejectedWithValue(action)) {
       const payload = action.payload;
       const status = payload.status;
@@ -28,7 +28,7 @@ export const errorHandler: Middleware =
 const handleBackendError = (api: MiddlewareAPI, payload: BackendError) => {
   if (payload.data?.error) {
     let error = payload.data.error;
-    showError(error);
+    handleError(error);
     if (error === "authentication-failed") {
       api.dispatch(invalidToken());
     }

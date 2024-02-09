@@ -1,20 +1,20 @@
 import { useLayoutEffect } from "react";
 import { useSelector } from "react-redux";
 import { Navigate, useParams } from "react-router-dom";
-import { showError } from "../../util/notification";
+import { handleError } from "../../util/notification";
 import { Chessboard } from "../chessboard/Chessboard";
-import useSwitchView from "../layout/hooks";
+import useConfigureLayout from "../layout/hooks";
 import { selectGame } from "../variant-environment/variantsSlice";
 
 function PlaygroundView() {
-  useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: false }));
+  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: false }));
   const { id } = useParams();
   const state = useSelector(selectGame(id!));
   const failed = state == null;
 
   useLayoutEffect(() => {
     if (failed) {
-      showError("Could not open the game!");
+      handleError("Could not open the game!");
     }
   });
   if (failed) {
@@ -22,7 +22,7 @@ function PlaygroundView() {
   }
   return (
     <>
-      <Chessboard boardState={[]} />
+      {/* <Chessboard boardState={[]} /> */}
     </>
   );
 }

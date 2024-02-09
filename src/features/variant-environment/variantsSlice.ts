@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AppThunk, RootState } from "../../app/store";
-import { Coords, VariantState } from "../../gamelogic/types";
+import { Coords, VariantState } from "../../gamelogicOld/types";
 import { VariantsWorker } from "../worker/worker";
 import { doWithWorker } from "../worker/workerSlice";
 

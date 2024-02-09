@@ -25,9 +25,10 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
       )}
       <AppShell.Section grow mt="md">
         <Stack gap="sm">
-          <MainLink to={"/"}>Join Lobby</MainLink>
+          <MainLink to={""}>Join Lobby</MainLink>
           <MainLink to={"game"}>Games</MainLink>
           <MainLink to={"user-profile"}>User profile</MainLink>
+          <MainLink to={"game/playground"}>Engine Playground</MainLink>
         </Stack>
       </AppShell.Section>
       <AppShell.Section mt="auto">

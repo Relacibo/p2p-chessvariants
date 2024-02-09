@@ -1,7 +1,7 @@
-import { BoardState } from "../../gamelogic/types";
+// import { BoardState } from "../../gamelogic/types";
 
 export type ChessboardProps = {
-  boardState: BoardState;
+  // boardState: BoardState;
 };
 
 export function Chessboard(props: ChessboardProps) {
