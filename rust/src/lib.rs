@@ -5,7 +5,7 @@ use game::State;
 use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
 use wasm_bindgen::prelude::*;
 
-use crate::game::{entities::Piece, variant_description::VariantConfig};
+use crate::game::{entities::Piece, variant_config::VariantConfig};
 
 pub mod error;
 mod game;

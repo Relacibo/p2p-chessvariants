@@ -5,13 +5,15 @@ use wasm_bindgen::prelude::*;
 
 use crate::error::CvError;
 
-use super::entities::{BoardState, ReservePileState};
+use super::{entities::{BoardState, ReservePileState}, variant_config::VariantConfig};
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, CustomType)]
 #[rhai_type(extra = "Self::build_rhai_type")]
 pub struct State {
-    player_id_turn: u32,
+    config: VariantConfig,
+    local_player_index: u32,
+    player_id_turn: u32, // Maybe multiple players could be on turn at once
     board_state: BoardState,
     reserve_pile_state: Option<ReservePileState>,
 }

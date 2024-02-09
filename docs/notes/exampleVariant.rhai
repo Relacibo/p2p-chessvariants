@@ -15,3 +15,17 @@ fn config() {
     },
   }
 }
+
+fn initialize_state(base_state)
+
+// Have a function that gets called before each move, 
+// that returns a context. ?
+fn make_context(state) {
+
+}
+
+// Maybe make move as part of piece_type class
+fn move(state, source, destination, playerIndex) {
+  // Piece Promotion should ask the player for piece to promote.
+}
+
