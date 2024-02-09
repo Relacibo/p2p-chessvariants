@@ -12,7 +12,6 @@ use super::entities::{BoardState, ReservePileState};
 #[rhai_type(extra = "Self::build_rhai_type")]
 pub struct State {
     player_id_turn: u32,
-    player_count: u32,
     board_state: BoardState,
     reserve_pile_state: Option<ReservePileState>,
 }
@@ -75,7 +74,7 @@ impl State {
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default)]
-#[serde(rename_all("camelCase"))]
+#[serde(rename_all ="camelCase")]
 #[rhai_type(extra = "Self::build_rhai_type")]
 pub struct BoardState {
     pub number_of_boards: u32,

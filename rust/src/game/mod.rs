@@ -1,2 +1,3 @@
 pub mod state;
-pub mod entities;
+pub mod piece;
+pub mod variant_description;

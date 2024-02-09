@@ -5,13 +5,12 @@ use game::State;
 use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
 use wasm_bindgen::prelude::*;
 
-use crate::game::entities::Piece;
-
+use crate::game::{entities::Piece, variant_description::VariantConfig};
 
 pub mod error;
-pub mod rhai_rust_error;
 mod game;
 mod modules;
+pub mod rhai_rust_error;
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -36,13 +35,15 @@ impl ChessvariantEngine {
     pub fn new(script_content: String) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
-        engine
-            .build_type::<State>()
-            .build_type::<Piece>();
+        engine.build_type::<State>().build_type::<Piece>();
 
         let mut scope = Scope::new();
+
+        let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
+        
+        let config: VariantConfig = dynamic_config.try_into()?;
         // Call user defined function to initialize the state
-        // args should contain maybe a state that was created from 
+        // args should contain maybe a state that was created from
         // the configuration and number of players
         let game_state = engine.call_fn::<State>(&mut scope, &ast, "initializeState", args)?;
         Ok(ChessvariantEngine {

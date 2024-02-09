@@ -90,7 +90,7 @@ impl Display for PieceColor {
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default, CustomType)]
-#[serde(rename_all("camelCase"))]
+#[serde(rename_all = "camelCase")]
 #[rhai_type(extra = "Self::build_rhai_type")]
 pub struct Piece {
     #[rhai_type(
