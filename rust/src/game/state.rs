@@ -9,9 +9,16 @@ use super::{entities::{BoardState, ReservePileState}, variant_config::VariantCon
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, CustomType)]
+pub struct Context {
+    config: VariantConfig,
+    state: State,
+    custom_context: Dynamic,
+}
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, CustomType)]
 #[rhai_type(extra = "Self::build_rhai_type")]
 pub struct State {
-    config: VariantConfig,
     local_player_index: u32,
     player_id_turn: u32, // Maybe multiple players could be on turn at once
     board_state: BoardState,

@@ -108,7 +108,7 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn rhai_new(piece_type: String, color: String) -> Self {
+    pub fn rhai_new(color: String, piece_type: String) -> Self {
         Self {
             piece_type: piece_type.try_into().unwrap_or_default(),
             color: color.try_into().unwrap_or_default(),
@@ -116,9 +116,105 @@ impl Piece {
         }
     }
 
-    pub fn rhai_new_with_data(piece_type: String, color: String, data: Dynamic) -> Self {
+    pub fn rhai_new_with_data(color: String, piece_type: String, data: Dynamic) -> Self {
         Self {
             piece_type: piece_type.try_into().unwrap_or_default(),
+            color: color.try_into().unwrap_or_default(),
+            data: Some(data),
+        }
+    }
+
+    pub fn rhai_make_king(color: String) -> Self {
+        Self {
+            piece_type: PieceType::King,
+            color: color.try_into().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+
+    pub fn rhai_make_king_with_data(color: String, data: Dynamic) {
+        Self {
+            piece_type: PieceType::King,
+            color: color.try_into().unwrap_or_default(),
+            data: Some(data),
+        }
+    }
+
+    pub fn rhai_make_queen(color: String) -> Self {
+        Self {
+            piece_type: PieceType::Queen,
+            color: color.try_into().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+
+    pub fn rhai_make_queen_with_data(color: String, data: Dynamic) {
+        Self {
+            piece_type: PieceType::Queen,
+            color: color.try_into().unwrap_or_default(),
+            data: Some(data),
+        }
+    }
+
+    pub fn rhai_make_knight(color: String) -> Self {
+        Self {
+            piece_type: PieceType::Knight,
+            color: color.try_into().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+
+    pub fn rhai_make_knight_with_data(color: String, data: Dynamic) {
+        Self {
+            piece_type: PieceType::Knight,
+            color: color.try_into().unwrap_or_default(),
+            data: Some(data),
+        }
+    }
+
+    pub fn rhai_make_bishop(color: String) -> Self {
+        Self {
+            piece_type: PieceType::Bishop,
+            color: color.try_into().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+
+    pub fn rhai_make_bishop_with_data(color: String, data: Dynamic) {
+        Self {
+            piece_type: PieceType::Bishop,
+            color: color.try_into().unwrap_or_default(),
+            data: Some(data),
+        }
+    }
+
+    pub fn rhai_make_rook(color: String) -> Self {
+        Self {
+            piece_type: PieceType::Rook,
+            color: color.try_into().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+
+    pub fn rhai_make_rook_with_data(color: String, data: Dynamic) {
+        Self {
+            piece_type: PieceType::Rook,
+            color: color.try_into().unwrap_or_default(),
+            data: Some(data),
+        }
+    }
+    
+    pub fn rhai_make_pawn(color: String) -> Self {
+        Self {
+            piece_type: PieceType::Pawn,
+            color: color.try_into().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+
+    pub fn rhai_make_pawn_with_data(color: String, data: Dynamic) {
+        Self {
+            piece_type: PieceType::Pawn,
             color: color.try_into().unwrap_or_default(),
             data: Some(data),
         }
@@ -127,7 +223,20 @@ impl Piece {
     pub fn build_rhai_type(builder: &mut TypeBuilder<Self>) {
         builder
             .with_fn("Piece", Self::rhai_new)
-            .with_fn("Piece", Self::rhai_new_with_data);
+            .with_fn("Piece", Self::rhai_new_with_data)
+            .with_fn("King", Self::rhai_make_king)
+            .with_fn("King", Self::rhai_make_king_with_data)
+            .with_fn("Queen", Self::rhai_make_queen)
+            .with_fn("Queen", Self::rhai_make_queen_with_data)
+            .with_fn("Knight", Self::rhai_make_knight)
+            .with_fn("Knight", Self::rhai_make_knight_with_data)
+            .with_fn("Bishop", Self::rhai_make_bishop)
+            .with_fn("Bishop", Self::rhai_make_bishop_with_data)
+            .with_fn("Rook", Self::rhai_make_rook)
+            .with_fn("Rook", Self::rhai_make_rook_with_data)
+            .with_fn("Pawn", Self::rhai_make_pawn)
+            .with_fn("Pawn", Self::rhai_make_pawn_with_data)
+            
     }
 
     pub fn set_piece_type_from_string(&mut self, value: String) {

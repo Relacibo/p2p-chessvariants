@@ -5,7 +5,12 @@ use game::State;
 use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
 use wasm_bindgen::prelude::*;
 
-use crate::game::{entities::Piece, variant_config::VariantConfig};
+use crate::game::{
+    entities::Piece,
+    piece::Piece,
+    state::{BoardCoords, BoardState, Context, ReservePileState, State},
+    variant_config::VariantConfig,
+};
 
 pub mod error;
 mod game;
@@ -35,12 +40,19 @@ impl ChessvariantEngine {
     pub fn new(script_content: String) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
-        engine.build_type::<State>().build_type::<Piece>();
+        engine
+            .build_type::<BoardState>()
+            .build_type::<ReservePileState>()
+            .build_type::<BoardCoords>()
+            .build_type::<State>()
+            .build_type::<Piece>()
+            .build_type::<VariantConfig>()
+            .build_type::<Context>();
 
         let mut scope = Scope::new();
 
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
-        
+
         let config: VariantConfig = dynamic_config.try_into()?;
         // Call user defined function to initialize the state
         // args should contain maybe a state that was created from

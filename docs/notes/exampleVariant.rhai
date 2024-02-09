@@ -16,16 +16,58 @@ fn config() {
   }
 }
 
-fn initialize_state(base_state)
+// Returns state with
+fn initialize_state(base_state) {
+  let starting_position = [
+    [
+      Rook("black"), 
+      Knight("black"), 
+      Bishop("black"), 
+      Queen("black"), 
+      King("black"), 
+      Bishop("black"), 
+      Knight("black"), 
+      Rook("black")
+    ],
+    [
+      Pawn("black"),
+      Pawn("black"),
+      Pawn("black"),
+      Pawn("black"),
+      Pawn("black"),
+      Pawn("black"),
+      Pawn("black"),
+      Pawn("black"),
+    ],(),(),(),(),(),(),
+    [
+      Pawn("white"),
+      Pawn("white"),
+      Pawn("white"),
+      Pawn("white"),
+      Pawn("white"),
+      Pawn("white"),
+      Pawn("white"),
+      Pawn("white"),
+    ],[
+      Rook("white"), 
+      Knight("white"), 
+      Bishop("white"), 
+      Queen("white"), 
+      King("white"), 
+      Bishop("white"), 
+      Knight("white"), 
+      Rook("white")]
+    ],
+}
 
 // Have a function that gets called before each move, 
-// that returns a context. ?
-fn make_context(state) {
+// that returns a custom context. ?
+fn make_context(context) {
 
 }
 
 // Maybe make move as part of piece_type class
-fn move(state, source, destination, playerIndex) {
+fn move(context, source, destination, playerIndex) {
   // Piece Promotion should ask the player for piece to promote.
 }
 
