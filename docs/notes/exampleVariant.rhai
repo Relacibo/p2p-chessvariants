@@ -4,6 +4,7 @@ fn config() {
     version: "0.0.1",
     api_version: "0.0.1",
     minimum_players: 2,
+    maximum_players: 2,
     reserve_pile: false,
     board: #{
       count: 1,
