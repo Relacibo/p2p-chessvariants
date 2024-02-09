@@ -17,7 +17,7 @@ fn config() {
 }
 
 // Returns state with
-fn initialize_state(base_state) {
+fn initialize_state(context) {
   let starting_position = [
     [
       Rook("black"), 
