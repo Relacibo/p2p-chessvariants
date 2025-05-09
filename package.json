@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "yarn wasm && vite & sleep 10 && yarn watch 'yarn wasm' ./rust/src",
-    "wasm": "cd rust && wasm-pack build",
+    "wasm": "cd rust && RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' wasm-pack build",
     "build": "yarn wasm && tsc && vite build",
     "preview": "vite preview",
     "postinstall": "node scripts/postinstall.js"

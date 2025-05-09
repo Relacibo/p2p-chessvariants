@@ -1,14 +1,16 @@
 use std::fmt::Display;
 
-use rhai::{Array, CustomType, Dynamic};
+use rhai::{Array, CustomType, Dynamic, TypeBuilder};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use crate::error::CvError;
 
+use super::state::{BoardCoords, State};
+
 #[wasm_bindgen]
 #[repr(u8)]
-#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum PieceType {
     #[default]
     Unknown,
@@ -22,19 +24,22 @@ pub enum PieceType {
 
 impl TryFrom<String> for PieceType {
     type Error = CvError;
-    fn try_from(value: String) -> Self {
-        match &value {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let ret = match value.as_str() {
             "pawn" => Self::Pawn,
             "knight" => Self::Knight,
             "bishop" => Self::Bishop,
             "rook" => Self::Rook,
             "queen" => Self::Queen,
             "king" => Self::King,
-        }
-        CvError::EnumConversion {
-            enum_type: "PieceType".to_owned(),
-            converting_from: "String".to_owned(),
-        }
+            _ => {
+                return Err(CvError::EnumConversion {
+                    enum_type: "PieceType".to_owned(),
+                    converting_from: "String".to_owned(),
+                })
+            }
+        };
+        Ok(ret)
     }
 }
 
@@ -55,7 +60,7 @@ impl Display for PieceType {
 
 #[wasm_bindgen]
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Hash, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub enum PieceColor {
     #[default]
     Unknown,
@@ -65,15 +70,18 @@ pub enum PieceColor {
 
 impl TryFrom<String> for PieceColor {
     type Error = CvError;
-    fn try_from(value: String) -> Self {
-        match &value {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let ret = match value.as_str() {
             "white" => Self::White,
             "black" => Self::Black,
-        }
-        CvError::EnumConversion {
-            enum_type: "PieceColor".to_owned(),
-            converting_from: "String".to_owned(),
-        }
+            _ => {
+                return Err(CvError::EnumConversion {
+                    enum_type: "PieceColor".to_owned(),
+                    converting_from: "String".to_owned(),
+                });
+            }
+        };
+        Ok(ret)
     }
 }
 
@@ -89,20 +97,17 @@ impl Display for PieceColor {
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default, CustomType)]
+#[derive(Clone, Debug, Hash, Deserialize, Serialize, Default, CustomType)]
 #[serde(rename_all = "camelCase")]
 #[rhai_type(extra = "Self::build_rhai_type")]
 pub struct Piece {
     #[rhai_type(
+        rename = "type",
         set = "Self::set_piece_type_from_string",
         get = "Self::get_piece_type_as_string"
     )]
     piece_type: PieceType,
-    #[rhai_type(
-        rename = "type",
-        set = "Self::set_color_from_string",
-        get = "Self::get_color_as_string"
-    )]
+    #[rhai_type(set = "Self::set_color_from_string", get = "Self::get_color_as_string")]
     color: PieceColor,
     data: Option<Dynamic>,
 }
@@ -132,7 +137,7 @@ impl Piece {
         }
     }
 
-    pub fn rhai_make_king_with_data(color: String, data: Dynamic) {
+    pub fn rhai_make_king_with_data(color: String, data: Dynamic) -> Self {
         Self {
             piece_type: PieceType::King,
             color: color.try_into().unwrap_or_default(),
@@ -148,7 +153,7 @@ impl Piece {
         }
     }
 
-    pub fn rhai_make_queen_with_data(color: String, data: Dynamic) {
+    pub fn rhai_make_queen_with_data(color: String, data: Dynamic) -> Self {
         Self {
             piece_type: PieceType::Queen,
             color: color.try_into().unwrap_or_default(),
@@ -164,7 +169,7 @@ impl Piece {
         }
     }
 
-    pub fn rhai_make_knight_with_data(color: String, data: Dynamic) {
+    pub fn rhai_make_knight_with_data(color: String, data: Dynamic) -> Self {
         Self {
             piece_type: PieceType::Knight,
             color: color.try_into().unwrap_or_default(),
@@ -180,7 +185,7 @@ impl Piece {
         }
     }
 
-    pub fn rhai_make_bishop_with_data(color: String, data: Dynamic) {
+    pub fn rhai_make_bishop_with_data(color: String, data: Dynamic) -> Self {
         Self {
             piece_type: PieceType::Bishop,
             color: color.try_into().unwrap_or_default(),
@@ -196,14 +201,14 @@ impl Piece {
         }
     }
 
-    pub fn rhai_make_rook_with_data(color: String, data: Dynamic) {
+    pub fn rhai_make_rook_with_data(color: String, data: Dynamic) -> Self {
         Self {
             piece_type: PieceType::Rook,
             color: color.try_into().unwrap_or_default(),
             data: Some(data),
         }
     }
-    
+
     pub fn rhai_make_pawn(color: String) -> Self {
         Self {
             piece_type: PieceType::Pawn,
@@ -212,7 +217,7 @@ impl Piece {
         }
     }
 
-    pub fn rhai_make_pawn_with_data(color: String, data: Dynamic) {
+    pub fn rhai_make_pawn_with_data(color: String, data: Dynamic) -> Self {
         Self {
             piece_type: PieceType::Pawn,
             color: color.try_into().unwrap_or_default(),
@@ -235,12 +240,11 @@ impl Piece {
             .with_fn("Rook", Self::rhai_make_rook)
             .with_fn("Rook", Self::rhai_make_rook_with_data)
             .with_fn("Pawn", Self::rhai_make_pawn)
-            .with_fn("Pawn", Self::rhai_make_pawn_with_data)
-            
+            .with_fn("Pawn", Self::rhai_make_pawn_with_data);
     }
 
     pub fn set_piece_type_from_string(&mut self, value: String) {
-        let v = value.try_into().unwrap_or_default;
+        let v = value.try_into().unwrap_or_default();
         self.piece_type = v;
     }
 
@@ -250,6 +254,7 @@ impl Piece {
 
     pub fn set_color_from_string(&mut self, value: String) {
         let v = value.try_into().unwrap_or_default();
+        self.color = v;
     }
 
     pub fn get_color_as_string(self) -> String {
@@ -258,5 +263,5 @@ impl Piece {
 }
 
 pub struct PieceTypeDescription<'a> {
-    find_moves: Fn(&'a State, &'a BoardCoords, &'a Piece) -> Vec<BoardCoords>,
+    find_moves: dyn Fn(&'a State, &'a BoardCoords, &'a Piece) -> Vec<BoardCoords>,
 }

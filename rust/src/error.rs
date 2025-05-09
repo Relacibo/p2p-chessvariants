@@ -22,6 +22,7 @@ pub enum CvError {
         function_name: String,
         rhai_rust_error: Box<RhaiRustError>,
     },
+    #[error("Error: Converting an enum")]
     EnumConversion {
         enum_type: String,
         converting_from: String,

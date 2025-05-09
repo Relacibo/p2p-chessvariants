@@ -1,7 +1,7 @@
 #![feature(error_generic_member_access)]
 
 use error::CvError;
-use game::State;
+use game::{state::InitialStateConfig, State};
 use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
 use wasm_bindgen::prelude::*;
 
@@ -37,7 +37,10 @@ impl ChessvariantEngine {
     /// occured.
     ///
     #[wasm_bindgen(constructor)]
-    pub fn new(script_content: String) -> Result<ChessvariantEngine, CvError> {
+    pub fn new(
+        script_content: String,
+        config: InitialStateConfig,
+    ) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
         engine
@@ -53,10 +56,19 @@ impl ChessvariantEngine {
 
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
 
-        let config: VariantConfig = dynamic_config.try_into()?;
+        let variant_config: VariantConfig = dynamic_config.try_into()?;
+
+        let custom_context =
+            engine.call_fn::<Dynamic>(&mut scope, &ast, "initializeContext", ())?;
+
+        let args = (Context {
+            state: State::init(variant_config.clone(), config),
+            variant_config,
+            custom_context,
+        },);
         // Call user defined function to initialize the state
         // args should contain maybe a state that was created from
-        // the configuration and number of players
+        // the configuration and number of players or a pointer to it
         let game_state = engine.call_fn::<State>(&mut scope, &ast, "initializeState", args)?;
         Ok(ChessvariantEngine {
             engine,
@@ -81,5 +93,5 @@ impl ChessvariantEngine {
     }
 
     #[wasm_bindgen]
-    fn make_move(&self) {}
+    pub fn make_move(&self) {}
 }
