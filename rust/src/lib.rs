@@ -6,7 +6,7 @@ use game::{
     moves,
     piece::Piece,
     standard,
-    state::{BoardCoords, BoardState, ReservePileState},
+    state::ReservePileState,
     variant_config::{BoardLayoutConfig, VariantConfig},
 };
 use rhai::{AST, Dynamic, Engine, Scope};
@@ -17,6 +17,12 @@ pub mod error;
 mod game;
 mod modules;
 pub mod rhai_rust_error;
+
+// Re-exports for integration tests and external consumers
+pub use game::actions::Action as ChessAction;
+pub use game::board as board_helpers;
+pub use game::piece::Piece as ChessPiece;
+pub use game::state::{BoardCoords, BoardState};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[derive(Debug)]
@@ -34,7 +40,7 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<ReservePileState>()
         .build_type::<BoardCoords>()
         .build_type::<Piece>()
-        .build_type::<VariantConfig>()
+        .build_type::<BoardLayoutConfig>()
         .build_type::<Action>();
 
     engine.register_fn("Coords", BoardCoords::new_board_0);
@@ -64,6 +70,28 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Draw", game_result::rhai_draw);
     engine.register_fn("standard_start_position", standard::standard_start_position);
     engine.register_fn("Rectangle", BoardLayoutConfig::rhai_rectangle);
+    // Rect(r1, c1, r2, c2) — rectangular region descriptor used in board config
+    engine.register_fn("Rect", |r1: i32, c1: i32, r2: i32, c2: i32| -> rhai::Map {
+        let mut m = rhai::Map::new();
+        m.insert("r1".into(), Dynamic::from(r1));
+        m.insert("c1".into(), Dynamic::from(c1));
+        m.insert("r2".into(), Dynamic::from(r2));
+        m.insert("c2".into(), Dynamic::from(c2));
+        m
+    });
+    // combine(type1, type2) — declares a piece whose moves are the union of two standard pieces
+    engine.register_fn("combine", |p1: String, p2: String| -> rhai::Map {
+        let mut m = rhai::Map::new();
+        m.insert("type".into(), Dynamic::from("combine".to_string()));
+        let pieces: rhai::Array = vec![Dynamic::from(p1), Dynamic::from(p2)];
+        m.insert("pieces".into(), Dynamic::from(pieces));
+        m
+    });
+    engine.register_fn("merge", |base: rhai::Map, updates: rhai::Map| -> rhai::Map {
+        let mut result = base;
+        result.extend(updates);
+        result
+    });
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
@@ -90,15 +118,22 @@ impl ChessvariantEngine {
         })
     }
 
-    pub fn run_something(&self, number: i32) -> Result<i32, CvError> {
-        let ChessvariantEngine { engine, ast, .. } = self;
+    /// Applies an action submitted by `player_index`.
+    /// Returns the new state on success, or an error if the script rejects the action.
+    pub fn apply(&mut self, player_index: i32, action: Dynamic) -> Result<Dynamic, CvError> {
         let mut scope = Scope::new();
-        scope.push("ten", 10_i32);
-        scope.push("number", number);
-        let args = (12_i32, scope.get_value::<i32>("ten").ok_or(CvError::Unexpected)?);
-        let res = engine.call_fn(&mut scope, ast, "main", args)?;
-        Ok(res)
+        let new_state = self.engine.call_fn::<Dynamic>(
+            &mut scope,
+            &self.ast,
+            "apply",
+            (self.game_state.clone(), player_index, action),
+        )?;
+        self.game_state = new_state.clone();
+        Ok(new_state)
     }
 
-    pub fn make_move(&self) {}
+    /// Returns a clone of the current game state.
+    pub fn state(&self) -> Dynamic {
+        self.game_state.clone()
+    }
 }

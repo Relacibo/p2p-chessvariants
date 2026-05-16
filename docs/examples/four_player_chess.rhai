@@ -246,7 +246,7 @@ fn apply(state, player, action) {
     if !["queen","rook","bishop","knight"].contains(action.value) { throw "invalid piece"; }
     let pp    = state.pending_promotion;
     let board = board_set(state.board, pp.to, Piece(player_color(player), action.value));
-    return advance_turn(#{ ...state, board: board, pending_promotion: () });
+    return advance_turn(merge(state, #{ board: board, pending_promotion: () }));
   }
 
   if action.type != "move" { throw "only moves supported"; }
@@ -269,22 +269,22 @@ fn apply(state, player, action) {
 
   // Promotion
   if piece.type == "pawn" && is_promo_square(player, to.row, to.col) {
-    return advance_turn(#{ ...state, board: board, alive: alive,
-      pending_promotion: #{ player: player, to: to } });
+    return advance_turn(merge(state, #{ board: board, alive: alive,
+      pending_promotion: #{ player: player, to: to } }));
   }
 
-  let new_state = #{ ...state, board: board, alive: alive, pending_promotion: () };
+  let new_state = merge(state, #{ board: board, alive: alive, pending_promotion: () });
   check_winner(advance_turn(new_state))
 }
 
 fn advance_turn(state) {
   if state.alive.len() <= 1 { return state; }
-  #{ ...state, turn: next_active_player(state) }
+  merge(state, #{ turn: next_active_player(state) })
 }
 
 fn check_winner(state) {
   if state.alive.len() == 1 {
-    return #{ ...state, game_over: Winner(state.alive[0]) };
+    return merge(state, #{ game_over: Winner(state.alive[0]) });
   }
   state
 }

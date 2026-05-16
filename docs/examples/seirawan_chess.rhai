@@ -166,7 +166,7 @@ fn apply(state, player, action) {
       hand = remove_from_hand(hand, player, action.value);
     }
     let board = board_set(state.board, pp.to, Piece(player_color(player), action.value));
-    return end_turn(#{ ...state, board: board, hand: hand, pending_promotion: () });
+    return end_turn(merge(state, #{ board: board, hand: hand, pending_promotion: () }));
   }
 
   // ── Normal move ──
@@ -185,19 +185,19 @@ fn apply(state, player, action) {
   if !legal.contains(to) { throw "illegal move"; }
 
   let board = board_move_piece(state.board, from, to);
-  let state = #{ ...state, board: board };
+  let state = merge(state, #{ board: board });
 
   // Promotion?
   if piece.type == "pawn" && to.row == promo_row(player) {
-    return #{ ...state, pending_promotion: #{ player: player, to: to } };
+    return merge(state, #{ pending_promotion: #{ player: player, to: to } });
   }
 
   // Gating?
   if triggers_gating(state, player, from) && gate_options(state, player).len() > 1 {
-    return #{ ...state,
+    return merge(state, #{
       pending_gate:      #{ player: player, vacated: from },
       gating_available:  remove_col(state.gating_available, player, from.col),
-    };
+    });
   }
 
   let ga = if is_gating_square(player, from.row, from.col) {
@@ -205,7 +205,7 @@ fn apply(state, player, action) {
   } else {
     state.gating_available
   };
-  end_turn(#{ ...state, gating_available: ga })
+  end_turn(merge(state, #{ gating_available: ga }))
 }
 
 fn apply_gate(state, player, pg, choice) {
@@ -220,20 +220,20 @@ fn apply_gate(state, player, pg, choice) {
     hand  = remove_from_hand(hand, player, choice);
   }
 
-  end_turn(#{ ...state, board: board, hand: hand, pending_gate: () })
+  end_turn(merge(state, #{ board: board, hand: hand, pending_gate: () }))
 }
 
 fn end_turn(state) {
   let state = check_game_over(state);
   if state.game_over != () { return state; }
-  #{ ...state, turn: opponent(state.turn) }
+  merge(state, #{ turn: opponent(state.turn) })
 }
 
 fn check_game_over(state) {
   for p in [0, 1] {
     let kings = board_find(state.board, Piece(player_color(p), "king"));
     if kings.len() == 0 {
-      return #{ ...state, game_over: Winner(opponent(p)) };
+      return merge(state, #{ game_over: Winner(opponent(p)) });
     }
   }
   state

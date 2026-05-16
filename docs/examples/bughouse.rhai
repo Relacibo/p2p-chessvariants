@@ -278,12 +278,11 @@ fn apply_move(state, player, b, action) {
   let promo_row = pawn_promo_row(player);
   if piece.type == "pawn" && to.row == promo_row {
     // Await choice
-    let new_state = #{
-      ...state,
+    let new_state = merge(state, #{
       board:              update_board(state, b, board_set(new_board, to, ())),
       reserve:            new_reserve,
       pending_promotion:  #{ player: player, to: to, board: b },
-    };
+    });
     return new_state;
   }
 
@@ -316,13 +315,12 @@ fn finish_turn(state, player, new_board, board_index, new_reserve) {
   let active  = state.active_players.filter(|p| p != player);
   active.push(opp);
 
-  let new_state = #{
-    ...state,
+  let new_state = merge(state, #{
     board:              boards,
-    reserve:            new_reserve != () ? new_reserve : state.reserve,
+    reserve:            if new_reserve != () { new_reserve } else { state.reserve },
     active_players:     active,
     pending_promotion:  (),
-  };
+  });
 
   // Check if any king is missing (simplified game-over detection)
   check_game_over(new_state)
@@ -353,7 +351,7 @@ fn check_game_over(state) {
           if board_index == 0 { 2 } else { 3 }
         };
         let winning_team  = [partner(loser_player), board_opponent(partner(loser_player))];
-        return #{ ...state, game_over: Winners(winning_team) };
+        return merge(state, #{ game_over: Winners(winning_team) });
       }
     }
   }

@@ -54,7 +54,7 @@ impl BoardState {
         self.flat_index(coords).is_some()
     }
 
-    pub(crate) fn get_piece(&self, coords: &BoardCoords) -> Option<&Piece> {
+    pub fn get_piece(&self, coords: &BoardCoords) -> Option<&Piece> {
         let index = self.flat_index(coords)?;
         self.boards
             .get(coords.board_index as usize)?
