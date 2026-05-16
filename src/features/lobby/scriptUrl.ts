@@ -1,4 +1,5 @@
 const GITHUB_RAW_ORIGIN = "https://raw.githubusercontent.com";
+const GITHUB_BROWSE_ORIGIN = "https://github.com";
 const SHA40_RE = /^[0-9a-f]{40}$/i;
 
 export type ParsedScriptUrl = {
@@ -9,7 +10,7 @@ export type ParsedScriptUrl = {
 };
 
 export type ScriptUrlError =
-  | "not-github-raw"
+  | "not-github"
   | "missing-path-segments"
   | "not-a-commit-sha";
 
@@ -18,8 +19,33 @@ export type ScriptUrlResult =
   | { ok: false; error: ScriptUrlError };
 
 /**
- * Validates that a URL is a GitHub Raw URL locked to a specific commit SHA.
- * Accepts: https://raw.githubusercontent.com/{owner}/{repo}/{sha40}/{path}
+ * Converts a GitHub browse URL to a raw URL.
+ * Input: https://github.com/{owner}/{repo}/blob/{sha}/{path}
+ * Output: https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}
+ */
+function convertBrowseUrlToRaw(url: URL): string | null {
+  if (url.origin !== GITHUB_BROWSE_ORIGIN) {
+    return null;
+  }
+
+  const parts = url.pathname.replace(/^\//, "").split("/");
+  // Expected: {owner}/{repo}/blob/{sha}/{...path}
+  if (parts.length < 5 || parts[2] !== "blob") {
+    return null;
+  }
+
+  const [owner, repo, , sha, ...pathParts] = parts;
+  return `${GITHUB_RAW_ORIGIN}/${owner}/${repo}/${sha}/${pathParts.join("/")}`;
+}
+
+/**
+ * Validates that a URL is a GitHub Raw URL (or GitHub browse URL that can be converted)
+ * locked to a specific commit SHA.
+ * 
+ * Accepts:
+ * - https://raw.githubusercontent.com/{owner}/{repo}/{sha40}/{path}
+ * - https://github.com/{owner}/{repo}/blob/{sha40}/{path}
+ * 
  * Rejects branch names like "main", "master" etc.
  */
 export function parseScriptUrl(raw: string): ScriptUrlResult {
@@ -27,15 +53,29 @@ export function parseScriptUrl(raw: string): ScriptUrlResult {
   try {
     url = new URL(raw.trim());
   } catch {
-    return { ok: false, error: "not-github-raw" };
+    return { ok: false, error: "not-github" };
   }
 
-  if (url.origin !== GITHUB_RAW_ORIGIN) {
-    return { ok: false, error: "not-github-raw" };
+  // Try to convert browse URL to raw URL
+  let pathname = url.pathname;
+  if (url.origin === GITHUB_BROWSE_ORIGIN) {
+    const converted = convertBrowseUrlToRaw(url);
+    if (!converted) {
+      return { ok: false, error: "not-github" };
+    }
+    // Re-parse as raw URL
+    try {
+      const rawUrl = new URL(converted);
+      pathname = rawUrl.pathname;
+    } catch {
+      return { ok: false, error: "not-github" };
+    }
+  } else if (url.origin !== GITHUB_RAW_ORIGIN) {
+    return { ok: false, error: "not-github" };
   }
 
   // pathname: /{owner}/{repo}/{sha}/{...path}
-  const parts = url.pathname.replace(/^\//, "").split("/");
+  const parts = pathname.replace(/^\//, "").split("/");
   if (parts.length < 4) {
     return { ok: false, error: "missing-path-segments" };
   }
@@ -58,8 +98,8 @@ export function parseScriptUrl(raw: string): ScriptUrlResult {
 
 export function scriptUrlErrorMessage(error: ScriptUrlError): string {
   switch (error) {
-    case "not-github-raw":
-      return "URL must start with https://raw.githubusercontent.com/";
+    case "not-github":
+      return "URL must be a GitHub link (raw.githubusercontent.com or github.com)";
     case "missing-path-segments":
       return "URL must include owner, repo, commit SHA and file path";
     case "not-a-commit-sha":
@@ -67,7 +107,29 @@ export function scriptUrlErrorMessage(error: ScriptUrlError): string {
   }
 }
 
-/** Fetch the raw script text from a validated GitHub Raw URL. */
+/** Convert user input (browse or raw GitHub URL) to a raw GitHub URL. */
+export function normalizeScriptUrl(input: string): string {
+  try {
+    const url = new URL(input.trim());
+    
+    // If it's already a raw URL, return as-is
+    if (url.origin === GITHUB_RAW_ORIGIN) {
+      return url.toString();
+    }
+    
+    // If it's a browse URL, convert to raw
+    if (url.origin === GITHUB_BROWSE_ORIGIN) {
+      const converted = convertBrowseUrlToRaw(url);
+      if (converted) {
+        return converted;
+      }
+    }
+  } catch {
+    // Fall through to return original input
+  }
+  
+  return input;
+}
 export async function fetchScriptText(url: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) {

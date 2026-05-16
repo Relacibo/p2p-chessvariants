@@ -14,7 +14,7 @@ import { useForm } from "@mantine/form";
 import { IconAlertCircle, IconCheck, IconCopy } from "@tabler/icons-react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { createLobby, leaveLobby, selectLobbyStatus } from "./lobbySlice";
-import { parseScriptUrl, scriptUrlErrorMessage } from "./scriptUrl";
+import { parseScriptUrl, scriptUrlErrorMessage, normalizeScriptUrl } from "./scriptUrl";
 
 function CreateLobbyForm() {
   const dispatch = useDispatch();
@@ -36,14 +36,15 @@ function CreateLobbyForm() {
   return (
     <form
       onSubmit={form.onSubmit(({ scriptUrl }) => {
-        dispatch(createLobby(scriptUrl.trim()));
+        const normalized = normalizeScriptUrl(scriptUrl.trim());
+        dispatch(createLobby(normalized));
       })}
     >
       <Stack>
         <TextInput
           label="Script URL"
-          description="GitHub Raw URL locked to a commit SHA, e.g. https://raw.githubusercontent.com/user/repo/a1b2c3.../chess.rhai"
-          placeholder="https://raw.githubusercontent.com/..."
+          description="GitHub Raw URL or GitHub browse link (must reference a commit SHA)"
+          placeholder="https://raw.githubusercontent.com/... or https://github.com/.../blob/..."
           {...form.getInputProps("scriptUrl")}
         />
         <Button type="submit" loading={isCreating}>
