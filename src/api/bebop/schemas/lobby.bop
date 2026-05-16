@@ -1,0 +1,21 @@
+// lobby.bop — p2pcv lobby protocol, peer-to-peer messages
+
+union LobbyMsg {
+    // Sent by a joining peer to the host to announce themselves
+    1 -> message LobbyJoin {
+        1 -> string PeerId;
+        2 -> string DisplayName;
+    }
+    // Sent by the host to all peers when the player list changes
+    2 -> message LobbyPlayerList {
+        1 -> string[] PeerIds;
+        2 -> string[] DisplayNames;
+    }
+    // Sent by the host to start the game
+    3 -> struct LobbyStart {
+        string ScriptUrl;
+    }
+    // Sent by any peer to leave the lobby
+    4 -> struct LobbyLeave {
+    }
+}

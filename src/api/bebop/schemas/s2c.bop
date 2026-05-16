@@ -18,5 +18,6 @@ union S2cMsg {
         4 -> string VariantVersion;
         5 -> uint32 TimeoutSecs;
         6 -> string SenderPeerId;
+        7 -> string ScriptUrl;
     }
 }

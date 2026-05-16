@@ -11,6 +11,7 @@ union C2sMsg {
         guid ReceiverUserId;
         guid VariantId;
         string VariantVersion;
+        string ScriptUrl;
     }
     4 -> struct NewGameAnswer {
         bool Accepted;
