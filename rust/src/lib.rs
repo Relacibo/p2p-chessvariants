@@ -117,7 +117,11 @@ impl ChessvariantEngine {
             variant_config,
         })
     }
+}
 
+// These methods use `Dynamic` which is not a WASM ABI type, so they are excluded from the
+// wasm_bindgen impl block. They are available for native use and integration tests.
+impl ChessvariantEngine {
     /// Applies an action submitted by `player_index`.
     /// Returns the new state on success, or an error if the script rejects the action.
     pub fn apply(&mut self, player_index: i32, action: Dynamic) -> Result<Dynamic, CvError> {
