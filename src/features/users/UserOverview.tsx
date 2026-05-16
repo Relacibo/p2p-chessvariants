@@ -1,57 +1,88 @@
-import { ActionIcon, Image, Loader, Table, Tooltip } from "@mantine/core";
-import { useListUsersQuery } from "../../api/api";
+import { ActionIcon, Loader, Table, Tooltip } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { useListUsersQuery, useSendFriendRequestMutation } from "../../api/api";
 import { PublicUser } from "../../api/types/user/users";
-import { useDispatch, useSelector } from "../../app/hooks";
-import { selectLoginState as selectAuthState } from "../auth/authSlice";
-import { openConfirmModal } from "../confirmModal/ConfirmModal";
+import { useSelector } from "../../app/hooks";
+import { selectLoginState as selectAuthState, selectUser } from "../auth/authSlice";
 import ErrorDisplay from "../error/ErrorDisplay";
 import { IconHeartHandshake } from "@tabler/icons-react";
 
 function UserOverview() {
   const authState = useSelector(selectAuthState);
-  const isLoggedIn = authState == "logged-in";
-  const { data, isLoading, isSuccess, isError, error } = useListUsersQuery();
+  const isLoggedIn = authState === "logged-in";
+  const currentUser = useSelector(selectUser);
+  const { data, isLoading, isSuccess } = useListUsersQuery();
+  const [sendFriendRequest] = useSendFriendRequestMutation();
   const users = data ?? [];
+
+  const onClickFriendRequest = (receiverId: string) => {
+    if (!currentUser) return;
+    sendFriendRequest({ userId: currentUser.id, receiverId })
+      .unwrap()
+      .then(() =>
+        notifications.show({ message: "Friend request sent!", color: "green" })
+      )
+      .catch(() =>
+        notifications.show({ message: "Could not send request", color: "red" })
+      );
+  };
+
   return isLoading ? (
     <Loader />
   ) : isSuccess ? (
     <Table>
-      <thead>
-        <tr>
-          <th>Username</th>
-          <th>Created at</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>{users.map((user) => userRow(isLoggedIn, user))}</tbody>
+      <Table.Thead>
+        <Table.Tr>
+          <Table.Th>Username</Table.Th>
+          <Table.Th>Created at</Table.Th>
+          <Table.Th>Actions</Table.Th>
+        </Table.Tr>
+      </Table.Thead>
+      <Table.Tbody>
+        {users
+          .filter((u) => u.id !== currentUser?.id)
+          .map((user) => (
+            <UserRow
+              key={user.id}
+              user={user}
+              isLoggedIn={isLoggedIn}
+              onFriendRequest={onClickFriendRequest}
+            />
+          ))}
+      </Table.Tbody>
     </Table>
   ) : (
     <ErrorDisplay />
   );
 }
 
-function userRow(isLoggedIn: boolean, user: PublicUser) {
-  let { id, userName, createdAt } = user;
+type UserRowProps = {
+  user: PublicUser;
+  isLoggedIn: boolean;
+  onFriendRequest: (userId: string) => void;
+};
+
+function UserRow({ user, isLoggedIn, onFriendRequest }: UserRowProps) {
+  const { id, userName, createdAt } = user;
   return (
-    <tr key={id}>
-      <td>{userName}</td>
-      <td>{new Date(createdAt).toLocaleString()}</td>
-      <td>
+    <Table.Tr>
+      <Table.Td>{userName}</Table.Td>
+      <Table.Td>{new Date(createdAt).toLocaleString()}</Table.Td>
+      <Table.Td>
         {isLoggedIn && (
-          <Tooltip label="Friend request">
-            <ActionIcon color="green" onClick={() => onClickFriendRequest(id)}>
-              <IconHeartHandshake />
+          <Tooltip label="Send friend request">
+            <ActionIcon
+              color="green"
+              variant="subtle"
+              onClick={() => onFriendRequest(id)}
+            >
+              <IconHeartHandshake size={16} />
             </ActionIcon>
           </Tooltip>
         )}
-      </td>
-    </tr>
+      </Table.Td>
+    </Table.Tr>
   );
-}
-
-function onClickFriendRequest(userId: string) {
-  const onConfirmCallback = () => {};
-  openConfirmModal(onConfirmCallback);
 }
 
 export default UserOverview;
