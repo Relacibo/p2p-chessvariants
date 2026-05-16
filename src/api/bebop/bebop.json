@@ -4,5 +4,5 @@
       "outFile": "generated.ts"
     }
   },
-  "include": ["schemas/*.bop"]
+  "include": ["schemas/protocols/schemas/*.bop"]
 }
