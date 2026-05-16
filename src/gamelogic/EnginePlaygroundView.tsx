@@ -39,10 +39,12 @@ const EnginePlaygroundView = () => {
 
   const onClickRun = () => {
     try {
+      // NOTE: ChessvariantEngine methods that use Dynamic (apply, state) are not 
+      // WASM-compatible and thus not exposed to TypeScript.
+      // This playground is a stub for future integration with variant scripts.
       const engine = new ChessvariantEngine(editorState, 2);
-      const state = engine.state();
       setResult({
-        text: `State: ${JSON.stringify(state, null, 2)}`,
+        text: "Engine initialized successfully (methods using Dynamic not available in WASM)",
         icon: <IconCircleCheck color="green" />,
       });
     } catch (e) {
