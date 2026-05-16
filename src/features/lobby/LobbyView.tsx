@@ -125,7 +125,7 @@ function LobbyContent() {
 export default function LobbyView() {
   const dispatch = useDispatch();
   const status = useSelector(selectLobbyStatus);
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: false }));
+  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
 
   // Auto-join if the URL fragment contains an invite
   useEffect(() => {
