@@ -13,6 +13,7 @@ import darkmode from "../features/darkmode/darkmodeSlice";
 import peer from "../features/peer/peerSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
 import worker from "../features/worker/workerSlice";
+import lobby from "../features/lobby/lobbySlice";
 import { loadState, persistenceMiddleware } from "./persistence";
 
 const rootReducer = combineReducers({
@@ -21,6 +22,7 @@ const rootReducer = combineReducers({
   worker,
   peer,
   auth,
+  lobby,
   [api.reducerPath]: api.reducer,
 });
 

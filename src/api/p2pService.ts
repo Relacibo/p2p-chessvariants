@@ -85,6 +85,19 @@ export async function connectToPeerViaRelay(
   await node.dial(relayedAddr);
 }
 
+async function createAndStartNode(): Promise<Libp2p> {
+  const newNode = await createLibp2p({
+    transports: [webRTCDirect(), webRTC(), circuitRelayTransport()],
+    connectionEncrypters: [noise()],
+    streamMuxers: [yamux()],
+    services: {
+      identify: identify(),
+    },
+  });
+  await newNode.start();
+  return newNode;
+}
+
 /** Initialise the libp2p node, connect to the server, and register with the given JWT. */
 export async function initNode(jwt: string): Promise<string> {
   if (node) {
@@ -94,16 +107,7 @@ export async function initNode(jwt: string): Promise<string> {
   const serverInfo = await fetchServerInfo();
   serverMultiaddrStr = serverInfo.multiaddr;
 
-  node = await createLibp2p({
-    transports: [webRTCDirect(), webRTC(), circuitRelayTransport()],
-    connectionEncrypters: [noise()],
-    streamMuxers: [yamux()],
-    services: {
-      identify: identify(),
-    },
-  });
-
-  await node.start();
+  node = await createAndStartNode();
 
   await node.handle(S2C_PROTOCOL, async (stream) => {
     const bytes = await readStream(stream);
@@ -133,6 +137,26 @@ export async function initNode(jwt: string): Promise<string> {
   if (!response || response.tag !== 1 || !response.value.success) {
     throw new Error("Server rejected peer registration");
   }
+
+  return node.peerId.toString();
+}
+
+/**
+ * Initialise a guest libp2p node and connect to the relay server without
+ * authenticating. The relay is used at the transport level so peers can
+ * still reach each other via circuit relay, but the node is not registered
+ * with the server's application-level user directory.
+ */
+export async function initNodeAsGuest(): Promise<string> {
+  if (node) {
+    await stopNode();
+  }
+
+  const serverInfo = await fetchServerInfo();
+  serverMultiaddrStr = serverInfo.multiaddr;
+
+  node = await createAndStartNode();
+  await node.dial(multiaddr(serverMultiaddrStr));
 
   return node.peerId.toString();
 }

@@ -6,6 +6,7 @@ import HomeView from "./features/home/HomeView";
 import MatchFail from "./MatchFail";
 import EnginePlaygroundView from "./gamelogic/EnginePlaygroundView";
 import LoginView from "./features/auth/LoginView";
+import LobbyView from "./features/lobby/LobbyView";
 
 const AppRoutes = () => {
   return (
@@ -15,6 +16,7 @@ const AppRoutes = () => {
       <Route path="game/playground" element={<EnginePlaygroundView/>} />
       <Route path="view/:id" element={<PlaygroundView />} />
       <Route path="user-profile/*" element={<UserProfileView />} />
+      <Route path="lobby" element={<LobbyView />} />
       <Route path="" element={<HomeView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>
