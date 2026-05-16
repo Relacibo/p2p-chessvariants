@@ -38,7 +38,7 @@ const UserProfileView = () => {
             path="friend-requests"
             element={
               <FriendRequestsModal
-                onClose={() => navigate("")}
+                onClose={() => navigate("..")}
                 userId={user.id}
               />
             }
