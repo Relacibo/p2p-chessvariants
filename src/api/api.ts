@@ -1,6 +1,4 @@
-import type { Action } from "@reduxjs/toolkit";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { REHYDRATE } from "redux-persist";
 import { RootState } from "../app/store";
 import {
   FriendRequestFrom as FriendRequestFromResponse,
@@ -11,25 +9,10 @@ import { FriendsListResponse } from "./types/friends/friends";
 import type { PublicUser, User } from "./types/user/users";
 import { LoginResponse, SigninPayload, SignupPayload } from "./types/auth/auth";
 
-function isHydrateAction(
-  action: Action
-): action is Action<typeof REHYDRATE> & {
-  key: string;
-  payload: RootState;
-  err: unknown;
-} {
-  return action.type === REHYDRATE;
-}
-
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
   reducerPath: "api",
   tagTypes: ["Friend", "FriendRequest"],
-  extractRehydrationInfo(action, { reducerPath }): any {
-    if (isHydrateAction(action)) {
-      return action.payload[reducerPath];
-    }
-  },
   baseQuery: fetchBaseQuery({
     baseUrl: `${import.meta.env.VITE_API_URL}/`,
     timeout: 1000,
