@@ -44,7 +44,7 @@ export const LayoutContext = createContext<{
 
 function Layout(props: LayoutProps) {
   const { children } = props;
-  const [sidebarCollapsedState, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsedState, setSidebarCollapsed] = useState(true);
   const [config, setConfig] = useState(defaultConfig);
   const { sidebarAlwaysExtendedInLarge } = config;
   const theme = useMantineTheme();
