@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Run Rust WASM unit tests
+        run: cd rust && cargo test --lib
+
       - name: Build
         env:
           VITE_GOOGLE_IDENTITY_CLIENT_ID: ${{ vars.GOOGLE_IDENTITY_CLIENT_ID }}
