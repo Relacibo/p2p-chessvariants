@@ -1,15 +1,14 @@
-use rhai::plugin::*;
-use rhai::Dynamic;
-use rhai::{serde::from_dynamic, CustomType, EvalAltResult, Position, TypeBuilder};
+use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder, serde::from_dynamic};
 use serde::{Deserialize, Serialize};
+#[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
-use wasm_bindgen::prelude::*;
 
 use crate::error;
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType, Tsify)]
+#[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType)]
 #[serde(rename_all = "camelCase")]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct VariantConfig {
     pub name: String,
     pub version: String,
@@ -21,20 +20,26 @@ pub struct VariantConfig {
     pub maximum_players: u32,
     #[serde(alias = "reservePile")]
     pub reserve_pile: bool,
+    #[serde(default)]
+    pub check_protection: bool,
+    #[serde(default)]
+    pub pieces: Option<Dynamic>,
     pub board: BoardConfig,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType, Tsify)]
+#[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType)]
 #[serde(rename_all = "camelCase")]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct BoardConfig {
     pub count: u32,
     pub layout: BoardLayoutConfig,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Tsify)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", tag = "type")]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub enum BoardLayoutConfig {
     #[serde(rename_all = "camelCase")]
     Rectangle { rows: u32, columns: u32 },
@@ -42,80 +47,19 @@ pub enum BoardLayoutConfig {
 
 impl Default for BoardLayoutConfig {
     fn default() -> Self {
-        BoardLayoutConfig::Rectangle { rows: 8, columns: 8 }
+        BoardLayoutConfig::Rectangle {
+            rows: 8,
+            columns: 8,
+        }
     }
 }
 
-#[export_module]
-#[allow(non_snake_case)]
-mod BoardLayoutConfigModule {
-    use rhai::Dynamic;
-    use smartstring::SmartString;
-
-    use super::BoardLayoutConfig;
-
-    #[allow(non_snake_case)]
-    pub fn Rectangle(rows: u32, columns: u32) -> BoardLayoutConfig {
-        BoardLayoutConfig::Rectangle { rows, columns }
-    }
-
-    #[rhai_fn(global, get = "enum_type", pure)]
-    pub fn get_type(my_enum: &mut BoardLayoutConfig) -> String {
-        match my_enum {
-            BoardLayoutConfig::Rectangle { .. } => "Rectangle".to_string(),
+impl BoardLayoutConfig {
+    pub fn rhai_rectangle(rows: i32, columns: i32) -> Self {
+        BoardLayoutConfig::Rectangle {
+            rows: rows.max(0) as u32,
+            columns: columns.max(0) as u32,
         }
-    }
-
-    /// Return the inner value.
-    #[rhai_fn(global, get = "value", pure)]
-    pub fn get_value(my_enum: &mut BoardLayoutConfig) -> Dynamic {
-        match my_enum {
-            BoardLayoutConfig::Rectangle { rows, columns } => {
-                let map: rhai::Map = [
-                    (SmartString::from("rows"), Dynamic::from(*rows)),
-                    (SmartString::from("columns"), Dynamic::from(*columns)),
-                ]
-                .into_iter()
-                .collect();
-                Dynamic::from(map)
-            }
-        }
-    }
-
-    #[rhai_fn(global, get = "rows", pure)]
-    pub fn get_rows(my_enum: &mut BoardLayoutConfig) -> u32 {
-        match my_enum {
-            BoardLayoutConfig::Rectangle { rows, .. } => *rows,
-        }
-    }
-
-    #[rhai_fn(global, get = "columns", pure)]
-    pub fn get_columns(my_enum: &mut BoardLayoutConfig) -> u32 {
-        match my_enum {
-            BoardLayoutConfig::Rectangle { columns, .. } => *columns,
-        }
-    }
-
-    // Printing
-    #[rhai_fn(global, name = "to_string", pure)]
-    pub fn to_string(my_enum: &mut BoardLayoutConfig) -> String {
-        format!("{my_enum:?}")
-    }
-
-    #[rhai_fn(global, name = "to_debug", pure)]
-    pub fn to_debug(my_enum: &mut BoardLayoutConfig) -> String {
-        format!("{my_enum:?}")
-    }
-
-    // '==' and '!=' operators
-    #[rhai_fn(global, name = "==", pure)]
-    pub fn eq(my_enum: &mut BoardLayoutConfig, my_enum2: BoardLayoutConfig) -> bool {
-        my_enum == &my_enum2
-    }
-
-    #[rhai_fn(global, name = "!=", pure)]
-    pub fn neq(my_enum: &mut BoardLayoutConfig, my_enum2: BoardLayoutConfig) -> bool {
-        my_enum != &my_enum2
     }
 }
 

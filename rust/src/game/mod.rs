@@ -1,3 +1,8 @@
-pub mod state;
+pub mod actions;
+pub mod board;
+pub mod game_result;
+pub mod moves;
 pub mod piece;
+pub mod standard;
+pub mod state;
 pub mod variant_config;

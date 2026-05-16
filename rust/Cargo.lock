@@ -447,7 +447,6 @@ checksum = "1f9ef5dabe4c0b43d8f1187dc6beb67b53fe607fff7e30c5eb7f71b814b8c2c1"
 dependencies = [
  "ahash",
  "bitflags",
- "getrandom 0.3.4",
  "num-traits",
  "once_cell",
  "rhai_codegen",

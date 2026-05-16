@@ -1,96 +1,105 @@
-#![feature(extern_types, proc_macro_hygiene)]
-
 use error::CvError;
-use game::state::InitialStateConfig;
-use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
-use wasm_bindgen::prelude::*;
-
-use crate::game::{
+use game::{
+    actions::Action,
+    board,
+    game_result,
+    moves,
     piece::Piece,
-    state::{BoardCoords, BoardState, Context, ReservePileState, State},
-    variant_config::VariantConfig,
+    standard,
+    state::{BoardCoords, BoardState, InitialStateConfig, ReservePileState, State},
+    variant_config::{BoardLayoutConfig, VariantConfig},
 };
+use rhai::{AST, Dynamic, Engine, Scope};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
 pub mod error;
 mod game;
 mod modules;
 pub mod rhai_rust_error;
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[derive(Debug)]
 pub struct ChessvariantEngine {
     engine: Engine,
     ast: AST,
-    game_state: State,
+    game_state: Dynamic,
+    variant_config: VariantConfig,
 }
 
-#[wasm_bindgen()]
+fn register_builtins(engine: &mut Engine) {
+    engine
+        .build_type::<BoardState>()
+        .build_type::<ReservePileState>()
+        .build_type::<BoardCoords>()
+        .build_type::<State>()
+        .build_type::<Piece>()
+        .build_type::<VariantConfig>()
+        .build_type::<Action>();
+
+    engine.register_fn("Coords", BoardCoords::new_board_0);
+    engine.register_fn("Coords", BoardCoords::new);
+    engine.register_fn("board_empty", BoardState::board_empty);
+    engine.register_fn("board_get", board::rhai_board_get);
+    engine.register_fn("board_set", board::rhai_board_set);
+    engine.register_fn("board_move_piece", board::rhai_board_move_piece);
+    engine.register_fn("board_find", board::rhai_board_find);
+    engine.register_fn("board_rows", board::rhai_board_rows);
+    engine.register_fn("board_cols", board::rhai_board_cols);
+    engine.register_fn("board_count", board::rhai_board_count);
+    engine.register_fn("ray", board::rhai_ray);
+    engine.register_fn("xray", board::rhai_xray);
+    engine.register_fn("jump", board::rhai_jump);
+    engine.register_fn("pawn_moves", moves::rhai_pawn_moves);
+    engine.register_fn("rook_moves", moves::rhai_rook_moves);
+    engine.register_fn("knight_moves", moves::rhai_knight_moves);
+    engine.register_fn("bishop_moves", moves::rhai_bishop_moves);
+    engine.register_fn("queen_moves", moves::rhai_queen_moves);
+    engine.register_fn("king_moves", moves::rhai_king_moves);
+    engine.register_fn("Move", Action::rhai_move);
+    engine.register_fn("Drop", Action::rhai_drop);
+    engine.register_fn("Choose", Action::rhai_choose);
+    engine.register_fn("Winner", game_result::rhai_winner);
+    engine.register_fn("Winners", game_result::rhai_winners);
+    engine.register_fn("Draw", game_result::rhai_draw);
+    engine.register_fn("standard_start_position", standard::standard_start_position);
+    engine.register_fn("Rectangle", BoardLayoutConfig::rhai_rectangle);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl ChessvariantEngine {
-    ///
-    /// Checks if the supplied script is a valid chess variant declaration.
-    ///
-    /// Returns a Chessvariant Engine that executes the logic defined
-    /// in the declaration.
-    ///
-    /// Throws an AppError, if the script is invalid or some other problem
-    /// occured.
-    ///
-    #[wasm_bindgen(constructor)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new(
         script_content: String,
         config: InitialStateConfig,
     ) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
-        engine
-            .build_type::<BoardState>()
-            .build_type::<ReservePileState>()
-            .build_type::<BoardCoords>()
-            .build_type::<State>()
-            .build_type::<Piece>()
-            .build_type::<VariantConfig>()
-            .build_type::<Context>();
+        register_builtins(&mut engine);
 
         let mut scope = Scope::new();
-
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
-
         let variant_config: VariantConfig = dynamic_config.try_into()?;
+        let player_count = config.player_count as i32;
+        let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
-        let custom_context =
-            engine.call_fn::<Dynamic>(&mut scope, &ast, "initializeContext", ())?;
-
-        let args = (Context {
-            state: State::init(variant_config.clone(), config),
-            variant_config,
-            custom_context,
-        },);
-        // Call user defined function to initialize the state
-        // args should contain maybe a state that was created from
-        // the configuration and number of players or a pointer to it
-        let game_state = engine.call_fn::<State>(&mut scope, &ast, "initializeState", args)?;
         Ok(ChessvariantEngine {
             engine,
             ast,
             game_state,
+            variant_config,
         })
     }
 
-    #[wasm_bindgen]
     pub fn run_something(&self, number: i32) -> Result<i32, CvError> {
         let ChessvariantEngine { engine, ast, .. } = self;
         let mut scope = Scope::new();
-        scope.push("ten", 10);
+        scope.push("ten", 10_i32);
         scope.push("number", number);
-        let args = (
-            12,
-            scope.get_value::<i32>("ten").ok_or(CvError::Unexpected)?,
-        );
+        let args = (12_i32, scope.get_value::<i32>("ten").ok_or(CvError::Unexpected)?);
         let res = engine.call_fn(&mut scope, ast, "main", args)?;
-
         Ok(res)
     }
 
-    #[wasm_bindgen]
     pub fn make_move(&self) {}
 }
