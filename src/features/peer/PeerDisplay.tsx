@@ -44,19 +44,18 @@ const PeerDisplay = () => {
   );
 };
 
-const getStyle = (peerState: "disconnected" | "connecting" | "connected") => {
-  let className;
+const getStyle = (
+  peerState: "disconnected" | "connecting" | "connected" | "error"
+) => {
   switch (peerState) {
-    case "disconnected":
-      className = style.disconnected;
-      break;
     case "connecting":
-      className = style.connecting;
-      break;
+      return style.connecting;
     case "connected":
-      className = style.connected;
-      break;
+      return style.connected;
+    case "error":
+    case "disconnected":
+    default:
+      return style.disconnected;
   }
-  return className;
 };
 export default PeerDisplay;

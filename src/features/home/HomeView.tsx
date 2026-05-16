@@ -7,9 +7,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { validate as validateUUID } from "uuid";
-import { useDispatch, useSelector } from "../../app/hooks";
-import { selectUser } from "../auth/authSlice";
+import { useDispatch } from "../../app/hooks";
 import useConfigureLayout from "../layout/hooks";
 import { connectToPeer } from "../peer/peerSlice";
 import UserOverview from "../users/UserOverview";
@@ -20,7 +18,8 @@ function HomeView() {
       peerId: "",
     },
     validate: {
-      peerId: (v) => (!validateUUID(v) ? "Must be valid uuid!" : null),
+      peerId: (v) =>
+        !v || v.trim().length < 10 ? "Must be a valid libp2p Peer ID" : null,
     },
   });
 
@@ -31,7 +30,7 @@ function HomeView() {
       <Paper p="sm" mt="lg" shadow="xs">
         <form
           onSubmit={form.onSubmit(({ peerId }) => {
-            dispatch(connectToPeer(peerId));
+            dispatch(connectToPeer(peerId.trim()));
           })}
         >
           <Title order={1}>Connect to peer</Title>
@@ -48,3 +47,4 @@ function HomeView() {
 }
 
 export default HomeView;
+

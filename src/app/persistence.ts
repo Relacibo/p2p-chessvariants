@@ -5,7 +5,6 @@ const STORAGE_KEY = "app-state";
 const PERSISTED_KEYS = [
   "auth",
   "darkmode",
-  "peer",
   "variantEnvironment",
 ] as const;
 

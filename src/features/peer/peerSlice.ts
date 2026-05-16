@@ -1,273 +1,143 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import Peer, { DataConnection } from "peerjs";
-import { v4 as uuidv4, validate as validateUUID } from "uuid";
-import { AppThunk, RootState } from "../../app/store";
-import { reverseLookup } from "../../util/util";
-import { addMessageHandler, handlePacket } from "./messageHandler";
-import { Packet } from "./types";
+import type { AppDispatch, AppThunk, RootState } from "../../app/store";
+import { selectSession } from "../auth/authSlice";
+import type { NewGameEvent } from "../../api/bebop/generated";
+import * as p2p from "../../api/p2pService";
 
-let peer: Peer | undefined;
-const connections: Map<string, DataConnection> = new Map();
-//const outgoingMessageQueue: Map<string, PeerMessage[]> = new Map();
-
-type ConnectionState = {
-  state: "disconnected" | "connecting" | "connected";
-  peerId?: string;
-  uuid?: string;
+export type GameInvite = {
+  id: string;
+  senderUserId: string;
+  senderUserName: string;
+  variantId: string;
+  variantVersion: string;
+  timeoutSecs: number;
+  senderPeerId: string;
 };
 
 type PeerState = {
-  connectionState: ConnectionState;
-  connections: { [uuid: string]: string };
-  connecting: string[];
+  connectionState: "disconnected" | "connecting" | "connected" | "error";
+  localPeerId?: string;
+  pendingInvites: GameInvite[];
 };
 
+/** Module-level map from invite ID to the pending answer callback. */
+const pendingAnswers = new Map<string, (accepted: boolean) => void>();
+
 const {
-  actions: {
-    initializeUUID,
-    connectingPeer,
-    connectedPeer,
-    disconnectedPeer,
-    connectingToPeer,
-    resetConnectionStates,
-    disconnectedFromPeer,
-    connectedToPeer,
-  },
+  actions: { connecting, connected, disconnected, inviteReceived, inviteRemoved },
   reducer,
 } = createSlice({
   name: "peer",
   initialState: {
-    connectionState: {
-      state: "disconnected",
-    },
-    connections: {},
-    connecting: [] as string[],
+    connectionState: "disconnected",
+    pendingInvites: [],
   } as PeerState,
   reducers: {
-    initializeUUID: (state, action: PayloadAction<string>) => {
-      state.connectionState.uuid = action.payload;
+    connecting: (state) => {
+      state.connectionState = "connecting";
     },
-    connectingPeer: (state) => {
-      state.connectionState = {
-        ...state.connectionState,
-        state: "connecting",
-      };
+    connected: (state, action: PayloadAction<string>) => {
+      state.connectionState = "connected";
+      state.localPeerId = action.payload;
     },
-    connectedPeer: (state, action: PayloadAction<string>) => {
-      const peerId = action.payload;
-      state.connectionState = {
-        ...state.connectionState,
-        state: "connected",
-        peerId,
-      };
+    disconnected: (state) => {
+      state.connectionState = "disconnected";
+      state.localPeerId = undefined;
     },
-    disconnectedPeer: (state) => {
-      state.connectionState = {
-        ...state.connectionState,
-        state: "disconnected",
-      };
+    inviteReceived: (state, action: PayloadAction<GameInvite>) => {
+      state.pendingInvites.push(action.payload);
     },
-    connectedToPeer: (
-      state,
-      action: PayloadAction<{ uuid: string; peerId: string }>
-    ) => {
-      const { uuid, peerId } = action.payload;
-      state.connecting = state.connecting.filter((id) => peerId !== id);
-      state.connections[uuid] = peerId;
-    },
-    connectingToPeer: (state, action: PayloadAction<string>) => {
-      if (!state.connecting.includes(action.payload)) {
-        state.connecting.push(action.payload);
-      }
-    },
-    resetConnectionStates: (state) => {
-      state.connectionState = {
-        state: "disconnected",
-      };
-      state.connections = {};
-      state.connecting = [];
-    },
-    disconnectedFromPeer: (state, action: PayloadAction<string>) => {
-      const peerId = action.payload;
-      state.connecting = state.connecting.filter((id) => peerId !== id);
-      const uuid = reverseLookup(state.connections, peerId);
-      if (typeof uuid !== "undefined") {
-        delete state.connections[uuid];
-      }
+    inviteRemoved: (state, action: PayloadAction<string>) => {
+      state.pendingInvites = state.pendingInvites.filter(
+        (inv) => inv.id !== action.payload
+      );
     },
   },
 });
 
-export function initializePeer(): AppThunk {
+function makeInviteHandler(dispatch: (action: unknown) => unknown) {
+  return (event: NewGameEvent, resolve: (accepted: boolean) => void) => {
+    const id = crypto.randomUUID();
+    const invite: GameInvite = {
+      id,
+      senderUserId: event.senderUserId ?? "",
+      senderUserName: event.senderUserName ?? "",
+      variantId: event.variantId ?? "",
+      variantVersion: event.variantVersion ?? "",
+      timeoutSecs: event.timeoutSecs ?? 60,
+      senderPeerId: event.senderPeerId ?? "",
+    };
+    pendingAnswers.set(id, resolve);
+    dispatch(inviteReceived(invite));
+  };
+}
+
+export function initializePeer(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
-    if (typeof selectPeerUUID(getState()) === "undefined") {
-      dispatch(initializeUUID(uuidv4()));
-    }
-    const oldConnections = selectPeerConnections(getState());
-    let oldPeerIds = selectPeerConnecting(getState()).concat(
-      Object.values(oldConnections)
-    );
-    dispatch(resetConnectionStates());
-    await dispatch(connectPeer());
-    dispatch(errorHandler());
-    oldPeerIds.forEach((peerId) => {
-      dispatch(connectToPeer(peerId));
-    });
-    addMessageHandler("peer", peerMessageHandler);
-  };
-}
+    const session = selectSession(getState());
+    if (session.state !== "logged-in") return;
 
-function isConnected(state: RootState, uuid: string): boolean {
-  const cs = selectPeerConnections(state);
-  return Object.keys(cs).includes(uuid);
-}
+    dispatch(connecting());
+    p2p.setGameInviteCallback(makeInviteHandler(dispatch));
 
-function sendPacket(uuid: string, packet: Packet): AppThunk {
-  return async (_dispatch, getState) => {
-    const peerIds = selectPeerConnections(getState());
-    const conn = connections.get(peerIds[uuid]);
-    if (typeof conn === "undefined") {
-      return;
-    }
-    conn.send(packet);
-  };
-}
-
-function peerMessageHandler(packet: Packet): AppThunk {
-  return (dispatch, getState) => {
-    const { uuid, peerId } = packet;
-    const cs = selectPeerConnections(getState());
-    const cg = selectPeerConnecting(getState());
-    if (typeof cs[uuid] !== "undefined" || !cg.includes(peerId)) {
-      return;
-    }
-    const connection = connections.get(peerId)!;
-    if (!validateUUID(uuid) || isConnected(getState(), uuid)) {
-      connection.close();
-      return;
-    }
-    dispatch(connectedToPeer({ uuid, peerId }));
-  };
-}
-
-export function connectToPeer(peerId: string): AppThunk<Promise<void>> {
-  return async (dispatch, getState) => {
-    const uuid = selectPeerUUID(getState());
-    const connection = peer!.connect(peerId, {
-      reliable: true,
-      metadata: { uuid },
-    });
-    connections.set(peerId, connection);
-    dispatch(connectingToPeer(peerId));
-    connection.on("close", () => {
-      connections.delete(peerId);
-      dispatch(disconnectedFromPeer(peerId));
-    });
-    connection.on("open", () => {
-      connection.on("data", (data: unknown) => {
-        dispatch(handlePacket({ ...(data as Packet), peerId }));
-      });
-    });
-  };
-}
-
-export function connectPeer(): AppThunk<Promise<void>> {
-  return async (dispatch, getState) => {
-    dispatch(connectingPeer());
-    const oldPeerId = selectPeerId(getState());
     try {
-      peer = await createPeer(oldPeerId);
+      const localPeerId = await p2p.initNode(session.token);
+      dispatch(connected(localPeerId));
     } catch (err) {
+      dispatch(disconnected());
       throw err;
     }
-    dispatch(connectedPeer(peer!.id));
-    peer!.on("disconnected", () => {
-      dispatch(disconnectedPeer());
-    });
-
-    peer!.on("connection", function (connection: DataConnection) {
-      const { peer: peerId, metadata } = connection;
-      connection.on("close", () => {
-        connections.delete(peerId);
-        dispatch(disconnectedFromPeer(peerId));
-      });
-      connections.set(peerId, connection);
-      connection.on("open", () => {
-        const { uuid } = metadata;
-        if (!validateUUID(uuid) || isConnected(getState(), uuid)) {
-          connection.close();
-          return;
-        }
-        dispatch(connectedToPeer({ uuid, peerId }));
-        connection.on("data", (data: unknown) => {
-          dispatch(handlePacket({ ...(data as Packet), peerId }));
-        });
-        const myUUID = selectPeerUUID(getState());
-        connection.send({ type: "peer", uuid: myUUID });
-      });
-    });
   };
 }
 
-function createPeer(wanted?: string): Promise<Peer> {
-  return new Promise((resolve, reject) => {
-    let p: Peer;
-    if (wanted) {
-      p = new Peer(wanted);
-    } else {
-      p = new Peer();
-    }
-    let errorHandle = (err: any) => {
-      if (p) {
-        p.destroy();
-      }
-      if (err.type === "unavailable-id") {
-        createPeer()
-          .then((p) => resolve(p))
-          .catch((err) => reject(err));
-        return;
-      }
-      reject(err);
-      return;
-    };
-    p.on("error", errorHandle);
-    p.on("open", () => {
-      p?.off("error", errorHandle);
-      resolve(p!);
-    });
-  });
-}
-
-function errorHandler(): AppThunk {
+export function respondToInvite(
+  inviteId: string,
+  accepted: boolean
+): AppThunk {
   return (dispatch) => {
-    peer!.on("error", (err) => {
-      switch ((err as any).type) {
-        case "peer-unavailable":
-          console.error(err);
-          const peerId = (err.message as String).substring(26);
-          dispatch(disconnectedFromPeer(peerId));
-          break;
-      }
-    });
+    const resolve = pendingAnswers.get(inviteId);
+    if (resolve) {
+      resolve(accepted);
+      pendingAnswers.delete(inviteId);
+    }
+    dispatch(inviteRemoved(inviteId));
   };
 }
 
-export function disconnectFromPeer(peerId: string): AppThunk<Promise<void>> {
+export function connectToPeer(targetPeerId: string): AppThunk<Promise<void>> {
   return async () => {
-    connections.get(peerId)?.close();
+    await p2p.connectToPeerViaRelay(targetPeerId);
   };
 }
 
-export const selectPeerState = (state: RootState) => state.peer;
+export function disconnectFromPeer(_peerId: string): AppThunk<Promise<void>> {
+  return async () => {
+    // TODO: close individual peer connection when game sessions are tracked
+  };
+}
 
-export const selectPeerUUID = (state: RootState) =>
-  state.peer.connectionState.uuid;
-export const selectPeerId = (state: RootState) =>
-  state.peer.connectionState.peerId;
+export function disconnectPeer(): AppThunk<Promise<void>> {
+  return async (dispatch) => {
+    await p2p.stopNode();
+    dispatch(disconnected());
+  };
+}
+
 export const selectPeerConnectionState = (state: RootState) =>
-  state.peer.connectionState.state;
-export const selectPeerConnections = (state: RootState) =>
-  state.peer.connections;
-export const selectPeerConnecting = (state: RootState) => state.peer.connecting;
+  state.peer.connectionState;
+
+export const selectLocalPeerId = (state: RootState) => state.peer.localPeerId;
+export const selectPeerId = selectLocalPeerId;
+
+export const selectPendingInvites = (state: RootState) =>
+  state.peer.pendingInvites;
+
+/** @deprecated No direct peer-to-peer connections tracked yet; returns empty map. */
+export const selectPeerConnections = (_: RootState): Record<string, string> =>
+  ({});
+
+/** @deprecated No pending connection tracking yet; returns empty array. */
+export const selectPeerConnecting = (_: RootState): string[] => [];
 
 export default reducer;
+
