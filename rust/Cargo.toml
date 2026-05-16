@@ -2,6 +2,9 @@
 name = "chessvariant-engine"
 version = "0.1.0"
 edition = "2024"
+description = "Chess variant engine with Rhai scripting API for WASM"
+repository = "https://github.com/Relacibo/p2p-chessvariants"
+license = "GPL-3.0-or-later"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
