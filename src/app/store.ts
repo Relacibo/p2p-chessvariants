@@ -15,7 +15,18 @@ import {
   REGISTER,
   REHYDRATE,
 } from "redux-persist";
-import storage from "redux-persist/lib/storage";
+// redux-persist/lib/storage has CJS/ESM interop issues with Vite 8 + moduleResolution:Bundler
+const storage = {
+  getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
+  setItem: (key: string, item: string) => {
+    localStorage.setItem(key, item);
+    return Promise.resolve();
+  },
+  removeItem: (key: string) => {
+    localStorage.removeItem(key);
+    return Promise.resolve();
+  },
+};
 import { api } from "../api/api";
 import { errorHandler } from "../api/errorHandler";
 import authMiddleware from "../features/auth/authMiddleware";
