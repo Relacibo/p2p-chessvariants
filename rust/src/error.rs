@@ -1,13 +1,7 @@
-use std::{
-    backtrace::{self, Backtrace, BacktraceStatus},
-    fmt::Display,
-};
-
-use js_sys::JsString;
 use rhai::{EvalAltResult, ParseError};
-use serde::{ser::SerializeStruct, Serialize};
+use serde::Serialize;
 use thiserror::Error;
-use wasm_bindgen::{convert::ReturnWasmAbi, prelude::*};
+use wasm_bindgen::prelude::*;
 
 use crate::rhai_rust_error::RhaiRustError;
 

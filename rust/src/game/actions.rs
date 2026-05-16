@@ -2,13 +2,6 @@ use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
 
 use super::{piece::Piece, state::BoardCoords};
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum ActionKind {
-    Move { from: BoardCoords, to: BoardCoords },
-    Drop { piece: Piece, to: BoardCoords },
-    Choose { tag: String, value: String },
-}
-
 #[derive(Clone, Debug, Default, CustomType, PartialEq)]
 #[rhai_type(extra = Self::build_rhai_type)]
 pub struct Action {

@@ -1,93 +1,11 @@
-use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
+use rhai::{CustomType, TypeBuilder};
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use super::{piece::Piece, variant_config::{BoardLayoutConfig, VariantConfig}};
-
-#[derive(Debug, Clone, Deserialize, Serialize, CustomType)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
-pub struct Context {
-    pub variant_config: VariantConfig,
-    pub state: State,
-    pub custom_context: Dynamic,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, CustomType)]
-#[rhai_type(extra = Self::build_rhai_type)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
-pub struct State {
-    pub local_player_index: u32,
-    pub player_id_turn: u32,
-    pub board_state: BoardState,
-    pub reserve_pile_state: Option<ReservePileState>,
-}
-
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
-impl State {
-    pub fn board(&self) -> *const BoardState {
-        &self.board_state
-    }
-
-    pub fn reserve_piles(&self) -> *const Option<ReservePileState> {
-        &self.reserve_pile_state
-    }
-}
-
-fn default_player_count() -> u32 {
-    2
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
-pub struct InitialStateConfig {
-    pub local_player_index: u32,
-    pub player_id_turn_initial: u32,
-    #[serde(default = "default_player_count")]
-    pub player_count: u32,
-}
-
-impl State {
-    pub fn new(local_player_index: u32, board_state: BoardState) -> Self {
-        Self {
-            local_player_index,
-            player_id_turn: local_player_index,
-            board_state,
-            reserve_pile_state: None,
-        }
-    }
-
-    pub fn build_rhai_type(builder: &mut TypeBuilder<Self>) {
-        builder.with_fn("State", Self::new);
-    }
-
-    pub fn init(variant_config: VariantConfig, initial_state_config: InitialStateConfig) -> Self {
-        let InitialStateConfig {
-            local_player_index,
-            player_id_turn_initial,
-            player_count,
-        } = initial_state_config;
-        let (rows, cols) = match variant_config.board.layout {
-            BoardLayoutConfig::Rectangle { rows, columns } => (rows, columns),
-        };
-
-        Self {
-            local_player_index,
-            player_id_turn: player_id_turn_initial,
-            board_state: BoardState::new(rows, cols, variant_config.board.count),
-            reserve_pile_state: variant_config
-                .reserve_pile
-                .then(|| ReservePileState {
-                    reserve_piles: vec![Vec::new(); player_count as usize],
-                }),
-        }
-    }
-}
+use super::piece::Piece;
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType, PartialEq)]
 #[serde(rename_all = "camelCase")]

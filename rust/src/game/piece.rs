@@ -9,6 +9,7 @@ use crate::error::CvError;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[repr(u8)]
+#[allow(dead_code)]
 #[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum PieceType {
     #[default]

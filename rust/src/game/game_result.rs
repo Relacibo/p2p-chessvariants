@@ -1,12 +1,5 @@
 use rhai::{Array, Dynamic, Map};
 
-pub enum GameResult {
-    Running,
-    Winner(i32),
-    Winners(Vec<i32>),
-    Draw,
-}
-
 pub fn rhai_winner(player_index: i32) -> Dynamic {
     let mut map = Map::new();
     map.insert("type".into(), Dynamic::from("winner".to_string()));

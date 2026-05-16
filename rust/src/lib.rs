@@ -6,7 +6,7 @@ use game::{
     moves,
     piece::Piece,
     standard,
-    state::{BoardCoords, BoardState, InitialStateConfig, ReservePileState, State},
+    state::{BoardCoords, BoardState, ReservePileState},
     variant_config::{BoardLayoutConfig, VariantConfig},
 };
 use rhai::{AST, Dynamic, Engine, Scope};
@@ -20,11 +20,12 @@ pub mod rhai_rust_error;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[derive(Debug)]
+#[allow(dead_code)] // game_state and variant_config will be used by apply/make_move
 pub struct ChessvariantEngine {
     engine: Engine,
     ast: AST,
-    game_state: Dynamic,
-    variant_config: VariantConfig,
+    pub(crate) game_state: Dynamic,
+    pub(crate) variant_config: VariantConfig,
 }
 
 fn register_builtins(engine: &mut Engine) {
@@ -32,7 +33,6 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<BoardState>()
         .build_type::<ReservePileState>()
         .build_type::<BoardCoords>()
-        .build_type::<State>()
         .build_type::<Piece>()
         .build_type::<VariantConfig>()
         .build_type::<Action>();
@@ -71,7 +71,7 @@ impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new(
         script_content: String,
-        config: InitialStateConfig,
+        player_count: i32,
     ) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
@@ -80,7 +80,6 @@ impl ChessvariantEngine {
         let mut scope = Scope::new();
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
-        let player_count = config.player_count as i32;
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
         Ok(ChessvariantEngine {
