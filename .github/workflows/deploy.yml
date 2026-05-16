@@ -14,7 +14,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Run Rust WASM unit tests
+        run: cd rust && cargo test --lib
+
   build:
+    name: Build
+    needs: test
     runs-on: ubuntu-latest
     environment: github-pages
     steps:
@@ -39,9 +57,6 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Run Rust WASM unit tests
-        run: cd rust && cargo test --lib
-
       - name: Build
         env:
           VITE_GOOGLE_IDENTITY_CLIENT_ID: ${{ vars.GOOGLE_IDENTITY_CLIENT_ID }}
@@ -56,6 +71,7 @@ jobs:
           overwrite: true
 
   deploy:
+    name: Deploy
     needs: build
     runs-on: ubuntu-latest
     environment:
