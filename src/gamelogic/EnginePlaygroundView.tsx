@@ -39,10 +39,10 @@ const EnginePlaygroundView = () => {
 
   const onClickRun = () => {
     try {
-      const engine = new ChessvariantEngine(editorState, { local_player_index: 0, player_id_turn_initial: 0 });
-      const result = engine!.run_something(500);
+      const engine = new ChessvariantEngine(editorState, 2);
+      const state = engine.state();
       setResult({
-        text: `${result}`,
+        text: `State: ${JSON.stringify(state, null, 2)}`,
         icon: <IconCircleCheck color="green" />,
       });
     } catch (e) {
