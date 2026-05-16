@@ -13,6 +13,9 @@ export default defineConfig(({ command, mode }) => {
   return {
     plugins: [react(), wasm(), topLevelAwait()],
     base: env.BASE_URL,
+    build: {
+      target: "esnext",
+    },
     server: {
       open: env.BASE_URL,
       proxy: {

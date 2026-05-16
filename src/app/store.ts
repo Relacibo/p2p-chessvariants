@@ -4,7 +4,7 @@ import {
   configureStore,
   ThunkAction,
 } from "@reduxjs/toolkit";
-import { setupListeners } from "@reduxjs/toolkit/dist/query/react";
+import { setupListeners } from "@reduxjs/toolkit/query/react";
 import {
   FLUSH,
   PAUSE,
@@ -46,18 +46,12 @@ const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 export const store = configureStore({
   reducer: persistedReducer,
-  middleware: (getDefaultMiddleware) => [
-    ...getDefaultMiddleware({
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
-    }),
-    // Adding the api middleware enables caching, invalidation, polling,
-    // and other useful features of `rtk-query`.
-    api.middleware,
-    errorHandler,
-    authMiddleware,
-  ],
+    }).concat(api.middleware, errorHandler, authMiddleware),
 });
 
 export const persistor = persistStore(store);

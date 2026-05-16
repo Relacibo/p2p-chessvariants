@@ -1,13 +1,13 @@
-use rhai::{Array, CustomType, Dynamic, TypeBuilder};
+use rhai::{Array, CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use std::fmt::Display;
 use wasm_bindgen::prelude::*;
 
-use crate::{error::CvError, ChessvariantEngineConfig};
+use crate::error::CvError;
 
 use super::{
-    entities::{BoardState, ReservePileState}, piece::Piece, variant_config::{self, VariantConfig}
+    piece::Piece, variant_config::VariantConfig
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize, CustomType, Tsify)]
@@ -20,7 +20,7 @@ pub struct Context {
 }
 
 #[derive(Debug, Clone, Hash, Deserialize, Serialize, CustomType, Tsify)]
-#[rhai_type(extra = "Self::build_rhai_type")]
+#[rhai_type(extra = Self::build_rhai_type)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct State {
     pub local_player_index: u32,
@@ -106,31 +106,26 @@ impl State {
     }
 }
 
-#[derive(Clone, Debug, Hash, Deserialize, Serialize, Default, Tsify)]
+#[derive(Clone, Debug, Hash, Deserialize, Serialize, Default, CustomType, Tsify)]
 #[serde(rename_all = "camelCase")]
-#[rhai_type(extra = "Self::build_rhai_type")]
+#[rhai_type(extra = Self::build_rhai_type)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct BoardState {
     pub number_of_boards: u32,
     pub boards: Vec<Vec<Option<Piece>>>,
 }
 
-impl CustomType for BoardState {
-    fn build(builder: rhai::TypeBuilder<Self>) {
-    }
-}
-
 impl BoardState {
-    fn get_board(board_state: &mut BoardState, index: usize) -> *const Option<Vec<Option<Piece>>>> {
-        board_state.get(index).as_ptr()
+    fn get_board(board_state: &mut BoardState, index: i64) -> Option<Vec<Option<Piece>>> {
+        board_state.boards.get(index as usize).cloned()
     }
 
     pub fn build_rhai_type(builder: &mut rhai::TypeBuilder<Self>) {
-        builder.with_fn("get_board", Self::new);
+        builder.with_fn("get_board", Self::get_board);
     }
 }
 
-pub enum Coords {}
+pub struct Coords;
 
 #[derive(Clone, Debug, Hash, Deserialize, Serialize, Default, CustomType, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]

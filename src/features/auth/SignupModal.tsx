@@ -8,7 +8,7 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
-import { QueryStatus } from "@reduxjs/toolkit/dist/query";
+import { QueryStatus } from "@reduxjs/toolkit/query";
 import { useEffect, useState } from "react";
 import { User } from "../../api/types/user/users";
 import { useSignUpMutation } from "../../api/api";
@@ -41,7 +41,8 @@ const SignupModal = ({ oauthData, setResult, usernameSuggestion }: Props) => {
   });
   useEffect(() => {
     if (signupResult.status === QueryStatus.fulfilled) {
-      let { data } = signupResult;
+      const data = signupResult.data;
+      if (!data) return;
       if (data.result == "success") {
         setResult(data);
         modals.closeAll();

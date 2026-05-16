@@ -16,7 +16,7 @@ export const errorHandler: Middleware =
       console.error(JSON.stringify(action))
       handleError(message);
     } else if (isRejectedWithValue(action)) {
-      const payload = action.payload;
+      const payload = action.payload as BackendError;
       const status = payload.status;
       if (typeof status !== "undefined") {
         handleBackendError(api, payload);

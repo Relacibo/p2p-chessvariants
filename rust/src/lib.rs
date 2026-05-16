@@ -1,12 +1,11 @@
-#![feature(error_generic_member_access)]
+#![feature(extern_types, proc_macro_hygiene)]
 
 use error::CvError;
-use game::{state::InitialStateConfig, State};
+use game::state::InitialStateConfig;
 use rhai::{Dynamic, Engine, FuncArgs, Scope, AST};
 use wasm_bindgen::prelude::*;
 
 use crate::game::{
-    entities::Piece,
     piece::Piece,
     state::{BoardCoords, BoardState, Context, ReservePileState, State},
     variant_config::VariantConfig,

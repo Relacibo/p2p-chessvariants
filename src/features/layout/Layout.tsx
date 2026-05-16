@@ -13,12 +13,13 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { IconChevronRight } from "@tabler/icons-react";
 import { createContext, useState } from "react";
+import type React from "react";
 import Logo from "./logo";
 import Sidebar from "./Sidebar";
 import style from "./Layout.module.css";
 
 export type LayoutProps = {
-  children: JSX.Element | JSX.Element[] | never[];
+  children: React.JSX.Element | React.JSX.Element[] | never[];
 };
 
 export type LayoutConfig = {

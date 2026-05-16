@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use rhai::{Array, CustomType, Dynamic, TypeBuilder};
+use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -54,7 +54,7 @@ impl Display for PieceType {
             PieceType::Queen => "queen",
             PieceType::King => "king",
         };
-        write!(f, s)
+        write!(f, "{}", s)
     }
 }
 
@@ -92,22 +92,22 @@ impl Display for PieceColor {
             PieceColor::White => "white",
             PieceColor::Black => "black",
         };
-        write!(f, s)
+        write!(f, "{}", s)
     }
 }
 
 #[wasm_bindgen]
 #[derive(Clone, Debug, Hash, Deserialize, Serialize, Default, CustomType)]
 #[serde(rename_all = "camelCase")]
-#[rhai_type(extra = "Self::build_rhai_type")]
+#[rhai_type(extra = Self::build_rhai_type)]
 pub struct Piece {
     #[rhai_type(
-        rename = "type",
-        set = "Self::set_piece_type_from_string",
-        get = "Self::get_piece_type_as_string"
+        name = "type",
+        set = Self::set_piece_type_from_string,
+        get = Self::get_piece_type_as_string
     )]
     piece_type: PieceType,
-    #[rhai_type(set = "Self::set_color_from_string", get = "Self::get_color_as_string")]
+    #[rhai_type(set = Self::set_color_from_string, get = Self::get_color_as_string)]
     color: PieceColor,
     data: Option<Dynamic>,
 }
@@ -244,24 +244,22 @@ impl Piece {
     }
 
     pub fn set_piece_type_from_string(&mut self, value: String) {
-        let v = value.try_into().unwrap_or_default();
-        self.piece_type = v;
+        self.piece_type = value.try_into().unwrap_or_default();
     }
 
-    pub fn get_piece_type_as_string(self) -> String {
+    pub fn get_piece_type_as_string(&self) -> String {
         self.piece_type.to_string()
     }
 
     pub fn set_color_from_string(&mut self, value: String) {
-        let v = value.try_into().unwrap_or_default();
-        self.color = v;
+        self.color = value.try_into().unwrap_or_default();
     }
 
-    pub fn get_color_as_string(self) -> String {
+    pub fn get_color_as_string(&self) -> String {
         self.color.to_string()
     }
 }
 
 pub struct PieceTypeDescription<'a> {
-    find_moves: dyn Fn(&'a State, &'a BoardCoords, &'a Piece) -> Vec<BoardCoords>,
+    find_moves: Box<dyn Fn(&'a State, &'a BoardCoords, &'a Piece) -> Vec<BoardCoords>>,
 }

@@ -21,6 +21,7 @@ import Editor, {
   OnChange,
 } from "@monaco-editor/react";
 import { IconCircleX, IconCircleCheck } from "@tabler/icons-react";
+import type React from "react";
 
 const EnginePlaygroundView = () => {
   let { colorScheme } = useMantineColorScheme();
@@ -30,7 +31,7 @@ const EnginePlaygroundView = () => {
   const [editorState, setEditorState] = useState<string>(" ");
   const [result, setResult] = useState<{
     text: string;
-    icon: JSX.Element;
+    icon: React.JSX.Element;
   } | null>(null);
   const handleEditorChange: OnChange = (value) => {
     setEditorState(value ?? "");
@@ -38,7 +39,7 @@ const EnginePlaygroundView = () => {
 
   const onClickRun = () => {
     try {
-      const engine = new ChessvariantEngine(editorState);
+      const engine = new ChessvariantEngine(editorState, { local_player_index: 0, player_id_turn_initial: 0 });
       const result = engine!.run_something(500);
       setResult({
         text: `${result}`,

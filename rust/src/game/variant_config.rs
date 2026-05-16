@@ -1,8 +1,9 @@
 use rhai::plugin::*;
 use rhai::Dynamic;
-use rhai::{serde::from_dynamic, CustomType, TypeBuilder};
+use rhai::{serde::from_dynamic, CustomType, EvalAltResult, Position, TypeBuilder};
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
+use wasm_bindgen::prelude::*;
 
 use crate::error;
 
@@ -31,14 +32,18 @@ pub struct BoardConfig {
     pub layout: BoardLayoutConfig,
 }
 
-#[wasm_bindgen]
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default, Tsify)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Tsify)]
 #[serde(rename_all = "kebab-case", tag = "type")]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub enum BoardLayoutConfig {
     #[serde(rename_all = "camelCase")]
-    #[default]
-    Rectangle { pub rows: u32, pub columns: u32 },
+    Rectangle { rows: u32, columns: u32 },
+}
+
+impl Default for BoardLayoutConfig {
+    fn default() -> Self {
+        BoardLayoutConfig::Rectangle { rows: 8, columns: 8 }
+    }
 }
 
 #[export_module]
@@ -92,8 +97,13 @@ mod BoardLayoutConfigModule {
     }
 
     // Printing
-    #[rhai_fn(global, name = "to_string", name = "to_debug", pure)]
+    #[rhai_fn(global, name = "to_string", pure)]
     pub fn to_string(my_enum: &mut BoardLayoutConfig) -> String {
+        format!("{my_enum:?}")
+    }
+
+    #[rhai_fn(global, name = "to_debug", pure)]
+    pub fn to_debug(my_enum: &mut BoardLayoutConfig) -> String {
         format!("{my_enum:?}")
     }
 

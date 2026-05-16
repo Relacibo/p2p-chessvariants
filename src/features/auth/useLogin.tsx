@@ -4,7 +4,7 @@ import { OauthData } from "../../api/types/auth/auth";
 import { useState } from "react";
 import SignupModal, { SignupResult } from "./SignupModal";
 import React, { useEffect } from "react";
-import { QueryStatus } from "@reduxjs/toolkit/dist/query";
+import { QueryStatus } from "@reduxjs/toolkit/query";
 import { login } from "./authSlice";
 import { modals } from "@mantine/modals";
 
@@ -19,12 +19,13 @@ const useLogin = () => {
   useEffect(() => {
     if (signinResult.status === QueryStatus.fulfilled) {
       // If the BE login endpoint responds
-      let { data } = signinResult;
+      const data = signinResult.data;
+      if (!data) return;
       if (data.result === "success") {
         dispatch(login(data));
         return;
       }
-      let { usernameSuggestion } = data;
+      const { usernameSuggestion } = data;
 
       modals.open({
         // NOTE: Cannot use close button, cannot call update components from there
