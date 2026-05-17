@@ -10,7 +10,6 @@ import { errorHandler } from "../api/errorHandler";
 import authMiddleware from "../features/auth/authMiddleware";
 import auth from "../features/auth/authSlice";
 import darkmode from "../features/darkmode/darkmodeSlice";
-import peer from "../features/peer/peerSlice";
 import variantEnvironment from "../features/variant-environment/variantsSlice";
 import worker from "../features/worker/workerSlice";
 import lobby from "../features/lobby/lobbySlice";
@@ -20,7 +19,6 @@ const rootReducer = combineReducers({
   variantEnvironment,
   darkmode,
   worker,
-  peer,
   auth,
   lobby,
   [api.reducerPath]: api.reducer,

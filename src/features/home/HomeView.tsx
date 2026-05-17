@@ -1,18 +1,23 @@
 import {
   Button,
   Container,
+  Group,
+  Loader,
   Paper,
+  Text,
   Space,
   TextInput,
   Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { useDispatch } from "../../app/hooks";
+import { notifications } from "@mantine/notifications";
+import { useState } from "react";
 import useConfigureLayout from "../layout/hooks";
-import { connectToPeer } from "../peer/peerSlice";
+import * as p2p from "../../api/p2pService";
 import UserOverview from "../users/UserOverview";
 
 function HomeView() {
+  const [isConnecting, setIsConnecting] = useState(false);
   const form = useForm({
     initialValues: {
       peerId: "",
@@ -23,20 +28,39 @@ function HomeView() {
     },
   });
 
-  const dispatch = useDispatch();
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
   return (
     <Container >
       <Paper p="sm" mt="lg" shadow="xs">
         <form
-          onSubmit={form.onSubmit(({ peerId }) => {
-            dispatch(connectToPeer(peerId.trim()));
+          onSubmit={form.onSubmit(async ({ peerId }) => {
+            setIsConnecting(true);
+            try {
+              await p2p.connectToPeerViaRelay(peerId.trim());
+              notifications.show({ message: "Connected to peer", color: "green" });
+            } catch (err) {
+              notifications.show({
+                message:
+                  err instanceof Error ? err.message : "Could not connect to peer",
+                color: "red",
+              });
+            } finally {
+              setIsConnecting(false);
+            }
           })}
         >
           <Title order={1}>Connect to peer</Title>
           <TextInput label="Peer ID" {...form.getInputProps("peerId")} />
           <Space h="lg"></Space>
-          <Button type="submit">Submit</Button>
+          <Group align="center">
+            <Button type="submit" loading={isConnecting}>
+              Submit
+            </Button>
+            {isConnecting && <Loader size="xs" />}
+          </Group>
+          <Text size="xs" c="dimmed" mt="xs">
+            Requires an active lobby/session node.
+          </Text>
         </form>
       </Paper>
       <Paper p="sm" mt="lg" shadow="xs">
@@ -47,4 +71,3 @@ function HomeView() {
 }
 
 export default HomeView;
-
