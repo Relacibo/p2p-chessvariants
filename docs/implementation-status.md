@@ -52,7 +52,8 @@ spread syntax `#{ ...state, ... }` — needs to be updated to `merge(state, #{ .
 |---|---|---|
 | **OOP Variant URL Abstraction** | Refactor `scriptUrl.ts` to use a `VariantSource` interface with `getRawUrl()` and `getBrowseUrl()`. Implement classes for `GithubRepoSource`, `GithubGistSource` (handling `gist.github.com`), and `GenericSource`. | ✅ |
 | **P2P Lobby State Sync** | Remove the variant URL from the `#peerId,url` invite link fragment. Make the host the Single Source of Truth. Upon P2P connection, the host must transmit a `LOBBY_STATE_SYNC` message containing the variant info, current players, and game status to the joining guest. | ❌ |
-| **Server Lobby Timeout** | Investigate and fix the `DOMException: The operation timed out` error occurring when attempting to create a server-side lobby (P2P-only works). | ❌ |
+| **Server Lobby Timeout** | **Root Cause Identified in Backend:** The Rust backend panics during WebRTC connection setup (`rustls-0.23.40/src/crypto/mod.rs:249:14`) because no default `CryptoProvider` is installed. Fix: Add `rustls::crypto::ring::default_provider().install_default()` to the server startup. | ❌ |
+| **Simplify Invite Link** | The invite link should only contain either `#join=peerId` or `#join=lobbyId`. If `lobbyId` is used, the client must query the server to resolve it to the host's `peerId`. | ❌ |
 | **Lobby State Transitions** | In the "Play" view: Hide "Active Games & Lobbies" once a lobby is created/joined. Show the list of connected players and the required player count (min/max) from the variant config. | ✅ |
 
 ## UI & UX Todos
