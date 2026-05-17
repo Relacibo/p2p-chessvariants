@@ -2,7 +2,6 @@ import {
   ActionIcon,
   Box,
   Divider,
-  Modal,
   Stack,
   Table,
   Text,
@@ -20,31 +19,28 @@ import ErrorDisplay from "../error/ErrorDisplay";
 import AppLoader from "../loader/AppLoader";
 
 type Props = {
-  onClose: () => void;
   userId: string;
 };
 
-const FriendRequestsModal = ({ userId, onClose }: Props) => {
+export default function FriendRequests({ userId }: Props) {
   return (
-    <Modal opened={true} onClose={onClose} title="Friend Requests">
-      <Stack>
-        <Box>
-          <Text fw={600} mb="xs">
-            Incoming requests
-          </Text>
-          <IncomingFriendRequestList userId={userId} />
-        </Box>
-        <Divider my="sm" variant="dashed" />
-        <Box>
-          <Text fw={600} mb="xs">
-            Sent requests
-          </Text>
-          <OutgoingFriendRequestList userId={userId} />
-        </Box>
-      </Stack>
-    </Modal>
+    <Stack>
+      <Box>
+        <Text fw={600} mb="xs">
+          Incoming requests
+        </Text>
+        <IncomingFriendRequestList userId={userId} />
+      </Box>
+      <Divider my="sm" variant="dashed" />
+      <Box>
+        <Text fw={600} mb="xs">
+          Sent requests
+        </Text>
+        <OutgoingFriendRequestList userId={userId} />
+      </Box>
+    </Stack>
   );
-};
+}
 
 const IncomingFriendRequestList = ({ userId }: { userId: string }) => {
   const { data, isLoading, isSuccess } = useListFriendRequestsFromQuery(userId);
@@ -77,9 +73,7 @@ const IncomingFriendRequestList = ({ userId }: { userId: string }) => {
                 <ActionIcon
                   color="green"
                   variant="subtle"
-                  onClick={() =>
-                    accept({ userId, senderId: sender.id })
-                  }
+                  onClick={() => accept({ userId, senderId: sender.id })}
                 >
                   <IconCheck size={16} />
                 </ActionIcon>
@@ -88,9 +82,7 @@ const IncomingFriendRequestList = ({ userId }: { userId: string }) => {
                 <ActionIcon
                   color="red"
                   variant="subtle"
-                  onClick={() =>
-                    decline({ userId, senderId: sender.id })
-                  }
+                  onClick={() => decline({ userId, senderId: sender.id })}
                 >
                   <IconX size={16} />
                 </ActionIcon>
@@ -133,9 +125,7 @@ const OutgoingFriendRequestList = ({ userId }: { userId: string }) => {
                 <ActionIcon
                   color="red"
                   variant="subtle"
-                  onClick={() =>
-                    cancel({ userId, receiverId: receiver.id })
-                  }
+                  onClick={() => cancel({ userId, receiverId: receiver.id })}
                 >
                   <IconX size={16} />
                 </ActionIcon>
@@ -147,5 +137,3 @@ const OutgoingFriendRequestList = ({ userId }: { userId: string }) => {
     </Table>
   );
 };
-
-export default FriendRequestsModal;
