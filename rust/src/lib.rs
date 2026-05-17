@@ -117,6 +117,11 @@ impl ChessvariantEngine {
             variant_config,
         })
     }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
+    pub fn name(&self) -> String {
+        self.variant_config.name.clone()
+    }
 }
 
 // These methods use `Dynamic` which is not a WASM ABI type, so they are excluded from the

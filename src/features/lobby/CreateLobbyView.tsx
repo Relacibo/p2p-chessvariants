@@ -1,11 +1,14 @@
 import {
+  ActionIcon,
   Alert,
   Button,
   Checkbox,
   Code,
   CopyButton,
   Group,
+  Modal,
   Paper,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -13,19 +16,86 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertCircle, IconCheck, IconCopy } from "@tabler/icons-react";
-import { useEffect } from "react";
+import { useDisclosure } from "@mantine/hooks";
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconCopy,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { selectToken } from "../auth/authSlice";
 import { createLobby, leaveLobby, selectLobbyStatus } from "./lobbySlice";
-import { parseScriptUrl, scriptUrlErrorMessage, normalizeScriptUrl } from "./scriptUrl";
+import {
+  normalizeScriptUrl,
+  parseScriptUrl,
+  scriptUrlErrorMessage,
+  validateAndGetName,
+} from "./scriptUrl";
+import {
+  addCustomVariant,
+  OFFICIAL_VARIANTS,
+  removeCustomVariant,
+  selectAllVariants,
+} from "./variantsSlice";
+
+function AddCustomVariantModal({
+  opened,
+  onClose,
+}: {
+  opened: boolean;
+  onClose: () => void;
+}) {
+  const dispatch = useDispatch();
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAdd = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const normalized = normalizeScriptUrl(url.trim());
+      const name = await validateAndGetName(normalized);
+      dispatch(addCustomVariant({ name, url: normalized }));
+      setUrl("");
+      onClose();
+    } catch (e: any) {
+      setError(e.message || "Failed to add variant");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal opened={opened} onClose={onClose} title="Add Custom Variant">
+      <Stack>
+        <TextInput
+          label="Script URL"
+          placeholder="https://raw.githubusercontent.com/..."
+          value={url}
+          onChange={(e) => setUrl(e.currentTarget.value)}
+          error={error}
+        />
+        <Button onClick={handleAdd} loading={loading}>
+          Add Variant
+        </Button>
+      </Stack>
+    </Modal>
+  );
+}
 
 function CreateLobbyForm() {
   const dispatch = useDispatch();
   const status = useSelector(selectLobbyStatus);
   const token = useSelector(selectToken);
+  const variants = useSelector(selectAllVariants);
   const canUseServerLobby = !!token;
   const isCreating = status.phase === "creating";
+
+  const [opened, { open, close }] = useDisclosure(false);
 
   const form = useForm({
     initialValues: { scriptUrl: "", useServerLobby: canUseServerLobby },
@@ -47,38 +117,79 @@ function CreateLobbyForm() {
     }
   }, [canUseServerLobby]);
 
+  const variantOptions = variants.map((v) => ({
+    value: v.url,
+    label: v.name,
+  }));
+
   return (
-    <form
-      onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
-        const normalized = normalizeScriptUrl(scriptUrl.trim());
-        dispatch(createLobby(normalized, canUseServerLobby && useServerLobby));
-      })}
-    >
-      <Stack>
-        <TextInput
-          label="Script URL"
-          description="GitHub Raw URL or GitHub browse link (must reference a commit SHA)"
-          placeholder="https://raw.githubusercontent.com/... or https://github.com/.../blob/..."
-          {...form.getInputProps("scriptUrl")}
-        />
-        <Tooltip
-          label={canUseServerLobby ? "" : "Login required for server lobby"}
-          disabled={canUseServerLobby}
-        >
-          <div>
-            <Checkbox
-              label="Create server lobby"
-              description="Enable server-side lobby tracking/events"
-              disabled={!canUseServerLobby}
-              {...form.getInputProps("useServerLobby", { type: "checkbox" })}
+    <>
+      <form
+        onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
+          const normalized = normalizeScriptUrl(scriptUrl.trim());
+          dispatch(createLobby(normalized, canUseServerLobby && useServerLobby));
+        })}
+      >
+        <Stack>
+          <Group align="flex-end">
+            <Select
+              label="Select Variant"
+              placeholder="Pick a variant"
+              data={variantOptions}
+              style={{ flex: 1 }}
+              value={form.values.scriptUrl}
+              onChange={(val) => form.setFieldValue("scriptUrl", val || "")}
+              renderOption={({ option, checked }) => (
+                <Group justify="space-between" style={{ width: "100%" }}>
+                  <Text size="sm">{option.label}</Text>
+                  {!OFFICIAL_VARIANTS.some((v) => v.url === option.value) && (
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dispatch(removeCustomVariant(option.value));
+                      }}
+                    >
+                      <IconTrash size="1rem" />
+                    </ActionIcon>
+                  )}
+                </Group>
+              )}
             />
-          </div>
-        </Tooltip>
-        <Button type="submit" loading={isCreating}>
-          Create Lobby
-        </Button>
-      </Stack>
-    </form>
+            <Tooltip label="Add custom variant">
+              <ActionIcon variant="light" size="lg" onClick={open}>
+                <IconPlus size="1.2rem" />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+
+          <TextInput
+            label="Script URL"
+            description="GitHub Raw URL or GitHub browse link (must reference a commit SHA)"
+            placeholder="https://raw.githubusercontent.com/... or https://github.com/.../blob/..."
+            {...form.getInputProps("scriptUrl")}
+          />
+          <Tooltip
+            label={canUseServerLobby ? "" : "Login required for server lobby"}
+            disabled={canUseServerLobby}
+          >
+            <div>
+              <Checkbox
+                label="Create server lobby"
+                description="Enable server-side lobby tracking/events"
+                disabled={!canUseServerLobby}
+                {...form.getInputProps("useServerLobby", { type: "checkbox" })}
+              />
+            </div>
+          </Tooltip>
+          <Button type="submit" loading={isCreating}>
+            Create Lobby
+          </Button>
+        </Stack>
+      </form>
+      <AddCustomVariantModal opened={opened} onClose={close} />
+    </>
   );
 }
 

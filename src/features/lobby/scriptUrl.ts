@@ -1,3 +1,5 @@
+import { ChessvariantEngine } from "chessvariant-engine";
+
 const GITHUB_RAW_ORIGIN = "https://raw.githubusercontent.com";
 const GITHUB_BROWSE_ORIGIN = "https://github.com";
 const SHA40_RE = /^[0-9a-f]{40}$/i;
@@ -136,6 +138,16 @@ export async function fetchScriptText(url: string): Promise<string> {
     throw new Error(`Failed to fetch script: ${res.status} ${res.statusText}`);
   }
   return res.text();
+}
+
+export async function validateAndGetName(url: string): Promise<string> {
+  const script = await fetchScriptText(url);
+  try {
+    const engine = new ChessvariantEngine(script, 2);
+    return engine.name;
+  } catch (e: any) {
+    throw new Error(`Engine error: ${e.message || e}`);
+  }
 }
 
 /** Encode a script URL for embedding in a URL fragment. */

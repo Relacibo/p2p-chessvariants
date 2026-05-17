@@ -6,6 +6,7 @@ const PERSISTED_KEYS = [
   "auth",
   "darkmode",
   "variantEnvironment",
+  "lobbyVariants",
 ] as const;
 
 export function loadState(): Record<string, unknown> {
