@@ -137,8 +137,7 @@ function CreateLobbyForm() {
               placeholder="Pick a variant"
               data={variantOptions}
               style={{ flex: 1 }}
-              value={form.values.scriptUrl}
-              onChange={(val) => form.setFieldValue("scriptUrl", val || "")}
+              {...form.getInputProps("scriptUrl")}
               renderOption={({ option, checked }) => (
                 <Group justify="space-between" style={{ width: "100%" }}>
                   <Text size="sm">{option.label}</Text>
@@ -164,12 +163,6 @@ function CreateLobbyForm() {
             </Tooltip>
           </Group>
 
-          <TextInput
-            label="Script URL"
-            description="GitHub Raw URL or GitHub browse link (must reference a commit SHA)"
-            placeholder="https://raw.githubusercontent.com/... or https://github.com/.../blob/..."
-            {...form.getInputProps("scriptUrl")}
-          />
           <Tooltip
             label={canUseServerLobby ? "" : "Login required for server lobby"}
             disabled={canUseServerLobby}
