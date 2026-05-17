@@ -1,5 +1,6 @@
-import { ActionIcon, Loader, Table, Tooltip } from "@mantine/core";
+import { ActionIcon, Loader, Stack, Table, TextInput, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useState } from "react";
 import { useListUsersQuery, useSendFriendRequestMutation } from "../../api/api";
 import { PublicUser } from "../../api/types/user/users";
 import { useSelector } from "../../app/hooks";
@@ -11,7 +12,8 @@ function UserOverview() {
   const authState = useSelector(selectAuthState);
   const isLoggedIn = authState === "logged-in";
   const currentUser = useSelector(selectUser);
-  const { data, isLoading, isSuccess } = useListUsersQuery();
+  const [searchQuery, setSearchQuery] = useState("");
+  const { data, isLoading, isSuccess } = useListUsersQuery(searchQuery);
   const [sendFriendRequest] = useSendFriendRequestMutation();
   const users = data ?? [];
 
@@ -27,7 +29,7 @@ function UserOverview() {
       );
   };
 
-  return isLoading ? (
+  const content = isLoading ? (
     <Loader />
   ) : isSuccess ? (
     <Table>
@@ -53,6 +55,18 @@ function UserOverview() {
     </Table>
   ) : (
     <ErrorDisplay />
+  );
+
+  return (
+    <Stack>
+      <TextInput
+        label="Search users"
+        placeholder="alice"
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.currentTarget.value)}
+      />
+      {content}
+    </Stack>
   );
 }
 

@@ -32,8 +32,11 @@ export const api = createApi({
     deleteUser: builder.mutation<void, string>({
       query: (user_id) => ({ url: `users/${user_id}`, method: "delete" }),
     }),
-    listUsers: builder.query<PublicUser[], void>({
-      query: () => ({ url: "users" }),
+    listUsers: builder.query<PublicUser[], string | void>({
+      query: (q) => ({
+        url: "users",
+        params: q && q.trim() ? { q: q.trim() } : undefined,
+      }),
     }),
     signIn: builder.mutation<LoginResponse, SigninPayload>({
       query: (body) => ({ url: "auth/signin", method: "post", body }),
