@@ -71,7 +71,7 @@ function Layout(props: LayoutProps) {
             desktop: sidebarCollapsed,
           },
           breakpoint: "sm",
-          width: { base: 300, sm: "100%", md: 300 },
+          width: { base: 300 },
         }}
         className={style.appShell}
       >

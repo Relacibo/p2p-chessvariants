@@ -6,12 +6,12 @@ export default function PlayView() {
   return (
     <Container size="xl" pt="md">
       <Grid>
-        <Grid.Col span={{ base: 12, md: 5 }}>
+        <Grid.Col span={{ base: 12, lg: 5 }}>
           <Stack>
             <CreateLobbyView />
           </Stack>
         </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 7 }}>
+        <Grid.Col span={{ base: 12, lg: 7 }}>
           <Paper p="md" shadow="xs">
             <Title order={3} mb="sm">
               Active Games & Lobbies
