@@ -137,6 +137,7 @@ function CreateLobbyForm() {
               placeholder="Pick a variant"
               data={variantOptions}
               style={{ flex: 1 }}
+              searchable
               {...form.getInputProps("scriptUrl")}
               renderOption={({ option, checked }) => (
                 <Group justify="space-between" style={{ width: "100%" }}>
@@ -149,6 +150,7 @@ function CreateLobbyForm() {
                         e.stopPropagation();
                         dispatch(removeCustomVariant(option.value));
                       }}
+                      onMouseDown={(e) => e.stopPropagation()}
                     >
                       <IconTrash size="1rem" />
                     </ActionIcon>
