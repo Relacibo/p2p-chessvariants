@@ -154,17 +154,20 @@ export function decodeScriptUrl(encoded: string): string {
 export type InviteFragment = {
   hostPeerId: string;
   scriptUrl: string;
+  lobbyId?: string;
 };
 
 export function parseInviteFragment(fragment: string): InviteFragment | null {
   const hash = fragment.startsWith("#") ? fragment.slice(1) : fragment;
-  const commaIdx = hash.indexOf(",");
-  if (commaIdx === -1) return null;
-  const hostPeerId = hash.slice(0, commaIdx);
-  const encodedUrl = hash.slice(commaIdx + 1);
+  const parts = hash.split(",");
+  if (parts.length < 2 || parts.length > 3) return null;
+  const [hostPeerId, encodedUrl, lobbyId] = parts;
   if (!hostPeerId || !encodedUrl) return null;
   try {
     const scriptUrl = decodeScriptUrl(encodedUrl);
+    if (lobbyId) {
+      return { hostPeerId, scriptUrl, lobbyId };
+    }
     return { hostPeerId, scriptUrl };
   } catch {
     return null;
@@ -174,7 +177,9 @@ export function parseInviteFragment(fragment: string): InviteFragment | null {
 /** Build an invite fragment for sharing. */
 export function buildInviteFragment(
   hostPeerId: string,
-  scriptUrl: string
+  scriptUrl: string,
+  lobbyId?: string
 ): string {
-  return `#${hostPeerId},${encodeScriptUrl(scriptUrl)}`;
+  const base = `#${hostPeerId},${encodeScriptUrl(scriptUrl)}`;
+  return lobbyId ? `${base},${lobbyId}` : base;
 }

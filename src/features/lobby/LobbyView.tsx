@@ -135,7 +135,7 @@ export default function LobbyView() {
     if (!invite) return;
     // Only auto-join if we're currently idle
     if (status.phase === "idle") {
-      dispatch(joinLobby(invite.hostPeerId, invite.scriptUrl));
+      dispatch(joinLobby(invite.hostPeerId, invite.scriptUrl, invite.lobbyId));
     }
   // Run only once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps

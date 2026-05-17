@@ -27,6 +27,7 @@ export type LobbyState = {
   status: LobbyStatus;
   scriptUrl: string | null;
   localPeerId: string | null;
+  serverLobbyId: string | null;
   players: LobbyPlayer[];
 };
 
@@ -38,6 +39,7 @@ const initialState: LobbyState = {
   status: { phase: "idle" },
   scriptUrl: null,
   localPeerId: null,
+  serverLobbyId: null,
   players: [],
 };
 
@@ -51,6 +53,7 @@ export const {
     _setIdle,
     _setLocalPeerId,
     _setScriptUrl,
+    _setServerLobbyId,
     _playerJoined,
     _playerLeft,
     _playerReady,
@@ -79,6 +82,7 @@ export const {
       state.status = { phase: "idle" };
       state.scriptUrl = null;
       state.localPeerId = null;
+      state.serverLobbyId = null;
       state.players = [];
     },
     _setLocalPeerId: (state, action: PayloadAction<string>) => {
@@ -86,6 +90,9 @@ export const {
     },
     _setScriptUrl: (state, action: PayloadAction<string>) => {
       state.scriptUrl = action.payload;
+    },
+    _setServerLobbyId: (state, action: PayloadAction<string | null>) => {
+      state.serverLobbyId = action.payload;
     },
     _playerJoined: (state, action: PayloadAction<LobbyPlayer>) => {
       if (!state.players.find((p) => p.peerId === action.payload.peerId)) {
@@ -130,7 +137,19 @@ export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
       dispatch(_setLocalPeerId(localPeerId));
 
       const basePath = window.location.origin + "/lobby";
-      const inviteUrl = basePath + buildInviteFragment(localPeerId, scriptUrl);
+      let serverLobbyId: string | null = null;
+      if (token) {
+        try {
+          serverLobbyId = await p2p.createServerLobby(scriptUrl);
+        } catch {
+          // Keep peer-id invites working even if server-side lobby creation fails.
+          serverLobbyId = null;
+        }
+      }
+      dispatch(_setServerLobbyId(serverLobbyId));
+
+      const inviteUrl =
+        basePath + buildInviteFragment(localPeerId, scriptUrl, serverLobbyId ?? undefined);
 
       dispatch(_playerJoined({ peerId: localPeerId, name: null, ready: false }));
       dispatch(_setHosting(inviteUrl));
@@ -147,7 +166,8 @@ export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
  */
 export function joinLobby(
   hostPeerId: string,
-  scriptUrl: string
+  scriptUrl: string,
+  lobbyId?: string
 ): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     dispatch(_setJoining());
@@ -163,6 +183,16 @@ export function joinLobby(
       dispatch(_playerJoined({ peerId: localPeerId, name: null, ready: false }));
 
       await p2p.connectToPeerViaRelay(hostPeerId);
+      if (token && lobbyId) {
+        try {
+          await p2p.joinServerLobby(lobbyId);
+          dispatch(_setServerLobbyId(lobbyId));
+        } catch {
+          dispatch(_setServerLobbyId(null));
+        }
+      } else {
+        dispatch(_setServerLobbyId(null));
+      }
       dispatch(_setActive());
     } catch (err) {
       dispatch(
@@ -174,7 +204,15 @@ export function joinLobby(
 
 /** Leave the lobby and stop the P2P node. */
 export function leaveLobby(): AppThunk<Promise<void>> {
-  return async (dispatch) => {
+  return async (dispatch, getState) => {
+    const serverLobbyId = getState().lobby.serverLobbyId;
+    if (serverLobbyId) {
+      try {
+        await p2p.leaveServerLobby(serverLobbyId);
+      } catch {
+        // Always continue local cleanup.
+      }
+    }
     await p2p.stopNode();
     dispatch(_setIdle());
   };
@@ -187,6 +225,8 @@ export function leaveLobby(): AppThunk<Promise<void>> {
 export const selectLobbyStatus = (state: RootState) => state.lobby.status;
 export const selectLobbyScriptUrl = (state: RootState) => state.lobby.scriptUrl;
 export const selectLobbyLocalPeerId = (state: RootState) => state.lobby.localPeerId;
+export const selectLobbyServerLobbyId = (state: RootState) =>
+  state.lobby.serverLobbyId;
 export const selectLobbyPlayers = (state: RootState) => state.lobby.players;
 
 export default reducer;

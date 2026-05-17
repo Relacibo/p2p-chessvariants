@@ -6,23 +6,59 @@ import { identify } from "@libp2p/identify";
 import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
 import { multiaddr } from "@multiformats/multiaddr";
 import type { Uint8ArrayList } from "uint8arraylist";
-import { type NewGameEvent, C2SMsg, S2CMsg } from "./bebop/generated";
+import { type LobbyInvite, C2SMsg, S2CMsg } from "./bebop/generated";
 
 const C2S_PROTOCOL = "/c2s/v1";
 const S2C_PROTOCOL = "/s2c/v1";
 
 let node: Libp2p | null = null;
 let serverMultiaddrStr: string | null = null;
+let lobbyHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-export type GameInviteCallback = (
-  event: NewGameEvent,
-  resolve: (accepted: boolean) => void
-) => void;
+const NIL_GUID = "00000000-0000-0000-0000-000000000000";
+const DEFAULT_VARIANT_VERSION = "rhai-v1";
 
+export type GameInviteCallback = (event: LobbyInvite) => void;
 let gameInviteCallback: GameInviteCallback | null = null;
 
 export function setGameInviteCallback(cb: GameInviteCallback) {
   gameInviteCallback = cb;
+}
+
+function stopLobbyHeartbeat() {
+  if (lobbyHeartbeatTimer !== null) {
+    clearInterval(lobbyHeartbeatTimer);
+    lobbyHeartbeatTimer = null;
+  }
+}
+
+function startLobbyHeartbeat(lobbyId: string) {
+  stopLobbyHeartbeat();
+  lobbyHeartbeatTimer = setInterval(async () => {
+    try {
+      await sendC2S({ tag: 10, value: { lobbyId } });
+    } catch {
+      // Heartbeats are best-effort and should not crash the app.
+    }
+  }, 5000);
+}
+
+async function installS2CHandler(): Promise<void> {
+  if (!node) return;
+  await node.handle(S2C_PROTOCOL, async (stream) => {
+    const bytes = await readStream(stream);
+    if (bytes.length === 0) return;
+    const msg = S2CMsg.decode(bytes);
+
+    if (msg.tag === 11 && gameInviteCallback) {
+      gameInviteCallback(msg.value);
+      try {
+        await sendC2S({ tag: 11, value: {} });
+      } catch {
+        // Ack is best-effort.
+      }
+    }
+  });
 }
 
 async function fetchServerInfo(): Promise<{
@@ -85,6 +121,49 @@ export async function connectToPeerViaRelay(
   await node.dial(relayedAddr);
 }
 
+/** Create a server-tracked lobby for authenticated users. */
+export async function createServerLobby(scriptUrl: string): Promise<string> {
+  const response = await sendC2S({
+    tag: 3,
+    value: {
+      variantId: NIL_GUID,
+      variantVersion: DEFAULT_VARIANT_VERSION,
+      scriptUrl,
+    },
+  });
+  if (
+    !response ||
+    response.tag !== 3 ||
+    response.value.success !== true ||
+    !response.value.lobbyId
+  ) {
+    throw new Error("Server lobby creation failed");
+  }
+  startLobbyHeartbeat(response.value.lobbyId);
+  return response.value.lobbyId;
+}
+
+/** Join a server-tracked lobby for authenticated users. */
+export async function joinServerLobby(lobbyId: string): Promise<void> {
+  const response = await sendC2S({
+    tag: 5,
+    value: { lobbyId },
+  });
+  if (!response || response.tag !== 4 || response.value.success !== true) {
+    throw new Error("Server lobby join failed");
+  }
+  startLobbyHeartbeat(lobbyId);
+}
+
+/** Leave a server-tracked lobby. */
+export async function leaveServerLobby(lobbyId: string): Promise<void> {
+  stopLobbyHeartbeat();
+  await sendC2S({
+    tag: 6,
+    value: { lobbyId },
+  });
+}
+
 async function createAndStartNode(): Promise<Libp2p> {
   const newNode = await createLibp2p({
     transports: [webRTCDirect(), webRTC(), circuitRelayTransport()],
@@ -108,28 +187,7 @@ export async function initNode(jwt: string): Promise<string> {
   serverMultiaddrStr = serverInfo.multiaddr;
 
   node = await createAndStartNode();
-
-  await node.handle(S2C_PROTOCOL, async (stream) => {
-    const bytes = await readStream(stream);
-    const msg = S2CMsg.decode(bytes);
-
-    if (msg.tag === 4) {
-      const event = msg.value;
-      if (gameInviteCallback) {
-        let answered = false;
-        await new Promise<void>((outerResolve) => {
-          gameInviteCallback!(event, async (accepted: boolean) => {
-            if (answered) return;
-            answered = true;
-            const answer = C2SMsg.encode({ tag: 4, value: { accepted } });
-            stream.send(answer);
-            await stream.close();
-            outerResolve();
-          });
-        });
-      }
-    }
-  });
+  await installS2CHandler();
 
   await node.dial(multiaddr(serverMultiaddrStr));
 
@@ -156,12 +214,14 @@ export async function initNodeAsGuest(): Promise<string> {
   serverMultiaddrStr = serverInfo.multiaddr;
 
   node = await createAndStartNode();
+  await installS2CHandler();
   await node.dial(multiaddr(serverMultiaddrStr));
 
   return node.peerId.toString();
 }
 
 export async function stopNode(): Promise<void> {
+  stopLobbyHeartbeat();
   if (node) {
     await node.stop();
     node = null;
@@ -172,4 +232,3 @@ export async function stopNode(): Promise<void> {
 export function getLocalPeerId(): string | null {
   return node?.peerId.toString() ?? null;
 }
-

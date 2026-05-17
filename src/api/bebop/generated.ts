@@ -17,63 +17,128 @@
 import { BebopView, BebopRuntimeError, BebopRecord } from "bebop";
 
 export const BEBOP_SCHEMA = new Uint8Array ([
-3, 15, 0, 0, 0, 82, 101, 103, 105, 115, 116, 101, 114, 80,
+3, 34, 0, 0, 0, 82, 101, 103, 105, 115, 116, 101, 114, 80,
 101, 101, 114, 0, 1, 0, 0, 4, 0, 0, 0, 0, 1, 65, 117, 116,
 104, 84, 111, 107, 101, 110, 0, 245, 255, 255, 255, 0, 71,
 101, 116, 70, 114, 105, 101, 110, 100, 80, 101, 101, 114,
 73, 100, 0, 1, 0, 0, 16, 0, 0, 0, 1, 1, 70, 114, 105, 101,
 110, 100, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255,
-255, 0, 78, 101, 119, 71, 97, 109, 101, 0, 1, 0, 0, 40, 0,
-0, 0, 0, 4, 82, 101, 99, 101, 105, 118, 101, 114, 85, 115,
-101, 114, 73, 100, 0, 244, 255, 255, 255, 0, 86, 97, 114,
-105, 97, 110, 116, 73, 100, 0, 244, 255, 255, 255, 0, 86,
-97, 114, 105, 97, 110, 116, 86, 101, 114, 115, 105, 111,
-110, 0, 245, 255, 255, 255, 0, 83, 99, 114, 105, 112, 116,
-85, 114, 108, 0, 245, 255, 255, 255, 0, 78, 101, 119, 71,
-97, 109, 101, 65, 110, 115, 119, 101, 114, 0, 1, 0, 0, 1,
-0, 0, 0, 1, 1, 65, 99, 99, 101, 112, 116, 101, 100, 0,
-255, 255, 255, 255, 0, 67, 50, 115, 77, 115, 103, 0, 3, 0,
-6, 0, 0, 0, 4, 1, 0, 0, 0, 0, 2, 1, 0, 0, 0, 3, 2, 0, 0,
-0, 4, 3, 0, 0, 0, 76, 111, 98, 98, 121, 74, 111, 105, 110,
-0, 2, 0, 5, 0, 0, 0, 2, 80, 101, 101, 114, 73, 100, 0,
+255, 0, 67, 114, 101, 97, 116, 101, 76, 111, 98, 98, 121,
+0, 1, 0, 0, 24, 0, 0, 0, 0, 3, 86, 97, 114, 105, 97, 110,
+116, 73, 100, 0, 244, 255, 255, 255, 0, 86, 97, 114, 105,
+97, 110, 116, 86, 101, 114, 115, 105, 111, 110, 0, 245,
+255, 255, 255, 0, 83, 99, 114, 105, 112, 116, 85, 114,
+108, 0, 245, 255, 255, 255, 0, 73, 110, 118, 105, 116,
+101, 84, 111, 76, 111, 98, 98, 121, 0, 1, 0, 0, 20, 0, 0,
+0, 0, 2, 76, 111, 98, 98, 121, 73, 100, 0, 244, 255, 255,
+255, 0, 70, 114, 105, 101, 110, 100, 85, 115, 101, 114,
+73, 100, 115, 0, 242, 255, 255, 255, 0, 244, 255, 255,
+255, 0, 74, 111, 105, 110, 76, 111, 98, 98, 121, 0, 1, 0,
+0, 16, 0, 0, 0, 1, 1, 76, 111, 98, 98, 121, 73, 100, 0,
+244, 255, 255, 255, 0, 76, 101, 97, 118, 101, 76, 111, 98,
+98, 121, 0, 1, 0, 0, 16, 0, 0, 0, 1, 1, 76, 111, 98, 98,
+121, 73, 100, 0, 244, 255, 255, 255, 0, 68, 101, 108, 101,
+116, 101, 76, 111, 98, 98, 121, 0, 1, 0, 0, 16, 0, 0, 0,
+1, 1, 76, 111, 98, 98, 121, 73, 100, 0, 244, 255, 255,
+255, 0, 83, 116, 97, 114, 116, 71, 97, 109, 101, 0, 1, 0,
+0, 16, 0, 0, 0, 1, 1, 76, 111, 98, 98, 121, 73, 100, 0,
+244, 255, 255, 255, 0, 71, 97, 109, 101, 69, 110, 100,
+101, 100, 0, 1, 0, 0, 16, 0, 0, 0, 1, 1, 76, 111, 98, 98,
+121, 73, 100, 0, 244, 255, 255, 255, 0, 76, 111, 98, 98,
+121, 72, 101, 97, 114, 116, 98, 101, 97, 116, 0, 1, 0, 0,
+16, 0, 0, 0, 1, 1, 76, 111, 98, 98, 121, 73, 100, 0, 244,
+255, 255, 255, 0, 76, 111, 98, 98, 121, 69, 118, 101, 110,
+116, 65, 99, 107, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 67, 50,
+115, 77, 115, 103, 0, 3, 0, 5, 0, 0, 0, 11, 1, 0, 0, 0, 0,
+2, 1, 0, 0, 0, 3, 2, 0, 0, 0, 4, 3, 0, 0, 0, 5, 4, 0, 0,
+0, 6, 5, 0, 0, 0, 7, 6, 0, 0, 0, 8, 7, 0, 0, 0, 9, 8, 0,
+0, 0, 10, 9, 0, 0, 0, 11, 10, 0, 0, 0, 76, 111, 98, 98,
+121, 74, 111, 105, 110, 0, 2, 0, 5, 0, 0, 0, 2, 80, 101,
+101, 114, 73, 100, 0, 245, 255, 255, 255, 0, 1, 68, 105,
+115, 112, 108, 97, 121, 78, 97, 109, 101, 0, 245, 255,
+255, 255, 0, 2, 76, 111, 98, 98, 121, 80, 108, 97, 121,
+101, 114, 76, 105, 115, 116, 0, 2, 0, 5, 0, 0, 0, 2, 80,
+101, 101, 114, 73, 100, 115, 0, 242, 255, 255, 255, 0,
 245, 255, 255, 255, 0, 1, 68, 105, 115, 112, 108, 97, 121,
-78, 97, 109, 101, 0, 245, 255, 255, 255, 0, 2, 76, 111,
-98, 98, 121, 80, 108, 97, 121, 101, 114, 76, 105, 115,
-116, 0, 2, 0, 5, 0, 0, 0, 2, 80, 101, 101, 114, 73, 100,
-115, 0, 242, 255, 255, 255, 0, 245, 255, 255, 255, 0, 1,
-68, 105, 115, 112, 108, 97, 121, 78, 97, 109, 101, 115, 0,
-242, 255, 255, 255, 0, 245, 255, 255, 255, 0, 2, 76, 111,
-98, 98, 121, 83, 116, 97, 114, 116, 0, 1, 0, 0, 4, 0, 0,
-0, 0, 1, 83, 99, 114, 105, 112, 116, 85, 114, 108, 0, 245,
-255, 255, 255, 0, 76, 111, 98, 98, 121, 76, 101, 97, 118,
-101, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 76, 111, 98, 98, 121,
-77, 115, 103, 0, 3, 0, 5, 0, 0, 0, 4, 1, 5, 0, 0, 0, 2, 6,
-0, 0, 0, 3, 7, 0, 0, 0, 4, 8, 0, 0, 0, 82, 101, 103, 105,
-115, 116, 101, 114, 80, 101, 101, 114, 82, 101, 115, 112,
-111, 110, 115, 101, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 83, 117,
-99, 99, 101, 115, 115, 0, 255, 255, 255, 255, 0, 71, 101,
-116, 70, 114, 105, 101, 110, 100, 80, 101, 101, 114, 73,
-100, 82, 101, 115, 112, 111, 110, 115, 101, 0, 2, 0, 5, 0,
-0, 0, 1, 80, 101, 101, 114, 73, 100, 0, 245, 255, 255,
-255, 0, 1, 78, 101, 119, 71, 97, 109, 101, 82, 101, 115,
-112, 111, 110, 115, 101, 0, 2, 0, 5, 0, 0, 0, 2, 65, 99,
-99, 101, 112, 116, 101, 100, 0, 255, 255, 255, 255, 0, 1,
-82, 101, 99, 101, 105, 118, 101, 114, 80, 101, 101, 114,
-73, 100, 0, 245, 255, 255, 255, 0, 2, 78, 101, 119, 71,
-97, 109, 101, 69, 118, 101, 110, 116, 0, 2, 0, 5, 0, 0, 0,
-7, 83, 101, 110, 100, 101, 114, 85, 115, 101, 114, 73,
-100, 0, 244, 255, 255, 255, 0, 1, 83, 101, 110, 100, 101,
-114, 85, 115, 101, 114, 78, 97, 109, 101, 0, 245, 255,
-255, 255, 0, 2, 86, 97, 114, 105, 97, 110, 116, 73, 100,
-0, 244, 255, 255, 255, 0, 3, 86, 97, 114, 105, 97, 110,
-116, 86, 101, 114, 115, 105, 111, 110, 0, 245, 255, 255,
-255, 0, 4, 84, 105, 109, 101, 111, 117, 116, 83, 101, 99,
-115, 0, 251, 255, 255, 255, 0, 5, 83, 101, 110, 100, 101,
-114, 80, 101, 101, 114, 73, 100, 0, 245, 255, 255, 255, 0,
-6, 83, 99, 114, 105, 112, 116, 85, 114, 108, 0, 245, 255,
-255, 255, 0, 7, 83, 50, 99, 77, 115, 103, 0, 3, 0, 6, 0,
-0, 0, 4, 1, 10, 0, 0, 0, 2, 11, 0, 0, 0, 3, 12, 0, 0, 0,
-4, 13, 0, 0, 0, 0, 0, 0, 0
+78, 97, 109, 101, 115, 0, 242, 255, 255, 255, 0, 245, 255,
+255, 255, 0, 2, 76, 111, 98, 98, 121, 83, 116, 97, 114,
+116, 0, 1, 0, 0, 4, 0, 0, 0, 0, 1, 83, 99, 114, 105, 112,
+116, 85, 114, 108, 0, 245, 255, 255, 255, 0, 76, 111, 98,
+98, 121, 76, 101, 97, 118, 101, 0, 1, 0, 0, 0, 0, 0, 0, 1,
+0, 80, 50, 112, 77, 115, 103, 0, 3, 0, 5, 0, 0, 0, 4, 1,
+12, 0, 0, 0, 2, 13, 0, 0, 0, 3, 14, 0, 0, 0, 4, 15, 0, 0,
+0, 82, 101, 103, 105, 115, 116, 101, 114, 80, 101, 101,
+114, 82, 101, 115, 112, 111, 110, 115, 101, 0, 1, 0, 0, 1,
+0, 0, 0, 1, 1, 83, 117, 99, 99, 101, 115, 115, 0, 255,
+255, 255, 255, 0, 71, 101, 116, 70, 114, 105, 101, 110,
+100, 80, 101, 101, 114, 73, 100, 82, 101, 115, 112, 111,
+110, 115, 101, 0, 2, 0, 5, 0, 0, 0, 1, 80, 101, 101, 114,
+73, 100, 0, 245, 255, 255, 255, 0, 1, 67, 114, 101, 97,
+116, 101, 76, 111, 98, 98, 121, 82, 101, 115, 112, 111,
+110, 115, 101, 0, 2, 0, 5, 0, 0, 0, 2, 83, 117, 99, 99,
+101, 115, 115, 0, 255, 255, 255, 255, 0, 1, 76, 111, 98,
+98, 121, 73, 100, 0, 244, 255, 255, 255, 0, 2, 74, 111,
+105, 110, 76, 111, 98, 98, 121, 82, 101, 115, 112, 111,
+110, 115, 101, 0, 2, 0, 5, 0, 0, 0, 6, 83, 117, 99, 99,
+101, 115, 115, 0, 255, 255, 255, 255, 0, 1, 77, 101, 109,
+98, 101, 114, 80, 101, 101, 114, 73, 100, 115, 0, 242,
+255, 255, 255, 0, 245, 255, 255, 255, 0, 2, 77, 101, 109,
+98, 101, 114, 78, 97, 109, 101, 115, 0, 242, 255, 255,
+255, 0, 245, 255, 255, 255, 0, 3, 77, 101, 109, 98, 101,
+114, 85, 115, 101, 114, 73, 100, 115, 0, 242, 255, 255,
+255, 0, 244, 255, 255, 255, 0, 4, 72, 111, 115, 116, 85,
+115, 101, 114, 73, 100, 0, 244, 255, 255, 255, 0, 5, 73,
+110, 71, 97, 109, 101, 0, 255, 255, 255, 255, 0, 6, 76,
+101, 97, 118, 101, 76, 111, 98, 98, 121, 82, 101, 115,
+112, 111, 110, 115, 101, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 68,
+101, 108, 101, 116, 101, 76, 111, 98, 98, 121, 82, 101,
+115, 112, 111, 110, 115, 101, 0, 2, 0, 5, 0, 0, 0, 1, 83,
+117, 99, 99, 101, 115, 115, 0, 255, 255, 255, 255, 0, 1,
+83, 116, 97, 114, 116, 71, 97, 109, 101, 82, 101, 115,
+112, 111, 110, 115, 101, 0, 2, 0, 5, 0, 0, 0, 1, 83, 117,
+99, 99, 101, 115, 115, 0, 255, 255, 255, 255, 0, 1, 71,
+97, 109, 101, 69, 110, 100, 101, 100, 82, 101, 115, 112,
+111, 110, 115, 101, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 76, 111,
+98, 98, 121, 72, 101, 97, 114, 116, 98, 101, 97, 116, 82,
+101, 115, 112, 111, 110, 115, 101, 0, 1, 0, 0, 0, 0, 0, 0,
+1, 0, 73, 110, 118, 105, 116, 101, 84, 111, 76, 111, 98,
+98, 121, 82, 101, 115, 112, 111, 110, 115, 101, 0, 2, 0,
+5, 0, 0, 0, 1, 83, 117, 99, 99, 101, 115, 115, 0, 255,
+255, 255, 255, 0, 1, 76, 111, 98, 98, 121, 73, 110, 118,
+105, 116, 101, 0, 2, 0, 5, 0, 0, 0, 6, 76, 111, 98, 98,
+121, 73, 100, 0, 244, 255, 255, 255, 0, 1, 72, 111, 115,
+116, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255, 255, 0,
+2, 72, 111, 115, 116, 78, 97, 109, 101, 0, 245, 255, 255,
+255, 0, 3, 86, 97, 114, 105, 97, 110, 116, 73, 100, 0,
+244, 255, 255, 255, 0, 4, 86, 97, 114, 105, 97, 110, 116,
+86, 101, 114, 115, 105, 111, 110, 0, 245, 255, 255, 255,
+0, 5, 83, 99, 114, 105, 112, 116, 85, 114, 108, 0, 245,
+255, 255, 255, 0, 6, 76, 111, 98, 98, 121, 77, 101, 109,
+98, 101, 114, 74, 111, 105, 110, 101, 100, 0, 2, 0, 5, 0,
+0, 0, 4, 76, 111, 98, 98, 121, 73, 100, 0, 244, 255, 255,
+255, 0, 1, 80, 101, 101, 114, 73, 100, 0, 245, 255, 255,
+255, 0, 2, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255,
+255, 0, 3, 68, 105, 115, 112, 108, 97, 121, 78, 97, 109,
+101, 0, 245, 255, 255, 255, 0, 4, 76, 111, 98, 98, 121,
+77, 101, 109, 98, 101, 114, 76, 101, 102, 116, 0, 2, 0, 5,
+0, 0, 0, 2, 76, 111, 98, 98, 121, 73, 100, 0, 244, 255,
+255, 255, 0, 1, 85, 115, 101, 114, 73, 100, 0, 244, 255,
+255, 255, 0, 2, 76, 111, 98, 98, 121, 68, 101, 108, 101,
+116, 101, 100, 0, 2, 0, 5, 0, 0, 0, 1, 76, 111, 98, 98,
+121, 73, 100, 0, 244, 255, 255, 255, 0, 1, 76, 111, 98,
+98, 121, 71, 97, 109, 101, 83, 116, 97, 114, 116, 101,
+100, 0, 2, 0, 5, 0, 0, 0, 2, 76, 111, 98, 98, 121, 73,
+100, 0, 244, 255, 255, 255, 0, 1, 80, 101, 101, 114, 73,
+100, 115, 0, 242, 255, 255, 255, 0, 245, 255, 255, 255, 0,
+2, 76, 111, 98, 98, 121, 71, 97, 109, 101, 69, 110, 100,
+101, 100, 0, 2, 0, 5, 0, 0, 0, 1, 76, 111, 98, 98, 121,
+73, 100, 0, 244, 255, 255, 255, 0, 1, 83, 50, 99, 77, 115,
+103, 0, 3, 0, 5, 0, 0, 0, 16, 1, 17, 0, 0, 0, 2, 18, 0, 0,
+0, 3, 19, 0, 0, 0, 4, 20, 0, 0, 0, 5, 21, 0, 0, 0, 6, 22,
+0, 0, 0, 7, 23, 0, 0, 0, 8, 24, 0, 0, 0, 9, 25, 0, 0, 0,
+10, 26, 0, 0, 0, 11, 27, 0, 0, 0, 12, 28, 0, 0, 0, 13, 29,
+0, 0, 0, 14, 30, 0, 0, 0, 15, 31, 0, 0, 0, 16, 32, 0, 0,
+0, 0, 0, 0, 0
 ]);
 
 export interface RegisterPeer {
@@ -168,9 +233,7 @@ export const GetFriendPeerId = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.
 ));
 
 
-export interface NewGame {
-
-  readonly receiverUserId: string;
+export interface CreateLobby {
 
   readonly variantId: string;
 
@@ -179,106 +242,439 @@ export interface NewGame {
   readonly scriptUrl: string;
 }
 
-export const NewGame = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+export const CreateLobby = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
-  (data: NewGame): NewGame & BebopRecord => {
+  (data: CreateLobby): CreateLobby & BebopRecord => {
     return Object.freeze({
       ...data,
       encode(): Uint8Array {
-        return NewGame.encode(this);
+        return CreateLobby.encode(this);
       }
     });
   },
   // Static methods
   {
-    encode(record: NewGame): Uint8Array {
+    encode(record: CreateLobby): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
-      NewGame.encodeInto(record, view);
+      CreateLobby.encodeInto(record, view);
       return view.toArray();
     },
 
-    encodeInto(record: NewGame, view: BebopView): void {
-      view.writeGuid(record.receiverUserId);
+    encodeInto(record: CreateLobby, view: BebopView): void {
       view.writeGuid(record.variantId);
       view.writeString(record.variantVersion);
       view.writeString(record.scriptUrl);
     },
 
-    decode(buffer: Uint8Array): NewGame & BebopRecord {
+    decode(buffer: Uint8Array): CreateLobby & BebopRecord {
       const view = BebopView.getInstance();
       view.startReading(buffer);
-      const decoded = NewGame.readFrom(view);
-      return NewGame(decoded);
+      const decoded = CreateLobby.readFrom(view);
+      return CreateLobby(decoded);
     },
 
-    readFrom(view: BebopView): NewGame {
+    readFrom(view: BebopView): CreateLobby {
       let field0: string;
       field0 = view.readGuid();
       let field1: string;
-      field1 = view.readGuid();
+      field1 = view.readString();
       let field2: string;
       field2 = view.readString();
-      let field3: string;
-      field3 = view.readString();
       return {
-        receiverUserId: field0,
-        variantId: field1,
-        variantVersion: field2,
-        scriptUrl: field3,
+        variantId: field0,
+        variantVersion: field1,
+        scriptUrl: field2,
       };
     },
   }
 ));
 
 
-export interface NewGameAnswer {
+export interface InviteToLobby {
 
-  readonly accepted: boolean;
+  readonly lobbyId: string;
+
+  readonly friendUserIds: string[];
 }
 
-export const NewGameAnswer = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+export const InviteToLobby = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
-  (data: NewGameAnswer): NewGameAnswer & BebopRecord => {
+  (data: InviteToLobby): InviteToLobby & BebopRecord => {
     return Object.freeze({
       ...data,
       encode(): Uint8Array {
-        return NewGameAnswer.encode(this);
+        return InviteToLobby.encode(this);
       }
     });
   },
   // Static methods
   {
-    encode(record: NewGameAnswer): Uint8Array {
+    encode(record: InviteToLobby): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
-      NewGameAnswer.encodeInto(record, view);
+      InviteToLobby.encodeInto(record, view);
       return view.toArray();
     },
 
-    encodeInto(record: NewGameAnswer, view: BebopView): void {
-      view.writeByte(Number(record.accepted));
+    encodeInto(record: InviteToLobby, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+      {
+        const length0 = record.friendUserIds.length;
+        view.writeUint32(length0);
+        for (let i0 = 0; i0 < length0; i0++) {
+          view.writeGuid(record.friendUserIds[i0]);
+        }
+      }
     },
 
-    decode(buffer: Uint8Array): NewGameAnswer & BebopRecord {
+    decode(buffer: Uint8Array): InviteToLobby & BebopRecord {
       const view = BebopView.getInstance();
       view.startReading(buffer);
-      const decoded = NewGameAnswer.readFrom(view);
-      return NewGameAnswer(decoded);
+      const decoded = InviteToLobby.readFrom(view);
+      return InviteToLobby(decoded);
     },
 
-    readFrom(view: BebopView): NewGameAnswer {
-      let field0: boolean;
-      field0 = !!view.readByte();
+    readFrom(view: BebopView): InviteToLobby {
+      let field0: string;
+      field0 = view.readGuid();
+      let field1: string[];
+      {
+        const length0 = view.readUint32();
+        field1 = [];
+        for (let i0 = 0; i0 < length0; i0++) {
+          let x0: string;
+          x0 = view.readGuid();
+          field1[i0] = x0;
+        }
+      }
       return {
-        accepted: field0,
+        lobbyId: field0,
+        friendUserIds: field1,
       };
     },
   }
 ));
 
 
-export type C2SMsg = { tag: 1, value: RegisterPeer } | { tag: 2, value: GetFriendPeerId } | { tag: 3, value: NewGame } | { tag: 4, value: NewGameAnswer };
+export interface JoinLobby {
+
+  readonly lobbyId: string;
+}
+
+export const JoinLobby = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: JoinLobby): JoinLobby & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return JoinLobby.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: JoinLobby): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      JoinLobby.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: JoinLobby, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+    },
+
+    decode(buffer: Uint8Array): JoinLobby & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = JoinLobby.readFrom(view);
+      return JoinLobby(decoded);
+    },
+
+    readFrom(view: BebopView): JoinLobby {
+      let field0: string;
+      field0 = view.readGuid();
+      return {
+        lobbyId: field0,
+      };
+    },
+  }
+));
+
+
+export interface LeaveLobby {
+
+  readonly lobbyId: string;
+}
+
+export const LeaveLobby = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LeaveLobby): LeaveLobby & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return LeaveLobby.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: LeaveLobby): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LeaveLobby.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LeaveLobby, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+    },
+
+    decode(buffer: Uint8Array): LeaveLobby & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LeaveLobby.readFrom(view);
+      return LeaveLobby(decoded);
+    },
+
+    readFrom(view: BebopView): LeaveLobby {
+      let field0: string;
+      field0 = view.readGuid();
+      return {
+        lobbyId: field0,
+      };
+    },
+  }
+));
+
+
+export interface DeleteLobby {
+
+  readonly lobbyId: string;
+}
+
+export const DeleteLobby = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: DeleteLobby): DeleteLobby & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return DeleteLobby.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: DeleteLobby): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      DeleteLobby.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: DeleteLobby, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+    },
+
+    decode(buffer: Uint8Array): DeleteLobby & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = DeleteLobby.readFrom(view);
+      return DeleteLobby(decoded);
+    },
+
+    readFrom(view: BebopView): DeleteLobby {
+      let field0: string;
+      field0 = view.readGuid();
+      return {
+        lobbyId: field0,
+      };
+    },
+  }
+));
+
+
+export interface StartGame {
+
+  readonly lobbyId: string;
+}
+
+export const StartGame = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: StartGame): StartGame & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return StartGame.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: StartGame): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      StartGame.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: StartGame, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+    },
+
+    decode(buffer: Uint8Array): StartGame & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = StartGame.readFrom(view);
+      return StartGame(decoded);
+    },
+
+    readFrom(view: BebopView): StartGame {
+      let field0: string;
+      field0 = view.readGuid();
+      return {
+        lobbyId: field0,
+      };
+    },
+  }
+));
+
+
+export interface GameEnded {
+
+  readonly lobbyId: string;
+}
+
+export const GameEnded = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: GameEnded): GameEnded & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return GameEnded.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: GameEnded): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      GameEnded.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: GameEnded, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+    },
+
+    decode(buffer: Uint8Array): GameEnded & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = GameEnded.readFrom(view);
+      return GameEnded(decoded);
+    },
+
+    readFrom(view: BebopView): GameEnded {
+      let field0: string;
+      field0 = view.readGuid();
+      return {
+        lobbyId: field0,
+      };
+    },
+  }
+));
+
+
+export interface LobbyHeartbeat {
+
+  readonly lobbyId: string;
+}
+
+export const LobbyHeartbeat = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyHeartbeat): LobbyHeartbeat & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return LobbyHeartbeat.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: LobbyHeartbeat): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyHeartbeat.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyHeartbeat, view: BebopView): void {
+      view.writeGuid(record.lobbyId);
+    },
+
+    decode(buffer: Uint8Array): LobbyHeartbeat & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyHeartbeat.readFrom(view);
+      return LobbyHeartbeat(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyHeartbeat {
+      let field0: string;
+      field0 = view.readGuid();
+      return {
+        lobbyId: field0,
+      };
+    },
+  }
+));
+
+
+export interface LobbyEventAck {
+}
+
+export const LobbyEventAck = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyEventAck): LobbyEventAck & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return LobbyEventAck.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: LobbyEventAck): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyEventAck.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyEventAck, view: BebopView): void {
+
+    },
+
+    decode(buffer: Uint8Array): LobbyEventAck & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyEventAck.readFrom(view);
+      return LobbyEventAck(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyEventAck {
+      return {
+      };
+    },
+  }
+));
+
+
+export type C2SMsg = { tag: 1, value: RegisterPeer } | { tag: 2, value: GetFriendPeerId } | { tag: 3, value: CreateLobby } | { tag: 4, value: InviteToLobby } | { tag: 5, value: JoinLobby } | { tag: 6, value: LeaveLobby } | { tag: 7, value: DeleteLobby } | { tag: 8, value: StartGame } | { tag: 9, value: GameEnded } | { tag: 10, value: LobbyHeartbeat } | { tag: 11, value: LobbyEventAck };
 
 export const C2SMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
@@ -300,12 +696,40 @@ export const C2SMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
       return C2SMsg({ tag: 2, value });
     },
 
-    fromNewGame(value: NewGame): C2SMsg & BebopRecord {
+    fromCreateLobby(value: CreateLobby): C2SMsg & BebopRecord {
       return C2SMsg({ tag: 3, value });
     },
 
-    fromNewGameAnswer(value: NewGameAnswer): C2SMsg & BebopRecord {
+    fromInviteToLobby(value: InviteToLobby): C2SMsg & BebopRecord {
       return C2SMsg({ tag: 4, value });
+    },
+
+    fromJoinLobby(value: JoinLobby): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 5, value });
+    },
+
+    fromLeaveLobby(value: LeaveLobby): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 6, value });
+    },
+
+    fromDeleteLobby(value: DeleteLobby): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 7, value });
+    },
+
+    fromStartGame(value: StartGame): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 8, value });
+    },
+
+    fromGameEnded(value: GameEnded): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 9, value });
+    },
+
+    fromLobbyHeartbeat(value: LobbyHeartbeat): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 10, value });
+    },
+
+    fromLobbyEventAck(value: LobbyEventAck): C2SMsg & BebopRecord {
+      return C2SMsg({ tag: 11, value });
     },
 
     encode(record: C2SMsg): Uint8Array {
@@ -327,10 +751,31 @@ export const C2SMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
           GetFriendPeerId.encodeInto(record.value, view);
           break;
         case 3:
-          NewGame.encodeInto(record.value, view);
+          CreateLobby.encodeInto(record.value, view);
           break;
         case 4:
-          NewGameAnswer.encodeInto(record.value, view);
+          InviteToLobby.encodeInto(record.value, view);
+          break;
+        case 5:
+          JoinLobby.encodeInto(record.value, view);
+          break;
+        case 6:
+          LeaveLobby.encodeInto(record.value, view);
+          break;
+        case 7:
+          DeleteLobby.encodeInto(record.value, view);
+          break;
+        case 8:
+          StartGame.encodeInto(record.value, view);
+          break;
+        case 9:
+          GameEnded.encodeInto(record.value, view);
+          break;
+        case 10:
+          LobbyHeartbeat.encodeInto(record.value, view);
+          break;
+        case 11:
+          LobbyEventAck.encodeInto(record.value, view);
           break;
       }
       const end = view.length;
@@ -354,9 +799,23 @@ export const C2SMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
         case 2:
           return { tag: 2, value: GetFriendPeerId.readFrom(view) };
         case 3:
-          return { tag: 3, value: NewGame.readFrom(view) };
+          return { tag: 3, value: CreateLobby.readFrom(view) };
         case 4:
-          return { tag: 4, value: NewGameAnswer.readFrom(view) };
+          return { tag: 4, value: InviteToLobby.readFrom(view) };
+        case 5:
+          return { tag: 5, value: JoinLobby.readFrom(view) };
+        case 6:
+          return { tag: 6, value: LeaveLobby.readFrom(view) };
+        case 7:
+          return { tag: 7, value: DeleteLobby.readFrom(view) };
+        case 8:
+          return { tag: 8, value: StartGame.readFrom(view) };
+        case 9:
+          return { tag: 9, value: GameEnded.readFrom(view) };
+        case 10:
+          return { tag: 10, value: LobbyHeartbeat.readFrom(view) };
+        case 11:
+          return { tag: 11, value: LobbyEventAck.readFrom(view) };
         default:
           view.index = end;
           throw new BebopRuntimeError(`Unknown union discriminator: ${tag}`);
@@ -633,44 +1092,44 @@ export const LobbyLeave = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assig
 ));
 
 
-export type LobbyMsg = { tag: 1, value: LobbyJoin } | { tag: 2, value: LobbyPlayerList } | { tag: 3, value: LobbyStart } | { tag: 4, value: LobbyLeave };
+export type P2PMsg = { tag: 1, value: LobbyJoin } | { tag: 2, value: LobbyPlayerList } | { tag: 3, value: LobbyStart } | { tag: 4, value: LobbyLeave };
 
-export const LobbyMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
-  (data: LobbyMsg): LobbyMsg & BebopRecord => {
+  (data: P2PMsg): P2PMsg & BebopRecord => {
     return {
       ...data,
       encode(): Uint8Array {
-        return LobbyMsg.encode(this);
+        return P2PMsg.encode(this);
       }
     };
   },
   // Static methods
   {
-    fromLobbyJoin(value: LobbyJoin): LobbyMsg & BebopRecord {
-      return LobbyMsg({ tag: 1, value });
+    fromLobbyJoin(value: LobbyJoin): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 1, value });
     },
 
-    fromLobbyPlayerList(value: LobbyPlayerList): LobbyMsg & BebopRecord {
-      return LobbyMsg({ tag: 2, value });
+    fromLobbyPlayerList(value: LobbyPlayerList): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 2, value });
     },
 
-    fromLobbyStart(value: LobbyStart): LobbyMsg & BebopRecord {
-      return LobbyMsg({ tag: 3, value });
+    fromLobbyStart(value: LobbyStart): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 3, value });
     },
 
-    fromLobbyLeave(value: LobbyLeave): LobbyMsg & BebopRecord {
-      return LobbyMsg({ tag: 4, value });
+    fromLobbyLeave(value: LobbyLeave): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 4, value });
     },
 
-    encode(record: LobbyMsg): Uint8Array {
+    encode(record: P2PMsg): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
-      LobbyMsg.encodeInto(record, view);
+      P2PMsg.encodeInto(record, view);
       return view.toArray();
     },
 
-    encodeInto(record: LobbyMsg, view: BebopView): void {
+    encodeInto(record: P2PMsg, view: BebopView): void {
       const pos = view.reserveMessageLength();
       const start = view.length + 1;
       view.writeByte(record.tag);
@@ -692,14 +1151,14 @@ export const LobbyMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
       view.fillMessageLength(pos, end - start);
     },
 
-    decode(buffer: Uint8Array): LobbyMsg & BebopRecord {
+    decode(buffer: Uint8Array): P2PMsg & BebopRecord {
       const view = BebopView.getInstance();
       view.startReading(buffer);
-      const decoded = LobbyMsg.readFrom(view);
-      return LobbyMsg(decoded);
+      const decoded = P2PMsg.readFrom(view);
+      return P2PMsg(decoded);
     },
 
-    readFrom(view: BebopView): LobbyMsg {
+    readFrom(view: BebopView): P2PMsg {
       const length = view.readMessageLength();
       const end = view.index + 1 + length;
       const tag = view.readByte();
@@ -833,57 +1292,57 @@ export const GetFriendPeerIdResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/
 ));
 
 
-export interface NewGameResponse {
+export interface CreateLobbyResponse {
 
-  accepted?: boolean;
+  success?: boolean;
 
-  receiverPeerId?: string;
+  lobbyId?: string;
 }
 
-export const NewGameResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+export const CreateLobbyResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
-  (data: NewGameResponse): NewGameResponse & BebopRecord => {
+  (data: CreateLobbyResponse): CreateLobbyResponse & BebopRecord => {
     return {
       ...data,
       encode(): Uint8Array {
-        return NewGameResponse.encode(this);
+        return CreateLobbyResponse.encode(this);
       }
     };
   },
   // Static methods
   {
-    encode(record: NewGameResponse): Uint8Array {
+    encode(record: CreateLobbyResponse): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
-      NewGameResponse.encodeInto(record, view);
+      CreateLobbyResponse.encodeInto(record, view);
       return view.toArray();
     },
 
-    encodeInto(record: NewGameResponse, view: BebopView): void {
+    encodeInto(record: CreateLobbyResponse, view: BebopView): void {
       const pos = view.reserveMessageLength();
       const start = view.length;
-      if (record.accepted !== undefined) {
+      if (record.success !== undefined) {
         view.writeByte(1);
-        view.writeByte(Number(record.accepted));
+        view.writeByte(Number(record.success));
       }
-      if (record.receiverPeerId !== undefined) {
+      if (record.lobbyId !== undefined) {
         view.writeByte(2);
-        view.writeString(record.receiverPeerId);
+        view.writeGuid(record.lobbyId);
       }
       view.writeByte(0);
       const end = view.length;
       view.fillMessageLength(pos, end - start);
     },
 
-    decode(buffer: Uint8Array): NewGameResponse & BebopRecord {
+    decode(buffer: Uint8Array): CreateLobbyResponse & BebopRecord {
       const view = BebopView.getInstance();
       view.startReading(buffer);
-      const decoded = NewGameResponse.readFrom(view);
-      return NewGameResponse(decoded);
+      const decoded = CreateLobbyResponse.readFrom(view);
+      return CreateLobbyResponse(decoded);
     },
 
-    readFrom(view: BebopView): NewGameResponse {
-      const message: NewGameResponse = {};
+    readFrom(view: BebopView): CreateLobbyResponse {
+      const message: CreateLobbyResponse = {};
       const length = view.readMessageLength();
       const end = view.index + length;
       while (true) {
@@ -892,11 +1351,11 @@ export const NewGameResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.
             return message;
 
           case 1:
-            message.accepted = !!view.readByte();
+            message.success = !!view.readByte();
             break;
 
           case 2:
-            message.receiverPeerId = view.readString();
+            message.lobbyId = view.readGuid();
             break;
 
           default:
@@ -909,87 +1368,99 @@ export const NewGameResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.
 ));
 
 
-export interface NewGameEvent {
+export interface JoinLobbyResponse {
 
-  senderUserId?: string;
+  success?: boolean;
 
-  senderUserName?: string;
+  memberPeerIds?: string[];
 
-  variantId?: string;
+  memberNames?: string[];
 
-  variantVersion?: string;
+  memberUserIds?: string[];
 
-  timeoutSecs?: number;
+  hostUserId?: string;
 
-  senderPeerId?: string;
-
-  scriptUrl?: string;
+  inGame?: boolean;
 }
 
-export const NewGameEvent = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+export const JoinLobbyResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
-  (data: NewGameEvent): NewGameEvent & BebopRecord => {
+  (data: JoinLobbyResponse): JoinLobbyResponse & BebopRecord => {
     return {
       ...data,
       encode(): Uint8Array {
-        return NewGameEvent.encode(this);
+        return JoinLobbyResponse.encode(this);
       }
     };
   },
   // Static methods
   {
-    encode(record: NewGameEvent): Uint8Array {
+    encode(record: JoinLobbyResponse): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
-      NewGameEvent.encodeInto(record, view);
+      JoinLobbyResponse.encodeInto(record, view);
       return view.toArray();
     },
 
-    encodeInto(record: NewGameEvent, view: BebopView): void {
+    encodeInto(record: JoinLobbyResponse, view: BebopView): void {
       const pos = view.reserveMessageLength();
       const start = view.length;
-      if (record.senderUserId !== undefined) {
+      if (record.success !== undefined) {
         view.writeByte(1);
-        view.writeGuid(record.senderUserId);
+        view.writeByte(Number(record.success));
       }
-      if (record.senderUserName !== undefined) {
+      if (record.memberPeerIds !== undefined) {
         view.writeByte(2);
-        view.writeString(record.senderUserName);
+        {
+        const length0 = record.memberPeerIds.length;
+        view.writeUint32(length0);
+        for (let i0 = 0; i0 < length0; i0++) {
+          view.writeString(record.memberPeerIds[i0]);
+        }
       }
-      if (record.variantId !== undefined) {
+      }
+      if (record.memberNames !== undefined) {
         view.writeByte(3);
-        view.writeGuid(record.variantId);
+        {
+        const length0 = record.memberNames.length;
+        view.writeUint32(length0);
+        for (let i0 = 0; i0 < length0; i0++) {
+          view.writeString(record.memberNames[i0]);
+        }
       }
-      if (record.variantVersion !== undefined) {
+      }
+      if (record.memberUserIds !== undefined) {
         view.writeByte(4);
-        view.writeString(record.variantVersion);
+        {
+        const length0 = record.memberUserIds.length;
+        view.writeUint32(length0);
+        for (let i0 = 0; i0 < length0; i0++) {
+          view.writeGuid(record.memberUserIds[i0]);
+        }
       }
-      if (record.timeoutSecs !== undefined) {
+      }
+      if (record.hostUserId !== undefined) {
         view.writeByte(5);
-        view.writeUint32(record.timeoutSecs);
+        view.writeGuid(record.hostUserId);
       }
-      if (record.senderPeerId !== undefined) {
+      if (record.inGame !== undefined) {
         view.writeByte(6);
-        view.writeString(record.senderPeerId);
-      }
-      if (record.scriptUrl !== undefined) {
-        view.writeByte(7);
-        view.writeString(record.scriptUrl);
+        view.writeByte(Number(record.inGame));
       }
       view.writeByte(0);
       const end = view.length;
       view.fillMessageLength(pos, end - start);
     },
 
-    decode(buffer: Uint8Array): NewGameEvent & BebopRecord {
+    decode(buffer: Uint8Array): JoinLobbyResponse & BebopRecord {
       const view = BebopView.getInstance();
       view.startReading(buffer);
-      const decoded = NewGameEvent.readFrom(view);
-      return NewGameEvent(decoded);
+      const decoded = JoinLobbyResponse.readFrom(view);
+      return JoinLobbyResponse(decoded);
     },
 
-    readFrom(view: BebopView): NewGameEvent {
-      const message: NewGameEvent = {};
+    readFrom(view: BebopView): JoinLobbyResponse {
+      const message: JoinLobbyResponse = {};
       const length = view.readMessageLength();
       const end = view.index + length;
       while (true) {
@@ -998,30 +1469,487 @@ export const NewGameEvent = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.ass
             return message;
 
           case 1:
-            message.senderUserId = view.readGuid();
+            message.success = !!view.readByte();
             break;
 
           case 2:
-            message.senderUserName = view.readString();
+            {
+          const length0 = view.readUint32();
+          message.memberPeerIds = [];
+          for (let i0 = 0; i0 < length0; i0++) {
+            let x0: string;
+            x0 = view.readString();
+            message.memberPeerIds[i0] = x0;
+          }
+        }
             break;
 
           case 3:
-            message.variantId = view.readGuid();
+            {
+          const length0 = view.readUint32();
+          message.memberNames = [];
+          for (let i0 = 0; i0 < length0; i0++) {
+            let x0: string;
+            x0 = view.readString();
+            message.memberNames[i0] = x0;
+          }
+        }
             break;
 
           case 4:
-            message.variantVersion = view.readString();
+            {
+          const length0 = view.readUint32();
+          message.memberUserIds = [];
+          for (let i0 = 0; i0 < length0; i0++) {
+            let x0: string;
+            x0 = view.readGuid();
+            message.memberUserIds[i0] = x0;
+          }
+        }
             break;
 
           case 5:
-            message.timeoutSecs = view.readUint32();
+            message.hostUserId = view.readGuid();
             break;
 
           case 6:
-            message.senderPeerId = view.readString();
+            message.inGame = !!view.readByte();
             break;
 
-          case 7:
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface LeaveLobbyResponse {
+}
+
+export const LeaveLobbyResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LeaveLobbyResponse): LeaveLobbyResponse & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return LeaveLobbyResponse.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: LeaveLobbyResponse): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LeaveLobbyResponse.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LeaveLobbyResponse, view: BebopView): void {
+
+    },
+
+    decode(buffer: Uint8Array): LeaveLobbyResponse & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LeaveLobbyResponse.readFrom(view);
+      return LeaveLobbyResponse(decoded);
+    },
+
+    readFrom(view: BebopView): LeaveLobbyResponse {
+      return {
+      };
+    },
+  }
+));
+
+
+export interface DeleteLobbyResponse {
+
+  success?: boolean;
+}
+
+export const DeleteLobbyResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: DeleteLobbyResponse): DeleteLobbyResponse & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return DeleteLobbyResponse.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: DeleteLobbyResponse): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      DeleteLobbyResponse.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: DeleteLobbyResponse, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.success !== undefined) {
+        view.writeByte(1);
+        view.writeByte(Number(record.success));
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): DeleteLobbyResponse & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = DeleteLobbyResponse.readFrom(view);
+      return DeleteLobbyResponse(decoded);
+    },
+
+    readFrom(view: BebopView): DeleteLobbyResponse {
+      const message: DeleteLobbyResponse = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.success = !!view.readByte();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface StartGameResponse {
+
+  success?: boolean;
+}
+
+export const StartGameResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: StartGameResponse): StartGameResponse & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return StartGameResponse.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: StartGameResponse): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      StartGameResponse.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: StartGameResponse, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.success !== undefined) {
+        view.writeByte(1);
+        view.writeByte(Number(record.success));
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): StartGameResponse & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = StartGameResponse.readFrom(view);
+      return StartGameResponse(decoded);
+    },
+
+    readFrom(view: BebopView): StartGameResponse {
+      const message: StartGameResponse = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.success = !!view.readByte();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface GameEndedResponse {
+}
+
+export const GameEndedResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: GameEndedResponse): GameEndedResponse & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return GameEndedResponse.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: GameEndedResponse): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      GameEndedResponse.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: GameEndedResponse, view: BebopView): void {
+
+    },
+
+    decode(buffer: Uint8Array): GameEndedResponse & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = GameEndedResponse.readFrom(view);
+      return GameEndedResponse(decoded);
+    },
+
+    readFrom(view: BebopView): GameEndedResponse {
+      return {
+      };
+    },
+  }
+));
+
+
+export interface LobbyHeartbeatResponse {
+}
+
+export const LobbyHeartbeatResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyHeartbeatResponse): LobbyHeartbeatResponse & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return LobbyHeartbeatResponse.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: LobbyHeartbeatResponse): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyHeartbeatResponse.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyHeartbeatResponse, view: BebopView): void {
+
+    },
+
+    decode(buffer: Uint8Array): LobbyHeartbeatResponse & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyHeartbeatResponse.readFrom(view);
+      return LobbyHeartbeatResponse(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyHeartbeatResponse {
+      return {
+      };
+    },
+  }
+));
+
+
+export interface InviteToLobbyResponse {
+
+  success?: boolean;
+}
+
+export const InviteToLobbyResponse = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: InviteToLobbyResponse): InviteToLobbyResponse & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return InviteToLobbyResponse.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: InviteToLobbyResponse): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      InviteToLobbyResponse.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: InviteToLobbyResponse, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.success !== undefined) {
+        view.writeByte(1);
+        view.writeByte(Number(record.success));
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): InviteToLobbyResponse & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = InviteToLobbyResponse.readFrom(view);
+      return InviteToLobbyResponse(decoded);
+    },
+
+    readFrom(view: BebopView): InviteToLobbyResponse {
+      const message: InviteToLobbyResponse = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.success = !!view.readByte();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface LobbyInvite {
+
+  lobbyId?: string;
+
+  hostUserId?: string;
+
+  hostName?: string;
+
+  variantId?: string;
+
+  variantVersion?: string;
+
+  scriptUrl?: string;
+}
+
+export const LobbyInvite = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyInvite): LobbyInvite & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyInvite.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyInvite): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyInvite.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyInvite, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.lobbyId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.lobbyId);
+      }
+      if (record.hostUserId !== undefined) {
+        view.writeByte(2);
+        view.writeGuid(record.hostUserId);
+      }
+      if (record.hostName !== undefined) {
+        view.writeByte(3);
+        view.writeString(record.hostName);
+      }
+      if (record.variantId !== undefined) {
+        view.writeByte(4);
+        view.writeGuid(record.variantId);
+      }
+      if (record.variantVersion !== undefined) {
+        view.writeByte(5);
+        view.writeString(record.variantVersion);
+      }
+      if (record.scriptUrl !== undefined) {
+        view.writeByte(6);
+        view.writeString(record.scriptUrl);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyInvite & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyInvite.readFrom(view);
+      return LobbyInvite(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyInvite {
+      const message: LobbyInvite = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.lobbyId = view.readGuid();
+            break;
+
+          case 2:
+            message.hostUserId = view.readGuid();
+            break;
+
+          case 3:
+            message.hostName = view.readString();
+            break;
+
+          case 4:
+            message.variantId = view.readGuid();
+            break;
+
+          case 5:
+            message.variantVersion = view.readString();
+            break;
+
+          case 6:
             message.scriptUrl = view.readString();
             break;
 
@@ -1035,7 +1963,401 @@ export const NewGameEvent = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.ass
 ));
 
 
-export type S2CMsg = { tag: 1, value: RegisterPeerResponse } | { tag: 2, value: GetFriendPeerIdResponse } | { tag: 3, value: NewGameResponse } | { tag: 4, value: NewGameEvent };
+export interface LobbyMemberJoined {
+
+  lobbyId?: string;
+
+  peerId?: string;
+
+  userId?: string;
+
+  displayName?: string;
+}
+
+export const LobbyMemberJoined = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyMemberJoined): LobbyMemberJoined & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyMemberJoined.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyMemberJoined): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyMemberJoined.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyMemberJoined, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.lobbyId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.lobbyId);
+      }
+      if (record.peerId !== undefined) {
+        view.writeByte(2);
+        view.writeString(record.peerId);
+      }
+      if (record.userId !== undefined) {
+        view.writeByte(3);
+        view.writeGuid(record.userId);
+      }
+      if (record.displayName !== undefined) {
+        view.writeByte(4);
+        view.writeString(record.displayName);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyMemberJoined & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyMemberJoined.readFrom(view);
+      return LobbyMemberJoined(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyMemberJoined {
+      const message: LobbyMemberJoined = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.lobbyId = view.readGuid();
+            break;
+
+          case 2:
+            message.peerId = view.readString();
+            break;
+
+          case 3:
+            message.userId = view.readGuid();
+            break;
+
+          case 4:
+            message.displayName = view.readString();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface LobbyMemberLeft {
+
+  lobbyId?: string;
+
+  userId?: string;
+}
+
+export const LobbyMemberLeft = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyMemberLeft): LobbyMemberLeft & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyMemberLeft.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyMemberLeft): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyMemberLeft.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyMemberLeft, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.lobbyId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.lobbyId);
+      }
+      if (record.userId !== undefined) {
+        view.writeByte(2);
+        view.writeGuid(record.userId);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyMemberLeft & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyMemberLeft.readFrom(view);
+      return LobbyMemberLeft(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyMemberLeft {
+      const message: LobbyMemberLeft = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.lobbyId = view.readGuid();
+            break;
+
+          case 2:
+            message.userId = view.readGuid();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface LobbyDeleted {
+
+  lobbyId?: string;
+}
+
+export const LobbyDeleted = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyDeleted): LobbyDeleted & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyDeleted.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyDeleted): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyDeleted.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyDeleted, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.lobbyId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.lobbyId);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyDeleted & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyDeleted.readFrom(view);
+      return LobbyDeleted(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyDeleted {
+      const message: LobbyDeleted = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.lobbyId = view.readGuid();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface LobbyGameStarted {
+
+  lobbyId?: string;
+
+  peerIds?: string[];
+}
+
+export const LobbyGameStarted = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyGameStarted): LobbyGameStarted & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyGameStarted.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyGameStarted): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyGameStarted.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyGameStarted, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.lobbyId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.lobbyId);
+      }
+      if (record.peerIds !== undefined) {
+        view.writeByte(2);
+        {
+        const length0 = record.peerIds.length;
+        view.writeUint32(length0);
+        for (let i0 = 0; i0 < length0; i0++) {
+          view.writeString(record.peerIds[i0]);
+        }
+      }
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyGameStarted & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyGameStarted.readFrom(view);
+      return LobbyGameStarted(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyGameStarted {
+      const message: LobbyGameStarted = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.lobbyId = view.readGuid();
+            break;
+
+          case 2:
+            {
+          const length0 = view.readUint32();
+          message.peerIds = [];
+          for (let i0 = 0; i0 < length0; i0++) {
+            let x0: string;
+            x0 = view.readString();
+            message.peerIds[i0] = x0;
+          }
+        }
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface LobbyGameEnded {
+
+  lobbyId?: string;
+}
+
+export const LobbyGameEnded = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyGameEnded): LobbyGameEnded & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyGameEnded.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyGameEnded): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyGameEnded.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyGameEnded, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.lobbyId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.lobbyId);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyGameEnded & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyGameEnded.readFrom(view);
+      return LobbyGameEnded(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyGameEnded {
+      const message: LobbyGameEnded = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.lobbyId = view.readGuid();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export type S2CMsg = { tag: 1, value: RegisterPeerResponse } | { tag: 2, value: GetFriendPeerIdResponse } | { tag: 3, value: CreateLobbyResponse } | { tag: 4, value: JoinLobbyResponse } | { tag: 5, value: LeaveLobbyResponse } | { tag: 6, value: DeleteLobbyResponse } | { tag: 7, value: StartGameResponse } | { tag: 8, value: GameEndedResponse } | { tag: 9, value: LobbyHeartbeatResponse } | { tag: 10, value: InviteToLobbyResponse } | { tag: 11, value: LobbyInvite } | { tag: 12, value: LobbyMemberJoined } | { tag: 13, value: LobbyMemberLeft } | { tag: 14, value: LobbyDeleted } | { tag: 15, value: LobbyGameStarted } | { tag: 16, value: LobbyGameEnded };
 
 export const S2CMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
@@ -1057,12 +2379,60 @@ export const S2CMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
       return S2CMsg({ tag: 2, value });
     },
 
-    fromNewGameResponse(value: NewGameResponse): S2CMsg & BebopRecord {
+    fromCreateLobbyResponse(value: CreateLobbyResponse): S2CMsg & BebopRecord {
       return S2CMsg({ tag: 3, value });
     },
 
-    fromNewGameEvent(value: NewGameEvent): S2CMsg & BebopRecord {
+    fromJoinLobbyResponse(value: JoinLobbyResponse): S2CMsg & BebopRecord {
       return S2CMsg({ tag: 4, value });
+    },
+
+    fromLeaveLobbyResponse(value: LeaveLobbyResponse): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 5, value });
+    },
+
+    fromDeleteLobbyResponse(value: DeleteLobbyResponse): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 6, value });
+    },
+
+    fromStartGameResponse(value: StartGameResponse): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 7, value });
+    },
+
+    fromGameEndedResponse(value: GameEndedResponse): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 8, value });
+    },
+
+    fromLobbyHeartbeatResponse(value: LobbyHeartbeatResponse): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 9, value });
+    },
+
+    fromInviteToLobbyResponse(value: InviteToLobbyResponse): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 10, value });
+    },
+
+    fromLobbyInvite(value: LobbyInvite): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 11, value });
+    },
+
+    fromLobbyMemberJoined(value: LobbyMemberJoined): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 12, value });
+    },
+
+    fromLobbyMemberLeft(value: LobbyMemberLeft): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 13, value });
+    },
+
+    fromLobbyDeleted(value: LobbyDeleted): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 14, value });
+    },
+
+    fromLobbyGameStarted(value: LobbyGameStarted): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 15, value });
+    },
+
+    fromLobbyGameEnded(value: LobbyGameEnded): S2CMsg & BebopRecord {
+      return S2CMsg({ tag: 16, value });
     },
 
     encode(record: S2CMsg): Uint8Array {
@@ -1084,10 +2454,46 @@ export const S2CMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
           GetFriendPeerIdResponse.encodeInto(record.value, view);
           break;
         case 3:
-          NewGameResponse.encodeInto(record.value, view);
+          CreateLobbyResponse.encodeInto(record.value, view);
           break;
         case 4:
-          NewGameEvent.encodeInto(record.value, view);
+          JoinLobbyResponse.encodeInto(record.value, view);
+          break;
+        case 5:
+          LeaveLobbyResponse.encodeInto(record.value, view);
+          break;
+        case 6:
+          DeleteLobbyResponse.encodeInto(record.value, view);
+          break;
+        case 7:
+          StartGameResponse.encodeInto(record.value, view);
+          break;
+        case 8:
+          GameEndedResponse.encodeInto(record.value, view);
+          break;
+        case 9:
+          LobbyHeartbeatResponse.encodeInto(record.value, view);
+          break;
+        case 10:
+          InviteToLobbyResponse.encodeInto(record.value, view);
+          break;
+        case 11:
+          LobbyInvite.encodeInto(record.value, view);
+          break;
+        case 12:
+          LobbyMemberJoined.encodeInto(record.value, view);
+          break;
+        case 13:
+          LobbyMemberLeft.encodeInto(record.value, view);
+          break;
+        case 14:
+          LobbyDeleted.encodeInto(record.value, view);
+          break;
+        case 15:
+          LobbyGameStarted.encodeInto(record.value, view);
+          break;
+        case 16:
+          LobbyGameEnded.encodeInto(record.value, view);
           break;
       }
       const end = view.length;
@@ -1111,9 +2517,33 @@ export const S2CMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
         case 2:
           return { tag: 2, value: GetFriendPeerIdResponse.readFrom(view) };
         case 3:
-          return { tag: 3, value: NewGameResponse.readFrom(view) };
+          return { tag: 3, value: CreateLobbyResponse.readFrom(view) };
         case 4:
-          return { tag: 4, value: NewGameEvent.readFrom(view) };
+          return { tag: 4, value: JoinLobbyResponse.readFrom(view) };
+        case 5:
+          return { tag: 5, value: LeaveLobbyResponse.readFrom(view) };
+        case 6:
+          return { tag: 6, value: DeleteLobbyResponse.readFrom(view) };
+        case 7:
+          return { tag: 7, value: StartGameResponse.readFrom(view) };
+        case 8:
+          return { tag: 8, value: GameEndedResponse.readFrom(view) };
+        case 9:
+          return { tag: 9, value: LobbyHeartbeatResponse.readFrom(view) };
+        case 10:
+          return { tag: 10, value: InviteToLobbyResponse.readFrom(view) };
+        case 11:
+          return { tag: 11, value: LobbyInvite.readFrom(view) };
+        case 12:
+          return { tag: 12, value: LobbyMemberJoined.readFrom(view) };
+        case 13:
+          return { tag: 13, value: LobbyMemberLeft.readFrom(view) };
+        case 14:
+          return { tag: 14, value: LobbyDeleted.readFrom(view) };
+        case 15:
+          return { tag: 15, value: LobbyGameStarted.readFrom(view) };
+        case 16:
+          return { tag: 16, value: LobbyGameEnded.readFrom(view) };
         default:
           view.index = end;
           throw new BebopRuntimeError(`Unknown union discriminator: ${tag}`);

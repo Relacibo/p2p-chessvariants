@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type { AppDispatch, AppThunk, RootState } from "../../app/store";
 import { selectSession } from "../auth/authSlice";
-import type { NewGameEvent } from "../../api/bebop/generated";
+import type { LobbyInvite } from "../../api/bebop/generated";
 import * as p2p from "../../api/p2pService";
 
 export type GameInvite = {
@@ -19,9 +19,6 @@ type PeerState = {
   localPeerId?: string;
   pendingInvites: GameInvite[];
 };
-
-/** Module-level map from invite ID to the pending answer callback. */
-const pendingAnswers = new Map<string, (accepted: boolean) => void>();
 
 const {
   actions: { connecting, connected, disconnected, inviteReceived, inviteRemoved },
@@ -56,18 +53,17 @@ const {
 });
 
 function makeInviteHandler(dispatch: (action: unknown) => unknown) {
-  return (event: NewGameEvent, resolve: (accepted: boolean) => void) => {
+  return (event: LobbyInvite) => {
     const id = crypto.randomUUID();
     const invite: GameInvite = {
       id,
-      senderUserId: event.senderUserId ?? "",
-      senderUserName: event.senderUserName ?? "",
+      senderUserId: event.hostUserId ?? "",
+      senderUserName: event.hostName ?? "",
       variantId: event.variantId ?? "",
       variantVersion: event.variantVersion ?? "",
-      timeoutSecs: event.timeoutSecs ?? 60,
-      senderPeerId: event.senderPeerId ?? "",
+      timeoutSecs: 60,
+      senderPeerId: "",
     };
-    pendingAnswers.set(id, resolve);
     dispatch(inviteReceived(invite));
   };
 }
@@ -92,14 +88,9 @@ export function initializePeer(): AppThunk<Promise<void>> {
 
 export function respondToInvite(
   inviteId: string,
-  accepted: boolean
+  _accepted: boolean
 ): AppThunk {
   return (dispatch) => {
-    const resolve = pendingAnswers.get(inviteId);
-    if (resolve) {
-      resolve(accepted);
-      pendingAnswers.delete(inviteId);
-    }
     dispatch(inviteRemoved(inviteId));
   };
 }
@@ -140,4 +131,3 @@ export const selectPeerConnections = (_: RootState): Record<string, string> =>
 export const selectPeerConnecting = (_: RootState): string[] => [];
 
 export default reducer;
-
