@@ -52,7 +52,15 @@ spread syntax `#{ ...state, ... }` — needs to be updated to `merge(state, #{ .
 |---|---|---|
 | **OOP Variant URL Abstraction** | Refactor `scriptUrl.ts` to use a `VariantSource` interface with `getRawUrl()` and `getBrowseUrl()`. Implement classes for `GithubRepoSource`, `GithubGistSource` (handling `gist.github.com`), and `GenericSource`. | ❌ |
 | **P2P Lobby State Sync** | Remove the variant URL from the `#peerId,url` invite link fragment. Make the host the Single Source of Truth. Upon P2P connection, the host must transmit a `LOBBY_STATE_SYNC` message containing the variant info, current players, and game status to the joining guest. | ❌ |
-| **Host Migration (Future)** | If the host disconnects, use the shared lobby state to democratically elect a new host and maintain the lobby/game seamlessly. | ❌ |
+| **Server Lobby Timeout** | Investigate and fix the `DOMException: The operation timed out` error occurring when attempting to create a server-side lobby (P2P-only works). | ❌ |
+| **Lobby State Transitions** | In the "Play" view: Hide "Active Games & Lobbies" once a lobby is created/joined. Show the list of connected players and the required player count (min/max) from the variant config. | ❌ |
+
+## UI & UX Todos
+
+| Task | Description | Status |
+|---|---|---|
+| **Sidebar Breakpoint Fix** | Fix the sidebar behavior on medium widths where it gets stuck in full-screen mode and cannot be dismissed. Ensure smooth transition between desktop, "stuck", and mobile (hamburger) modes. | ❌ |
+| **Play View Grid Reflow** | Improve responsiveness of the Play/Lobby view. The variant selection and game list should stack earlier (on wider screens) to prevent narrow, unreadable columns. | ❌ |
 
 ## Suggested order of implementation
 
