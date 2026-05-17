@@ -1,9 +1,8 @@
 import { Button, AppShell, Stack, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { IconChevronLeft } from "@tabler/icons-react";
+import { IconChevronLeft, IconDeviceGamepad2, IconUsers } from "@tabler/icons-react";
 import Auth from "../auth/Auth";
 import DarkmodeSelector from "../darkmode/DarkmodeSelector";
-import PeerDisplay from "../peer/PeerDisplay";
 import Logo from "./logo";
 import MainLink from "./MainLink";
 import style from "./Sidebar.module.css";
@@ -25,16 +24,16 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
       )}
       <AppShell.Section grow mt="md">
         <Stack gap="sm">
-          <MainLink to={""}>Home</MainLink>
-          <MainLink to={"lobby"}>Lobby</MainLink>
-          <MainLink to={"game"}>Games</MainLink>
-          <MainLink to={"user-profile"}>User profile</MainLink>
-          <MainLink to={"game/playground"}>Engine Playground</MainLink>
+          <MainLink to={""} icon={<IconDeviceGamepad2 size="1.2rem" stroke={1.5} />}>
+            Play
+          </MainLink>
+          <MainLink to={"community"} icon={<IconUsers size="1.2rem" stroke={1.5} />}>
+            Community
+          </MainLink>
         </Stack>
       </AppShell.Section>
       <AppShell.Section mt="auto">
         <Stack gap={"sm"}>
-          <PeerDisplay />
           <DarkmodeSelector />
           <Auth />
         </Stack>
