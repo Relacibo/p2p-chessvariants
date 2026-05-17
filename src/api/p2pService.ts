@@ -101,7 +101,7 @@ export async function sendC2S(msg: C2SMsg): Promise<S2CMsg | null> {
   const encoded = C2SMsg.encode(msg);
   const ma = multiaddr(serverMultiaddrStr);
   const stream = await node.dialProtocol(ma, C2S_PROTOCOL);
-  stream.send(encoded);
+  await stream.send(encoded);
   await stream.close();
   const responseBytes = await readStream(stream);
   if (responseBytes.length === 0) return null;
