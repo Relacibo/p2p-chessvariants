@@ -12,7 +12,7 @@ const AppRoutes = () => {
       <Route path="auth/login/*" element={<LoginView/>}/>
       <Route path="view/:id" element={<PlaygroundView />} />
       <Route path="user-profile/*" element={<UserProfileView />} />
-      <Route path="community" element={<CommunityView />} />
+      <Route path="community/*" element={<CommunityView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>

@@ -5,24 +5,45 @@ import {
   IconHeartHandshake,
 } from "@tabler/icons-react";
 import { useSelector } from "react-redux";
+import { useLocation, useNavigate } from "react-router-dom";
 import { selectLoginState, selectUser } from "../auth/authSlice";
+import useConfigureLayout from "../layout/hooks";
 import FriendRequests from "./FriendRequests";
 import FriendsList from "./FriendsList";
 import UserOverview from "./UserOverview";
 
 export default function CommunityView() {
+  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
+
   const authState = useSelector(selectLoginState);
   const user = useSelector(selectUser);
   const isLoggedIn = authState === "logged-in" && user != null;
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  let activeTab = "users";
+  if (location.pathname.endsWith("/friends")) activeTab = "friends";
+  if (location.pathname.endsWith("/requests")) activeTab = "requests";
 
   return (
     <Container size="md" pt="md">
       <Title order={2} mb="md">
         Community
       </Title>
-      
-      <Tabs defaultValue="friends" keepMounted={false}>
+
+      <Tabs
+        value={activeTab}
+        onChange={(val) => navigate(`/community/${val}`)}
+        keepMounted={false}
+      >
         <Tabs.List mb="md">
+          <Tabs.Tab
+            value="users"
+            leftSection={<IconUserSearch size="1.2rem" />}
+          >
+            Find Users
+          </Tabs.Tab>
           <Tabs.Tab
             value="friends"
             leftSection={<IconUsers size="1.2rem" />}
@@ -37,13 +58,11 @@ export default function CommunityView() {
           >
             Requests
           </Tabs.Tab>
-          <Tabs.Tab
-            value="search"
-            leftSection={<IconUserSearch size="1.2rem" />}
-          >
-            Find Users
-          </Tabs.Tab>
         </Tabs.List>
+
+        <Tabs.Panel value="users">
+          <UserOverview />
+        </Tabs.Panel>
 
         <Tabs.Panel value="friends">
           {isLoggedIn ? (
@@ -59,10 +78,6 @@ export default function CommunityView() {
           ) : (
             <Text c="dimmed">Please log in to manage friend requests.</Text>
           )}
-        </Tabs.Panel>
-
-        <Tabs.Panel value="search">
-          <UserOverview />
         </Tabs.Panel>
       </Tabs>
     </Container>
