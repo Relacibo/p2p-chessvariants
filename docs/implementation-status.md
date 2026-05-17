@@ -46,6 +46,14 @@ Also missing:
 The "Complete Minimal Example" at the bottom of `docs/api.md` still uses the unsupported
 spread syntax `#{ ...state, ... }` — needs to be updated to `merge(state, #{ ... })`.
 
+## Architecture & Networking Todos
+
+| Task | Description | Status |
+|---|---|---|
+| **OOP Variant URL Abstraction** | Refactor `scriptUrl.ts` to use a `VariantSource` interface with `getRawUrl()` and `getBrowseUrl()`. Implement classes for `GithubRepoSource`, `GithubGistSource` (handling `gist.github.com`), and `GenericSource`. | ❌ |
+| **P2P Lobby State Sync** | Remove the variant URL from the `#peerId,url` invite link fragment. Make the host the Single Source of Truth. Upon P2P connection, the host must transmit a `LOBBY_STATE_SYNC` message containing the variant info, current players, and game status to the joining guest. | ❌ |
+| **Host Migration (Future)** | If the host disconnects, use the shared lobby state to democratically elect a new host and maintain the lobby/game seamlessly. | ❌ |
+
 ## Suggested order of implementation
 
 1. `leaper` + `modify` — register declarators (data only, straightforward)
