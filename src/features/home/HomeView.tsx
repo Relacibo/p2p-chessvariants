@@ -39,6 +39,7 @@ function HomeView() {
               await p2p.connectToPeerViaRelay(peerId.trim());
               notifications.show({ message: "Connected to peer", color: "green" });
             } catch (err) {
+              console.error("[peer] connect to peer failed", err);
               notifications.show({
                 message:
                   err instanceof Error ? err.message : "Could not connect to peer",

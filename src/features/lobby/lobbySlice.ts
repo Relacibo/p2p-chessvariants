@@ -31,6 +31,10 @@ export type LobbyState = {
   players: LobbyPlayer[];
 };
 
+function logLobbyWarning(context: string, err: unknown): void {
+  console.error(`[lobby] ${context}`, err);
+}
+
 // ---------------------------------------------------------------------------
 // Slice
 // ---------------------------------------------------------------------------
@@ -136,7 +140,7 @@ export function createLobby(
       const localPeerId =
         token && useServerLobby
           ? await p2p.initNode(token)
-          : await p2p.initNodeAsGuest();
+          : await p2p.initNodeStandalone();
 
       dispatch(_setLocalPeerId(localPeerId));
 
@@ -145,8 +149,8 @@ export function createLobby(
       if (token && useServerLobby) {
         try {
           serverLobbyId = await p2p.createServerLobby(scriptUrl);
-        } catch {
-          // Keep peer-id invites working even if server-side lobby creation fails.
+        } catch (err) {
+          logLobbyWarning("server lobby creation failed; continuing with peer invite", err);
           serverLobbyId = null;
         }
       }
@@ -158,6 +162,7 @@ export function createLobby(
       dispatch(_playerJoined({ peerId: localPeerId, name: null, ready: false }));
       dispatch(_setHosting(inviteUrl));
     } catch (err) {
+      logLobbyWarning("create lobby failed", err);
       dispatch(
         _setError(err instanceof Error ? err.message : "Failed to start P2P node")
       );
@@ -191,7 +196,8 @@ export function joinLobby(
         try {
           await p2p.joinServerLobby(lobbyId);
           dispatch(_setServerLobbyId(lobbyId));
-        } catch {
+        } catch (err) {
+          logLobbyWarning("server lobby join failed; continuing with peer invite", err);
           dispatch(_setServerLobbyId(null));
         }
       } else {
@@ -199,6 +205,7 @@ export function joinLobby(
       }
       dispatch(_setActive());
     } catch (err) {
+      logLobbyWarning("join lobby failed", err);
       dispatch(
         _setError(err instanceof Error ? err.message : "Failed to connect to host")
       );
@@ -213,8 +220,8 @@ export function leaveLobby(): AppThunk<Promise<void>> {
     if (serverLobbyId) {
       try {
         await p2p.leaveServerLobby(serverLobbyId);
-      } catch {
-        // Always continue local cleanup.
+      } catch (err) {
+        logLobbyWarning("server lobby leave failed during cleanup", err);
       }
     }
     await p2p.stopNode();

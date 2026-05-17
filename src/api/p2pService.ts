@@ -32,13 +32,17 @@ function stopLobbyHeartbeat() {
   }
 }
 
+function logP2PWarning(context: string, err: unknown): void {
+  console.error(`[p2p] ${context}`, err);
+}
+
 function startLobbyHeartbeat(lobbyId: string) {
   stopLobbyHeartbeat();
   lobbyHeartbeatTimer = setInterval(async () => {
     try {
       await sendC2S({ tag: 10, value: { lobbyId } });
-    } catch {
-      // Heartbeats are best-effort and should not crash the app.
+    } catch (err) {
+      logP2PWarning(`heartbeat failed for lobby ${lobbyId}`, err);
     }
   }, 5000);
 }
@@ -54,8 +58,8 @@ async function installS2CHandler(): Promise<void> {
       gameInviteCallback(msg.value);
       try {
         await sendC2S({ tag: 11, value: {} });
-      } catch {
-        // Ack is best-effort.
+      } catch (err) {
+        logP2PWarning("lobby invite ack failed", err);
       }
     }
   });
@@ -175,6 +179,19 @@ async function createAndStartNode(): Promise<Libp2p> {
   });
   await newNode.start();
   return newNode;
+}
+
+/** Initialise a standalone node without fetching/dialing the relay server. */
+export async function initNodeStandalone(): Promise<string> {
+  if (node) {
+    await stopNode();
+  }
+
+  node = await createAndStartNode();
+  await installS2CHandler();
+  serverMultiaddrStr = null;
+
+  return node.peerId.toString();
 }
 
 /** Initialise the libp2p node, connect to the server, and register with the given JWT. */
