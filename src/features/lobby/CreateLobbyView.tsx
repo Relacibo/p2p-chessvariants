@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { IconAlertCircle, IconCheck, IconCopy } from "@tabler/icons-react";
@@ -60,12 +61,19 @@ function CreateLobbyForm() {
           placeholder="https://raw.githubusercontent.com/... or https://github.com/.../blob/..."
           {...form.getInputProps("scriptUrl")}
         />
-        <Checkbox
-          label="Create server lobby"
-          description="Enable server-side lobby tracking/events"
-          disabled={!canUseServerLobby}
-          {...form.getInputProps("useServerLobby", { type: "checkbox" })}
-        />
+        <Tooltip
+          label={canUseServerLobby ? "" : "Login required for server lobby"}
+          disabled={canUseServerLobby}
+        >
+          <div>
+            <Checkbox
+              label="Create server lobby"
+              description="Enable server-side lobby tracking/events"
+              disabled={!canUseServerLobby}
+              {...form.getInputProps("useServerLobby", { type: "checkbox" })}
+            />
+          </div>
+        </Tooltip>
         <Button type="submit" loading={isCreating}>
           Create Lobby
         </Button>
