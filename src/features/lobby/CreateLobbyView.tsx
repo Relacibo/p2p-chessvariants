@@ -260,69 +260,6 @@ function CreateLobbyForm() {
   );
 }
 
-function HostingView({ inviteUrl }: { inviteUrl: string }) {
-  const dispatch = useDispatch();
-  const scriptUrl = useSelector(selectLobbyScriptUrl);
-  const variants = useSelector(selectAllVariants);
-  const variantName =
-    variants.find((v) => v.url === scriptUrl)?.name || "Custom Variant";
-  const browseUrl = scriptUrl ? getGithubBrowseUrl(scriptUrl) : "";
-
-  return (
-    <Stack>
-      <Alert icon={<IconCheck size="1rem" />} color="green" title="Lobby created!">
-        Share the invite link below with players you want to invite.
-      </Alert>
-      {scriptUrl && (
-        <Group justify="space-between">
-          <Text size="sm" fw={500}>
-            Variant: {variantName}
-          </Text>
-          <Button
-            component="a"
-            href={browseUrl}
-            target="_blank"
-            variant="subtle"
-            size="compact-sm"
-            leftSection={<IconBrandGithub size="0.9rem" />}
-          >
-            Source
-          </Button>
-        </Group>
-      )}
-      <Text size="sm" fw={500}>
-        Invite link
-      </Text>
-      <Group gap="xs" wrap="nowrap">
-        <Code style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
-          {inviteUrl}
-        </Code>
-        <CopyButton value={inviteUrl}>
-          {({ copied, copy }) => (
-            <Button
-              size="compact-sm"
-              variant="light"
-              color={copied ? "teal" : "blue"}
-              leftSection={copied ? <IconCheck size="0.9rem" /> : <IconCopy size="0.9rem" />}
-              onClick={copy}
-            >
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          )}
-        </CopyButton>
-      </Group>
-      <Button
-        variant="subtle"
-        color="red"
-        size="compact-sm"
-        onClick={() => dispatch(leaveLobby())}
-      >
-        Cancel lobby
-      </Button>
-    </Stack>
-  );
-}
-
 export default function CreateLobbyView() {
   const status = useSelector(selectLobbyStatus);
 
@@ -339,11 +276,7 @@ export default function CreateLobbyView() {
             {status.message}
           </Alert>
         )}
-        {status.phase === "hosting" ? (
-          <HostingView inviteUrl={status.inviteUrl} />
-        ) : (
-          <CreateLobbyForm />
-        )}
+        <CreateLobbyForm />
       </Stack>
     </Paper>
   );
