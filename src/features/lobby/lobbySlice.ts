@@ -117,7 +117,10 @@ export const {
  * Create a new lobby as host. Initialises P2P (guest or authenticated),
  * generates the invite link, and transitions to the "hosting" phase.
  */
-export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
+export function createLobby(
+  scriptUrl: string,
+  useServerLobby: boolean
+): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const validation = parseScriptUrl(scriptUrl);
     if (!validation.ok) {
@@ -130,15 +133,16 @@ export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
 
     try {
       const token = selectToken(getState());
-      const localPeerId = token
-        ? await p2p.initNode(token)
-        : await p2p.initNodeAsGuest();
+      const localPeerId =
+        token && useServerLobby
+          ? await p2p.initNode(token)
+          : await p2p.initNodeAsGuest();
 
       dispatch(_setLocalPeerId(localPeerId));
 
       const basePath = window.location.origin + "/lobby";
       let serverLobbyId: string | null = null;
-      if (token) {
+      if (token && useServerLobby) {
         try {
           serverLobbyId = await p2p.createServerLobby(scriptUrl);
         } catch {

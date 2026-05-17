@@ -1,4 +1,5 @@
-import { Box, Group, Image, MantineSize, Text } from "@mantine/core";
+import { Box, Group, Image, MantineSize, UnstyledButton, Text } from "@mantine/core";
+import { Link } from "react-router-dom";
 
 type LogoProps = {
   imageSize?: string | number;
@@ -7,12 +8,14 @@ type LogoProps = {
 
 function Logo({ imageSize, textSize }: LogoProps) {
   return (
-    <Group>
-      <Box w={imageSize}>
-        <Image radius="md" src="/logo192.png" alt="gg"></Image>
-      </Box>
-      <Text size={textSize}>ggchess.org</Text>
-    </Group>
+    <UnstyledButton component={Link} to="/">
+      <Group>
+        <Box w={imageSize}>
+          <Image radius="md" src="/logo192.png" alt="gg"></Image>
+        </Box>
+        <Text size={textSize}>ggchess.org</Text>
+      </Group>
+    </UnstyledButton>
   );
 }
 

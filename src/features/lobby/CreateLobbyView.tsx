@@ -1,6 +1,7 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Code,
   CopyButton,
   Group,
@@ -12,17 +13,21 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { IconAlertCircle, IconCheck, IconCopy } from "@tabler/icons-react";
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
+import { selectToken } from "../auth/authSlice";
 import { createLobby, leaveLobby, selectLobbyStatus } from "./lobbySlice";
 import { parseScriptUrl, scriptUrlErrorMessage, normalizeScriptUrl } from "./scriptUrl";
 
 function CreateLobbyForm() {
   const dispatch = useDispatch();
   const status = useSelector(selectLobbyStatus);
+  const token = useSelector(selectToken);
+  const canUseServerLobby = !!token;
   const isCreating = status.phase === "creating";
 
   const form = useForm({
-    initialValues: { scriptUrl: "" },
+    initialValues: { scriptUrl: "", useServerLobby: canUseServerLobby },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Script URL is required";
@@ -33,11 +38,19 @@ function CreateLobbyForm() {
     },
   });
 
+  useEffect(() => {
+    if (canUseServerLobby) {
+      form.setFieldValue("useServerLobby", true);
+    } else {
+      form.setFieldValue("useServerLobby", false);
+    }
+  }, [canUseServerLobby]);
+
   return (
     <form
-      onSubmit={form.onSubmit(({ scriptUrl }) => {
+      onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
         const normalized = normalizeScriptUrl(scriptUrl.trim());
-        dispatch(createLobby(normalized));
+        dispatch(createLobby(normalized, canUseServerLobby && useServerLobby));
       })}
     >
       <Stack>
@@ -46,6 +59,12 @@ function CreateLobbyForm() {
           description="GitHub Raw URL or GitHub browse link (must reference a commit SHA)"
           placeholder="https://raw.githubusercontent.com/... or https://github.com/.../blob/..."
           {...form.getInputProps("scriptUrl")}
+        />
+        <Checkbox
+          label="Create server lobby"
+          description="Enable server-side lobby tracking/events"
+          disabled={!canUseServerLobby}
+          {...form.getInputProps("useServerLobby", { type: "checkbox" })}
         />
         <Button type="submit" loading={isCreating}>
           Create Lobby
