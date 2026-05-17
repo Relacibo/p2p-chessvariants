@@ -41,6 +41,27 @@ function convertBrowseUrlToRaw(url: URL): string | null {
 }
 
 /**
+ * Converts a GitHub raw URL to a browse URL.
+ * Input: https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}
+ * Output: https://github.com/{owner}/{repo}/blob/{sha}/{path}
+ */
+export function getGithubBrowseUrl(urlStr: string): string {
+  try {
+    const url = new URL(urlStr);
+    if (url.origin === GITHUB_RAW_ORIGIN) {
+      const parts = url.pathname.replace(/^\//, "").split("/");
+      if (parts.length >= 4) {
+        const [owner, repo, sha, ...pathParts] = parts;
+        return `${GITHUB_BROWSE_ORIGIN}/${owner}/${repo}/blob/${sha}/${pathParts.join("/")}`;
+      }
+    }
+  } catch {
+    // Fall through to return original string
+  }
+  return urlStr;
+}
+
+/**
  * Validates that a URL is a GitHub Raw URL (or GitHub browse URL that can be converted)
  * locked to a specific commit SHA.
  * 

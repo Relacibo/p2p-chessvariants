@@ -19,6 +19,7 @@ import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconAlertCircle,
+  IconBrandGithub,
   IconCheck,
   IconCopy,
   IconPlus,
@@ -27,8 +28,14 @@ import {
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { selectToken } from "../auth/authSlice";
-import { createLobby, leaveLobby, selectLobbyStatus } from "./lobbySlice";
 import {
+  createLobby,
+  leaveLobby,
+  selectLobbyScriptUrl,
+  selectLobbyStatus,
+} from "./lobbySlice";
+import {
+  getGithubBrowseUrl,
   normalizeScriptUrl,
   parseScriptUrl,
   scriptUrlErrorMessage,
@@ -42,6 +49,7 @@ import {
 } from "./variantsSlice";
 
 function AddCustomVariantModal({
+
   opened,
   onClose,
 }: {
@@ -190,11 +198,34 @@ function CreateLobbyForm() {
 
 function HostingView({ inviteUrl }: { inviteUrl: string }) {
   const dispatch = useDispatch();
+  const scriptUrl = useSelector(selectLobbyScriptUrl);
+  const variants = useSelector(selectAllVariants);
+  const variantName =
+    variants.find((v) => v.url === scriptUrl)?.name || "Custom Variant";
+  const browseUrl = scriptUrl ? getGithubBrowseUrl(scriptUrl) : "";
+
   return (
     <Stack>
       <Alert icon={<IconCheck size="1rem" />} color="green" title="Lobby created!">
         Share the invite link below with players you want to invite.
       </Alert>
+      {scriptUrl && (
+        <Group justify="space-between">
+          <Text size="sm" fw={500}>
+            Variant: {variantName}
+          </Text>
+          <Button
+            component="a"
+            href={browseUrl}
+            target="_blank"
+            variant="subtle"
+            size="compact-sm"
+            leftSection={<IconBrandGithub size="0.9rem" />}
+          >
+            Source
+          </Button>
+        </Group>
+      )}
       <Text size="sm" fw={500}>
         Invite link
       </Text>
