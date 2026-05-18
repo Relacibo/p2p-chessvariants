@@ -256,10 +256,6 @@ export async function initNode(jwt: string): Promise<string> {
 
   await node.dial(multiaddr(serverMultiaddrStr));
 
-  // WORKAROUND: Wait a tiny bit for the WebRTC SCTP association and Yamux muxer to fully settle
-  // before we fire the very first dialProtocol on this fresh connection.
-  await new Promise(resolve => setTimeout(resolve, 200));
-
   const response = await sendC2S({ tag: 1, value: { authToken: jwt } });
   if (!response || response.tag !== 1 || !response.value.success) {
     throw new Error("Server rejected peer registration");
