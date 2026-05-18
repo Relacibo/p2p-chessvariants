@@ -14,7 +14,7 @@ import {
   Switch,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { updateLobbySettings } from "../../api/lobbyApi";
+import { patchLobby } from "../../api/lobbyApi";
 import { selectToken } from "../auth/authSlice";
 import {
   IconBrandGithub,
@@ -48,7 +48,7 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
     setAllowGuests(val);
     if (serverLobbyId && token) {
        try {
-         await updateLobbySettings(serverLobbyId, val, token);
+         await patchLobby(serverLobbyId, { allowGuests: val }, token);
          notifications.show({ title: "Settings updated", message: "Guest permissions changed.", color: "green" });
        } catch (err) {
          notifications.show({ title: "Error", message: "Failed to update settings.", color: "red" });
@@ -104,7 +104,7 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
             Invite link
           </Text>
           <Group align="flex-start" wrap="nowrap">
-            <QRCodeSVG value={inviteUrl} size={128} />
+            <QRCodeSVG value={inviteUrl} size={128} bgColor="#ffffff" fgColor="#000000" style={{ padding: 8, background: "white", borderRadius: 4 }} />
             <Stack style={{ flex: 1 }} gap="xs">
               <Code style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                 {inviteUrl}

@@ -6,24 +6,25 @@ import { useGuestLoginMutation } from "../../api/api";
 import { login } from "../auth/authSlice";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { joinLobbyById, joinLobbyByPeer } from "../lobby/lobbySlice";
-import { parseInviteFragment, InviteFragment } from "../lobby/scriptUrl";
 import { selectToken } from "../auth/authSlice";
+import { useParams } from "react-router-dom";
 
 export default function JoinLobbyView() {
   const dispatch = useDispatch();
   const token = useSelector(selectToken);
-  const [parsed, setParsed] = useState<InviteFragment | null>(null);
+  const { lobbyId, peerId } = useParams<{ lobbyId?: string; peerId?: string }>();
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
+  const type: "lobby" | "peer" | null = lobbyId
+    ? "lobby"
+    : peerId
+    ? "peer"
+    : null;
+
   useEffect(() => {
-    const result = parseInviteFragment(window.location.hash);
-    if (!result) {
-      setError("Invalid or missing invite link.");
-    } else {
-      setParsed(result);
-    }
-  }, []);
+    if (!type) setError("Invalid or missing invite link.");
+  }, [type]);
 
   const [guestLogin, { isLoading: isGuestLoggingIn }] = useGuestLoginMutation();
 
@@ -35,11 +36,10 @@ export default function JoinLobbyView() {
   });
 
   const handleGuestJoin = async (values: { displayName: string }) => {
-    if (!parsed) return;
+    if (!type) return;
     try {
       const res = await guestLogin(values).unwrap();
       dispatch(login({ token: res.token, user: res.user }));
-      // Auth is updated in store, handleJoin will be triggered or user can click Join again
       notifications.show({ title: "Joined as guest", message: "You can now connect to the lobby.", color: "blue" });
     } catch (e: any) {
       setError(e.message || "Failed to join as guest");
@@ -47,12 +47,12 @@ export default function JoinLobbyView() {
   };
 
   const handleJoin = async () => {
-    if (!parsed) return;
+    if (!type) return;
     setJoining(true);
-    if (parsed.type === "lobby") {
-      await dispatch(joinLobbyById(parsed.lobbyId));
+    if (type === "lobby") {
+      await dispatch(joinLobbyById(lobbyId!));
     } else {
-      await dispatch(joinLobbyByPeer(parsed.hostUserId));
+      await dispatch(joinLobbyByPeer(peerId!));
     }
     setJoining(false);
   };
@@ -65,16 +65,16 @@ export default function JoinLobbyView() {
     );
   }
 
-  if (!parsed) return null;
+  if (!type) return null;
 
   return (
     <Paper p="md" maw={480} mx="auto" mt="xl">
       <Stack>
         <Title order={3}>Join Lobby</Title>
         <Text size="sm" c="dimmed">
-          {parsed.type === "lobby"
-            ? `Lobby ID: ${parsed.lobbyId}`
-            : `Direct invite from: ${parsed.hostUserId}`}
+          {type === "lobby"
+            ? `Lobby ID: ${lobbyId}`
+            : `Direct invite from: ${peerId}`}
         </Text>
         {!token ? (
           <form onSubmit={guestForm.onSubmit(handleGuestJoin)}>

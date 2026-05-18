@@ -18,7 +18,8 @@ const AppRoutes = () => {
       <Route path="community/*" element={<CommunityView />} />
       <Route path="settings" element={<SettingsView />} />
       <Route path="settings/:tab" element={<SettingsView />} />
-      <Route path="lobby" element={<JoinLobbyView />} />
+      <Route path="lobby/:lobbyId" element={<JoinLobbyView />} />
+      <Route path="lobby/by-peer-id/:peerId" element={<JoinLobbyView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>

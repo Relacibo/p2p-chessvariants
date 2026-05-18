@@ -253,9 +253,6 @@ function tryBecomingHost(): void {
 
   // Re-register with server if we have a lobby
   if (serverLobbyId && token) {
-    lobbyApi
-      .updateHost(serverLobbyId, myUserId, token)
-      .catch((e) => console.error("[p2p] updateHost failed", e));
     startHeartbeat(serverLobbyId, token);
   }
 
@@ -280,7 +277,7 @@ function startHeartbeat(lobbyId: string, authToken: string): void {
     lobbyApi
       .heartbeat(lobbyId, authToken)
       .catch((e) => console.error("[p2p] heartbeat failed", e));
-  }, 30_000);
+  }, 60_000);
 }
 
 function stopHeartbeat(): void {

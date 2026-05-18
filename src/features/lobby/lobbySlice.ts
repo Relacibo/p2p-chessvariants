@@ -4,7 +4,6 @@ import * as lobbyApi from "../../api/lobbyApi";
 import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import { selectToken, selectUser } from "../auth/authSlice";
-import { buildLobbyInviteFragment, buildPeerInviteFragment } from "./scriptUrl";
 import { notifications } from "@mantine/notifications";
 
 // ---------------------------------------------------------------------------
@@ -178,8 +177,8 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
       });
 
       const inviteUrl = useServerLobby && lobbyId
-        ? window.location.origin + "/lobby#" + buildLobbyInviteFragment(lobbyId)
-        : window.location.origin + "/lobby#" + buildPeerInviteFragment(user.id);
+        ? window.location.origin + "/lobby/" + lobbyId
+        : window.location.origin + "/lobby/by-peer-id/" + user.id;
         
       dispatch(_setHosting({ inviteUrl, allowGuests }));
       notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });

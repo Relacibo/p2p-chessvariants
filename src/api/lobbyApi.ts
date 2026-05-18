@@ -1,9 +1,24 @@
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+export type LobbyStatus = "waiting" | "inGame" | "finished";
+
 export type LobbyInfo = {
   id: string;
   hostUserId: string;
   scriptUrl: string;
+  allowGuests: boolean;
+  status: LobbyStatus;
+  playerCount: number;
+  minPlayers: number | null;
+  maxPlayers: number | null;
+};
+
+export type LobbyPatch = {
+  allowGuests?: boolean;
+  status?: LobbyStatus;
+  playerCount?: number;
+  minPlayers?: number | null;
+  maxPlayers?: number | null;
 };
 
 async function authedFetch(
@@ -63,17 +78,17 @@ export async function heartbeat(
   if (!res.ok) throw new Error(`Heartbeat failed: ${res.status}`);
 }
 
-export async function updateHost(
+export async function patchLobby(
   lobbyId: string,
-  newHostUserId: string,
+  patch: LobbyPatch,
   token: string
 ): Promise<void> {
-  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}/host`, token, {
-    method: "POST",
+  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}`, token, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ newHostUserId }),
+    body: JSON.stringify(patch),
   });
-  if (!res.ok) throw new Error(`Update host failed: ${res.status}`);
+  if (!res.ok) throw new Error("Patch lobby failed");
 }
 
 /** Relay a WebRTC signal via a lobby context. */
@@ -105,17 +120,3 @@ export async function sendSignalDirect(
   if (!res.ok) throw new Error(`Direct signal relay failed: ${res.status}`);
 }
 
-
-export async function updateLobbySettings(
-  lobbyId: string,
-  allowGuests: boolean,
-  token: string
-): Promise<void> {
-  const url = API_URL + "/lobby/" + lobbyId + "/settings";
-  const res = await authedFetch(url, token, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ allowGuests }),
-  });
-  if (!res.ok) throw new Error("Update settings failed");
-}
