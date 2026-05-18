@@ -6,6 +6,7 @@ import LoginView from "./features/auth/LoginView";
 import PlayView from "./features/home/PlayView";
 import CommunityView from "./features/users/CommunityView";
 import SettingsView from "./features/settings/SettingsView";
+import JoinLobbyView from "./features/lobby/JoinLobbyView";
 
 const AppRoutes = () => {
   return (
@@ -16,6 +17,7 @@ const AppRoutes = () => {
       <Route path="community/*" element={<CommunityView />} />
       <Route path="settings" element={<SettingsView />} />
       <Route path="settings/:tab" element={<SettingsView />} />
+      <Route path="lobby" element={<JoinLobbyView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>

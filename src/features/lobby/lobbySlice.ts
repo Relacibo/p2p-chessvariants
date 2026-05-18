@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import type { AppThunk, RootState } from "../../app/store";
-import * as p2p from "../../api/p2pService";
-import { selectToken } from "../auth/authSlice";
+import * as lobbyApi from "../../api/lobbyApi";
+import { selectToken, selectUser } from "../auth/authSlice";
 import { buildInviteFragment, parseScriptUrl } from "./scriptUrl";
 
 // ---------------------------------------------------------------------------
@@ -9,8 +9,7 @@ import { buildInviteFragment, parseScriptUrl } from "./scriptUrl";
 // ---------------------------------------------------------------------------
 
 export type LobbyPlayer = {
-  peerId: string;
-  /** Display name or null for anonymous guests */
+  userId: string;
   name: string | null;
   ready: boolean;
 };
@@ -23,12 +22,20 @@ export type LobbyStatus =
   | { phase: "active" }
   | { phase: "error"; message: string };
 
+export type LobbyInvite = {
+  lobbyId: string;
+  hostUserId: string;
+  hostDisplayName: string;
+  scriptUrl: string;
+};
+
 export type LobbyState = {
   status: LobbyStatus;
   scriptUrl: string | null;
-  localPeerId: string | null;
+  localUserId: string | null;
   serverLobbyId: string | null;
   players: LobbyPlayer[];
+  pendingInvite: LobbyInvite | null;
 };
 
 function logLobbyWarning(context: string, err: unknown): void {
@@ -42,9 +49,10 @@ function logLobbyWarning(context: string, err: unknown): void {
 const initialState: LobbyState = {
   status: { phase: "idle" },
   scriptUrl: null,
-  localPeerId: null,
+  localUserId: null,
   serverLobbyId: null,
   players: [],
+  pendingInvite: null,
 };
 
 export const {
@@ -55,12 +63,16 @@ export const {
     _setActive,
     _setError,
     _setIdle,
-    _setLocalPeerId,
+    _setLocalUserId,
     _setScriptUrl,
     _setServerLobbyId,
     _playerJoined,
     _playerLeft,
     _playerReady,
+    _lobbyDeleted,
+    _gameStarted,
+    _lobbyInviteReceived,
+    _clearPendingInvite,
   },
   reducer,
 } = createSlice({
@@ -85,12 +97,12 @@ export const {
     _setIdle: (state) => {
       state.status = { phase: "idle" };
       state.scriptUrl = null;
-      state.localPeerId = null;
+      state.localUserId = null;
       state.serverLobbyId = null;
       state.players = [];
     },
-    _setLocalPeerId: (state, action: PayloadAction<string>) => {
-      state.localPeerId = action.payload;
+    _setLocalUserId: (state, action: PayloadAction<string>) => {
+      state.localUserId = action.payload;
     },
     _setScriptUrl: (state, action: PayloadAction<string>) => {
       state.scriptUrl = action.payload;
@@ -99,32 +111,82 @@ export const {
       state.serverLobbyId = action.payload;
     },
     _playerJoined: (state, action: PayloadAction<LobbyPlayer>) => {
-      if (!state.players.find((p) => p.peerId === action.payload.peerId)) {
+      if (!state.players.find((p) => p.userId === action.payload.userId)) {
         state.players.push(action.payload);
       }
     },
     _playerLeft: (state, action: PayloadAction<string>) => {
-      state.players = state.players.filter((p) => p.peerId !== action.payload);
+      state.players = state.players.filter(
+        (p) => p.userId !== action.payload
+      );
     },
     _playerReady: (state, action: PayloadAction<string>) => {
-      const player = state.players.find((p) => p.peerId === action.payload);
+      const player = state.players.find((p) => p.userId === action.payload);
       if (player) player.ready = true;
+    },
+    _lobbyDeleted: (
+      state,
+      action: PayloadAction<{ lobbyId: string }>
+    ) => {
+      if (state.serverLobbyId === action.payload.lobbyId) {
+        state.status = { phase: "idle" };
+        state.scriptUrl = null;
+        state.localUserId = null;
+        state.serverLobbyId = null;
+        state.players = [];
+      }
+    },
+    _gameStarted: (
+      state,
+      _action: PayloadAction<{
+        lobbyId: string;
+        members: Array<{ userId: string; displayName: string }>;
+      }>
+    ) => {
+      state.status = { phase: "active" };
+    },
+    _lobbyInviteReceived: (state, action: PayloadAction<LobbyInvite>) => {
+      state.pendingInvite = action.payload;
+    },
+    _clearPendingInvite: (state) => {
+      state.pendingInvite = null;
     },
   },
 });
 
 // ---------------------------------------------------------------------------
+// SSE event handler (called from SseManager)
+// ---------------------------------------------------------------------------
+
+export function handleSseMemberJoined(
+  lobbyId: string,
+  member: { userId: string; displayName: string }
+): AppThunk {
+  return (dispatch, getState) => {
+    const { serverLobbyId } = getState().lobby;
+    if (serverLobbyId !== lobbyId) return;
+    dispatch(
+      _playerJoined({ userId: member.userId, name: member.displayName, ready: false })
+    );
+  };
+}
+
+export function handleSseMemberLeft(
+  lobbyId: string,
+  userId: string
+): AppThunk {
+  return (dispatch, getState) => {
+    const { serverLobbyId } = getState().lobby;
+    if (serverLobbyId !== lobbyId) return;
+    dispatch(_playerLeft(userId));
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Thunks
 // ---------------------------------------------------------------------------
 
-/**
- * Create a new lobby as host. Initialises P2P (guest or authenticated),
- * generates the invite link, and transitions to the "hosting" phase.
- */
-export function createLobby(
-  scriptUrl: string,
-  useServerLobby: boolean
-): AppThunk<Promise<void>> {
+export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const validation = parseScriptUrl(scriptUrl);
     if (!validation.ok) {
@@ -132,99 +194,97 @@ export function createLobby(
       return;
     }
 
+    const token = selectToken(getState());
+    if (!token) {
+      dispatch(_setError("Login required to create a lobby"));
+      return;
+    }
+
+    const user = selectUser(getState());
     dispatch(_setCreating());
     dispatch(_setScriptUrl(scriptUrl));
 
     try {
-      const token = selectToken(getState());
-      const localPeerId =
-        token && useServerLobby
-          ? await p2p.initNode(token)
-          : await p2p.initNodeStandalone();
-
-      dispatch(_setLocalPeerId(localPeerId));
-
-      const basePath = window.location.origin + "/lobby";
-      let serverLobbyId: string | null = null;
-      if (token && useServerLobby) {
-        try {
-          serverLobbyId = await p2p.createServerLobby(scriptUrl);
-        } catch (err) {
-          logLobbyWarning("server lobby creation failed; continuing with peer invite", err);
-          serverLobbyId = null;
-        }
-      }
-      dispatch(_setServerLobbyId(serverLobbyId));
+      const { lobbyId } = await lobbyApi.createLobby(scriptUrl, token);
+      dispatch(_setLocalUserId(user?.id ?? ""));
+      dispatch(_setServerLobbyId(lobbyId));
+      dispatch(
+        _playerJoined({
+          userId: user?.id ?? "",
+          name: user?.displayName ?? null,
+          ready: false,
+        })
+      );
 
       const inviteUrl =
-        basePath + buildInviteFragment(localPeerId, scriptUrl, serverLobbyId ?? undefined);
-
-      dispatch(_playerJoined({ peerId: localPeerId, name: null, ready: false }));
+        window.location.origin +
+        "/lobby#" +
+        buildInviteFragment(lobbyId, scriptUrl);
       dispatch(_setHosting(inviteUrl));
     } catch (err) {
       logLobbyWarning("create lobby failed", err);
       dispatch(
-        _setError(err instanceof Error ? err.message : "Failed to start P2P node")
+        _setError(
+          err instanceof Error ? err.message : "Failed to create lobby"
+        )
       );
     }
   };
 }
 
-/**
- * Join an existing lobby by connecting to the host peer via relay.
- */
 export function joinLobby(
-  hostPeerId: string,
-  scriptUrl: string,
-  lobbyId?: string
+  lobbyId: string,
+  scriptUrl: string
 ): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
+    const token = selectToken(getState());
+    if (!token) {
+      dispatch(_setError("Login required to join a lobby"));
+      return;
+    }
+
     dispatch(_setJoining());
     dispatch(_setScriptUrl(scriptUrl));
 
     try {
-      const token = selectToken(getState());
-      const localPeerId = token
-        ? await p2p.initNode(token)
-        : await p2p.initNodeAsGuest();
+      await lobbyApi.joinLobby(lobbyId, token);
+      const lobbyInfo = await lobbyApi.getLobby(lobbyId);
 
-      dispatch(_setLocalPeerId(localPeerId));
-      dispatch(_playerJoined({ peerId: localPeerId, name: null, ready: false }));
+      dispatch(_setServerLobbyId(lobbyId));
+      const user = selectUser(getState());
+      dispatch(_setLocalUserId(user?.id ?? ""));
 
-      await p2p.connectToPeerViaRelay(hostPeerId);
-      if (token && lobbyId) {
-        try {
-          await p2p.joinServerLobby(lobbyId);
-          dispatch(_setServerLobbyId(lobbyId));
-        } catch (err) {
-          logLobbyWarning("server lobby join failed; continuing with peer invite", err);
-          dispatch(_setServerLobbyId(null));
-        }
-      } else {
-        dispatch(_setServerLobbyId(null));
+      for (const member of lobbyInfo.members) {
+        dispatch(
+          _playerJoined({
+            userId: member.userId,
+            name: member.displayName,
+            ready: false,
+          })
+        );
       }
       dispatch(_setActive());
     } catch (err) {
       logLobbyWarning("join lobby failed", err);
       dispatch(
-        _setError(err instanceof Error ? err.message : "Failed to connect to host")
+        _setError(err instanceof Error ? err.message : "Failed to join lobby")
       );
     }
   };
 }
 
-/** Leave the lobby and stop the P2P node. */
 export function leaveLobby(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
-    const serverLobbyId = getState().lobby.serverLobbyId;
-    if (serverLobbyId) {
+    const { serverLobbyId, localUserId } = getState().lobby;
+    const token = selectToken(getState());
+
+    if (serverLobbyId && token) {
       try {
-        await p2p.leaveServerLobby(serverLobbyId);
+        await lobbyApi.leaveLobby(serverLobbyId, token);
       } catch (err) {
         logLobbyWarning("server lobby leave failed during cleanup", err);
       }
     }
-    await p2p.stopNode();
     dispatch(_setIdle());
   };
 }
@@ -235,9 +295,12 @@ export function leaveLobby(): AppThunk<Promise<void>> {
 
 export const selectLobbyStatus = (state: RootState) => state.lobby.status;
 export const selectLobbyScriptUrl = (state: RootState) => state.lobby.scriptUrl;
-export const selectLobbyLocalPeerId = (state: RootState) => state.lobby.localPeerId;
+export const selectLobbyLocalUserId = (state: RootState) =>
+  state.lobby.localUserId;
 export const selectLobbyServerLobbyId = (state: RootState) =>
   state.lobby.serverLobbyId;
 export const selectLobbyPlayers = (state: RootState) => state.lobby.players;
+export const selectPendingInvite = (state: RootState) =>
+  state.lobby.pendingInvite;
 
 export default reducer;

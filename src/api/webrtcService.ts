@@ -1,0 +1,153 @@
+/** WebRTC peer connections for client-to-client game data channels.
+ *  Signaling is routed through the server via POST /lobby/{id}/signal → SSE "signal" event.
+ */
+
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
+export type SignalSender = (
+  toUserId: string,
+  signal: object
+) => Promise<void>;
+
+export type DataChannelMessageCallback = (
+  fromUserId: string,
+  data: Uint8Array
+) => void;
+
+type PeerState = {
+  pc: RTCPeerConnection;
+  dataChannel: RTCDataChannel | null;
+};
+
+let signalSender: SignalSender | null = null;
+let messageCallback: DataChannelMessageCallback | null = null;
+const peers = new Map<string, PeerState>();
+
+export function setMessageCallback(cb: DataChannelMessageCallback) {
+  messageCallback = cb;
+}
+
+export function init(sendSignal: SignalSender) {
+  signalSender = sendSignal;
+}
+
+export function reset() {
+  for (const [, { pc }] of peers) {
+    pc.close();
+  }
+  peers.clear();
+  signalSender = null;
+}
+
+function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const state: PeerState = { pc, dataChannel: null };
+  peers.set(remoteUserId, state);
+
+  pc.onicecandidate = async (ev) => {
+    if (ev.candidate && signalSender) {
+      await signalSender(remoteUserId, {
+        type: "ice-candidate",
+        candidate: ev.candidate.toJSON(),
+      });
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (
+      pc.connectionState === "disconnected" ||
+      pc.connectionState === "failed"
+    ) {
+      peers.delete(remoteUserId);
+    }
+  };
+
+  if (isInitiator) {
+    const dc = pc.createDataChannel("game");
+    state.dataChannel = dc;
+    setupDataChannel(dc, remoteUserId);
+  } else {
+    pc.ondatachannel = (ev) => {
+      state.dataChannel = ev.channel;
+      setupDataChannel(ev.channel, remoteUserId);
+    };
+  }
+
+  return state;
+}
+
+function setupDataChannel(dc: RTCDataChannel, remoteUserId: string) {
+  dc.binaryType = "arraybuffer";
+  dc.onmessage = (ev) => {
+    if (messageCallback) {
+      messageCallback(remoteUserId, new Uint8Array(ev.data));
+    }
+  };
+}
+
+/** Called when a game starts: initiates WebRTC connections to all peers. */
+export async function connectToPeers(
+  allMemberIds: string[],
+  myUserId: string
+): Promise<void> {
+  for (const remoteId of allMemberIds) {
+    if (remoteId === myUserId) continue;
+    // Lexicographic order determines who initiates to avoid duplicate offers
+    const isInitiator = myUserId < remoteId;
+    const state = createPeer(remoteId, isInitiator);
+    if (isInitiator) {
+      const offer = await state.pc.createOffer();
+      await state.pc.setLocalDescription(offer);
+      await signalSender!(remoteId, { type: "offer", sdp: offer });
+    }
+  }
+}
+
+export async function handleSignal(
+  fromUserId: string,
+  signal: {
+    type: "offer" | "answer" | "ice-candidate";
+    sdp?: RTCSessionDescriptionInit;
+    candidate?: RTCIceCandidateInit;
+  }
+): Promise<void> {
+  let state = peers.get(fromUserId);
+
+  if (signal.type === "offer") {
+    if (!state) {
+      state = createPeer(fromUserId, false);
+    }
+    await state.pc.setRemoteDescription(signal.sdp!);
+    const answer = await state.pc.createAnswer();
+    await state.pc.setLocalDescription(answer);
+    await signalSender!(fromUserId, { type: "answer", sdp: answer });
+  } else if (signal.type === "answer") {
+    if (state) {
+      await state.pc.setRemoteDescription(signal.sdp!);
+    }
+  } else if (signal.type === "ice-candidate") {
+    if (state && signal.candidate) {
+      await state.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+    }
+  }
+}
+
+export function sendToAll(data: Uint8Array<ArrayBuffer>): void {
+  for (const [, { dataChannel }] of peers) {
+    if (dataChannel?.readyState === "open") {
+      dataChannel.send(data);
+    }
+  }
+}
+
+export function sendToPeer(toUserId: string, data: Uint8Array<ArrayBuffer>): boolean {
+  const state = peers.get(toUserId);
+  if (state?.dataChannel?.readyState === "open") {
+    state.dataChannel.send(data);
+    return true;
+  }
+  return false;
+}

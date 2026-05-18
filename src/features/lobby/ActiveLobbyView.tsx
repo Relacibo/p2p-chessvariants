@@ -124,9 +124,9 @@ export default function ActiveLobbyView({ inviteUrl }: { inviteUrl: string }) {
               }
             >
               {players.map((p) => (
-                <List.Item key={p.peerId}>
+                <List.Item key={p.userId}>
                   <Group justify="space-between" style={{ width: "100%" }}>
-                    <Text>{p.name || "Anonymous Guest"}</Text>
+                    <Text>{p.name || "Anonymous"}</Text>
                     {p.ready && (
                       <Badge color="green" size="sm">
                         Ready

@@ -2,10 +2,7 @@ import {
   ActionIcon,
   Alert,
   Button,
-  Checkbox,
-  Code,
   Combobox,
-  CopyButton,
   Group,
   Input,
   InputBase,
@@ -28,15 +25,9 @@ import {
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { selectToken } from "../auth/authSlice";
-import {
-  createLobby,
-  leaveLobby,
-  selectLobbyScriptUrl,
-  selectLobbyStatus,
-} from "./lobbySlice";
 import {
   getGithubBrowseUrl,
   normalizeScriptUrl,
@@ -50,6 +41,10 @@ import {
   removeCustomVariant,
   selectAllVariants,
 } from "./variantsSlice";
+import {
+  createLobby,
+  selectLobbyStatus,
+} from "./lobbySlice";
 
 function AddCustomVariantModal({
   opened,
@@ -105,7 +100,6 @@ function CreateLobbyForm() {
   const status = useSelector(selectLobbyStatus);
   const token = useSelector(selectToken);
   const variants = useSelector(selectAllVariants);
-  const canUseServerLobby = !!token;
   const isCreating = status.phase === "creating";
 
   const [opened, { open, close }] = useDisclosure(false);
@@ -124,7 +118,7 @@ function CreateLobbyForm() {
   const [search, setSearch] = useState("");
 
   const form = useForm({
-    initialValues: { scriptUrl: "", useServerLobby: canUseServerLobby },
+    initialValues: { scriptUrl: "" },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
@@ -134,14 +128,6 @@ function CreateLobbyForm() {
       },
     },
   });
-
-  useEffect(() => {
-    if (canUseServerLobby) {
-      form.setFieldValue("useServerLobby", true);
-    } else {
-      form.setFieldValue("useServerLobby", false);
-    }
-  }, [canUseServerLobby]);
 
   const filteredVariants = variants.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase().trim())
@@ -176,9 +162,9 @@ function CreateLobbyForm() {
   return (
     <>
       <form
-        onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
+        onSubmit={form.onSubmit(({ scriptUrl }) => {
           const normalized = normalizeScriptUrl(scriptUrl.trim());
-          dispatch(createLobby(normalized, canUseServerLobby && useServerLobby));
+          dispatch(createLobby(normalized));
         })}
       >
         <Stack>
@@ -248,20 +234,7 @@ function CreateLobbyForm() {
             </Tooltip>
           </Group>
 
-          <Tooltip
-            label={canUseServerLobby ? "" : "Login required for server lobby"}
-            disabled={canUseServerLobby}
-          >
-            <div>
-              <Checkbox
-                label="Create server lobby"
-                description="Enable server-side lobby tracking/events"
-                disabled={!canUseServerLobby}
-                {...form.getInputProps("useServerLobby", { type: "checkbox" })}
-              />
-            </div>
-          </Tooltip>
-          <Button type="submit" loading={isCreating}>
+          <Button type="submit" loading={isCreating} disabled={!token}>
             Create Lobby
           </Button>
         </Stack>

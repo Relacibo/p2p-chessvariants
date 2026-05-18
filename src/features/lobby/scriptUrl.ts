@@ -157,38 +157,28 @@ export function decodeScriptUrl(encoded: string): string {
   return atob(padded + pad);
 }
 
-/** Parse the invite fragment: #{peerId},{base64url(scriptUrl)} */
 export type InviteFragment = {
-  hostPeerId: string;
+  lobbyId: string;
   scriptUrl: string;
-  lobbyId?: string;
 };
 
 export function parseInviteFragment(fragment: string): InviteFragment | null {
   const hash = fragment.startsWith("#") ? fragment.slice(1) : fragment;
   const parts = hash.split(",");
-  if (parts.length < 2 || parts.length > 3) return null;
-  const [hostPeerId, encodedUrl, lobbyId] = parts;
-  if (!hostPeerId || !encodedUrl) return null;
+  if (parts.length < 2) return null;
+  const [lobbyId, encodedUrl] = parts;
+  if (!lobbyId || !encodedUrl) return null;
   try {
     const scriptUrl = decodeScriptUrl(encodedUrl);
-    if (lobbyId) {
-      return { hostPeerId, scriptUrl, lobbyId };
-    }
-    return { hostPeerId, scriptUrl };
+    return { lobbyId, scriptUrl };
   } catch {
     return null;
   }
 }
 
-/** Build an invite fragment for sharing. */
-export function buildInviteFragment(
-  hostPeerId: string,
-  scriptUrl: string,
-  lobbyId?: string
-): string {
-  const base = `#${hostPeerId},${encodeScriptUrl(scriptUrl)}`;
-  return lobbyId ? `${base},${lobbyId}` : base;
+/** Build an invite fragment: #{lobbyId},{base64url(scriptUrl)} */
+export function buildInviteFragment(lobbyId: string, scriptUrl: string): string {
+  return `${lobbyId},${encodeScriptUrl(scriptUrl)}`;
 }
 
 // ---------------------------------------------------------------------------
