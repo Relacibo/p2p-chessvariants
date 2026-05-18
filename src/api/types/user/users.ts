@@ -1,6 +1,7 @@
 export type User = {
   id: string;
   userName: string;
+  avatarHash?: string;
   displayName:string;
   email: string;
   locale: string;
@@ -12,6 +13,7 @@ export type User = {
 export type PublicUser = {
   id: string;
   userName: string;
+  avatarHash?: string;
   displayName:string;
   createdAt: Date;
 };

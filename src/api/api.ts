@@ -104,6 +104,16 @@ export const api = createApi({
         body,
       }),
     }),
+    updateUser: builder.mutation<void, { useGravatar: boolean }>({
+      query: (body) => ({
+        url: "users/me",
+        method: "put",
+        body,
+      }),
+      // We could invalidate user, but the user is currently stored in authSlice not API slice.
+      // Easiest is to let the user re-login or reload to see the effect instantly, 
+      // or we can optimistically update authSlice.
+    }),
     serverLogout: builder.mutation<void, void>({
       query: () => ({ url: "auth/logout", method: "post" }),
     }),
@@ -202,7 +212,8 @@ export const {
   useListUsersQuery,
   useDeleteUserMutation,
   useSignInMutation,
-    useGuestLoginMutation,
+      useUpdateUserMutation,
+  useGuestLoginMutation,
   useSignUpMutation,
   useServerLogoutMutation,
   useGetConnectionsQuery,
