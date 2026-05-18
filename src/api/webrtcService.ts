@@ -22,14 +22,21 @@ export type DataChannelMessageCallback = (
 type PeerState = {
   pc: RTCPeerConnection;
   dataChannel: RTCDataChannel | null;
+  pendingCandidates: RTCIceCandidateInit[];
+  remoteDescSet: boolean;
 };
 
 let signalSender: SignalSender | null = null;
 let messageCallback: DataChannelMessageCallback | null = null;
+let peerConnectedCallback: ((userId: string) => void) | null = null;
 const peers = new Map<string, PeerState>();
 
 export function setMessageCallback(cb: DataChannelMessageCallback) {
   messageCallback = cb;
+}
+
+export function onPeerConnected(cb: (userId: string) => void) {
+  peerConnectedCallback = cb;
 }
 
 export function init(sendSignal: SignalSender) {
@@ -46,12 +53,13 @@ export function reset() {
   }
   peers.clear();
   signalSender = null;
+  peerConnectedCallback = null;
   iceServers = STUN_SERVERS;
 }
 
 function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
   const pc = new RTCPeerConnection({ iceServers });
-  const state: PeerState = { pc, dataChannel: null };
+  const state: PeerState = { pc, dataChannel: null, pendingCandidates: [], remoteDescSet: false };
   peers.set(remoteUserId, state);
 
   pc.onicecandidate = async (ev) => {
@@ -88,6 +96,9 @@ function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
 
 function setupDataChannel(dc: RTCDataChannel, remoteUserId: string) {
   dc.binaryType = "arraybuffer";
+  dc.onopen = () => {
+    peerConnectedCallback?.(remoteUserId);
+  };
   dc.onmessage = (ev) => {
     if (messageCallback) {
       messageCallback(remoteUserId, new Uint8Array(ev.data));
@@ -130,16 +141,30 @@ export async function handleSignal(
       state = createPeer(fromUserId, false);
     }
     await state.pc.setRemoteDescription(signal.sdp!);
+    state.remoteDescSet = true;
+    for (const c of state.pendingCandidates) {
+      await state.pc.addIceCandidate(new RTCIceCandidate(c));
+    }
+    state.pendingCandidates = [];
     const answer = await state.pc.createAnswer();
     await state.pc.setLocalDescription(answer);
     await signalSender!(fromUserId, { type: "answer", sdp: answer });
   } else if (signal.type === "answer") {
     if (state) {
       await state.pc.setRemoteDescription(signal.sdp!);
+      state.remoteDescSet = true;
+      for (const c of state.pendingCandidates) {
+        await state.pc.addIceCandidate(new RTCIceCandidate(c));
+      }
+      state.pendingCandidates = [];
     }
   } else if (signal.type === "ice-candidate") {
     if (state && signal.candidate) {
-      await state.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      if (state.remoteDescSet) {
+        await state.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      } else {
+        state.pendingCandidates.push(signal.candidate);
+      }
     }
   }
 }

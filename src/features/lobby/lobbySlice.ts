@@ -203,7 +203,7 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
         });
       }
 
-      p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token || "", {
+      p2pLobbyService.initP2PLobby(user.id, user.displayName ?? user.id, true, lobbyId, scriptUrl, token || "", {
         onLobbyInfo: () => {},
         onPlayerJoined: (player) =>
           dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
@@ -259,7 +259,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
             const currentToken = selectToken(getState());
             return lobbyApi.sendSignal(lobbyId, toUserId, signal, currentToken ?? "");
           });
-          p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token, {
+          p2pLobbyService.initP2PLobby(user.id, user.displayName ?? user.id, true, lobbyId, lobbyInfo.scriptUrl, token, {
             onLobbyInfo: () => {},
             onPlayerJoined: (player) =>
               dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
@@ -279,7 +279,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
         const currentToken = selectToken(getState());
         return lobbyApi.sendSignal(lobbyId, toUserId, signal, currentToken ?? "");
       });
-      _initP2PAsJoiner(dispatch, user.id, user.displayName ?? user.id, lobbyInfo.hostUserId, null, null, token);
+      _initP2PAsJoiner(dispatch, user.id, user.displayName ?? user.id, lobbyInfo.hostUserId, lobbyId, lobbyInfo.scriptUrl, token);
       // Joiner always initiates the WebRTC connection so the host (which never calls connectToPeers) can answer
       await webrtcService.connectToPeers([lobbyInfo.hostUserId], user.id, true);
     } catch (err) {
@@ -328,10 +328,10 @@ function _initP2PAsJoiner(
   displayName: string,
   hostUserId: string,
   lobbyId: string | null,
-  _scriptUrl: string | null,
+  variantUrl: string | null,
   authToken: string
 ) {
-  p2pLobbyService.initP2PLobby(userId, false, lobbyId, authToken, {
+  p2pLobbyService.initP2PLobby(userId, displayName, false, lobbyId, variantUrl, authToken, {
     onLobbyInfo: (info) => {
       dispatch(_setScriptUrl(info.variantUrl));
       for (const p of info.players) {
@@ -347,13 +347,7 @@ function _initP2PAsJoiner(
     },
     onGameMessage: () => {},
   });
-
-  // Send LobbyJoin to host once connected — webrtcService will call this
-  // after the DataChannel opens. We hook into the onopen event indirectly
-  // by scheduling the send after connectToPeers resolves.
-  setTimeout(() => {
-    p2pLobbyService.sendLobbyJoin(hostUserId);
-  }, 500);
+  // LobbyJoin is now sent automatically via webrtcService.onPeerConnected when DataChannel opens
 }
 
 /** Leave a lobby as a non-host participant (disconnects P2P, does NOT delete the lobby). */
@@ -402,7 +396,8 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
         const currentToken = selectToken(getState());
         return lobbyApi.sendSignal(serverLobbyId, toUserId, signal, currentToken ?? "");
       });
-      p2pLobbyService.initP2PLobby(user.id, true, serverLobbyId, token, {
+      const currentScriptUrl = getState().lobby.scriptUrl;
+      p2pLobbyService.initP2PLobby(user.id, user.displayName ?? user.id, true, serverLobbyId, currentScriptUrl, token, {
         onLobbyInfo: () => {},
         onPlayerJoined: (player) =>
           dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),

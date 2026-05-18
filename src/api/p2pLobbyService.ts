@@ -44,8 +44,10 @@ export type P2PLobbyCallbacks = {
 // ---------------------------------------------------------------------------
 
 let myUserId: string | null = null;
+let myDisplayName: string | null = null;
 let isHost = false;
 let serverLobbyId: string | null = null;
+let scriptUrl: string | null = null;
 let hostPriority: string[] = [];
 let players: P2PLobbyPlayer[] = [];
 let callbacks: P2PLobbyCallbacks | null = null;
@@ -66,14 +68,18 @@ export function updateAuthToken(newToken: string): void {
 
 export function initP2PLobby(
   userId: string,
+  displayName: string,
   _isHost: boolean,
   lobbyId: string | null,
+  variantUrl: string | null,
   _token: string | null,
   cbs: P2PLobbyCallbacks
 ): void {
   myUserId = userId;
+  myDisplayName = displayName;
   isHost = _isHost;
   serverLobbyId = lobbyId;
+  scriptUrl = variantUrl;
   token = _token;
   callbacks = cbs;
   players = [];
@@ -88,6 +94,13 @@ export function initP2PLobby(
     }
   });
 
+  if (!isHost) {
+    // Send LobbyJoin as soon as the DataChannel to the host is open
+    webrtcService.onPeerConnected((connectedUserId) => {
+      sendLobbyJoin(connectedUserId);
+    });
+  }
+
   if (isHost && serverLobbyId && token) {
     startHeartbeat(serverLobbyId, token);
   }
@@ -96,8 +109,10 @@ export function initP2PLobby(
 export function resetP2PLobby(): void {
   stopHeartbeat();
   myUserId = null;
+  myDisplayName = null;
   isHost = false;
   serverLobbyId = null;
+  scriptUrl = null;
   token = null;
   callbacks = null;
   players = [];
@@ -108,12 +123,12 @@ export function resetP2PLobby(): void {
 // Outgoing messages
 // ---------------------------------------------------------------------------
 
-/** Joiner calls this after WebRTC connect to announce themselves to the host. */
+/** Joiner calls this after WebRTC DataChannel opens to announce themselves to the host. */
 export function sendLobbyJoin(toUserId: string): void {
   if (!myUserId) return;
   const msg = P2PMsg.encode({
     tag: 1,
-    value: LobbyJoin({ userId: myUserId, displayName: "" }),
+    value: LobbyJoin({ userId: myUserId, displayName: myDisplayName ?? myUserId }),
   });
   webrtcService.sendToPeer(toUserId, msg);
 }
@@ -176,7 +191,7 @@ function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
   const lobbyInfoMsg = P2PMsg.encode({
     tag: 2,
     value: LobbyInfo({
-      variantUrl: serverLobbyId ? undefined : undefined, // host has the URL from state
+      variantUrl: scriptUrl ?? "",
       players: players.map((p): Player => ({ userId: p.userId, displayName: p.displayName })),
       hostPriority: hostPriority,
     }),
