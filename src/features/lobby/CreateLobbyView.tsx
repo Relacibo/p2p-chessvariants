@@ -204,7 +204,22 @@ function CreateLobbyForm() {
                   style={{ flex: 1 }}
                 >
                   {selectedVariant ? (
-                    selectedVariant.name
+                    <Group justify="space-between" style={{ width: "100%" }}>
+                      <Text>{selectedVariant.name}</Text>
+                      <Tooltip label="View Source">
+                        <ActionIcon
+                          variant="transparent"
+                          color="gray"
+                          component="a"
+                          href={getGithubBrowseUrl(selectedVariant.url)}
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          <IconBrandGithub size="1.2rem" />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   ) : (
                     <Input.Placeholder>Pick a variant</Input.Placeholder>
                   )}
