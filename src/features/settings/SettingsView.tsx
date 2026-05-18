@@ -19,12 +19,14 @@ import { useGetConnectionsQuery, useUnlinkProviderMutation } from "../../api/api
 import { selectUser } from "../auth/authSlice";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
+import useConfigureLayout from "../layout/hooks";
 
 type TabValue = "profile" | "connections" | "game";
 
 const VALID_TABS: TabValue[] = ["profile", "connections", "game"];
 
 const SettingsView = () => {
+  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
   const activeTab: TabValue =
