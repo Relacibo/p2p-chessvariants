@@ -46,7 +46,7 @@ export class GithubGistSource implements VariantSource {
   }
 
   getBrowseUrl() {
-    // Format: https://gist.github.com/{owner}/{gistId}/{sha}
+    // Format: https://gist.github.com/${this.owner}/${this.gistId}/${this.sha}
     return `${GIST_BROWSE_ORIGIN}/${this.owner}/${this.gistId}/${this.sha}`;
   }
 }
@@ -63,29 +63,36 @@ export class GenericSource implements VariantSource {
 
 /**
  * Factory function to parse a URL into a VariantSource.
+ * Returns null if the URL is recognizably GitHub/Gist but invalid (e.g. missing SHA).
  */
-export function parseVariantSource(input: string): VariantSource {
+export function parseVariantSource(input: string): VariantSource | null {
   try {
     const url = new URL(input.trim());
 
     // 1. GitHub Repo (Browse or Raw)
-    if (url.origin === GITHUB_BROWSE_ORIGIN || url.origin === GITHUB_RAW_ORIGIN) {
+    if (
+      url.origin === GITHUB_BROWSE_ORIGIN ||
+      url.origin === GITHUB_RAW_ORIGIN
+    ) {
       const pathname = url.pathname.replace(/^\//, "");
       const parts = pathname.split("/");
 
       if (url.origin === GITHUB_BROWSE_ORIGIN) {
         // {owner}/{repo}/blob/{sha}/{...path}
-        if (parts.length >= 5 && parts[2] === "blob" && SHA40_RE.test(parts[3])) {
+        if (parts.length >= 5 && parts[2] === "blob") {
+          if (!SHA40_RE.test(parts[3])) return null; // Not a commit SHA
           const [owner, repo, , sha, ...pathParts] = parts;
           return new GithubRepoSource(owner, repo, sha, pathParts.join("/"));
         }
       } else {
         // {owner}/{repo}/{sha}/{...path}
-        if (parts.length >= 4 && SHA40_RE.test(parts[2])) {
+        if (parts.length >= 4) {
+          if (!SHA40_RE.test(parts[2])) return null; // Not a commit SHA
           const [owner, repo, sha, ...pathParts] = parts;
           return new GithubRepoSource(owner, repo, sha, pathParts.join("/"));
         }
       }
+      return null; // Recognized as GitHub but invalid format
     }
 
     // 2. GitHub Gist (Browse or Raw)
@@ -95,27 +102,40 @@ export function parseVariantSource(input: string): VariantSource {
 
       if (url.origin === GIST_BROWSE_ORIGIN) {
         // {owner}/{gistId}/{sha} or {gistId}/{sha}
-        if (parts.length === 3 && SHA40_RE.test(parts[2])) {
+        if (parts.length === 3) {
+          if (!SHA40_RE.test(parts[2])) return null;
           return new GithubGistSource(parts[0], parts[1], parts[2]);
-        } else if (parts.length === 2 && SHA40_RE.test(parts[1])) {
+        } else if (parts.length === 2) {
+          if (!SHA40_RE.test(parts[1])) return null;
           return new GithubGistSource("anonymous", parts[0], parts[1]);
         }
       } else {
         // {owner}/{gistId}/raw/{sha}/{filename}
-        if (parts.length >= 5 && parts[2] === "raw" && SHA40_RE.test(parts[3])) {
-          return new GithubGistSource(parts[0], parts[1], parts[3], parts.slice(4).join("/"));
+        if (parts.length >= 5 && parts[2] === "raw") {
+          if (!SHA40_RE.test(parts[3])) return null;
+          return new GithubGistSource(
+            parts[0],
+            parts[1],
+            parts[3],
+            parts.slice(4).join("/")
+          );
         }
       }
+      return null; // Recognized as Gist but invalid format
     }
   } catch {
     // Ignore URL parse errors
   }
 
-  return new GenericSource(input.trim());
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Generic fallback (caution: not necessarily immutable)
+  return new GenericSource(trimmed);
 }
 
 // ---------------------------------------------------------------------------
-// Existing logic (refactored to use VariantSource where appropriate)
+// Existing logic
 // ---------------------------------------------------------------------------
 
 export async function fetchScriptText(url: string): Promise<string> {
@@ -188,23 +208,26 @@ export function buildInviteFragment(
 // ---------------------------------------------------------------------------
 
 export function normalizeScriptUrl(input: string): string {
-  return parseVariantSource(input).getRawUrl();
+  return parseVariantSource(input)?.getRawUrl() ?? input;
 }
 
 export function getGithubBrowseUrl(urlStr: string): string {
-  return parseVariantSource(urlStr).getBrowseUrl();
+  return parseVariantSource(urlStr)?.getBrowseUrl() ?? urlStr;
 }
 
 /** @deprecated use parseVariantSource */
 export function parseScriptUrl(raw: string): { ok: boolean; error?: string } {
   const source = parseVariantSource(raw);
-  if (source instanceof GenericSource && raw.trim().length > 0) {
-    // For now, keep generic as "maybe ok" but you'd want better validation
-    return { ok: true };
+  if (!source) {
+    return {
+      ok: false,
+      error:
+        "Invalid or non-immutable URL. GitHub links must reference a 40-character commit SHA (Permalink).",
+    };
   }
   return { ok: true };
 }
 
-export function scriptUrlErrorMessage(error: any): string {
-  return "Invalid script source";
+export function scriptUrlErrorMessage(error: string | undefined): string {
+  return error || "Invalid script source";
 }
