@@ -1,10 +1,11 @@
-import { Container, Title, Stack, Grid, Paper } from "@mantine/core";
+import { Title, Stack, Grid, Paper } from "@mantine/core";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import CreateLobbyView from "../lobby/CreateLobbyView";
 import GameListView from "../game/GameListView";
 import { selectLobbyStatus } from "../lobby/lobbySlice";
+import PageContainer from "../layout/PageContainer";
 
 export default function PlayView() {
   const lobbyStatus = useSelector(selectLobbyStatus);
@@ -20,7 +21,7 @@ export default function PlayView() {
   }, [lobbyStatus.phase]);
 
   return (
-    <Container size="xl" pt="md">
+    <PageContainer>
       <Grid>
         <Grid.Col span={{ base: 12, lg: 5 }}>
           <Stack>
@@ -36,6 +37,6 @@ export default function PlayView() {
           </Paper>
         </Grid.Col>
       </Grid>
-    </Container>
+    </PageContainer>
   );
 }

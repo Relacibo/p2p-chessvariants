@@ -1,9 +1,10 @@
-import { Container, Center, Loader } from "@mantine/core";
+import { Center, Loader } from "@mantine/core";
 import { useSelector } from "../../app/hooks";
 import { selectLobbyStatus } from "./lobbySlice";
 import ActiveLobbyView from "./ActiveLobbyView";
 import useConfigureLayout from "../layout/hooks";
 import { Navigate, useParams } from "react-router-dom";
+import PageContainer from "../layout/PageContainer";
 
 export default function LobbyView() {
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
@@ -12,27 +13,27 @@ export default function LobbyView() {
 
   if (lobbyStatus.phase === "hosting") {
     return (
-      <Container size="xl" pt="md">
+      <PageContainer>
         <ActiveLobbyView inviteUrl={lobbyStatus.inviteUrl} allowGuests={lobbyStatus.allowGuests} isPassiveHostTab={lobbyStatus.isPassiveHostTab} />
-      </Container>
+      </PageContainer>
     );
   }
 
   if (lobbyStatus.phase === "active" || lobbyStatus.phase === "joining") {
     return (
-      <Container size="xl" pt="md">
+      <PageContainer>
         <ActiveLobbyView inviteUrl="" allowGuests={false} />
-      </Container>
+      </PageContainer>
     );
   }
 
   if (lobbyStatus.phase === "creating") {
     return (
-      <Container size="xl" pt="md">
+      <PageContainer>
         <Center pt="xl">
           <Loader />
         </Center>
-      </Container>
+      </PageContainer>
     );
   }
 

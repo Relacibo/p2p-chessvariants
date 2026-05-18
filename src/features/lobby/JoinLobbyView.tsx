@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Container, Loader, Center, Paper, Stack, Text, Title, TextInput } from "@mantine/core";
+import { Alert, Button, Loader, Center, Paper, Stack, Text, Title, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useGuestLoginMutation } from "../../api/api";
@@ -9,6 +9,7 @@ import { joinLobbyById, joinLobbyByPeer, selectLobbyStatus, _setIdle } from "../
 import { selectToken } from "../auth/authSlice";
 import { useParams, useNavigate } from "react-router-dom";
 import useConfigureLayout from "../layout/hooks";
+import PageContainer from "../layout/PageContainer";
 
 export default function JoinLobbyView() {
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
@@ -66,16 +67,16 @@ export default function JoinLobbyView() {
 
   if (error) {
     return (
-      <Container size="sm" pt="xl">
+      <PageContainer>
         <Alert color="red" title="Error joining lobby">{error}</Alert>
-      </Container>
+      </PageContainer>
     );
   }
 
   // Redux-level error (from joinLobbyById dispatch)
   if (lobbyStatus.phase === "error") {
     return (
-      <Container size="sm" pt="xl">
+      <PageContainer>
         <Paper p="md" maw={480} mx="auto">
           <Stack>
             <Alert color="red" title="Failed to join lobby">{lobbyStatus.message}</Alert>
@@ -84,27 +85,27 @@ export default function JoinLobbyView() {
             </Button>
           </Stack>
         </Paper>
-      </Container>
+      </PageContainer>
     );
   }
 
   // Logged in → auto-joining, show spinner
   if (token && (lobbyStatus.phase === "joining" || hasAutoJoined)) {
     return (
-      <Container size="sm" pt="xl">
+      <PageContainer>
         <Center>
           <Stack align="center" gap="md">
             <Loader />
             <Text c="dimmed">Joining lobby...</Text>
           </Stack>
         </Center>
-      </Container>
+      </PageContainer>
     );
   }
 
   // Not logged in → ask for guest name
   return (
-    <Container size="sm" pt="xl">
+    <PageContainer>
       <Paper p="md" maw={480} mx="auto">
         <Stack>
           <Title order={3}>Join Lobby</Title>
@@ -123,7 +124,7 @@ export default function JoinLobbyView() {
           </form>
         </Stack>
       </Paper>
-    </Container>
+    </PageContainer>
   );
 }
 

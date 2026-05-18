@@ -1,4 +1,4 @@
-import { Container, Title, Tabs, Text } from "@mantine/core";
+import { Title, Tabs, Text } from "@mantine/core";
 import {
   IconUsers,
   IconUserSearch,
@@ -11,6 +11,7 @@ import useConfigureLayout from "../layout/hooks";
 import FriendRequests from "./FriendRequests";
 import FriendsList from "./FriendsList";
 import UserOverview from "./UserOverview";
+import PageContainer from "../layout/PageContainer";
 
 export default function CommunityView() {
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
@@ -27,7 +28,7 @@ export default function CommunityView() {
   if (location.pathname.endsWith("/requests")) activeTab = "requests";
 
   return (
-    <Container size="md" pt="md">
+    <PageContainer>
       <Title order={2} mb="md">
         Community
       </Title>
@@ -82,6 +83,6 @@ export default function CommunityView() {
           )}
         </Tabs.Panel>
       </Tabs>
-    </Container>
+    </PageContainer>
   );
 }

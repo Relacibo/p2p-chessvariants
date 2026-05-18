@@ -1,7 +1,6 @@
 import {
   Button,
   Center,
-  Container,
   Divider,
   Group,
   Loader,
@@ -13,6 +12,7 @@ import { notifications } from "@mantine/notifications";
 import { useGetConnectionsQuery, useUnlinkProviderMutation } from "../../api/api";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
+import PageContainer from "../layout/PageContainer";
 
 const ConnectionsView = () => {
   const { data: connections, isLoading, refetch } = useGetConnectionsQuery();
@@ -49,12 +49,12 @@ const ConnectionsView = () => {
     connections ? Number(connections.google) + Number(connections.lichess) : 0;
 
   return (
-    <Container maw={500} pt="xl">
-      <Title order={2} mb="md">
-        Verbundene Accounts
-      </Title>
+    <PageContainer>
+      <Stack maw={600} gap="md">
+        <Title order={2}>
+          Verbundene Accounts
+        </Title>
 
-      <Stack gap="md">
         <Group justify="space-between" align="center">
           <div>
             <Text fw={500}>Google</Text>
@@ -99,7 +99,7 @@ const ConnectionsView = () => {
           )}
         </Group>
       </Stack>
-    </Container>
+    </PageContainer>
   );
 };
 

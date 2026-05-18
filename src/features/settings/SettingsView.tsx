@@ -3,7 +3,6 @@ import {
   Avatar,
   Badge,
   Button,
-  Container,
   Divider,
   Group,
   Loader,
@@ -24,6 +23,7 @@ import { selectUser, updateUserState } from "../auth/authSlice";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
 import useConfigureLayout from "../layout/hooks";
+import PageContainer from "../layout/PageContainer";
 
 type TabValue = "profile" | "connections" | "game";
 
@@ -50,7 +50,8 @@ const SettingsView = () => {
   }
 
   return (
-    <Container maw={600} pt="xl">
+    <PageContainer>
+      <Stack maw={600} gap={0}>
       <Title order={2} mb="lg">
         Settings
       </Title>
@@ -73,7 +74,8 @@ const SettingsView = () => {
           <Text c="dimmed">Game settings coming soon.</Text>
         </Tabs.Panel>
       </Tabs>
-    </Container>
+      </Stack>
+    </PageContainer>
   );
 };
 
