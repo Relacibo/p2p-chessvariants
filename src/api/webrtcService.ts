@@ -98,12 +98,14 @@ function setupDataChannel(dc: RTCDataChannel, remoteUserId: string) {
 /** Called when a game starts: initiates WebRTC connections to all peers. */
 export async function connectToPeers(
   allMemberIds: string[],
-  myUserId: string
+  myUserId: string,
+  alwaysInitiate = false
 ): Promise<void> {
   for (const remoteId of allMemberIds) {
     if (remoteId === myUserId) continue;
-    // Lexicographic order determines who initiates to avoid duplicate offers
-    const isInitiator = myUserId < remoteId;
+    // When alwaysInitiate is true (joiner role), always send the offer.
+    // Otherwise use lexicographic order to avoid duplicate offers in full-mesh setups.
+    const isInitiator = alwaysInitiate || myUserId < remoteId;
     const state = createPeer(remoteId, isInitiator);
     if (isInitiator) {
       const offer = await state.pc.createOffer();

@@ -189,15 +189,18 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
 
       await _applyTurnCredentials(token);
 
-      // Init P2P as host
+      // Init P2P as host — always read current token so refreshes are picked up
       if (useServerLobby && token && lobbyId) {
-        webrtcService.init((toUserId, signal) =>
-          lobbyApi.sendSignal(lobbyId as string, toUserId, signal, token)
-        );
+        const capturedLobbyId = lobbyId;
+        webrtcService.init((toUserId, signal) => {
+          const currentToken = selectToken(getState());
+          return lobbyApi.sendSignal(capturedLobbyId, toUserId, signal, currentToken ?? "");
+        });
       } else {
-        webrtcService.init((toUserId, signal) =>
-          lobbyApi.sendSignalDirect(toUserId, signal, token || "")
-        );
+        webrtcService.init((toUserId, signal) => {
+          const currentToken = selectToken(getState());
+          return lobbyApi.sendSignalDirect(toUserId, signal, currentToken ?? "");
+        });
       }
 
       p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token || "", {
@@ -252,9 +255,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
         dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests, isPassiveHostTab: !isActiveHostTab }));
         if (isActiveHostTab) {
           await _applyTurnCredentials(token);
-          webrtcService.init((toUserId, signal) =>
-            lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
-          );
+          webrtcService.init((toUserId, signal) => {
+            const currentToken = selectToken(getState());
+            return lobbyApi.sendSignal(lobbyId, toUserId, signal, currentToken ?? "");
+          });
           p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token, {
             onLobbyInfo: () => {},
             onPlayerJoined: (player) =>
@@ -269,13 +273,15 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
         return;
       }
 
-      // Signal relay via lobby context
+      // Signal relay via lobby context — always read current token from state
       await _applyTurnCredentials(token);
-      webrtcService.init((toUserId, signal) =>
-        lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
-      );
+      webrtcService.init((toUserId, signal) => {
+        const currentToken = selectToken(getState());
+        return lobbyApi.sendSignal(lobbyId, toUserId, signal, currentToken ?? "");
+      });
       _initP2PAsJoiner(dispatch, user.id, user.displayName ?? user.id, lobbyInfo.hostUserId, null, null, token);
-      await webrtcService.connectToPeers([lobbyInfo.hostUserId], user.id);
+      // Joiner always initiates the WebRTC connection so the host (which never calls connectToPeers) can answer
+      await webrtcService.connectToPeers([lobbyInfo.hostUserId], user.id, true);
     } catch (err) {
       logLobbyWarning("join lobby failed", err);
       dispatch(_setError(err instanceof Error ? err.message : "Failed to join lobby"));
@@ -305,12 +311,14 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
 
     await _applyTurnCredentials(token);
 
-    // Signal relay direct (no lobby context)
-    webrtcService.init((toUserId, signal) =>
-      lobbyApi.sendSignalDirect(toUserId, signal, token)
-    );
+    // Signal relay direct (no lobby context) — always read current token from state
+    webrtcService.init((toUserId, signal) => {
+      const currentToken = selectToken(getState());
+      return lobbyApi.sendSignalDirect(toUserId, signal, currentToken ?? "");
+    });
     _initP2PAsJoiner(dispatch, user.id, user.displayName ?? user.id, hostUserId, null, null, token);
-    await webrtcService.connectToPeers([hostUserId], user.id);
+    // Joiner always initiates the WebRTC connection
+    await webrtcService.connectToPeers([hostUserId], user.id, true);
   };
 }
 
@@ -390,9 +398,10 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
     try {
       await lobbyApi.patchLobby(serverLobbyId, { hostPeerSessionId: getSessionId() }, token);
       await _applyTurnCredentials(token);
-      webrtcService.init((toUserId, signal) =>
-        lobbyApi.sendSignal(serverLobbyId, toUserId, signal, token)
-      );
+      webrtcService.init((toUserId, signal) => {
+        const currentToken = selectToken(getState());
+        return lobbyApi.sendSignal(serverLobbyId, toUserId, signal, currentToken ?? "");
+      });
       p2pLobbyService.initP2PLobby(user.id, true, serverLobbyId, token, {
         onLobbyInfo: () => {},
         onPlayerJoined: (player) =>

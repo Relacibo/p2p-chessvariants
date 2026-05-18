@@ -13,12 +13,9 @@ import {
   Tooltip,
   Anchor,
 } from "@mantine/core";
-import { useDispatch, useSelector } from "../../app/hooks";
+import { useNavigate } from "react-router-dom";
 import { useListUsersByIdsQuery } from "../../api/api";
 import { listLobbies, type LobbyInfo } from "../../api/lobbyApi";
-import { selectToken } from "../auth/authSlice";
-import { joinLobbyById } from "../lobby/lobbySlice";
-import { useNavigate } from "react-router-dom";
 import { getGithubBrowseUrl } from "../lobby/scriptUrl";
 
 const PAGE_SIZE = 10;
@@ -40,17 +37,10 @@ function gravatarUrl(avatarHash: string | undefined): string | undefined {
 }
 
 function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName: string; avatarHash?: string } }) {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const token = useSelector(selectToken);
 
   const handleJoin = async () => {
-    if (!token) {
-      navigate(`/lobby/${lobby.id}/join`);
-      return;
-    }
-    await dispatch(joinLobbyById(lobby.id));
-    navigate(`/lobby/${lobby.id}`);
+    navigate(`/lobby/${lobby.id}/join`);
   };
 
   const browseUrl = getGithubBrowseUrl(lobby.scriptUrl);
