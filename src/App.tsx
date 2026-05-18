@@ -5,6 +5,7 @@ import "@mantine/core/styles.css";
 import { useEffect } from "react";
 import { useDispatch } from "./app/hooks";
 import LoginSession from "./features/auth/LoginSession";
+import LichessLinkHandler from "./features/auth/providers/lichess/LichessLinkHandler";
 import { useTokenRefresh } from "./features/auth/useTokenRefresh";
 import initializeReduxState from "./features/init/initializeReduxState";
 import Layout from "./features/layout/Layout";
@@ -21,6 +22,7 @@ function App() {
       <ModalsProvider>
         <Notifications />
         <LoginSession />
+        <LichessLinkHandler />
         <Layout>
           <AppRoutes />
         </Layout>

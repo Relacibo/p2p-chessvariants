@@ -1,6 +1,13 @@
 import { Button, AppShell, Stack, useMantineTheme } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { IconChevronLeft, IconDeviceGamepad2, IconUsers } from "@tabler/icons-react";
+import {
+  IconChevronLeft,
+  IconDeviceGamepad2,
+  IconLink,
+  IconUsers,
+} from "@tabler/icons-react";
+import { useSelector } from "react-redux";
+import { selectUser } from "../auth/authSlice";
 import Auth from "../auth/Auth";
 import DarkmodeSelector from "../darkmode/DarkmodeSelector";
 import Logo from "./logo";
@@ -15,6 +22,8 @@ type Props = {
 
 const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
   let theme = useMantineTheme();
+  const user = useSelector(selectUser);
+
   return (
     <AppShell.Navbar p="sm" className={style.sidebar}>
       {!isMobile && (
@@ -30,6 +39,11 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
           <MainLink to={"community"} icon={<IconUsers size="1.2rem" stroke={1.5} />}>
             Community
           </MainLink>
+          {user && (
+            <MainLink to={"account/connections"} icon={<IconLink size="1.2rem" stroke={1.5} />}>
+              Connections
+            </MainLink>
+          )}
         </Stack>
       </AppShell.Section>
       <AppShell.Section mt="auto">

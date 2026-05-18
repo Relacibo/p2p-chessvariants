@@ -25,3 +25,18 @@ export class SignupPayload<T extends OauthData = OauthData> {
     readonly oauthData: T,
   ) {}
 }
+
+export type ProviderType = "google" | "lichess";
+
+export interface ConnectionsResponse {
+  google: boolean;
+  lichess: boolean;
+}
+
+export interface UnlinkPayload {
+  provider: ProviderType;
+}
+
+export class LinkPayload<T extends OauthData = OauthData> {
+  constructor(readonly oauthData: T) {}
+}

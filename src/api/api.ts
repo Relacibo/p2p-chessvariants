@@ -13,7 +13,14 @@ import {
 } from "./types/friends/friendRequests";
 import { FriendsListResponse } from "./types/friends/friends";
 import type { PublicUser, User } from "./types/user/users";
-import { LoginResponse, SigninPayload, SignupPayload } from "./types/auth/auth";
+import {
+  ConnectionsResponse,
+  LinkPayload,
+  LoginResponse,
+  SigninPayload,
+  SignupPayload,
+  UnlinkPayload,
+} from "./types/auth/auth";
 import { invalidToken, login } from "../features/auth/authSlice";
 
 const rawBaseQuery = fetchBaseQuery({
@@ -92,6 +99,15 @@ export const api = createApi({
     }),
     serverLogout: builder.mutation<void, void>({
       query: () => ({ url: "auth/logout", method: "post" }),
+    }),
+    getConnections: builder.query<ConnectionsResponse, void>({
+      query: () => "auth/connections",
+    }),
+    linkProvider: builder.mutation<void, LinkPayload>({
+      query: (body) => ({ url: "auth/link", method: "post", body }),
+    }),
+    unlinkProvider: builder.mutation<void, UnlinkPayload>({
+      query: (body) => ({ url: "auth/unlink", method: "post", body }),
     }),
     // Outgoing friend requests (sent TO others)
     listFriendRequestsTo: builder.query<FriendRequestToResponse, string>({
@@ -181,6 +197,9 @@ export const {
   useSignInMutation,
   useSignUpMutation,
   useServerLogoutMutation,
+  useGetConnectionsQuery,
+  useLinkProviderMutation,
+  useUnlinkProviderMutation,
   useListFriendRequestsFromQuery,
   useListFriendRequestsToQuery,
   useSendFriendRequestMutation,
