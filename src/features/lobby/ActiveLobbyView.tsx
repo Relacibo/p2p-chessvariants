@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   leaveLobby,
+  closeLobby,
   becomeActiveHost,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
@@ -190,14 +191,25 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
         </Box>
 
         <Group justify="center" mt="sm">
-          <Button
-            variant="subtle"
-            color="red"
-            size="sm"
-            onClick={async () => { await dispatch(leaveLobby()); navigate("/", { replace: true }); }}
-          >
-            Cancel lobby
-          </Button>
+          {isHost ? (
+            <Button
+              variant="subtle"
+              color="red"
+              size="sm"
+              onClick={async () => { await dispatch(closeLobby()); navigate("/", { replace: true }); }}
+            >
+              Close lobby
+            </Button>
+          ) : (
+            <Button
+              variant="subtle"
+              color="orange"
+              size="sm"
+              onClick={async () => { await dispatch(leaveLobby()); navigate("/", { replace: true }); }}
+            >
+              Leave lobby
+            </Button>
+          )}
         </Group>
       </Stack>
     </Paper>

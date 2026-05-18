@@ -348,7 +348,17 @@ function _initP2PAsJoiner(
   }, 500);
 }
 
+/** Leave a lobby as a non-host participant (disconnects P2P, does NOT delete the lobby). */
 export function leaveLobby(): AppThunk<Promise<void>> {
+  return async (dispatch) => {
+    p2pLobbyService.leaveLobby();
+    webrtcService.reset();
+    dispatch(_setIdle());
+  };
+}
+
+/** Close the lobby as host (deletes it on the server and disconnects). */
+export function closeLobby(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const { serverLobbyId } = getState().lobby;
     const token = selectToken(getState());
