@@ -138,8 +138,24 @@ export async function fetchScriptText(url: string): Promise<string> {
 export async function validateAndGetName(url: string): Promise<string> {
   const script = await fetchScriptText(url);
   try {
-    const engine = new ChessvariantEngine(script, 2);
-    return engine.name;
+    const config = await ChessvariantEngine.parseConfig(script);
+    return (config as any).name as string;
+  } catch (e: any) {
+    throw new Error(`Engine error: ${e.message || e}`);
+  }
+}
+
+export type ScriptConfig = {
+  name: string;
+  minPlayers: number;
+  maxPlayers: number;
+};
+
+export async function parseScriptConfig(url: string): Promise<ScriptConfig> {
+  const script = await fetchScriptText(url);
+  try {
+    const config = await ChessvariantEngine.parseConfig(script);
+    return config as unknown as ScriptConfig;
   } catch (e: any) {
     throw new Error(`Engine error: ${e.message || e}`);
   }

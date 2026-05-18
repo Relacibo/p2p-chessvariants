@@ -19,3 +19,10 @@ export type PublicUser = {
   displayName:string;
   createdAt: Date;
 };
+
+export type UserListResponse = {
+  items: PublicUser[];
+  total: number;
+  page: number;
+  limit: number;
+};

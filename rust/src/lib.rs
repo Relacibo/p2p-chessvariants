@@ -122,6 +122,34 @@ impl ChessvariantEngine {
     pub fn name(&self) -> String {
         self.variant_config.name.clone()
     }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
+    pub fn min_players(&self) -> i32 {
+        self.variant_config.min_players
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
+    pub fn max_players(&self) -> i32 {
+        self.variant_config.max_players
+    }
+
+    /// Parse only the `config()` section of a script (no game init).
+    /// Returns `{ name, minPlayers, maxPlayers }` as a JS object.
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen(js_name = parseConfig, static_method_of = ChessvariantEngine)]
+    pub fn parse_config(script_content: String) -> Result<JsValue, CvError> {
+        let mut engine = Engine::new();
+        register_builtins(&mut engine);
+        let ast = engine.compile(&script_content)?;
+        let mut scope = Scope::new();
+        let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
+        let variant_config: VariantConfig = dynamic_config.try_into()?;
+        let obj = js_sys::Object::new();
+        js_sys::Reflect::set(&obj, &"name".into(), &variant_config.name.into()).unwrap();
+        js_sys::Reflect::set(&obj, &"minPlayers".into(), &(variant_config.min_players as f64).into()).unwrap();
+        js_sys::Reflect::set(&obj, &"maxPlayers".into(), &(variant_config.max_players as f64).into()).unwrap();
+        Ok(obj.into())
+    }
 }
 
 // These methods use `Dynamic` which is not a WASM ABI type, so they are excluded from the

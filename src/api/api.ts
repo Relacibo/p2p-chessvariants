@@ -12,7 +12,7 @@ import {
   SendFriendRequest as SendFriendRequestPayload,
 } from "./types/friends/friendRequests";
 import { FriendsListResponse } from "./types/friends/friends";
-import type { PublicUser, User } from "./types/user/users";
+import type { PublicUser, User, UserListResponse } from "./types/user/users";
 import {
   ConnectionsResponse,
   LinkPayload,
@@ -85,18 +85,19 @@ export const api = createApi({
     deleteUser: builder.mutation<void, string>({
       query: (user_id) => ({ url: `users/${user_id}`, method: "delete" }),
     }),
-    listUsers: builder.query<PublicUser[], string | void>({
-      query: (q) => ({
+    listUsers: builder.query<UserListResponse, { q?: string; page?: number; limit?: number } | void>({
+      query: (params) => ({
         url: "users",
-        params: q && q.trim() ? { q: q.trim() } : undefined,
+        params: params || undefined,
       }),
     }),
-    listUsersByIds: builder.query<PublicUser[], string[]>({
+    listUsersByIds: builder.query<UserListResponse, string[]>({
       query: (ids) => ({
         url: "users",
         params: ids.length ? { ids: ids.join(",") } : undefined,
       }),
     }),
+
     signIn: builder.mutation<LoginResponse, SigninPayload>({
       query: (body) => ({ url: "auth/signin", method: "post", body }),
     }),

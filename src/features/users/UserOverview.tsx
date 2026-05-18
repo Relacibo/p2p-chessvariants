@@ -13,9 +13,9 @@ function UserOverview() {
   const isLoggedIn = authState === "logged-in";
   const currentUser = useSelector(selectUser);
   const [searchQuery, setSearchQuery] = useState("");
-  const { data, isLoading, isSuccess } = useListUsersQuery(searchQuery);
+  const { data, isLoading, isSuccess } = useListUsersQuery(searchQuery ? { q: searchQuery } : undefined);
   const [sendFriendRequest] = useSendFriendRequestMutation();
-  const users = data ?? [];
+  const users = data?.items ?? [];
 
   const onClickFriendRequest = (receiverId: string) => {
     if (!currentUser) return;

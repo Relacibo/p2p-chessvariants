@@ -21,6 +21,7 @@ export type LobbyPatch = {
   minPlayers?: number | null;
   maxPlayers?: number | null;
   hostPeerSessionId?: string | null;
+  scriptUrl?: string;
 };
 
 async function authedFetch(
@@ -66,15 +67,22 @@ export async function listLobbies(params?: ListLobbiesParams): Promise<ListLobbi
 }
 
 
+export type CreateLobbyPayload = {
+  scriptUrl: string;
+  allowGuests: boolean;
+  hostPeerSessionId: string;
+  minPlayers: number;
+  maxPlayers: number;
+};
+
 export async function createLobby(
-  scriptUrl: string,
-  allowGuests: boolean,
+  payload: CreateLobbyPayload,
   token: string
 ): Promise<{ lobbyId: string }> {
   const res = await authedFetch(`${API_URL}/lobby`, token, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scriptUrl, allowGuests }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Create lobby failed: ${res.status}`);
   return res.json();

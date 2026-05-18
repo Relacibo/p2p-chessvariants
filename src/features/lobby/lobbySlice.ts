@@ -6,6 +6,7 @@ import * as p2pLobbyService from "../../api/p2pLobbyService";
 import { buildPeerHandle, getSessionId, userIdFromPeerHandle } from "../../api/peerSession";
 import { selectToken, selectUser } from "../auth/authSlice";
 import { notifications } from "@mantine/notifications";
+import { parseScriptConfig } from "./scriptUrl";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,11 +156,16 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
     try {
       let lobbyId: string | null = null;
       if (useServerLobby && token) {
-        const res = await lobbyApi.createLobby(scriptUrl, allowGuests, token);
+        const scriptConfig = await parseScriptConfig(scriptUrl);
+        const res = await lobbyApi.createLobby({
+          scriptUrl,
+          allowGuests,
+          hostPeerSessionId: getSessionId(),
+          minPlayers: scriptConfig.minPlayers,
+          maxPlayers: scriptConfig.maxPlayers,
+        }, token);
         lobbyId = res.lobbyId;
         dispatch(_setServerLobbyId(lobbyId));
-        // Register this tab as the active host
-        await lobbyApi.patchLobby(lobbyId, { hostPeerSessionId: getSessionId() }, token);
       }
 
       dispatch(_setLocalUserId(user.id));

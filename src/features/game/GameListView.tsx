@@ -126,7 +126,7 @@ export default function GameListView() {
   // Collect unique host user IDs (only registered users have UUIDs)
   const hostUserIds = [...new Set(lobbies.map((l) => l.hostUserId).filter(Boolean))];
   const { data: hostUsers } = useListUsersByIdsQuery(hostUserIds, { skip: hostUserIds.length === 0 });
-  const userMap = Object.fromEntries((hostUsers ?? []).map((u) => [u.id, u]));
+  const userMap = Object.fromEntries((hostUsers?.items ?? []).map((u) => [u.id, u]));
 
   if (loading) {
     return <Center py="xl"><Loader size="sm" /></Center>;
