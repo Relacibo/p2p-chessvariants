@@ -91,6 +91,12 @@ export const api = createApi({
         params: q && q.trim() ? { q: q.trim() } : undefined,
       }),
     }),
+    listUsersByIds: builder.query<PublicUser[], string[]>({
+      query: (ids) => ({
+        url: "users",
+        params: ids.length ? { ids: ids.join(",") } : undefined,
+      }),
+    }),
     signIn: builder.mutation<LoginResponse, SigninPayload>({
       query: (body) => ({ url: "auth/signin", method: "post", body }),
     }),
@@ -210,6 +216,7 @@ export const api = createApi({
 export const {
   useGetUserQuery,
   useListUsersQuery,
+  useListUsersByIdsQuery,
   useDeleteUserMutation,
   useSignInMutation,
       useUpdateUserMutation,

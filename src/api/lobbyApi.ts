@@ -38,6 +38,34 @@ async function authedFetch(
   return res;
 }
 
+export type ListLobbiesParams = {
+  page?: number;
+  limit?: number;
+  allowGuests?: boolean;
+  status?: LobbyStatus;
+  scriptUrl?: string;
+};
+
+export type ListLobbiesResponse = {
+  items: LobbyInfo[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export async function listLobbies(params?: ListLobbiesParams): Promise<ListLobbiesResponse> {
+  const url = new URL(`${API_URL}/lobby`);
+  if (params?.page !== undefined) url.searchParams.set("page", String(params.page));
+  if (params?.limit !== undefined) url.searchParams.set("limit", String(params.limit));
+  if (params?.allowGuests !== undefined) url.searchParams.set("allowGuests", String(params.allowGuests));
+  if (params?.status) url.searchParams.set("status", params.status);
+  if (params?.scriptUrl) url.searchParams.set("scriptUrl", params.scriptUrl);
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`List lobbies failed: ${res.status}`);
+  return res.json();
+}
+
+
 export async function createLobby(
   scriptUrl: string,
   allowGuests: boolean,
