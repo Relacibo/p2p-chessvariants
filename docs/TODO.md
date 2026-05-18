@@ -1,0 +1,2 @@
+- [ ] **Gravatar E-Mail:** Freitextfeld in den Settings hinzufügen, damit Nutzer eine abweichende E-Mail für Gravatar festlegen können (Backend: gravatar_email Spalte in users Tabelle).
+- [ ] **E-Mail Änderung & Validierung:** Logik zum Ändern der primären Account-E-Mail implementieren (inkl. E-Mail-Verifizierung).
