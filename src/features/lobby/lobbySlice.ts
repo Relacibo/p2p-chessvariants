@@ -4,7 +4,7 @@ import * as lobbyApi from "../../api/lobbyApi";
 import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import { selectToken, selectUser } from "../auth/authSlice";
-import { buildLobbyInviteFragment } from "./scriptUrl";
+import { buildLobbyInviteFragment, buildPeerInviteFragment } from "./scriptUrl";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,7 +129,7 @@ export const {
 // Thunks
 // ---------------------------------------------------------------------------
 
-export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
+export function createLobby(scriptUrl: string, useServerLobby: boolean = false): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
     if (!token) {
@@ -146,16 +146,28 @@ export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
     dispatch(_setScriptUrl(scriptUrl));
 
     try {
-      const { lobbyId } = await lobbyApi.createLobby(scriptUrl, token);
+      let lobbyId: string | null = null;
+      if (useServerLobby && token) {
+        const res = await lobbyApi.createLobby(scriptUrl, token);
+        lobbyId = res.lobbyId;
+        dispatch(_setServerLobbyId(lobbyId));
+      }
+
       dispatch(_setLocalUserId(user.id));
-      dispatch(_setServerLobbyId(lobbyId));
       dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
 
       // Init P2P as host
-      webrtcService.init((toUserId, signal) =>
-        lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
-      );
-      p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token, {
+      if (useServerLobby && token && lobbyId) {
+        webrtcService.init((toUserId, signal) =>
+          lobbyApi.sendSignal(lobbyId as string, toUserId, signal, token)
+        );
+      } else {
+        webrtcService.init((toUserId, signal) =>
+          lobbyApi.sendSignalDirect(toUserId, signal, token || "")
+        );
+      }
+
+      p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token || "", {
         onLobbyInfo: () => {},
         onPlayerJoined: (player) =>
           dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
@@ -164,8 +176,10 @@ export function createLobby(scriptUrl: string): AppThunk<Promise<void>> {
         onGameMessage: () => {},
       });
 
-      const inviteUrl =
-        window.location.origin + "/lobby#" + buildLobbyInviteFragment(lobbyId);
+      const inviteUrl = useServerLobby && lobbyId
+        ? window.location.origin + "/lobby#" + buildLobbyInviteFragment(lobbyId)
+        : window.location.origin + "/lobby#" + buildPeerInviteFragment(user.id);
+        
       dispatch(_setHosting(inviteUrl));
     } catch (err) {
       logLobbyWarning("create lobby failed", err);

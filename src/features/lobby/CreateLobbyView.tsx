@@ -1,7 +1,9 @@
+import React from "react";
 import {
   ActionIcon,
   Alert,
   Button,
+  Checkbox,
   Combobox,
   Group,
   Input,
@@ -118,7 +120,7 @@ function CreateLobbyForm() {
   const [search, setSearch] = useState("");
 
   const form = useForm({
-    initialValues: { scriptUrl: "" },
+    initialValues: { scriptUrl: "", useServerLobby: !!token },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
@@ -128,6 +130,15 @@ function CreateLobbyForm() {
       },
     },
   });
+
+  
+  const prevToken = React.useRef(token);
+  React.useEffect(() => {
+    if (!!token !== !!prevToken.current) {
+      form.setFieldValue("useServerLobby", !!token);
+      prevToken.current = token;
+    }
+  }, [token, form]);
 
   const filteredVariants = variants.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase().trim())
@@ -162,9 +173,9 @@ function CreateLobbyForm() {
   return (
     <>
       <form
-        onSubmit={form.onSubmit(({ scriptUrl }) => {
+        onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
           const normalized = normalizeScriptUrl(scriptUrl.trim());
-          dispatch(createLobby(normalized));
+          dispatch(createLobby(normalized, !!token && useServerLobby));
         })}
       >
         <Stack>
@@ -234,6 +245,20 @@ function CreateLobbyForm() {
             </Tooltip>
           </Group>
 
+          
+          <Tooltip
+            label={token ? "" : "Login required for server lobby"}
+            disabled={!!token}
+          >
+            <div>
+              <Checkbox
+                label="Create server lobby"
+                description="Enable server-side lobby tracking/events"
+                disabled={!token}
+                {...form.getInputProps("useServerLobby", { type: "checkbox" })}
+              />
+            </div>
+          </Tooltip>
           <Button type="submit" loading={isCreating}>
             Create Lobby
           </Button>
