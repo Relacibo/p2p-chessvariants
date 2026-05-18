@@ -1,0 +1,49 @@
+// p2p.bop — p2pcv peer-to-peer protocol (client ↔ client over WebRTC DataChannel)
+// All messages are wrapped in P2pMsg union and encoded with Bebop.
+
+struct Player {
+    guid UserId;
+    string DisplayName;
+}
+
+union P2pMsg {
+    // Sent by a joining peer to the host immediately after WebRTC connect.
+    1 -> message LobbyJoin {
+        1 -> guid UserId;
+        2 -> string DisplayName;
+    }
+
+    // Sent by the host to a newly connected peer with full lobby state.
+    // HostPriority defines migration order (first = current host, join order).
+    2 -> message LobbyInfo {
+        1 -> string VariantUrl;
+        2 -> Player[] Players;
+        3 -> guid[] HostPriority;
+    }
+
+    // Broadcast by host to all peers when a new player joins.
+    3 -> message PlayerJoined {
+        1 -> Player Player;
+    }
+
+    // Broadcast by host to all peers when a player leaves.
+    4 -> message PlayerLeft {
+        1 -> guid UserId;
+    }
+
+    // Sent by the new host to all peers after detecting the previous host left.
+    // LobbyId is present if the new host re-registered with the server.
+    5 -> message HostMigration {
+        1 -> guid NewHostUserId;
+        2 -> string LobbyId;
+    }
+
+    // Sent by any peer to announce they are leaving.
+    6 -> struct LobbyLeave {
+    }
+
+    // Generic game payload — content is variant-specific, encoded separately.
+    7 -> message GameMessage {
+        1 -> byte[] Payload;
+    }
+}

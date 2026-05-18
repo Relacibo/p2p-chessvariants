@@ -1,4 +1,0 @@
-[submodule "src/api/bebop/schemas/protocols"]
-	path = src/api/bebop/schemas/protocols
-	url = https://github.com/Relacibo/p2pcv-protocols.git
-	shallow = true
