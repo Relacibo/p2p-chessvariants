@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Code,
   CopyButton,
@@ -28,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   leaveLobby,
+  becomeActiveHost,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
   selectLobbyServerLobbyId,
@@ -35,7 +37,7 @@ import {
 import { getGithubBrowseUrl } from "./scriptUrl";
 import { selectAllVariants } from "./variantsSlice";
 
-export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGuests }: { inviteUrl: string, allowGuests: boolean }) {
+export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGuests, isPassiveHostTab }: { inviteUrl: string; allowGuests: boolean; isPassiveHostTab?: boolean }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const token = useSelector(selectToken);
@@ -69,6 +71,20 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
   return (
     <Paper p="xl" shadow="sm" radius="md" withBorder>
       <Stack gap="lg">
+        {isPassiveHostTab && (
+          <Alert color="yellow" title="Not the active host tab">
+            Another tab is the active host for this lobby and is sending heartbeats.
+            <Button
+              size="xs"
+              variant="filled"
+              color="yellow"
+              mt="xs"
+              onClick={() => dispatch(becomeActiveHost())}
+            >
+              Make this tab the active host
+            </Button>
+          </Alert>
+        )}
         <Group justify="space-between" align="flex-start">
           <div>
             <Title order={2}>Waiting for players...</Title>

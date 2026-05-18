@@ -3,7 +3,7 @@ import type { AppThunk, RootState } from "../../app/store";
 import * as lobbyApi from "../../api/lobbyApi";
 import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
-import { buildPeerHandle, userIdFromPeerHandle } from "../../api/peerSession";
+import { buildPeerHandle, getSessionId, userIdFromPeerHandle } from "../../api/peerSession";
 import { selectToken, selectUser } from "../auth/authSlice";
 import { notifications } from "@mantine/notifications";
 
@@ -20,7 +20,7 @@ export type LobbyPlayer = {
 export type LobbyStatus =
   | { phase: "idle" }
   | { phase: "creating" }
-  | { phase: "hosting"; inviteUrl: string; allowGuests: boolean }
+  | { phase: "hosting"; inviteUrl: string; allowGuests: boolean; isPassiveHostTab: boolean }
   | { phase: "joining" }
   | { phase: "active" }
   | { phase: "error"; message: string };
@@ -87,8 +87,8 @@ export const {
     _setCreating: (state) => {
       state.status = { phase: "creating" };
     },
-    _setHosting: (state, action: PayloadAction<{ inviteUrl: string, allowGuests: boolean }>) => {
-      state.status = { phase: "hosting", inviteUrl: action.payload.inviteUrl, allowGuests: action.payload.allowGuests };
+    _setHosting: (state, action: PayloadAction<{ inviteUrl: string; allowGuests: boolean; isPassiveHostTab: boolean }>) => {
+      state.status = { phase: "hosting", inviteUrl: action.payload.inviteUrl, allowGuests: action.payload.allowGuests, isPassiveHostTab: action.payload.isPassiveHostTab };
     },
     _setJoining: (state) => {
       state.status = { phase: "joining" };
@@ -158,6 +158,8 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
         const res = await lobbyApi.createLobby(scriptUrl, allowGuests, token);
         lobbyId = res.lobbyId;
         dispatch(_setServerLobbyId(lobbyId));
+        // Register this tab as the active host
+        await lobbyApi.patchLobby(lobbyId, { hostPeerSessionId: getSessionId() }, token);
       }
 
       dispatch(_setLocalUserId(user.id));
@@ -187,7 +189,7 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
         ? window.location.origin + "/lobby/" + lobbyId + "/join"
         : window.location.origin + "/lobby/by-peer-id/" + buildPeerHandle(user.id) + "/join";
         
-      dispatch(_setHosting({ inviteUrl, allowGuests }));
+      dispatch(_setHosting({ inviteUrl, allowGuests, isPassiveHostTab: false }));
       notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });
     } catch (err) {
       logLobbyWarning("create lobby failed", err);
@@ -220,22 +222,25 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
 
       // If the current user is the host (e.g. after a page reload), re-init as host
       if (lobbyInfo.hostUserId === user.id) {
-        webrtcService.init((toUserId, signal) =>
-          lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
-        );
-        p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token, {
-          onLobbyInfo: () => {},
-          onPlayerJoined: (player) =>
-            dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
-          onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-          onHostMigration: (_newHost, newLobbyId) => {
-            if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
-          },
-          onGameMessage: () => {},
-        });
+        const isActiveHostTab = !lobbyInfo.hostPeerSessionId || lobbyInfo.hostPeerSessionId === getSessionId();
         dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
         const inviteUrl = window.location.origin + "/lobby/" + lobbyId + "/join";
-        dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests }));
+        dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests, isPassiveHostTab: !isActiveHostTab }));
+        if (isActiveHostTab) {
+          webrtcService.init((toUserId, signal) =>
+            lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
+          );
+          p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token, {
+            onLobbyInfo: () => {},
+            onPlayerJoined: (player) =>
+              dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
+            onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
+            onHostMigration: (_newHost, newLobbyId) => {
+              if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+            },
+            onGameMessage: () => {},
+          });
+        }
         return;
       }
 
@@ -331,6 +336,39 @@ export function leaveLobby(): AppThunk<Promise<void>> {
       }
     }
     dispatch(_setIdle());
+  };
+}
+
+/** Claim host role for this tab: PATCHes hostPeerSessionId on the server and starts P2P/heartbeat. */
+export function becomeActiveHost(): AppThunk<Promise<void>> {
+  return async (dispatch, getState) => {
+    const state = getState();
+    const { serverLobbyId } = state.lobby;
+    const lobbyStatus = selectLobbyStatus(state);
+    const token = selectToken(state);
+    const user = selectUser(state);
+    if (!token || !user || !serverLobbyId || lobbyStatus.phase !== "hosting") return;
+
+    try {
+      await lobbyApi.patchLobby(serverLobbyId, { hostPeerSessionId: getSessionId() }, token);
+      webrtcService.init((toUserId, signal) =>
+        lobbyApi.sendSignal(serverLobbyId, toUserId, signal, token)
+      );
+      p2pLobbyService.initP2PLobby(user.id, true, serverLobbyId, token, {
+        onLobbyInfo: () => {},
+        onPlayerJoined: (player) =>
+          dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
+        onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
+        onHostMigration: (_newHost, newLobbyId) => {
+          if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+        },
+        onGameMessage: () => {},
+      });
+      dispatch(_setHosting({ ...lobbyStatus, isPassiveHostTab: false }));
+      notifications.show({ title: "Active host", message: "This tab is now the active host.", color: "green" });
+    } catch (err) {
+      logLobbyWarning("become active host failed", err);
+    }
   };
 }
 

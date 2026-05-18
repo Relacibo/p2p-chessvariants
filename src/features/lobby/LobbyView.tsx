@@ -13,7 +13,7 @@ export default function LobbyView() {
   if (lobbyStatus.phase === "hosting") {
     return (
       <Container size="xl" pt="md">
-        <ActiveLobbyView inviteUrl={lobbyStatus.inviteUrl} allowGuests={lobbyStatus.allowGuests} />
+        <ActiveLobbyView inviteUrl={lobbyStatus.inviteUrl} allowGuests={lobbyStatus.allowGuests} isPassiveHostTab={lobbyStatus.isPassiveHostTab} />
       </Container>
     );
   }

@@ -11,6 +11,7 @@ export type LobbyInfo = {
   playerCount: number;
   minPlayers: number | null;
   maxPlayers: number | null;
+  hostPeerSessionId: string | null;
 };
 
 export type LobbyPatch = {
@@ -19,6 +20,7 @@ export type LobbyPatch = {
   playerCount?: number;
   minPlayers?: number | null;
   maxPlayers?: number | null;
+  hostPeerSessionId?: string | null;
 };
 
 async function authedFetch(
