@@ -105,3 +105,17 @@ export async function sendSignalDirect(
   if (!res.ok) throw new Error(`Direct signal relay failed: ${res.status}`);
 }
 
+
+export async function updateLobbySettings(
+  lobbyId: string,
+  allowGuests: boolean,
+  token: string
+): Promise<void> {
+  const url = API_URL + "/lobby/" + lobbyId + "/settings";
+  const res = await authedFetch(url, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ allowGuests }),
+  });
+  if (!res.ok) throw new Error("Update settings failed");
+}

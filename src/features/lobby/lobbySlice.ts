@@ -20,7 +20,7 @@ export type LobbyPlayer = {
 export type LobbyStatus =
   | { phase: "idle" }
   | { phase: "creating" }
-  | { phase: "hosting"; inviteUrl: string }
+  | { phase: "hosting"; inviteUrl: string; allowGuests: boolean }
   | { phase: "joining" }
   | { phase: "active" }
   | { phase: "error"; message: string };
@@ -81,8 +81,8 @@ export const {
     _setCreating: (state) => {
       state.status = { phase: "creating" };
     },
-    _setHosting: (state, action: PayloadAction<string>) => {
-      state.status = { phase: "hosting", inviteUrl: action.payload };
+    _setHosting: (state, action: PayloadAction<{ inviteUrl: string, allowGuests: boolean }>) => {
+      state.status = { phase: "hosting", inviteUrl: action.payload.inviteUrl, allowGuests: action.payload.allowGuests };
     },
     _setJoining: (state) => {
       state.status = { phase: "joining" };
@@ -181,7 +181,7 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
         ? window.location.origin + "/lobby#" + buildLobbyInviteFragment(lobbyId)
         : window.location.origin + "/lobby#" + buildPeerInviteFragment(user.id);
         
-      dispatch(_setHosting(inviteUrl));
+      dispatch(_setHosting({ inviteUrl, allowGuests }));
       notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });
     } catch (err) {
       logLobbyWarning("create lobby failed", err);

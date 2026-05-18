@@ -12,7 +12,7 @@ export default function PlayView() {
   return (
     <Container size="xl" pt="md">
       {inLobby ? (
-        <ActiveLobbyView inviteUrl={lobbyStatus.phase === "hosting" ? lobbyStatus.inviteUrl : ""} />
+        <ActiveLobbyView inviteUrl={lobbyStatus.phase === "hosting" ? lobbyStatus.inviteUrl : ""} allowGuests={lobbyStatus.phase === "hosting" ? lobbyStatus.allowGuests : false} />
       ) : (
         <Grid>
           <Grid.Col span={{ base: 12, lg: 5 }}>

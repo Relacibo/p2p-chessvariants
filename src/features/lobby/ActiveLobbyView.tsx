@@ -10,7 +10,12 @@ import {
   List,
   ThemeIcon,
   Badge,
+  Box,
+  Switch,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { updateLobbySettings } from "../../api/lobbyApi";
+import { selectToken } from "../auth/authSlice";
 import {
   IconBrandGithub,
   IconCopy,
@@ -18,20 +23,39 @@ import {
   IconQrcode,
 } from "@tabler/icons-react";
 import { useDispatch, useSelector } from "../../app/hooks";
+import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   leaveLobby,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
+  selectLobbyServerLobbyId,
 } from "./lobbySlice";
 import { getGithubBrowseUrl } from "./scriptUrl";
 import { selectAllVariants } from "./variantsSlice";
 
-export default function ActiveLobbyView({ inviteUrl }: { inviteUrl: string }) {
+export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGuests }: { inviteUrl: string, allowGuests: boolean }) {
   const dispatch = useDispatch();
+  const token = useSelector(selectToken);
+  const serverLobbyId = useSelector(selectLobbyServerLobbyId);
   const scriptUrl = useSelector(selectLobbyScriptUrl);
   const variants = useSelector(selectAllVariants);
   const players = useSelector(selectLobbyPlayers);
+  const [allowGuests, setAllowGuests] = useState(initialAllowGuests);
+  const isHost = inviteUrl !== "";
+
+  const handleGuestToggle = async (val: boolean) => {
+    setAllowGuests(val);
+    if (serverLobbyId && token) {
+       try {
+         await updateLobbySettings(serverLobbyId, val, token);
+         notifications.show({ title: "Settings updated", message: "Guest permissions changed.", color: "green" });
+       } catch (err) {
+         notifications.show({ title: "Error", message: "Failed to update settings.", color: "red" });
+         setAllowGuests(!val); // revert
+       }
+    }
+  };
 
   const variantName =
     variants.find((v) => v.url === scriptUrl)?.name || "Custom Variant";
@@ -63,8 +87,20 @@ export default function ActiveLobbyView({ inviteUrl }: { inviteUrl: string }) {
           )}
         </Group>
 
+        
+        {isHost && (
+          <Box mt="md">
+            <Switch
+              label="Allow unauthenticated players"
+              description="Anyone with the link can join as a guest"
+              checked={allowGuests}
+              onChange={(e) => handleGuestToggle(e.currentTarget.checked)}
+            />
+          </Box>
+        )}
         <Box>
           <Text size="sm" fw={500} mb="xs">
+
             Invite link
           </Text>
           <Group align="flex-start" wrap="nowrap">
@@ -148,5 +184,4 @@ export default function ActiveLobbyView({ inviteUrl }: { inviteUrl: string }) {
   );
 }
 
-// Ensure Box is imported for the new view layout
-import { Box } from "@mantine/core";
+
