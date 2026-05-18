@@ -31,9 +31,18 @@ export async function getTurnCredentials(token: string): Promise<RTCIceServer[]>
 }
 
 function buildIceServers(creds: TurnCredentials): RTCIceServer[] {
-  return creds.urls.map((url) => ({
-    urls: url,
-    username: creds.username,
-    credential: creds.credential,
-  }));
+  const servers: RTCIceServer[] = [];
+  for (const url of creds.urls) {
+    // Add UDP variant as-is
+    servers.push({ urls: url, username: creds.username, credential: creds.credential });
+    // Add TCP transport fallback for networks that block UDP
+    if (url.startsWith("turn:") && !url.includes("?transport=")) {
+      servers.push({
+        urls: url + "?transport=tcp",
+        username: creds.username,
+        credential: creds.credential,
+      });
+    }
+  }
+  return servers;
 }

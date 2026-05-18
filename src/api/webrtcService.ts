@@ -45,6 +45,8 @@ export function init(sendSignal: SignalSender) {
 
 export function setIceServers(servers: RTCIceServer[]) {
   iceServers = servers;
+  const urls = servers.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]));
+  console.log("[webrtc] ICE servers set:", urls);
 }
 
 export function reset() {
@@ -63,15 +65,30 @@ function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
   peers.set(remoteUserId, state);
 
   pc.onicecandidate = async (ev) => {
-    if (ev.candidate && signalSender) {
-      await signalSender(remoteUserId, {
-        type: "ice-candidate",
-        candidate: ev.candidate.toJSON(),
-      });
+    if (ev.candidate) {
+      const type = ev.candidate.type ?? ev.candidate.candidate.split(" ")[7] ?? "?";
+      console.log(`[webrtc] ICE candidate (→${remoteUserId.slice(0, 8)}): ${type} ${ev.candidate.candidate.slice(0, 80)}`);
+      if (signalSender) {
+        await signalSender(remoteUserId, {
+          type: "ice-candidate",
+          candidate: ev.candidate.toJSON(),
+        });
+      }
+    } else {
+      console.log(`[webrtc] ICE gathering complete (→${remoteUserId.slice(0, 8)})`);
     }
   };
 
+  pc.onicegatheringstatechange = () => {
+    console.log(`[webrtc] ICE gathering state (→${remoteUserId.slice(0, 8)}): ${pc.iceGatheringState}`);
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    console.log(`[webrtc] ICE connection state (→${remoteUserId.slice(0, 8)}): ${pc.iceConnectionState}`);
+  };
+
   pc.onconnectionstatechange = () => {
+    console.log(`[webrtc] connection state (→${remoteUserId.slice(0, 8)}): ${pc.connectionState}`);
     if (
       pc.connectionState === "disconnected" ||
       pc.connectionState === "failed"
@@ -157,6 +174,8 @@ export async function handleSignal(
         await state.pc.addIceCandidate(new RTCIceCandidate(c));
       }
       state.pendingCandidates = [];
+    } else {
+      console.warn("[webrtc] Received answer from unknown peer:", fromUserId);
     }
   } else if (signal.type === "ice-candidate") {
     if (state && signal.candidate) {
