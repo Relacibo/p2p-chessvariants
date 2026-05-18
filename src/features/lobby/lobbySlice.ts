@@ -177,8 +177,8 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
       });
 
       const inviteUrl = useServerLobby && lobbyId
-        ? window.location.origin + "/lobby/" + lobbyId
-        : window.location.origin + "/lobby/by-peer-id/" + user.id;
+        ? window.location.origin + "/lobby/" + lobbyId + "/join"
+        : window.location.origin + "/lobby/by-peer-id/" + user.id + "/join";
         
       dispatch(_setHosting({ inviteUrl, allowGuests }));
       notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });

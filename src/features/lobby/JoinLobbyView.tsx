@@ -7,20 +7,22 @@ import { login } from "../auth/authSlice";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { joinLobbyById, joinLobbyByPeer, selectLobbyStatus } from "../lobby/lobbySlice";
 import { selectToken } from "../auth/authSlice";
-import { useParams } from "react-router-dom";
-import ActiveLobbyView from "./ActiveLobbyView";
+import { useParams, useNavigate } from "react-router-dom";
 import useConfigureLayout from "../layout/hooks";
 
-export default function LobbyView() {
+export default function JoinLobbyView() {
   useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
   const dispatch = useDispatch();
   const token = useSelector(selectToken);
   const lobbyStatus = useSelector(selectLobbyStatus);
   const { lobbyId, peerId } = useParams<{ lobbyId?: string; peerId?: string }>();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [hasAutoJoined, setHasAutoJoined] = useState(false);
 
   const type: "lobby" | "peer" | null = lobbyId ? "lobby" : peerId ? "peer" : null;
+
+  const lobbyPath = lobbyId ? `/lobby/${lobbyId}` : `/lobby/by-peer-id/${peerId}`;
 
   const [guestLogin, { isLoading: isGuestLoggingIn }] = useGuestLoginMutation();
 
@@ -31,42 +33,36 @@ export default function LobbyView() {
     },
   });
 
-  // Auto-join when logged in and not already in a lobby
+  // Redirect to lobby URL once joined
+  useEffect(() => {
+    if (lobbyStatus.phase === "active" || lobbyStatus.phase === "hosting") {
+      navigate(lobbyPath, { replace: true });
+    }
+  }, [lobbyStatus.phase]);
+
+  // Auto-join when logged in
   useEffect(() => {
     if (!type) {
       setError("Invalid or missing invite link.");
       return;
     }
-    const phase = lobbyStatus.phase;
-    if (!token || phase === "hosting" || phase === "joining" || phase === "active" || hasAutoJoined) return;
+    if (!token || lobbyStatus.phase === "joining" || hasAutoJoined) return;
     setHasAutoJoined(true);
     const run = type === "lobby"
       ? dispatch(joinLobbyById(lobbyId!))
       : dispatch(joinLobbyByPeer(peerId!));
     Promise.resolve(run).catch((e: any) => setError(e?.message || "Failed to join lobby"));
-  }, [token, lobbyStatus.phase]);
+  }, [token, type]);
 
   const handleGuestJoin = async (values: { displayName: string }) => {
-    if (!type) return;
     try {
       const res = await guestLogin(values).unwrap();
       dispatch(login({ token: res.token, user: res.user }));
       notifications.show({ title: "Joined as guest", message: "Connecting to lobby...", color: "blue" });
-      // auto-join effect will fire after token is set
     } catch (e: any) {
       setError(e.message || "Failed to join as guest");
     }
   };
-
-  // Already hosting this lobby
-  if (lobbyStatus.phase === "hosting") {
-    return <ActiveLobbyView inviteUrl={lobbyStatus.inviteUrl} allowGuests={lobbyStatus.allowGuests} />;
-  }
-
-  // Already joined / active
-  if (lobbyStatus.phase === "active" || lobbyStatus.phase === "joining") {
-    return <ActiveLobbyView inviteUrl="" allowGuests={false} />;
-  }
 
   if (error) {
     return (
@@ -75,8 +71,6 @@ export default function LobbyView() {
       </Container>
     );
   }
-
-  if (!type) return null;
 
   // Logged in → auto-joining, show spinner
   if (token) {

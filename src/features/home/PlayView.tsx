@@ -12,8 +12,10 @@ export default function PlayView() {
 
   useEffect(() => {
     if (lobbyStatus.phase === "hosting") {
-      const path = new URL(lobbyStatus.inviteUrl).pathname;
-      navigate(path, { replace: true });
+      const url = new URL(lobbyStatus.inviteUrl);
+      // Navigate to the lobby room (strip /join suffix from invite URL)
+      const lobbyPath = url.pathname.replace(/\/join$/, "");
+      navigate(lobbyPath, { replace: true });
     }
   }, [lobbyStatus.phase]);
 
