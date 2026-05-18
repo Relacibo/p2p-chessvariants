@@ -3,6 +3,7 @@ import type { AppThunk, RootState } from "../../app/store";
 import * as lobbyApi from "../../api/lobbyApi";
 import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
+import { getTurnCredentials } from "../../api/turnApi";
 import { buildPeerHandle, getSessionId, userIdFromPeerHandle } from "../../api/peerSession";
 import { selectToken, selectUser } from "../auth/authSlice";
 import { notifications } from "@mantine/notifications";
@@ -137,6 +138,21 @@ export const {
 // Thunks
 // ---------------------------------------------------------------------------
 
+/** Fetches TURN credentials and updates the webrtcService ICE servers. Falls back silently. */
+async function _applyTurnCredentials(token: string): Promise<void> {
+  try {
+    const turnServers = await getTurnCredentials(token);
+    if (turnServers.length > 0) {
+      webrtcService.setIceServers([
+        { urls: "stun:stun.l.google.com:19302" },
+        ...turnServers,
+      ]);
+    }
+  } catch (err) {
+    console.warn("[turn] Could not apply TURN credentials:", err);
+  }
+}
+
 export function createLobby(scriptUrl: string, useServerLobby: boolean = false, allowGuests: boolean = true): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
@@ -170,6 +186,8 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
 
       dispatch(_setLocalUserId(user.id));
       dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
+
+      await _applyTurnCredentials(token);
 
       // Init P2P as host
       if (useServerLobby && token && lobbyId) {
@@ -233,6 +251,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
         const inviteUrl = window.location.origin + "/lobby/" + lobbyId + "/join";
         dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests, isPassiveHostTab: !isActiveHostTab }));
         if (isActiveHostTab) {
+          await _applyTurnCredentials(token);
           webrtcService.init((toUserId, signal) =>
             lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
           );
@@ -251,6 +270,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       }
 
       // Signal relay via lobby context
+      await _applyTurnCredentials(token);
       webrtcService.init((toUserId, signal) =>
         lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
       );
@@ -282,6 +302,8 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
 
     dispatch(_setJoining());
     dispatch(_setLocalUserId(user.id));
+
+    await _applyTurnCredentials(token);
 
     // Signal relay direct (no lobby context)
     webrtcService.init((toUserId, signal) =>
@@ -357,6 +379,7 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
 
     try {
       await lobbyApi.patchLobby(serverLobbyId, { hostPeerSessionId: getSessionId() }, token);
+      await _applyTurnCredentials(token);
       webrtcService.init((toUserId, signal) =>
         lobbyApi.sendSignal(serverLobbyId, toUserId, signal, token)
       );

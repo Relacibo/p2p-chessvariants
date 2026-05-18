@@ -2,10 +2,12 @@
  *  Signaling is routed through the server via POST /lobby/{id}/signal → SSE "signal" event.
  */
 
-const ICE_SERVERS: RTCIceServer[] = [
+const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
 ];
+
+let iceServers: RTCIceServer[] = STUN_SERVERS;
 
 export type SignalSender = (
   toUserId: string,
@@ -34,16 +36,21 @@ export function init(sendSignal: SignalSender) {
   signalSender = sendSignal;
 }
 
+export function setIceServers(servers: RTCIceServer[]) {
+  iceServers = servers;
+}
+
 export function reset() {
   for (const [, { pc }] of peers) {
     pc.close();
   }
   peers.clear();
   signalSender = null;
+  iceServers = STUN_SERVERS;
 }
 
 function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers });
   const state: PeerState = { pc, dataChannel: null };
   peers.set(remoteUserId, state);
 
