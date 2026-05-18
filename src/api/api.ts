@@ -104,7 +104,7 @@ export const api = createApi({
         body,
       }),
     }),
-    updateUser: builder.mutation<void, { useGravatar: boolean }>({
+    updateUser: builder.mutation<User, { useGravatar: boolean; customGravatarEmail?: string }>({
       query: (body) => ({
         url: "users/me",
         method: "put",

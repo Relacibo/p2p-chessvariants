@@ -11,11 +11,14 @@ import {
   Tabs,
   Text,
   Title,
+  Switch,
+  TextInput,
+  Paper,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetConnectionsQuery, useUnlinkProviderMutation } from "../../api/api";
+import { useGetConnectionsQuery, useUnlinkProviderMutation, useUpdateUserMutation } from "../../api/api";
 import { selectUser, updateUserState } from "../auth/authSlice";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
@@ -75,12 +78,31 @@ const SettingsView = () => {
 
 const ProfileTab = () => {
   const user = useSelector(selectUser)!;
+  const dispatch = useDispatch();
+  const [updateUser] = useUpdateUserMutation();
+
+  const handleUpdate = async (patch: { useGravatar: boolean; customGravatarEmail?: string }) => {
+    try {
+      const updatedUser = await updateUser(patch).unwrap();
+      dispatch(updateUserState(updatedUser));
+      notifications.show({ title: "Profile updated", message: "Your settings have been saved.", color: "green" });
+    } catch (err) {
+      notifications.show({ title: "Error", message: "Could not update profile.", color: "red" });
+    }
+  };
+
+  const gravatarUrl = user.avatarHash ? "https://www.gravatar.com/avatar/" + user.avatarHash + "?d=identicon" : null;
+
   return (
     <Stack gap="lg">
       <Group>
-        <Avatar size="lg" radius="xl" color="blue">
-          {user.displayName?.[0]?.toUpperCase() ?? "?"}
-        </Avatar>
+        {gravatarUrl ? (
+          <Avatar src={gravatarUrl} size="lg" radius="xl" />
+        ) : (
+          <Avatar size="lg" radius="xl" color="blue">
+            {user.displayName?.[0]?.toUpperCase() ?? "?"}
+          </Avatar>
+        )}
         <div>
           <Text fw={600} size="lg">{user.displayName}</Text>
           <Text size="sm" c="dimmed">@{user.userName}</Text>
@@ -104,6 +126,31 @@ const ProfileTab = () => {
           <Text size="sm">{user.displayName}</Text>
         </Group>
       </Stack>
+
+      <Paper p="md" withBorder mt="md">
+        <Stack>
+          <Text fw={500}>Profile Picture</Text>
+          <Switch
+            label="Use Gravatar"
+            description="We will calculate an SHA-256 hash of your email address to fetch your profile picture from Gravatar. Your raw email address is never exposed."
+            checked={!!user.useGravatar}
+            onChange={(e) => handleUpdate({ useGravatar: e.currentTarget.checked })}
+          />
+          {user.useGravatar && (
+            <TextInput
+              label="Custom Gravatar Email"
+              description="Overrides your primary account email for Gravatar. We only store the hash, never the raw email."
+              placeholder={user.customAvatarHash ? "Custom hash active. Enter new email to override." : "gravatar@example.com"}
+              onBlur={(e) => {
+                if (e.currentTarget.value.trim() !== "") {
+                  handleUpdate({ useGravatar: true, customGravatarEmail: e.currentTarget.value });
+                  e.currentTarget.value = "";
+                }
+              }}
+            />
+          )}
+        </Stack>
+      </Paper>
     </Stack>
   );
 };
