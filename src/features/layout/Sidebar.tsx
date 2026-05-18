@@ -41,7 +41,7 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
           </MainLink>
           {user && (
             <MainLink to={"settings"} icon={<IconSettings size="1.2rem" stroke={1.5} />}>
-              Einstellungen
+              Settings
             </MainLink>
           )}
         </Stack>

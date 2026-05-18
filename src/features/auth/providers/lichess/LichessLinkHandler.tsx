@@ -32,16 +32,16 @@ const LichessLinkHandler = () => {
     link(oauthData)
       .then(() => {
         notifications.show({
-          title: "Lichess verbunden",
-          message: "Dein Lichess Account wurde erfolgreich verknüpft.",
+          title: "Lichess connected",
+          message: "Your Lichess account has been linked successfully.",
           color: "green",
         });
         navigate("/account/connections");
       })
       .catch(() => {
         notifications.show({
-          title: "Fehler",
-          message: "Lichess konnte nicht verknüpft werden.",
+          title: "Error",
+          message: "Could not link Lichess account.",
           color: "red",
         });
         navigate("/account/connections");

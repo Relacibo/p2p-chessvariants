@@ -21,16 +21,16 @@ const ConnectWithGoogleButton = ({ onConnected }: Props) => {
           link(new GoogleOauthData(credential))
             .then(() => {
               notifications.show({
-                title: "Google verbunden",
-                message: "Dein Google Account wurde erfolgreich verknüpft.",
+                title: "Google connected",
+                message: "Your Google account has been linked successfully.",
                 color: "green",
               });
               onConnected?.();
             })
             .catch(() => {
               notifications.show({
-                title: "Fehler",
-                message: "Google konnte nicht verknüpft werden.",
+                title: "Error",
+                message: "Could not link Google account.",
                 color: "red",
               });
             });
