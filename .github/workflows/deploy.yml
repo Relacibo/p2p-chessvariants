@@ -62,7 +62,7 @@ jobs:
           VITE_GOOGLE_IDENTITY_CLIENT_ID: ${{ vars.GOOGLE_IDENTITY_CLIENT_ID }}
           VITE_LICHESS_CLIENT_ID: ${{ vars.LICHESS_CLIENT_ID }}
           VITE_API_URL: ${{ vars.API_URL }}
-          VITE_BASE_URL: ${{ vars.BASE_URL }}
+          VITE_BASE_URL: https://ggchess.org
           BASE_URL: /
         run: yarn run build
 
