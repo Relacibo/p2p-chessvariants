@@ -105,9 +105,18 @@ export async function sendC2S(msg: C2SMsg): Promise<S2CMsg | null> {
   const encoded = C2SMsg.encode(msg);
   const ma = multiaddr(serverMultiaddrStr);
   const stream = await node.dialProtocol(ma, C2S_PROTOCOL);
+  
   await stream.send(encoded);
-  await stream.close();
+  // Tell the server we are done writing so it can process the request.
+  // In libp2p, stream.close() closes the *writable* end of the stream
+  // and waits for pending data to be flushed.
+  await stream.close(); 
+  
   const responseBytes = await readStream(stream);
+  
+  // Close the read side after we've got the data to fully tear down the stream.
+  await stream.closeRead();
+
   if (responseBytes.length === 0) return null;
   return S2CMsg.decode(responseBytes);
 }
@@ -207,6 +216,10 @@ export async function initNode(jwt: string): Promise<string> {
   await installS2CHandler();
 
   await node.dial(multiaddr(serverMultiaddrStr));
+
+  // WORKAROUND: Wait a tiny bit for the WebRTC SCTP association and Yamux muxer to fully settle
+  // before we fire the very first dialProtocol on this fresh connection.
+  await new Promise(resolve => setTimeout(resolve, 200));
 
   const response = await sendC2S({ tag: 1, value: { authToken: jwt } });
   if (!response || response.tag !== 1 || !response.value.success) {
