@@ -12,6 +12,10 @@
 
 const SESSION_KEY = "p2p_peer_session_id";
 
+export function getSessionId(): string {
+  return getOrCreateSessionId();
+}
+
 function getOrCreateSessionId(): string {
   let id = sessionStorage.getItem(SESSION_KEY);
   if (!id) {
