@@ -44,20 +44,22 @@ export default function CommunityView() {
           >
             Find Users
           </Tabs.Tab>
-          <Tabs.Tab
-            value="friends"
-            leftSection={<IconUsers size="1.2rem" />}
-            disabled={!isLoggedIn}
-          >
-            Friends
-          </Tabs.Tab>
-          <Tabs.Tab
-            value="requests"
-            leftSection={<IconHeartHandshake size="1.2rem" />}
-            disabled={!isLoggedIn}
-          >
-            Requests
-          </Tabs.Tab>
+          {isLoggedIn && (
+            <Tabs.Tab
+              value="friends"
+              leftSection={<IconUsers size="1.2rem" />}
+            >
+              Friends
+            </Tabs.Tab>
+          )}
+          {isLoggedIn && (
+            <Tabs.Tab
+              value="requests"
+              leftSection={<IconHeartHandshake size="1.2rem" />}
+            >
+              Requests
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
         <Tabs.Panel value="users">

@@ -38,7 +38,7 @@ const SettingsView = () => {
   if (!user) {
     return (
       <Center h="100vh">
-        <Text c="dimmed">Bitte einloggen um die Einstellungen zu sehen.</Text>
+        <Text c="dimmed">Please log in to view settings.</Text>
       </Center>
     );
   }
@@ -46,13 +46,13 @@ const SettingsView = () => {
   return (
     <Container maw={600} pt="xl">
       <Title order={2} mb="lg">
-        Einstellungen
+        Settings
       </Title>
       <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List mb="xl">
-          <Tabs.Tab value="profile">Profil</Tabs.Tab>
-          <Tabs.Tab value="connections">Verbindungen</Tabs.Tab>
-          <Tabs.Tab value="game">Spiel</Tabs.Tab>
+          <Tabs.Tab value="profile">Profile</Tabs.Tab>
+          <Tabs.Tab value="connections">Connections</Tabs.Tab>
+          <Tabs.Tab value="game">Game</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="profile">
@@ -64,7 +64,7 @@ const SettingsView = () => {
         </Tabs.Panel>
 
         <Tabs.Panel value="game">
-          <Text c="dimmed">Spieleinstellungen folgen demnächst.</Text>
+          <Text c="dimmed">Game settings coming soon.</Text>
         </Tabs.Panel>
       </Tabs>
     </Container>
@@ -87,18 +87,18 @@ const ProfileTab = () => {
       <Divider />
       <Stack gap="xs">
         <Group justify="space-between">
-          <Text size="sm" c="dimmed">E-Mail</Text>
+        <Text size="sm" c="dimmed">Email</Text>
           <Group gap="xs">
             <Text size="sm">{user.email}</Text>
-            {user.verifiedEmail && <Badge size="xs" color="green">Verifiziert</Badge>}
+          {user.verifiedEmail && <Badge size="xs" color="green">Verified</Badge>}
           </Group>
         </Group>
         <Group justify="space-between">
-          <Text size="sm" c="dimmed">Benutzername</Text>
+        <Text size="sm" c="dimmed">Username</Text>
           <Text size="sm">@{user.userName}</Text>
         </Group>
         <Group justify="space-between">
-          <Text size="sm" c="dimmed">Anzeigename</Text>
+        <Text size="sm" c="dimmed">Display name</Text>
           <Text size="sm">{user.displayName}</Text>
         </Group>
       </Stack>
@@ -114,16 +114,16 @@ const ConnectionsTab = () => {
     try {
       await unlinkProvider({ provider }).unwrap();
       notifications.show({
-        title: "Verbindung getrennt",
-        message: `${provider === "google" ? "Google" : "Lichess"} Account wurde getrennt.`,
+        title: "Disconnected",
+        message: `${provider === "google" ? "Google" : "Lichess"} account has been unlinked.`,
         color: "blue",
       });
       refetch();
     } catch {
       notifications.show({
-        title: "Fehler",
+        title: "Error",
         message:
-          "Verbindung konnte nicht getrennt werden. Stell sicher, dass du noch mindestens eine Anmeldeoption hast.",
+          "Could not unlink account. Make sure you have at least one login method remaining.",
         color: "red",
       });
     }
@@ -142,7 +142,7 @@ const ConnectionsTab = () => {
         <div>
           <Text fw={500}>Google</Text>
           <Text size="sm" c={connections?.google ? "green" : "dimmed"}>
-            {connections?.google ? "Verbunden" : "Nicht verbunden"}
+            {connections?.google ? "Connected" : "Not connected"}
           </Text>
         </div>
         {connections?.google ? (
@@ -152,7 +152,7 @@ const ConnectionsTab = () => {
             disabled={totalConnections <= 1}
             onClick={() => handleUnlink("google")}
           >
-            Trennen
+            Disconnect
           </Button>
         ) : (
           <ConnectWithGoogleButton onConnected={() => refetch()} />
@@ -165,7 +165,7 @@ const ConnectionsTab = () => {
         <div>
           <Text fw={500}>Lichess</Text>
           <Text size="sm" c={connections?.lichess ? "green" : "dimmed"}>
-            {connections?.lichess ? "Verbunden" : "Nicht verbunden"}
+            {connections?.lichess ? "Connected" : "Not connected"}
           </Text>
         </div>
         {connections?.lichess ? (
@@ -175,7 +175,7 @@ const ConnectionsTab = () => {
             disabled={totalConnections <= 1}
             onClick={() => handleUnlink("lichess")}
           >
-            Trennen
+            Disconnect
           </Button>
         ) : (
           <ConnectWithLichessButton />

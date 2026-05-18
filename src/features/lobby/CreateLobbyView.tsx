@@ -234,7 +234,7 @@ function CreateLobbyForm() {
             </Tooltip>
           </Group>
 
-          <Button type="submit" loading={isCreating} disabled={!token}>
+          <Button type="submit" loading={isCreating}>
             Create Lobby
           </Button>
         </Stack>
