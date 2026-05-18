@@ -157,28 +157,34 @@ export function decodeScriptUrl(encoded: string): string {
   return atob(padded + pad);
 }
 
-export type InviteFragment = {
-  lobbyId: string;
-  scriptUrl: string;
-};
+/**
+ * Invite fragment formats (URL hash):
+ *   #lobby:{lobbyId}   — join via server lobby discovery
+ *   #peer:{hostUserId} — connect directly to a peer (no server lobby)
+ */
+export type InviteFragment =
+  | { type: "lobby"; lobbyId: string }
+  | { type: "peer"; hostUserId: string };
 
 export function parseInviteFragment(fragment: string): InviteFragment | null {
   const hash = fragment.startsWith("#") ? fragment.slice(1) : fragment;
-  const parts = hash.split(",");
-  if (parts.length < 2) return null;
-  const [lobbyId, encodedUrl] = parts;
-  if (!lobbyId || !encodedUrl) return null;
-  try {
-    const scriptUrl = decodeScriptUrl(encodedUrl);
-    return { lobbyId, scriptUrl };
-  } catch {
-    return null;
+  if (hash.startsWith("lobby:")) {
+    const lobbyId = hash.slice("lobby:".length);
+    return lobbyId ? { type: "lobby", lobbyId } : null;
   }
+  if (hash.startsWith("peer:")) {
+    const hostUserId = hash.slice("peer:".length);
+    return hostUserId ? { type: "peer", hostUserId } : null;
+  }
+  return null;
 }
 
-/** Build an invite fragment: #{lobbyId},{base64url(scriptUrl)} */
-export function buildInviteFragment(lobbyId: string, scriptUrl: string): string {
-  return `${lobbyId},${encodeScriptUrl(scriptUrl)}`;
+export function buildLobbyInviteFragment(lobbyId: string): string {
+  return `lobby:${lobbyId}`;
+}
+
+export function buildPeerInviteFragment(hostUserId: string): string {
+  return `peer:${hostUserId}`;
 }
 
 // ---------------------------------------------------------------------------

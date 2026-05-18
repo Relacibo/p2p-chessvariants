@@ -135,18 +135,18 @@ export async function handleSignal(
   }
 }
 
-export function sendToAll(data: Uint8Array<ArrayBuffer>): void {
+export function sendToAll(data: Uint8Array): void {
   for (const [, { dataChannel }] of peers) {
     if (dataChannel?.readyState === "open") {
-      dataChannel.send(data);
+      dataChannel.send(data as Uint8Array<ArrayBuffer>);
     }
   }
 }
 
-export function sendToPeer(toUserId: string, data: Uint8Array<ArrayBuffer>): boolean {
+export function sendToPeer(toUserId: string, data: Uint8Array): boolean {
   const state = peers.get(toUserId);
   if (state?.dataChannel?.readyState === "open") {
-    state.dataChannel.send(data);
+    state.dataChannel.send(data as Uint8Array<ArrayBuffer>);
     return true;
   }
   return false;

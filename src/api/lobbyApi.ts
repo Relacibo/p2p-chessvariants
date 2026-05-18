@@ -1,15 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-export type LobbyMember = {
-  userId: string;
-  displayName: string;
-};
-
 export type LobbyInfo = {
   id: string;
   hostUserId: string;
-  members: LobbyMember[];
-  status: "waiting" | "in-game";
   scriptUrl: string;
 };
 
@@ -31,7 +24,7 @@ async function authedFetch(
 export async function createLobby(
   scriptUrl: string,
   token: string
-): Promise<{ lobbyId: string; scriptUrl: string }> {
+): Promise<{ lobbyId: string }> {
   const res = await authedFetch(`${API_URL}/lobby`, token, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -47,26 +40,6 @@ export async function getLobby(lobbyId: string): Promise<LobbyInfo> {
   return res.json();
 }
 
-export async function joinLobby(
-  lobbyId: string,
-  token: string
-): Promise<void> {
-  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}/join`, token, {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error(`Join lobby failed: ${res.status}`);
-}
-
-export async function leaveLobby(
-  lobbyId: string,
-  token: string
-): Promise<void> {
-  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}/leave`, token, {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error(`Leave lobby failed: ${res.status}`);
-}
-
 export async function deleteLobby(
   lobbyId: string,
   token: string
@@ -77,41 +50,32 @@ export async function deleteLobby(
   if (!res.ok) throw new Error(`Delete lobby failed: ${res.status}`);
 }
 
-export async function startGame(
-  lobbyId: string,
-  token: string
-): Promise<void> {
-  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}/start`, token, {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error(`Start game failed: ${res.status}`);
-}
-
-export async function gameEnded(
+export async function heartbeat(
   lobbyId: string,
   token: string
 ): Promise<void> {
   const res = await authedFetch(
-    `${API_URL}/lobby/${lobbyId}/game-ended`,
+    `${API_URL}/lobby/${lobbyId}/heartbeat`,
     token,
     { method: "POST" }
   );
-  if (!res.ok) throw new Error(`Game ended failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Heartbeat failed: ${res.status}`);
 }
 
-export async function inviteToLobby(
+export async function updateHost(
   lobbyId: string,
-  userIds: string[],
+  newHostUserId: string,
   token: string
 ): Promise<void> {
-  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}/invite`, token, {
+  const res = await authedFetch(`${API_URL}/lobby/${lobbyId}/host`, token, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userIds }),
+    body: JSON.stringify({ newHostUserId }),
   });
-  if (!res.ok) throw new Error(`Invite failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Update host failed: ${res.status}`);
 }
 
+/** Relay a WebRTC signal via a lobby context. */
 export async function sendSignal(
   lobbyId: string,
   toUserId: string,
@@ -125,3 +89,18 @@ export async function sendSignal(
   });
   if (!res.ok) throw new Error(`Signal relay failed: ${res.status}`);
 }
+
+/** Relay a WebRTC signal directly to a user (no lobby context). */
+export async function sendSignalDirect(
+  toUserId: string,
+  signal: object,
+  token: string
+): Promise<void> {
+  const res = await authedFetch(`${API_URL}/signal/${toUserId}`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ signal }),
+  });
+  if (!res.ok) throw new Error(`Direct signal relay failed: ${res.status}`);
+}
+

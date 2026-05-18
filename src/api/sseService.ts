@@ -4,28 +4,14 @@ const API_URL = import.meta.env.VITE_API_URL as string;
 
 export type SseEvent =
   | {
-      type: "lobby_member_joined";
-      lobbyId: string;
-      member: { userId: string; displayName: string };
-    }
-  | { type: "lobby_member_left"; lobbyId: string; userId: string }
-  | { type: "lobby_deleted"; lobbyId: string }
-  | {
-      type: "lobby_game_started";
-      lobbyId: string;
-      members: Array<{ userId: string; displayName: string }>;
-    }
-  | { type: "lobby_game_ended"; lobbyId: string }
-  | {
       type: "lobby_invite";
       lobbyId: string;
       hostUserId: string;
       hostDisplayName: string;
-      scriptUrl: string;
     }
   | {
       type: "signal";
-      lobbyId: string;
+      lobbyId: string | null;
       fromUserId: string;
       signal: unknown;
     };
