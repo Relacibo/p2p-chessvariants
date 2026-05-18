@@ -1,13 +1,12 @@
 import { Button } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { generateId, sha256 } from "../../../../util/crypto";
+import { generateId, sha256Base64Url } from "../../../../util/crypto";
 import { useEffect, useState } from "react";
 import { useSignInMutation } from "../../../../api/api";
 import { SignupResult } from "../../SignupModal";
 import useLogin from "../../useLogin";
 import { LichessOauthData } from "../../../../api/types/auth/lichess";
-import base64Url from "base64-url";
 
 const lichessClientId = import.meta.env.VITE_LICHESS_CLIENT_ID;
 const baseUrl = import.meta.env.VITE_BASE_URL;
@@ -68,7 +67,7 @@ const LoginWithLichessButton = () => {
   ) => {
     const codeVerifier = generateId(64);
     const state = generateId(30);
-    let codeChallenge = base64Url.encode(await sha256(codeVerifier), "hex");
+    let codeChallenge = await sha256Base64Url(codeVerifier);
     setOauthState({ state, codeVerifier });
     setCodeChallenge(codeChallenge);
     setRedirect(true);

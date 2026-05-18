@@ -1,8 +1,7 @@
 import { Button } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
 import { useEffect, useState } from "react";
-import base64Url from "base64-url";
-import { generateId, sha256 } from "../../../../util/crypto";
+import { generateId, sha256Base64Url } from "../../../../util/crypto";
 import { lichessLinkCallbackPath } from "./LichessLinkHandler";
 
 type LinkStorage = { state: string; codeVerifier: string };
@@ -40,7 +39,7 @@ const ConnectWithLichessButton = () => {
   const connect: React.MouseEventHandler<HTMLButtonElement> = async () => {
     const codeVerifier = generateId(64);
     const state = generateId(30);
-    const challenge = base64Url.encode(await sha256(codeVerifier), "hex");
+    const challenge = await sha256Base64Url(codeVerifier);
     setLinkState({ state, codeVerifier });
     setCodeChallenge(challenge);
     setRedirect(true);
