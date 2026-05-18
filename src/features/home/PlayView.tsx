@@ -1,35 +1,39 @@
 import { Container, Title, Stack, Grid, Paper } from "@mantine/core";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import CreateLobbyView from "../lobby/CreateLobbyView";
 import GameListView from "../game/GameListView";
-import ActiveLobbyView from "../lobby/ActiveLobbyView";
 import { selectLobbyStatus } from "../lobby/lobbySlice";
 
 export default function PlayView() {
   const lobbyStatus = useSelector(selectLobbyStatus);
-  const inLobby = lobbyStatus.phase === "hosting" || lobbyStatus.phase === "joining" || lobbyStatus.phase === "active";
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (lobbyStatus.phase === "hosting") {
+      const path = new URL(lobbyStatus.inviteUrl).pathname;
+      navigate(path, { replace: true });
+    }
+  }, [lobbyStatus.phase]);
 
   return (
     <Container size="xl" pt="md">
-      {inLobby ? (
-        <ActiveLobbyView inviteUrl={lobbyStatus.phase === "hosting" ? lobbyStatus.inviteUrl : ""} allowGuests={lobbyStatus.phase === "hosting" ? lobbyStatus.allowGuests : false} />
-      ) : (
-        <Grid>
-          <Grid.Col span={{ base: 12, lg: 5 }}>
-            <Stack>
-              <CreateLobbyView />
-            </Stack>
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, lg: 7 }}>
-            <Paper p="md" shadow="xs">
-              <Title order={3} mb="sm">
-                Active Games & Lobbies
-              </Title>
-              <GameListView />
-            </Paper>
-          </Grid.Col>
-        </Grid>
-      )}
+      <Grid>
+        <Grid.Col span={{ base: 12, lg: 5 }}>
+          <Stack>
+            <CreateLobbyView />
+          </Stack>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 7 }}>
+          <Paper p="md" shadow="xs">
+            <Title order={3} mb="sm">
+              Active Games & Lobbies
+            </Title>
+            <GameListView />
+          </Paper>
+        </Grid.Col>
+      </Grid>
     </Container>
   );
 }
