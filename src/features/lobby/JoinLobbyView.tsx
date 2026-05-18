@@ -5,7 +5,7 @@ import { notifications } from "@mantine/notifications";
 import { useGuestLoginMutation } from "../../api/api";
 import { login } from "../auth/authSlice";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { joinLobbyById, joinLobbyByPeer, selectLobbyStatus } from "../lobby/lobbySlice";
+import { joinLobbyById, joinLobbyByPeer, selectLobbyStatus, _setIdle } from "../lobby/lobbySlice";
 import { selectToken } from "../auth/authSlice";
 import { useParams, useNavigate } from "react-router-dom";
 import useConfigureLayout from "../layout/hooks";
@@ -72,8 +72,24 @@ export default function JoinLobbyView() {
     );
   }
 
+  // Redux-level error (from joinLobbyById dispatch)
+  if (lobbyStatus.phase === "error") {
+    return (
+      <Container size="sm" pt="xl">
+        <Paper p="md" maw={480} mx="auto">
+          <Stack>
+            <Alert color="red" title="Failed to join lobby">{lobbyStatus.message}</Alert>
+            <Button variant="default" onClick={() => { dispatch(_setIdle()); navigate("/"); }}>
+              Go to Home
+            </Button>
+          </Stack>
+        </Paper>
+      </Container>
+    );
+  }
+
   // Logged in → auto-joining, show spinner
-  if (token) {
+  if (token && (lobbyStatus.phase === "joining" || hasAutoJoined)) {
     return (
       <Container size="sm" pt="xl">
         <Center>
