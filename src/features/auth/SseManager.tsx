@@ -3,11 +3,17 @@ import { useDispatch, useSelector } from "../../app/hooks";
 import { selectToken } from "./authSlice";
 import { connectSse, disconnectSse, onSseEvent } from "../../api/sseService";
 import * as webrtcService from "../../api/webrtcService";
+import * as p2pLobbyService from "../../api/p2pLobbyService";
 import { _lobbyInviteReceived } from "../lobby/lobbySlice";
 
 export function SseManager() {
   const dispatch = useDispatch();
   const token = useSelector(selectToken);
+
+  // Keep p2pLobbyService token in sync so heartbeat never uses a stale JWT
+  useEffect(() => {
+    if (token) p2pLobbyService.updateAuthToken(token);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;

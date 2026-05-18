@@ -46,7 +46,7 @@ export default function JoinLobbyView() {
       setError("Invalid or missing invite link.");
       return;
     }
-    if (!token || lobbyStatus.phase === "joining" || hasAutoJoined) return;
+    if (!token || lobbyStatus.phase === "joining" || lobbyStatus.phase === "hosting" || lobbyStatus.phase === "active" || hasAutoJoined) return;
     setHasAutoJoined(true);
     const run = type === "lobby"
       ? dispatch(joinLobbyById(lobbyId!))

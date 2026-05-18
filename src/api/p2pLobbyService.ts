@@ -56,6 +56,14 @@ let token: string | null = null;
 // Init / Reset
 // ---------------------------------------------------------------------------
 
+export function updateAuthToken(newToken: string): void {
+  token = newToken;
+  // If heartbeat is running and we now have a valid token + lobby, restart it
+  if (isHost && serverLobbyId && newToken && heartbeatInterval === null) {
+    startHeartbeat(serverLobbyId, newToken);
+  }
+}
+
 export function initP2PLobby(
   userId: string,
   _isHost: boolean,
@@ -271,11 +279,15 @@ function tryBecomingHost(): void {
 // Heartbeat
 // ---------------------------------------------------------------------------
 
-function startHeartbeat(lobbyId: string, authToken: string): void {
+function startHeartbeat(lobbyId: string, _initialToken: string): void {
   stopHeartbeat();
   heartbeatInterval = setInterval(() => {
+    if (!token) {
+      console.warn("[p2p] heartbeat skipped: no token");
+      return;
+    }
     lobbyApi
-      .heartbeat(lobbyId, authToken)
+      .heartbeat(lobbyId, token)
       .catch((e) => console.error("[p2p] heartbeat failed", e));
   }, 60_000);
 }

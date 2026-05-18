@@ -1,4 +1,4 @@
-import { Container } from "@mantine/core";
+import { Container, Center, Loader } from "@mantine/core";
 import { useSelector } from "../../app/hooks";
 import { selectLobbyStatus } from "./lobbySlice";
 import ActiveLobbyView from "./ActiveLobbyView";
@@ -22,6 +22,16 @@ export default function LobbyView() {
     return (
       <Container size="xl" pt="md">
         <ActiveLobbyView inviteUrl="" allowGuests={false} />
+      </Container>
+    );
+  }
+
+  if (lobbyStatus.phase === "creating") {
+    return (
+      <Container size="xl" pt="md">
+        <Center pt="xl">
+          <Loader />
+        </Center>
       </Container>
     );
   }

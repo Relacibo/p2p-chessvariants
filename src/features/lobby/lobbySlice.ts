@@ -41,6 +41,12 @@ export type LobbyState = {
 
 function logLobbyWarning(context: string, err: unknown): void {
   console.error(`[lobby] ${context}`, err);
+  const message = err instanceof Error ? err.message : String(err);
+  notifications.show({
+    title: "Lobby error",
+    message: `${context}: ${message}`,
+    color: "red",
+  });
 }
 
 // ---------------------------------------------------------------------------
