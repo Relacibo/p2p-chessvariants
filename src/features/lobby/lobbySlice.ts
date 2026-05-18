@@ -3,6 +3,7 @@ import type { AppThunk, RootState } from "../../app/store";
 import * as lobbyApi from "../../api/lobbyApi";
 import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
+import { buildPeerHandle, userIdFromPeerHandle } from "../../api/peerSession";
 import { selectToken, selectUser } from "../auth/authSlice";
 import { notifications } from "@mantine/notifications";
 
@@ -184,7 +185,7 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
 
       const inviteUrl = useServerLobby && lobbyId
         ? window.location.origin + "/lobby/" + lobbyId + "/join"
-        : window.location.origin + "/lobby/by-peer-id/" + user.id + "/join";
+        : window.location.origin + "/lobby/by-peer-id/" + buildPeerHandle(user.id) + "/join";
         
       dispatch(_setHosting({ inviteUrl, allowGuests }));
       notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });
@@ -231,7 +232,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
 }
 
 /** Join directly via host's user ID (peer invite link, no server lobby lookup). */
-export function joinLobbyByPeer(hostUserId: string): AppThunk<Promise<void>> {
+export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
     if (!token) {
@@ -243,6 +244,9 @@ export function joinLobbyByPeer(hostUserId: string): AppThunk<Promise<void>> {
       dispatch(_setError("User not found"));
       return;
     }
+
+    // Extract the real user ID from the handle (supports legacy plain userId too)
+    const hostUserId = userIdFromPeerHandle(peerHandle);
 
     dispatch(_setJoining());
     dispatch(_setLocalUserId(user.id));
