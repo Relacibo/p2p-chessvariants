@@ -105,8 +105,8 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
           </Text>
           <Group align="flex-start" wrap="nowrap">
             <QRCodeSVG value={inviteUrl} size={128} bgColor="#ffffff" fgColor="#000000" style={{ padding: 8, background: "white", borderRadius: 4 }} />
-            <Stack style={{ flex: 1 }} gap="xs">
-              <Code style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+            <Group style={{ flex: 1, minWidth: 0 }} gap="xs" align="center" wrap="nowrap">
+              <Code style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {inviteUrl}
               </Code>
               <CopyButton value={inviteUrl}>
@@ -115,16 +115,15 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
                     size="compact-sm"
                     variant="light"
                     color={copied ? "teal" : "blue"}
-                    leftSection={
-                      <IconCopy size="0.9rem" />
-                    }
+                    leftSection={<IconCopy size="0.9rem" />}
                     onClick={copy}
+                    style={{ flexShrink: 0 }}
                   >
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 )}
               </CopyButton>
-            </Stack>
+            </Group>
           </Group>
         </Box>
 
@@ -172,13 +171,16 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
           </Paper>
         </Box>
 
-        <Button
-          variant="subtle"
-          color="red"
-          onClick={() => dispatch(leaveLobby())}
-        >
-          Cancel lobby
-        </Button>
+        <Group justify="center" mt="sm">
+          <Button
+            variant="subtle"
+            color="red"
+            size="sm"
+            onClick={() => dispatch(leaveLobby())}
+          >
+            Cancel lobby
+          </Button>
+        </Group>
       </Stack>
     </Paper>
   );
