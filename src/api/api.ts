@@ -97,6 +97,13 @@ export const api = createApi({
     signUp: builder.mutation<LoginResponse, SignupPayload>({
       query: (body) => ({ url: "auth/signup", method: "post", body }),
     }),
+    guestLogin: builder.mutation<LoginResponse & { result: "success" }, { displayName: string }>({
+      query: (body) => ({
+        url: "auth/guest",
+        method: "post",
+        body,
+      }),
+    }),
     serverLogout: builder.mutation<void, void>({
       query: () => ({ url: "auth/logout", method: "post" }),
     }),
@@ -195,6 +202,7 @@ export const {
   useListUsersQuery,
   useDeleteUserMutation,
   useSignInMutation,
+    useGuestLoginMutation,
   useSignUpMutation,
   useServerLogoutMutation,
   useGetConnectionsQuery,

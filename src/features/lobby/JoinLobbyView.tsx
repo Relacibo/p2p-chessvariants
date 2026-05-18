@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Paper, Stack, Text, Title } from "@mantine/core";
+import { Alert, Button, Paper, Stack, Text, Title, TextInput } from "@mantine/core";
+import { useForm } from "@mantine/form";
+import { notifications } from "@mantine/notifications";
+import { useGuestLoginMutation } from "../../api/api";
+import { login } from "../auth/authSlice";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { joinLobbyById, joinLobbyByPeer } from "../lobby/lobbySlice";
 import { parseInviteFragment, InviteFragment } from "../lobby/scriptUrl";
@@ -20,6 +24,27 @@ export default function JoinLobbyView() {
       setParsed(result);
     }
   }, []);
+
+  const [guestLogin, { isLoading: isGuestLoggingIn }] = useGuestLoginMutation();
+
+  const guestForm = useForm({
+    initialValues: { displayName: "" },
+    validate: {
+      displayName: (v) => (v.trim().length > 0 ? null : "Display name is required"),
+    },
+  });
+
+  const handleGuestJoin = async (values: { displayName: string }) => {
+    if (!parsed) return;
+    try {
+      const res = await guestLogin(values).unwrap();
+      dispatch(login({ token: res.token, user: res.user }));
+      // Auth is updated in store, handleJoin will be triggered or user can click Join again
+      notifications.show({ title: "Joined as guest", message: "You can now connect to the lobby.", color: "blue" });
+    } catch (e: any) {
+      setError(e.message || "Failed to join as guest");
+    }
+  };
 
   const handleJoin = async () => {
     if (!parsed) return;
@@ -51,12 +76,25 @@ export default function JoinLobbyView() {
             ? `Lobby ID: ${parsed.lobbyId}`
             : `Direct invite from: ${parsed.hostUserId}`}
         </Text>
-        {!token && (
-          <Alert color="yellow">You must be logged in to join a lobby.</Alert>
+        {!token ? (
+          <form onSubmit={guestForm.onSubmit(handleGuestJoin)}>
+            <Stack>
+              <Alert color="yellow">You are not logged in. Join as a guest by entering a display name.</Alert>
+              <TextInput
+                label="Display Name"
+                placeholder="Guest Player"
+                {...guestForm.getInputProps("displayName")}
+              />
+              <Button type="submit" loading={isGuestLoggingIn}>
+                Continue as Guest
+              </Button>
+            </Stack>
+          </form>
+        ) : (
+          <Button onClick={handleJoin} loading={joining}>
+            Join Lobby
+          </Button>
         )}
-        <Button onClick={handleJoin} loading={joining} disabled={!token}>
-          Join Lobby
-        </Button>
       </Stack>
     </Paper>
   );

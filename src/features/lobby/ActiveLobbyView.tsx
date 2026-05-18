@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Code,
   CopyButton,
@@ -14,11 +13,12 @@ import {
 } from "@mantine/core";
 import {
   IconBrandGithub,
-  IconCheck,
   IconCopy,
   IconUser,
+  IconQrcode,
 } from "@tabler/icons-react";
 import { useDispatch, useSelector } from "../../app/hooks";
+import { QRCodeSVG } from "qrcode.react";
 import {
   leaveLobby,
   selectLobbyPlayers,
@@ -63,43 +63,32 @@ export default function ActiveLobbyView({ inviteUrl }: { inviteUrl: string }) {
           )}
         </Group>
 
-        <Alert
-          icon={<IconCheck size="1rem" />}
-          color="green"
-          title="Lobby created!"
-        >
-          Share the invite link below with players you want to invite.
-        </Alert>
-
         <Box>
           <Text size="sm" fw={500} mb="xs">
             Invite link
           </Text>
-          <Group gap="xs" wrap="nowrap">
-            <Code
-              style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}
-            >
-              {inviteUrl}
-            </Code>
-            <CopyButton value={inviteUrl}>
-              {({ copied, copy }) => (
-                <Button
-                  size="compact-sm"
-                  variant="light"
-                  color={copied ? "teal" : "blue"}
-                  leftSection={
-                    copied ? (
-                      <IconCheck size="0.9rem" />
-                    ) : (
+          <Group align="flex-start" wrap="nowrap">
+            <QRCodeSVG value={inviteUrl} size={128} />
+            <Stack style={{ flex: 1 }} gap="xs">
+              <Code style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                {inviteUrl}
+              </Code>
+              <CopyButton value={inviteUrl}>
+                {({ copied, copy }) => (
+                  <Button
+                    size="compact-sm"
+                    variant="light"
+                    color={copied ? "teal" : "blue"}
+                    leftSection={
                       <IconCopy size="0.9rem" />
-                    )
-                  }
-                  onClick={copy}
-                >
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              )}
-            </CopyButton>
+                    }
+                    onClick={copy}
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                )}
+              </CopyButton>
+            </Stack>
           </Group>
         </Box>
 
@@ -127,6 +116,9 @@ export default function ActiveLobbyView({ inviteUrl }: { inviteUrl: string }) {
                 <List.Item key={p.userId}>
                   <Group justify="space-between" style={{ width: "100%" }}>
                     <Text>{p.name || "Anonymous"}</Text>
+                    {p.name?.startsWith("Guest ") && (
+                      <Badge color="gray" size="sm" variant="outline" ml="xs">Guest</Badge>
+                    )}
                     {p.ready && (
                       <Badge color="green" size="sm">
                         Ready

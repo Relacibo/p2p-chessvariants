@@ -23,12 +23,13 @@ async function authedFetch(
 
 export async function createLobby(
   scriptUrl: string,
+  allowGuests: boolean,
   token: string
 ): Promise<{ lobbyId: string }> {
   const res = await authedFetch(`${API_URL}/lobby`, token, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scriptUrl }),
+    body: JSON.stringify({ scriptUrl, allowGuests }),
   });
   if (!res.ok) throw new Error(`Create lobby failed: ${res.status}`);
   return res.json();

@@ -120,7 +120,7 @@ function CreateLobbyForm() {
   const [search, setSearch] = useState("");
 
   const form = useForm({
-    initialValues: { scriptUrl: "", useServerLobby: !!token },
+    initialValues: { scriptUrl: "", useServerLobby: !!token, allowGuests: true },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
@@ -175,7 +175,7 @@ function CreateLobbyForm() {
       <form
         onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
           const normalized = normalizeScriptUrl(scriptUrl.trim());
-          dispatch(createLobby(normalized, !!token && useServerLobby));
+          dispatch(createLobby(normalized, !!token && useServerLobby, form.values.allowGuests));
         })}
       >
         <Stack>
@@ -259,6 +259,14 @@ function CreateLobbyForm() {
               />
             </div>
           </Tooltip>
+          
+          {form.values.useServerLobby && (
+            <Checkbox
+              label="Allow unauthenticated players"
+              description="Anyone with the link can join as a guest"
+              {...form.getInputProps("allowGuests", { type: "checkbox" })}
+            />
+          )}
           <Button type="submit" loading={isCreating}>
             Create Lobby
           </Button>

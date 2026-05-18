@@ -5,6 +5,7 @@ import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import { selectToken, selectUser } from "../auth/authSlice";
 import { buildLobbyInviteFragment, buildPeerInviteFragment } from "./scriptUrl";
+import { notifications } from "@mantine/notifications";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,7 +130,7 @@ export const {
 // Thunks
 // ---------------------------------------------------------------------------
 
-export function createLobby(scriptUrl: string, useServerLobby: boolean = false): AppThunk<Promise<void>> {
+export function createLobby(scriptUrl: string, useServerLobby: boolean = false, allowGuests: boolean = true): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
     if (!token) {
@@ -148,7 +149,7 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false):
     try {
       let lobbyId: string | null = null;
       if (useServerLobby && token) {
-        const res = await lobbyApi.createLobby(scriptUrl, token);
+        const res = await lobbyApi.createLobby(scriptUrl, allowGuests, token);
         lobbyId = res.lobbyId;
         dispatch(_setServerLobbyId(lobbyId));
       }
@@ -181,6 +182,7 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false):
         : window.location.origin + "/lobby#" + buildPeerInviteFragment(user.id);
         
       dispatch(_setHosting(inviteUrl));
+      notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });
     } catch (err) {
       logLobbyWarning("create lobby failed", err);
       dispatch(_setError(err instanceof Error ? err.message : "Failed to create lobby"));
