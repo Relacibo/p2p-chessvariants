@@ -16,7 +16,7 @@ export type State = {
 };
 
 export const {
-  actions: { login, logout, invalidToken },
+  actions: { login, logout, invalidToken, updateUserState },
   reducer,
 } = createSlice({
   name: "auth",
@@ -32,6 +32,11 @@ export const {
     },
     invalidToken: (state) => {
       state.session = { state: "logged-out", loggedOutCause: "invalid-token" };
+    },
+    updateUserState: (state, action: PayloadAction<User>) => {
+      if (state.session.state === "logged-in") {
+        state.session.user = action.payload;
+      }
     },
   },
 });

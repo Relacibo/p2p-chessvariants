@@ -6,6 +6,8 @@ export type User = {
   email: string;
   locale: string;
   verifiedEmail: boolean;
+  useGravatar: boolean;
+  customAvatarHash?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
