@@ -52,8 +52,9 @@ export function connectSse(token: string): void {
       }
     },
     onerror(err) {
+      if (controller?.signal.aborted) throw err; // intentional disconnect — stop retrying silently
       console.error("[sse] connection error", err);
-      // fetchEventSource retries automatically on network errors
+      // returning normally lets fetchEventSource retry on transient errors
     },
   });
 }
