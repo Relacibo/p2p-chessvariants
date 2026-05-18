@@ -14,11 +14,12 @@ import {
 import { FriendsListResponse } from "./types/friends/friends";
 import type { PublicUser, User } from "./types/user/users";
 import { LoginResponse, SigninPayload, SignupPayload } from "./types/auth/auth";
-import { invalidToken } from "../features/auth/authSlice";
+import { invalidToken, login } from "../features/auth/authSlice";
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_API_URL}/`,
   timeout: 1000,
+  credentials: "include",
   prepareHeaders(headers, api) {
     const state = api.getState() as RootState;
     let session = state.auth.session;
@@ -29,15 +30,39 @@ const rawBaseQuery = fetchBaseQuery({
   },
 });
 
+let isRefreshing = false;
+
 const baseQueryWithAuth: BaseQueryFn<
   string | FetchArgs,
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
-  const result = await rawBaseQuery(args, api, extraOptions);
-  if (result.error?.status === 401) {
-    api.dispatch(invalidToken());
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status === 401 && !isRefreshing) {
+    isRefreshing = true;
+    try {
+      const refreshResult = await rawBaseQuery(
+        { url: "auth/refresh", method: "POST" },
+        api,
+        extraOptions,
+      );
+      if (refreshResult.data) {
+        const { token, user } = refreshResult.data as {
+          token: string;
+          user: User;
+        };
+        api.dispatch(login({ token, user }));
+        // Retry the original request with the new access token
+        result = await rawBaseQuery(args, api, extraOptions);
+      } else {
+        api.dispatch(invalidToken());
+      }
+    } finally {
+      isRefreshing = false;
+    }
   }
+
   return result;
 };
 
@@ -64,6 +89,9 @@ export const api = createApi({
     }),
     signUp: builder.mutation<LoginResponse, SignupPayload>({
       query: (body) => ({ url: "auth/signup", method: "post", body }),
+    }),
+    serverLogout: builder.mutation<void, void>({
+      query: () => ({ url: "auth/logout", method: "post" }),
     }),
     // Outgoing friend requests (sent TO others)
     listFriendRequestsTo: builder.query<FriendRequestToResponse, string>({
@@ -152,6 +180,7 @@ export const {
   useDeleteUserMutation,
   useSignInMutation,
   useSignUpMutation,
+  useServerLogoutMutation,
   useListFriendRequestsFromQuery,
   useListFriendRequestsToQuery,
   useSendFriendRequestMutation,
