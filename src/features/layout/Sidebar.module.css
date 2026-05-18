@@ -3,8 +3,12 @@
 .sidebar {
   @media (min-width: $mantine-breakpoint-sm) {
     top: 0;
+    height: 100dvh;
   }
-  height: 100%;
+  @media (max-width: $mantine-breakpoint-sm) {
+    height: calc(100dvh - var(--app-shell-header-height, 0px));
+    overflow-y: auto;
+  }
 }
 
 .navbarTitle {

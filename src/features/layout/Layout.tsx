@@ -1,13 +1,7 @@
 import {
   AppShell,
-  Box,
   Burger,
   Button,
-  Container,
-  Group,
-  MantineTheme,
-  Paper,
-  useMantineColorScheme,
   useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -85,23 +79,17 @@ function Layout(props: LayoutProps) {
         />
         {isMobile && (
           <AppShell.Header p="sm">
-            <Group>
+            <div className={style.headerBar}>
               <Burger
                 opened={!sidebarCollapsed}
                 onClick={() => setSidebarCollapsed((c) => !c)}
                 size="sm"
                 mr="xl"
               />
-              <Box
-                pos={"absolute"}
-                left={"50%"}
-                style={{
-                  transform: "translateX(-50%)",
-                }}
-              >
+              <div className={style.headerLogo}>
                 <Logo imageSize={"1.5rem"} textSize={"xl"} />
-              </Box>
-            </Group>
+              </div>
+            </div>
           </AppShell.Header>
         )}
         {!isMobile && sidebarCollapsed && (

@@ -10,5 +10,18 @@
 }
 
 .appShellMain {
-  padding-top: 0.01px;
+  /* Preserve Mantine's header-offset padding; 0.01px fallback prevents margin collapse */
+  padding-top: calc(var(--app-shell-header-height, 0px) + 0.01px);
+}
+
+.headerBar {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.headerLogo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
