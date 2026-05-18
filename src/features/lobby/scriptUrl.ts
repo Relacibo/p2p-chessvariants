@@ -51,19 +51,10 @@ export class GithubGistSource implements VariantSource {
   }
 }
 
-export class GenericSource implements VariantSource {
-  constructor(public url: string) {}
-  getRawUrl() {
-    return this.url;
-  }
-  getBrowseUrl() {
-    return this.url;
-  }
-}
-
 /**
  * Factory function to parse a URL into a VariantSource.
- * Returns null if the URL is recognizably GitHub/Gist but invalid (e.g. missing SHA).
+ * Returns null if the URL is recognizably GitHub/Gist but invalid (e.g. missing SHA),
+ * or if it is an unsupported generic URL.
  */
 export function parseVariantSource(input: string): VariantSource | null {
   try {
@@ -127,12 +118,10 @@ export function parseVariantSource(input: string): VariantSource | null {
     // Ignore URL parse errors
   }
 
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  // Generic fallback (caution: not necessarily immutable)
-  return new GenericSource(trimmed);
+  // Generic fallback removed to strictly enforce immutability
+  return null;
 }
+
 
 // ---------------------------------------------------------------------------
 // Existing logic
