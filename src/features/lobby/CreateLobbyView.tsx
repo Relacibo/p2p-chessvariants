@@ -253,6 +253,7 @@ function CreateLobbyForm() {
             <div>
               <Checkbox
                 label="Create server lobby"
+                style={{ cursor: "pointer" }}
                 description="Enable server-side lobby tracking/events"
                 disabled={!token}
                 {...form.getInputProps("useServerLobby", { type: "checkbox" })}
@@ -263,6 +264,7 @@ function CreateLobbyForm() {
           {form.values.useServerLobby && (
             <Checkbox
               label="Allow unauthenticated players"
+              style={{ cursor: "pointer" }}
               description="Anyone with the link can join as a guest"
               {...form.getInputProps("allowGuests", { type: "checkbox" })}
             />

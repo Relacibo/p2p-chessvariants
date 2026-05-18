@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Avatar,
   Badge,
@@ -80,6 +81,23 @@ const ProfileTab = () => {
   const user = useSelector(selectUser)!;
   const dispatch = useDispatch();
   const [updateUser] = useUpdateUserMutation();
+  const [gravatarUrl, setGravatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user.useGravatar) {
+      setGravatarUrl(null);
+      return;
+    }
+    if (user.customAvatarHash) {
+      setGravatarUrl("https://www.gravatar.com/avatar/" + user.customAvatarHash + "?d=identicon");
+      return;
+    }
+    const email = user.email.trim().toLowerCase();
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(email)).then(buffer => {
+      const hashHex = Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+      setGravatarUrl("https://www.gravatar.com/avatar/" + hashHex + "?d=identicon");
+    });
+  }, [user.useGravatar, user.customAvatarHash, user.email]);
 
   const handleUpdate = async (patch: { useGravatar: boolean; customGravatarEmail?: string }) => {
     try {
@@ -90,8 +108,6 @@ const ProfileTab = () => {
       notifications.show({ title: "Error", message: "Could not update profile.", color: "red" });
     }
   };
-
-  const gravatarUrl = user.avatarHash ? "https://www.gravatar.com/avatar/" + user.avatarHash + "?d=identicon" : null;
 
   return (
     <Stack gap="lg">
@@ -132,6 +148,8 @@ const ProfileTab = () => {
           <Text fw={500}>Profile Picture</Text>
           <Switch
             label="Use Gravatar"
+            style={{ cursor: "pointer" }}
+            styles={{ track: { cursor: "pointer" } }}
             description="We will calculate an SHA-256 hash of your email address to fetch your profile picture from Gravatar. Your raw email address is never exposed."
             checked={!!user.useGravatar}
             onChange={(e) => handleUpdate({ useGravatar: e.currentTarget.checked })}

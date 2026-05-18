@@ -92,6 +92,8 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
           <Box mt="md">
             <Switch
               label="Allow unauthenticated players"
+              style={{ cursor: "pointer" }}
+              styles={{ track: { cursor: "pointer" } }}
               description="Anyone with the link can join as a guest"
               checked={allowGuests}
               onChange={(e) => handleGuestToggle(e.currentTarget.checked)}
