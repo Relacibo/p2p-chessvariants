@@ -28,7 +28,8 @@ const LichessLinkHandler = () => {
     if (!stateParam || stateParam !== state || !code) return;
 
     setLinkState(null);
-    const oauthData = { type: "lichess", code, codeVerifier };
+    const redirectUri = `${import.meta.env.VITE_BASE_URL}${lichessLinkCallbackPath}`;
+    const oauthData = { type: "lichess", code, codeVerifier, redirectUri };
     link(oauthData)
       .then(() => {
         notifications.show({

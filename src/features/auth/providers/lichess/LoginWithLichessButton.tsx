@@ -40,7 +40,7 @@ const LoginWithLichessButton = () => {
       ) {
         return;
       }
-      const oauthData = new LichessOauthData(code, codeVerifier);
+      const oauthData = new LichessOauthData(code, codeVerifier, redirectUri);
       login(oauthData);
       setOauthState(null);
     }

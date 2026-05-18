@@ -5,5 +5,6 @@ export class LichessOauthData implements OauthData {
   constructor(
     readonly code: string,
     readonly codeVerifier: string,
+    readonly redirectUri?: string,
   ) {}
 }
