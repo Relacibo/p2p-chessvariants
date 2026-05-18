@@ -1,4 +1,4 @@
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider, createTheme, Switch, Checkbox } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
 import "@mantine/core/styles.css";
@@ -13,6 +13,25 @@ import initializeReduxState from "./features/init/initializeReduxState";
 import Layout from "./features/layout/Layout";
 import AppRoutes from "./AppRoutes";
 
+const theme = createTheme({
+  components: {
+    Switch: Switch.extend({
+      styles: {
+        track: { cursor: "pointer" },
+        root: { cursor: "pointer" },
+        label: { cursor: "pointer" },
+      },
+    }),
+    Checkbox: Checkbox.extend({
+      styles: {
+        input: { cursor: "pointer" },
+        root: { cursor: "pointer" },
+        label: { cursor: "pointer" },
+      },
+    }),
+  },
+});
+
 function App() {
   const dispatch = useDispatch();
   useEffect(() => {
@@ -20,7 +39,7 @@ function App() {
   }, [dispatch]);
   useTokenRefresh();
   return (
-    <MantineProvider>
+    <MantineProvider theme={theme}>
       <ModalsProvider>
         <Notifications />
         <LoginSession />

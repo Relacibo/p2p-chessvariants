@@ -148,8 +148,6 @@ const ProfileTab = () => {
           <Text fw={500}>Profile Picture</Text>
           <Switch
             label="Use Gravatar"
-            style={{ cursor: "pointer" }}
-            styles={{ track: { cursor: "pointer" } }}
             description="We will calculate an SHA-256 hash of your email address to fetch your profile picture from Gravatar. Your raw email address is never exposed."
             checked={!!user.useGravatar}
             onChange={(e) => handleUpdate({ useGravatar: e.currentTarget.checked })}
