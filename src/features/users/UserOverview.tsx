@@ -1,5 +1,4 @@
-import { Avatar, Badge, Box, Collapse, Group, Loader, Stack, Table, Text, TextInput, Tooltip, Button } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { Avatar, Badge, Box, Group, Loader, Stack, Text, TextInput, Tooltip, Button, Accordion } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 import { useListUsersQuery, useSendFriendRequestMutation } from "../../api/api";
@@ -33,26 +32,18 @@ function UserOverview() {
   const content = isLoading ? (
     <Loader />
   ) : isSuccess ? (
-    <Table>
-            <Table.Thead>
-        <Table.Tr>
-          <Table.Th>User</Table.Th>
-          <Table.Th>Joined</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {users
-          .filter((u) => u.id !== currentUser?.id)
-          .map((user) => (
-            <UserRow
-              key={user.id}
-              user={user}
-              isLoggedIn={isLoggedIn}
-              onFriendRequest={onClickFriendRequest}
-            />
-          ))}
-      </Table.Tbody>
-    </Table>
+    <Accordion variant="separated" chevronPosition="right">
+      {users
+        .filter((u) => u.id !== currentUser?.id)
+        .map((user) => (
+          <UserRow
+            key={user.id}
+            user={user}
+            isLoggedIn={isLoggedIn}
+            onFriendRequest={onClickFriendRequest}
+          />
+        ))}
+    </Accordion>
   ) : (
     <ErrorDisplay />
   );
@@ -78,17 +69,16 @@ type UserRowProps = {
 
 function UserRow({ user, isLoggedIn, onFriendRequest }: UserRowProps) {
   const { id, userName, displayName, avatarHash, createdAt } = user;
-  const [opened, { toggle }] = useDisclosure(false);
   const isGuest = userName.startsWith("Guest ");
   
   const gravatar = "https://www.gravatar.com/avatar/";
   const avatarUrl = avatarHash ? gravatar + avatarHash + "?d=identicon" : null;
 
   return (
-    <>
-      <Table.Tr onClick={toggle} style={{ cursor: "pointer" }}>
-        <Table.Td>
-          <Group gap="sm">
+    <Accordion.Item value={id}>
+      <Accordion.Control>
+        <Group justify="space-between" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
             {avatarUrl ? (
                <Avatar src={avatarUrl} radius="xl" size="sm" />
             ) : (
@@ -97,41 +87,46 @@ function UserRow({ user, isLoggedIn, onFriendRequest }: UserRowProps) {
             <Text size="sm" fw={500}>{displayName || userName}</Text>
             {isGuest && <Badge color="gray" variant="outline" size="xs">Guest</Badge>}
           </Group>
-        </Table.Td>
-        <Table.Td>{new Date(createdAt).toLocaleString()}</Table.Td>
-      </Table.Tr>
-      <Table.Tr>
-        <Table.Td colSpan={2} p={0} style={{ borderBottom: opened ? undefined : 'none' }}>
-          {opened && (
-            <Box p="md" bg="var(--mantine-color-gray-0)">
-              <Group>
-                {avatarUrl ? (
-                   <Avatar src={avatarUrl} radius="xl" size="lg" />
-                ) : (
-                   <Avatar radius="xl" size="lg" color="blue">{displayName?.substring(0,2)?.toUpperCase() || "U"}</Avatar>
-                )}
-                <Stack gap={0}>
-                  <Text fw={700} size="lg">{displayName || userName}</Text>
-                  <Text c="dimmed" size="sm">@{userName}</Text>
-                  {isGuest && <Text c="dimmed" size="xs">This is a temporary guest account.</Text>}
-                </Stack>
-                {isLoggedIn && !isGuest && (
-                  <Button
-                    variant="light"
-                    color="green"
-                    leftSection={<IconHeartHandshake size={16} />}
-                    onClick={(e) => { e.stopPropagation(); onFriendRequest(id); }}
-                    ml="auto"
-                  >
-                    Add Friend
-                  </Button>
-                )}
-              </Group>
-            </Box>
+          <Text size="xs" c="dimmed" display={{ base: 'none', sm: 'block' }}>
+            Joined: {new Date(createdAt).toLocaleDateString()}
+          </Text>
+        </Group>
+      </Accordion.Control>
+      <Accordion.Panel>
+        <Group align="flex-start">
+          {avatarUrl ? (
+             <Avatar src={avatarUrl} radius="md" size="xl" />
+          ) : (
+             <Avatar radius="md" size="xl" color="blue">{displayName?.substring(0,2)?.toUpperCase() || "U"}</Avatar>
           )}
-        </Table.Td>
-      </Table.Tr>
-    </>
+          <Stack gap="xs" style={{ flex: 1 }}>
+            <Box>
+              <Text fw={700} size="lg">{displayName || userName}</Text>
+              <Text c="dimmed" size="sm">@{userName}</Text>
+            </Box>
+            <Text size="xs" c="dimmed">
+              Member since {new Date(createdAt).toLocaleString()}
+            </Text>
+            {isGuest && <Text c="dimmed" size="xs">This is a temporary guest account.</Text>}
+            
+            <Group mt="xs">
+              {isLoggedIn && !isGuest && (
+                <Button
+                  variant="light"
+                  color="green"
+                  size="sm"
+                  leftSection={<IconHeartHandshake size={16} />}
+                  onClick={(e) => { e.stopPropagation(); onFriendRequest(id); }}
+                >
+                  Add Friend
+                </Button>
+              )}
+            </Group>
+          </Stack>
+        </Group>
+      </Accordion.Panel>
+    </Accordion.Item>
   );
 }
+
 export default UserOverview;
