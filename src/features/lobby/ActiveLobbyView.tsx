@@ -24,6 +24,7 @@ import {
 } from "@tabler/icons-react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   leaveLobby,
@@ -36,6 +37,7 @@ import { selectAllVariants } from "./variantsSlice";
 
 export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGuests }: { inviteUrl: string, allowGuests: boolean }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const token = useSelector(selectToken);
   const serverLobbyId = useSelector(selectLobbyServerLobbyId);
   const scriptUrl = useSelector(selectLobbyScriptUrl);
@@ -176,7 +178,7 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
             variant="subtle"
             color="red"
             size="sm"
-            onClick={() => dispatch(leaveLobby())}
+            onClick={async () => { await dispatch(leaveLobby()); navigate("/", { replace: true }); }}
           >
             Cancel lobby
           </Button>

@@ -36,7 +36,7 @@ export default function LobbyView() {
     );
   }
 
-  // Not in lobby state — redirect to join
+  // idle or error — redirect to join flow (handles direct URL navigation)
   const joinPath = lobbyId
     ? `/lobby/${lobbyId}/join`
     : `/lobby/by-peer-id/${peerId}/join`;
