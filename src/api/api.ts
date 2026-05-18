@@ -1,4 +1,10 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import {
+  BaseQueryFn,
+  createApi,
+  FetchArgs,
+  fetchBaseQuery,
+  FetchBaseQueryError,
+} from "@reduxjs/toolkit/query/react";
 import { RootState } from "../app/store";
 import {
   FriendRequestFrom as FriendRequestFromResponse,
@@ -8,23 +14,38 @@ import {
 import { FriendsListResponse } from "./types/friends/friends";
 import type { PublicUser, User } from "./types/user/users";
 import { LoginResponse, SigninPayload, SignupPayload } from "./types/auth/auth";
+import { invalidToken } from "../features/auth/authSlice";
+
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: `${import.meta.env.VITE_API_URL}/`,
+  timeout: 1000,
+  prepareHeaders(headers, api) {
+    const state = api.getState() as RootState;
+    let session = state.auth.session;
+    if (session.state === "logged-in") {
+      headers.set("authorization", `Bearer ${session.token}`);
+      return headers;
+    }
+  },
+});
+
+const baseQueryWithAuth: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError
+> = async (args, api, extraOptions) => {
+  const result = await rawBaseQuery(args, api, extraOptions);
+  if (result.error?.status === 401) {
+    api.dispatch(invalidToken());
+  }
+  return result;
+};
 
 // Define a service using a base URL and expected endpoints
 export const api = createApi({
   reducerPath: "api",
   tagTypes: ["Friend", "FriendRequest"],
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${import.meta.env.VITE_API_URL}/`,
-    timeout: 1000,
-    prepareHeaders(headers, api) {
-      const state = api.getState() as RootState;
-      let session = state.auth.session;
-      if (session.state === "logged-in") {
-        headers.set("authorization", `Bearer ${session.token}`);
-        return headers;
-      }
-    },
-  }),
+  baseQuery: baseQueryWithAuth,
   endpoints: (builder) => ({
     getUser: builder.query<User, string>({
       query: (user_id) => `users/${user_id}`,

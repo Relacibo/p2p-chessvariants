@@ -8,9 +8,10 @@ const authMiddleware: Middleware = (store) => (next) => (action: unknown) => {
     const state: RootState = store.getState();
     const session = selectSession(state);
     // session will not be null
+    // exp is in seconds (Unix timestamp), multiply by 1000 for ms
     const isTokenInvalid =
       session.state === "logged-in" &&
-      new Date(session.claims.exp) < new Date(Date.now());
+      new Date(session.claims.exp * 1000) < new Date(Date.now());
     if (isTokenInvalid) {
       store.dispatch(invalidToken());
     }
