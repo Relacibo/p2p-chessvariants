@@ -3,7 +3,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import {
   IconChevronLeft,
   IconDeviceGamepad2,
-  IconLink,
+  IconSettings,
   IconUsers,
 } from "@tabler/icons-react";
 import { useSelector } from "react-redux";
@@ -40,8 +40,8 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
             Community
           </MainLink>
           {user && (
-            <MainLink to={"account/connections"} icon={<IconLink size="1.2rem" stroke={1.5} />}>
-              Connections
+            <MainLink to={"settings"} icon={<IconSettings size="1.2rem" stroke={1.5} />}>
+              Einstellungen
             </MainLink>
           )}
         </Stack>

@@ -5,7 +5,7 @@ import MatchFail from "./MatchFail";
 import LoginView from "./features/auth/LoginView";
 import PlayView from "./features/home/PlayView";
 import CommunityView from "./features/users/CommunityView";
-import ConnectionsView from "./features/account/ConnectionsView";
+import SettingsView from "./features/settings/SettingsView";
 
 const AppRoutes = () => {
   return (
@@ -14,7 +14,8 @@ const AppRoutes = () => {
       <Route path="view/:id" element={<PlaygroundView />} />
       <Route path="user-profile/*" element={<UserProfileView />} />
       <Route path="community/*" element={<CommunityView />} />
-      <Route path="account/connections" element={<ConnectionsView />} />
+      <Route path="settings" element={<SettingsView />} />
+      <Route path="settings/:tab" element={<SettingsView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>
