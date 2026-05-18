@@ -36,7 +36,7 @@ const LichessLinkHandler = () => {
           message: "Your Lichess account has been linked successfully.",
           color: "green",
         });
-        navigate("/account/connections");
+        navigate("/settings/connections");
       })
       .catch(() => {
         notifications.show({
@@ -44,7 +44,7 @@ const LichessLinkHandler = () => {
           message: "Could not link Lichess account.",
           color: "red",
         });
-        navigate("/account/connections");
+        navigate("/settings/connections");
       });
   }, [code, link, linkState, location.pathname, navigate, setLinkState, stateParam]);
 

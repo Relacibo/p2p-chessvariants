@@ -5,7 +5,7 @@ const useLinkProvider = () => {
   const [linkProvider] = useLinkProviderMutation();
 
   const link = async (data: OauthData) => {
-    await linkProvider(new LinkPayload(data)).unwrap();
+    await linkProvider({ oauthData: data }).unwrap();
   };
 
   return [link] as const;
