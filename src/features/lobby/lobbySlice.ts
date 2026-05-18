@@ -218,6 +218,27 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       dispatch(_setServerLobbyId(lobbyId));
       dispatch(_setLocalUserId(user.id));
 
+      // If the current user is the host (e.g. after a page reload), re-init as host
+      if (lobbyInfo.hostUserId === user.id) {
+        webrtcService.init((toUserId, signal) =>
+          lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
+        );
+        p2pLobbyService.initP2PLobby(user.id, true, lobbyId, token, {
+          onLobbyInfo: () => {},
+          onPlayerJoined: (player) =>
+            dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
+          onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
+          onHostMigration: (_newHost, newLobbyId) => {
+            if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+          },
+          onGameMessage: () => {},
+        });
+        dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
+        const inviteUrl = window.location.origin + "/lobby/" + lobbyId + "/join";
+        dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests }));
+        return;
+      }
+
       // Signal relay via lobby context
       webrtcService.init((toUserId, signal) =>
         lobbyApi.sendSignal(lobbyId, toUserId, signal, token)
