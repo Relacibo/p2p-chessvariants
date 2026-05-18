@@ -6,7 +6,7 @@ import { LichessOauthData } from "../../../../api/types/auth/lichess";
 import useLinkProvider from "../../useLink";
 
 type LinkStorage = { state: string; codeVerifier: string };
-export const lichessLinkCallbackPath = "/auth/login/lichess/oauth";
+export const lichessLinkCallbackPath = "/auth/link/lichess/oauth";
 
 const LichessLinkHandler = () => {
   const [link] = useLinkProvider();
@@ -28,7 +28,7 @@ const LichessLinkHandler = () => {
     if (!stateParam || stateParam !== state || !code) return;
 
     setLinkState(null);
-    const oauthData = new LichessOauthData(code, codeVerifier);
+    const oauthData = { type: "lichess", code, codeVerifier };
     link(oauthData)
       .then(() => {
         notifications.show({

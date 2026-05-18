@@ -12,6 +12,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="auth/login/*" element={<LoginView/>}/>
+      <Route path="auth/link/*" element={<div />} />
       <Route path="view/:id" element={<PlaygroundView />} />
       <Route path="user-profile/*" element={<UserProfileView />} />
       <Route path="community/*" element={<CommunityView />} />
