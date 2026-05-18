@@ -6,6 +6,7 @@ import { identify } from "@libp2p/identify";
 import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
 import { multiaddr } from "@multiformats/multiaddr";
 import type { Uint8ArrayList } from "uint8arraylist";
+import type { Stream } from "@libp2p/interface";
 import { type LobbyInvite, C2SMsg, S2CMsg } from "./bebop/generated";
 
 const C2S_PROTOCOL = "/c2s/v1";
@@ -47,20 +48,76 @@ function startLobbyHeartbeat(lobbyId: string) {
   }, 5000);
 }
 
+/** 
+ * Helper to read exactly `length` bytes from a libp2p async stream.
+ * Returns null if the stream ends before the requested length is read.
+ */
+async function readExact(
+  source: AsyncIterable<Uint8Array | Uint8ArrayList>,
+  length: number
+): Promise<Uint8Array | null> {
+  const result = new Uint8Array(length);
+  let offset = 0;
+
+  for await (const chunk of source) {
+    const arr = chunk instanceof Uint8Array ? chunk : chunk.subarray();
+    const remaining = length - offset;
+    const take = Math.min(arr.length, remaining);
+
+    result.set(arr.subarray(0, take), offset);
+    offset += take;
+
+    if (offset === length) {
+      return result;
+    }
+  }
+  return null;
+}
+
+/** Read a 4-byte little-endian length prefix followed by the message payload. */
+async function readLengthPrefixedMessage(stream: Stream): Promise<Uint8Array | null> {
+  // 1. Read 4-byte length prefix
+  const lenBytes = await readExact(stream, 4);
+  if (!lenBytes) return null;
+  
+  const view = new DataView(lenBytes.buffer, lenBytes.byteOffset, 4);
+  const length = view.getUint32(0, true); // true = Little Endian
+  
+  // 2. Read exactly the payload length
+  return readExact(stream, length);
+}
+
+/** Prepend a 4-byte little-endian length prefix to the payload. */
+function writeLengthPrefixedMessage(payload: Uint8Array): Uint8Array {
+  const buf = new Uint8Array(4 + payload.length);
+  const view = new DataView(buf.buffer, buf.byteOffset, 4);
+  view.setUint32(0, payload.length, true); // Little Endian
+  buf.set(payload, 4);
+  return buf;
+}
+
 async function installS2CHandler(): Promise<void> {
   if (!node) return;
   await node.handle(S2C_PROTOCOL, async (stream) => {
-    const bytes = await readStream(stream);
-    if (bytes.length === 0) return;
-    const msg = S2CMsg.decode(bytes);
+    try {
+      const bytes = await readLengthPrefixedMessage(stream);
+      if (!bytes) return;
+      const msg = S2CMsg.decode(bytes);
 
-    if (msg.tag === 11 && gameInviteCallback) {
-      gameInviteCallback(msg.value);
-      try {
-        await sendC2S({ tag: 11, value: {} });
-      } catch (err) {
-        logP2PWarning("lobby invite ack failed", err);
+      if (msg.tag === 11 && gameInviteCallback) {
+        gameInviteCallback(msg.value);
+        try {
+          await sendC2S({ tag: 11, value: {} });
+        } catch (err) {
+          logP2PWarning("lobby invite ack failed", err);
+        }
       }
+      
+      // Close our side of the stream gracefully
+      await stream.close();
+    } catch (err) {
+      logP2PWarning("Failed to process S2C message", err);
+      stream.abort(err instanceof Error ? err : new Error(String(err)));
     }
   });
 }
@@ -75,50 +132,32 @@ async function fetchServerInfo(): Promise<{
   return res.json();
 }
 
-function toUint8Array(chunk: Uint8Array | Uint8ArrayList): Uint8Array {
-  if (chunk instanceof Uint8Array) return chunk;
-  return chunk.subarray();
-}
-
-async function readStream(
-  source: AsyncIterable<Uint8Array | Uint8ArrayList>
-): Promise<Uint8Array> {
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of source) {
-    chunks.push(toUint8Array(chunk));
-  }
-  const total = chunks.reduce((n, c) => n + c.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    out.set(c, offset);
-    offset += c.length;
-  }
-  return out;
-}
-
 /** Send a C2S message to the server and return the S2C response. */
 export async function sendC2S(msg: C2SMsg): Promise<S2CMsg | null> {
   if (!node || !serverMultiaddrStr) {
     throw new Error("p2p node not connected");
   }
+  
   const encoded = C2SMsg.encode(msg);
+  const framed = writeLengthPrefixedMessage(encoded);
+  
   const ma = multiaddr(serverMultiaddrStr);
   const stream = await node.dialProtocol(ma, C2S_PROTOCOL);
   
-  await stream.send(encoded);
-  // Tell the server we are done writing so it can process the request.
-  // In libp2p, stream.close() closes the *writable* end of the stream
-  // and waits for pending data to be flushed.
-  await stream.close(); 
-  
-  const responseBytes = await readStream(stream);
-  
-  // Close the read side after we've got the data to fully tear down the stream.
-  await stream.closeRead();
+  try {
+    await stream.send(framed);
+    
+    const responseBytes = await readLengthPrefixedMessage(stream);
+    
+    // Clean close now that the transaction is complete
+    await stream.close();
 
-  if (responseBytes.length === 0) return null;
-  return S2CMsg.decode(responseBytes);
+    if (!responseBytes) return null;
+    return S2CMsg.decode(responseBytes);
+  } catch (err) {
+    stream.abort(err instanceof Error ? err : new Error(String(err)));
+    throw err;
+  }
 }
 
 /** Connect to a peer by their libp2p peer ID via the server circuit relay. */
