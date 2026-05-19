@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useListUsersByIdsQuery } from "../../api/api";
 import { listLobbies, type LobbyInfo } from "../../api/lobbyApi";
 import { getGithubBrowseUrl } from "../lobby/scriptUrl";
+import useConfigureLayout from "../layout/hooks";
 
 const PAGE_SIZE = 10;
 
@@ -95,6 +96,7 @@ function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName
 }
 
 export default function GameListView() {
+  useConfigureLayout(() => ({ navPinned: true }));
   const [page, setPage] = useState(0);
   const [lobbies, setLobbies] = useState<LobbyInfo[]>([]);
   const [total, setTotal] = useState(0);

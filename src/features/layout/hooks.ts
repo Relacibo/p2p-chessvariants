@@ -8,8 +8,9 @@ const useConfigureLayout = (
   useLayoutEffect(() => {
     const partial = fun(config);
     setConfig((c) => ({ ...c, ...partial }));
-    // Pinned pages open the sidebar; non-pinned pages collapse it on navigation.
-    setSidebarCollapsed(!(partial.navPinned ?? false));
+    // Always start collapsed; Layout keeps the sidebar open when navPinned=true
+    // on desktop via collapsable=false, independent of sidebarCollapsedState.
+    setSidebarCollapsed(true);
   }, []);
 };
 export default useConfigureLayout;
