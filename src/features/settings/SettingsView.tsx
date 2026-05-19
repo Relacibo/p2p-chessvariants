@@ -200,60 +200,57 @@ const ProfileTab = () => {
             }
           />
           {user.useGravatar && (
-            <Stack gap="xs">
-              {user.customAvatarHash ? (
-                <Group gap="xs" align="center">
-                  <Text size="xs" fw={500} c="dimmed">
-                    Custom email:
-                  </Text>
-                  <Tooltip
-                    label={user.customAvatarHash}
-                    position="top"
-                    withArrow
-                  >
-                    <Badge
-                      variant="light"
-                      size="sm"
-                      ff="monospace"
-                      pr={3}
-                      rightSection={
-                        <ActionIcon
-                          size="xs"
-                          variant="transparent"
-                          color="blue"
-                          aria-label="Clear custom email"
-                          onClick={() =>
-                            handleUpdate({
-                              useGravatar: true,
-                              customGravatarEmail: null,
-                            })
-                          }
-                        >
-                          <IconX size="0.6rem" />
-                        </ActionIcon>
+            <Tooltip
+              label={user.customAvatarHash ?? ""}
+              position="top"
+              withArrow
+              disabled={!user.customAvatarHash}
+            >
+              <TextInput
+                size="xs"
+                label="Custom Gravatar email"
+                placeholder={
+                  user.customAvatarHash
+                    ? "Enter new email to override"
+                    : "email@example.com"
+                }
+                leftSection={
+                  user.customAvatarHash ? (
+                    <Text size="xs" ff="monospace" c="blue">
+                      {user.customAvatarHash.slice(0, 8)}…
+                    </Text>
+                  ) : undefined
+                }
+                leftSectionWidth={user.customAvatarHash ? 80 : undefined}
+                rightSection={
+                  user.customAvatarHash ? (
+                    <ActionIcon
+                      size="xs"
+                      variant="transparent"
+                      color="dimmed"
+                      aria-label="Clear custom email"
+                      onClick={() =>
+                        handleUpdate({
+                          useGravatar: true,
+                          customGravatarEmail: null,
+                        })
                       }
                     >
-                      {user.customAvatarHash.slice(0, 8)}…
-                    </Badge>
-                  </Tooltip>
-                </Group>
-              ) : (
-                <TextInput
-                  size="xs"
-                  label="Custom Gravatar email"
-                  placeholder="email@example.com"
-                  onBlur={(e) => {
-                    if (e.currentTarget.value.trim() !== "") {
-                      handleUpdate({
-                        useGravatar: true,
-                        customGravatarEmail: e.currentTarget.value,
-                      });
-                      e.currentTarget.value = "";
-                    }
-                  }}
-                />
-              )}
-            </Stack>
+                      <IconX size="0.7rem" />
+                    </ActionIcon>
+                  ) : undefined
+                }
+                onBlur={(e) => {
+                  if (e.currentTarget.value.trim() !== "") {
+                    handleUpdate({
+                      useGravatar: true,
+                      customGravatarEmail: e.currentTarget.value,
+                    });
+                    e.currentTarget.value = "";
+                  }
+                }}
+              />
+            </Tooltip>
           )}
         </Stack>
       </Paper>
