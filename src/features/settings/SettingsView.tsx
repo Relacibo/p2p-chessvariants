@@ -13,8 +13,9 @@ import {
   Text,
   Title,
   Switch,
-  TextInput,
   Paper,
+  Pill,
+  PillsInput,
   Tooltip,
 } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
@@ -200,66 +201,53 @@ const ProfileTab = () => {
             }
           />
           {user.useGravatar && (
-            <Tooltip
-              label={user.customAvatarHash ?? ""}
-              position="top"
-              withArrow
-              disabled={!user.customAvatarHash}
-            >
-              <TextInput
-                size="xs"
-                label="Custom Gravatar email"
-                placeholder={
-                  user.customAvatarHash
-                    ? "Enter new email to override"
-                    : "email@example.com"
-                }
-                leftSection={
-                  user.customAvatarHash ? (
-                    <Text size="xs" ff="monospace" c="blue">
-                      {user.customAvatarHash.slice(0, 8)}…
-                    </Text>
-                  ) : undefined
-                }
-                leftSectionWidth={user.customAvatarHash ? 80 : undefined}
-                rightSection={
-                  user.customAvatarHash ? (
-                    <ActionIcon
-                      size="xs"
-                      variant="transparent"
-                      color="dimmed"
-                      aria-label="Clear custom email"
-                      onClick={() =>
+            <PillsInput size="xs" label="Custom Gravatar email">
+              <Pill.Group>
+                {user.customAvatarHash && (
+                  <Tooltip label={user.customAvatarHash} withArrow>
+                    <Pill
+                      withRemoveButton
+                      onRemove={() =>
                         handleUpdate({
                           useGravatar: true,
                           customGravatarEmail: null,
                         })
                       }
                     >
-                      <IconX size="0.7rem" />
-                    </ActionIcon>
-                  ) : undefined
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.currentTarget.value.trim() !== "") {
-                    handleUpdate({
-                      useGravatar: true,
-                      customGravatarEmail: e.currentTarget.value,
-                    });
-                    e.currentTarget.value = "";
+                      {user.customAvatarHash.slice(0, 8)}…
+                    </Pill>
+                  </Tooltip>
+                )}
+                <PillsInput.Field
+                  placeholder={
+                    user.customAvatarHash
+                      ? "Enter new email to override"
+                      : "email@example.com"
                   }
-                }}
-                onBlur={(e) => {
-                  if (e.currentTarget.value.trim() !== "") {
-                    handleUpdate({
-                      useGravatar: true,
-                      customGravatarEmail: e.currentTarget.value,
-                    });
-                    e.currentTarget.value = "";
-                  }
-                }}
-              />
-            </Tooltip>
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      e.currentTarget.value.trim() !== ""
+                    ) {
+                      handleUpdate({
+                        useGravatar: true,
+                        customGravatarEmail: e.currentTarget.value,
+                      });
+                      e.currentTarget.value = "";
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.currentTarget.value.trim() !== "") {
+                      handleUpdate({
+                        useGravatar: true,
+                        customGravatarEmail: e.currentTarget.value,
+                      });
+                      e.currentTarget.value = "";
+                    }
+                  }}
+                />
+              </Pill.Group>
+            </PillsInput>
           )}
         </Stack>
       </Paper>
