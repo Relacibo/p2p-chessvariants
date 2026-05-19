@@ -158,6 +158,7 @@ function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
   if (!players.find((p) => p.userId === userId)) {
     players.push({ userId, displayName });
     hostPriority.push(userId);
+    callbacks?.onPlayerJoined({ userId, displayName });
   }
 
   const lobbyInfoMsg = P2PMsg.encode({
