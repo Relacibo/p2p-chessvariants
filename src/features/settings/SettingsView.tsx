@@ -101,7 +101,7 @@ const ProfileTab = () => {
     });
   }, [user.useGravatar, user.customAvatarHash, user.email]);
 
-  const handleUpdate = async (patch: { useGravatar: boolean; customGravatarEmail?: string }) => {
+  const handleUpdate = async (patch: { useGravatar: boolean; customGravatarEmail?: string | null }) => {
     try {
       const updatedUser = await updateUser(patch).unwrap();
       dispatch(updateUserState(updatedUser));
@@ -155,17 +155,30 @@ const ProfileTab = () => {
             onChange={(e) => handleUpdate({ useGravatar: e.currentTarget.checked })}
           />
           {user.useGravatar && (
-            <TextInput
-              label="Custom Gravatar Email"
-              description="Overrides your primary account email for Gravatar. We only store the hash, never the raw email."
-              placeholder={user.customAvatarHash ? "Custom hash active. Enter new email to override." : "gravatar@example.com"}
-              onBlur={(e) => {
-                if (e.currentTarget.value.trim() !== "") {
-                  handleUpdate({ useGravatar: true, customGravatarEmail: e.currentTarget.value });
-                  e.currentTarget.value = "";
-                }
-              }}
-            />
+            <Stack gap="xs">
+              {user.customAvatarHash && (
+                <Group justify="space-between" p="xs" style={{ background: "var(--mantine-color-default)", borderRadius: "var(--mantine-radius-sm)", border: "1px solid var(--mantine-color-default-border)" }}>
+                  <Stack gap={2}>
+                    <Text size="xs" fw={500}>Custom hash active</Text>
+                    <Text size="xs" c="dimmed" ff="monospace">{user.customAvatarHash}</Text>
+                  </Stack>
+                  <Button size="xs" variant="subtle" color="red" onClick={() => handleUpdate({ useGravatar: true, customGravatarEmail: null })}>
+                    Clear
+                  </Button>
+                </Group>
+              )}
+              <TextInput
+                label="Custom Gravatar Email"
+                description="Overrides your primary account email for Gravatar. We only store the hash, never the raw email."
+                placeholder={user.customAvatarHash ? "Enter new email to override" : "gravatar@example.com"}
+                onBlur={(e) => {
+                  if (e.currentTarget.value.trim() !== "") {
+                    handleUpdate({ useGravatar: true, customGravatarEmail: e.currentTarget.value });
+                    e.currentTarget.value = "";
+                  }
+                }}
+              />
+            </Stack>
           )}
         </Stack>
       </Paper>
