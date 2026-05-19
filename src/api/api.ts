@@ -114,7 +114,7 @@ export const api = createApi({
     updateUser: builder.mutation<User, { useGravatar: boolean; customGravatarEmail?: string | null }>({
       query: (body) => ({
         url: "users/me",
-        method: "patch",
+        method: "PATCH",
         body,
       }),
       // We could invalidate user, but the user is currently stored in authSlice not API slice.
@@ -220,7 +220,7 @@ export const {
   useListUsersByIdsQuery,
   useDeleteUserMutation,
   useSignInMutation,
-      useUpdateUserMutation,
+  useUpdateUserMutation,
   useGuestLoginMutation,
   useSignUpMutation,
   useServerLogoutMutation,
