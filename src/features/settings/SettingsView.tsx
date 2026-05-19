@@ -240,6 +240,15 @@ const ProfileTab = () => {
                     </ActionIcon>
                   ) : undefined
                 }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value.trim() !== "") {
+                    handleUpdate({
+                      useGravatar: true,
+                      customGravatarEmail: e.currentTarget.value,
+                    });
+                    e.currentTarget.value = "";
+                  }
+                }}
                 onBlur={(e) => {
                   if (e.currentTarget.value.trim() !== "") {
                     handleUpdate({
