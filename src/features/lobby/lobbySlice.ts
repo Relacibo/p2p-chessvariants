@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { notifications } from "@mantine/notifications";
-import { api } from "../../api/api";
+import { api, getTurnCredentials, sendSignal, sendSignalDirect, heartbeat } from "../../api/api";
 import {
   buildPeerHandle,
   getSessionId,
@@ -21,12 +21,7 @@ export type LobbyPlayer = {
 export type LobbyStatus =
   | { phase: "idle" }
   | { phase: "creating" }
-  | {
-      phase: "hosting";
-      inviteUrl: string;
-      allowGuests: boolean;
-      isPassiveHostTab: boolean;
-    }
+  | { phase: "hosting"; inviteUrl: string; isPassiveHostTab: boolean }
   | { phase: "joining" }
   | { phase: "active" }
   | { phase: "error"; message: string };
@@ -42,6 +37,7 @@ export type LobbyState = {
   scriptUrl: string | null;
   localUserId: string | null;
   serverLobbyId: string | null;
+  allowGuests: boolean;
   players: LobbyPlayer[];
   pendingInvite: LobbyInvite | null;
 };
@@ -61,6 +57,7 @@ const initialState: LobbyState = {
   scriptUrl: null,
   localUserId: null,
   serverLobbyId: null,
+  allowGuests: true,
   players: [],
   pendingInvite: null,
 };
@@ -76,6 +73,7 @@ export const {
     _setLocalUserId,
     _setScriptUrl,
     _setServerLobbyId,
+    _setAllowGuests,
     _playerJoined,
     _playerLeft,
     _lobbyInviteReceived,
@@ -100,9 +98,9 @@ export const {
       state.status = {
         phase: "hosting",
         inviteUrl: action.payload.inviteUrl,
-        allowGuests: action.payload.allowGuests,
         isPassiveHostTab: action.payload.isPassiveHostTab,
       };
+      state.allowGuests = action.payload.allowGuests;
     },
     _setJoining: (state) => {
       state.status = { phase: "joining" };
@@ -118,6 +116,7 @@ export const {
       state.scriptUrl = null;
       state.localUserId = null;
       state.serverLobbyId = null;
+      state.allowGuests = true;
       state.players = [];
     },
     _setLocalUserId: (state, action: PayloadAction<string>) => {
@@ -128,6 +127,9 @@ export const {
     },
     _setServerLobbyId: (state, action: PayloadAction<string | null>) => {
       state.serverLobbyId = action.payload;
+    },
+    _setAllowGuests: (state, action: PayloadAction<boolean>) => {
+      state.allowGuests = action.payload;
     },
     _playerJoined: (state, action: PayloadAction<LobbyPlayer>) => {
       if (!state.players.find((p) => p.userId === action.payload.userId)) {
@@ -148,10 +150,9 @@ export const {
 
 type LobbyDispatch = Parameters<AppThunk<Promise<void>>>[0];
 
-async function _applyTurnCredentials(dispatch: LobbyDispatch): Promise<void> {
-  const request = dispatch(api.endpoints.getTurnCredentials.initiate());
+async function _applyTurnCredentials(token: string): Promise<void> {
   try {
-    const turnServers = await request.unwrap();
+    const turnServers = await getTurnCredentials(token);
     if (turnServers.length > 0) {
       webrtcService.setIceServers([
         { urls: "stun:stun.l.google.com:19302" },
@@ -160,8 +161,6 @@ async function _applyTurnCredentials(dispatch: LobbyDispatch): Promise<void> {
     }
   } catch (err) {
     console.warn("[turn] Could not apply TURN credentials:", err);
-  } finally {
-    request.unsubscribe();
   }
 }
 
@@ -211,27 +210,18 @@ export function createLobby(
         }),
       );
 
-      await _applyTurnCredentials(dispatch);
+      await _applyTurnCredentials(token);
 
       if (useServerLobby && lobbyId) {
         const capturedLobbyId = lobbyId;
         webrtcService.init((toUserId, signal) => {
-          return dispatch(
-            api.endpoints.sendSignal.initiate({
-              lobbyId: capturedLobbyId,
-              toUserId,
-              signal,
-            }),
-          ).unwrap();
+          const currentToken = selectToken(getState());
+          return sendSignal(currentToken ?? "", capturedLobbyId, toUserId, signal);
         });
       } else {
         webrtcService.init((toUserId, signal) => {
-          return dispatch(
-            api.endpoints.sendSignalDirect.initiate({
-              toUserId,
-              signal,
-            }),
-          ).unwrap();
+          const currentToken = selectToken(getState());
+          return sendSignalDirect(currentToken ?? "", toUserId, signal);
         });
       }
 
@@ -255,9 +245,10 @@ export function createLobby(
           onHostMigration: (_newHost) => {},
           onGameMessage: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
-            void dispatch(api.endpoints.heartbeat.initiate(heartbeatLobbyId))
-              .unwrap()
-              .catch((e) => console.error("[p2p] heartbeat failed", e));
+            const currentToken = selectToken(getState());
+            heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
+              console.error("[p2p] heartbeat failed", e),
+            );
           },
         },
       );
@@ -336,15 +327,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
           }),
         );
         if (isActiveHostTab) {
-          await _applyTurnCredentials(dispatch);
+          await _applyTurnCredentials(token);
           webrtcService.init((toUserId, signal) => {
-            return dispatch(
-              api.endpoints.sendSignal.initiate({
-                lobbyId,
-                toUserId,
-                signal,
-              }),
-            ).unwrap();
+            const currentToken = selectToken(getState());
+            return sendSignal(currentToken ?? "", lobbyId, toUserId, signal);
           });
           p2pLobbyService.initP2PLobby(
             user.id,
@@ -368,11 +354,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
               },
               onGameMessage: () => {},
               onHeartbeat: (heartbeatLobbyId) => {
-                void dispatch(
-                  api.endpoints.heartbeat.initiate(heartbeatLobbyId),
-                )
-                  .unwrap()
-                  .catch((e) => console.error("[p2p] heartbeat failed", e));
+                const currentToken = selectToken(getState());
+                heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
+                  console.error("[p2p] heartbeat failed", e),
+                );
               },
             },
           );
@@ -380,15 +365,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
         return;
       }
 
-      await _applyTurnCredentials(dispatch);
+      await _applyTurnCredentials(token);
       webrtcService.init((toUserId, signal) => {
-        return dispatch(
-          api.endpoints.sendSignal.initiate({
-            lobbyId,
-            toUserId,
-            signal,
-          }),
-        ).unwrap();
+        const currentToken = selectToken(getState());
+        return sendSignal(currentToken ?? "", lobbyId, toUserId, signal);
       });
       _initP2PAsJoiner(
         dispatch,
@@ -425,15 +405,11 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
     dispatch(_setJoining());
     dispatch(_setLocalUserId(user.id));
 
-    await _applyTurnCredentials(dispatch);
+    await _applyTurnCredentials(token);
 
     webrtcService.init((toUserId, signal) => {
-      return dispatch(
-        api.endpoints.sendSignalDirect.initiate({
-          toUserId,
-          signal,
-        }),
-      ).unwrap();
+      const currentToken = selectToken(getState());
+      return sendSignalDirect(currentToken ?? "", toUserId, signal);
     });
     _initP2PAsJoiner(
       dispatch,
@@ -535,15 +511,10 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
           patch: { hostPeerSessionId: getSessionId() },
         }),
       ).unwrap();
-      await _applyTurnCredentials(dispatch);
+      await _applyTurnCredentials(token);
       webrtcService.init((toUserId, signal) => {
-        return dispatch(
-          api.endpoints.sendSignal.initiate({
-            lobbyId: serverLobbyId,
-            toUserId,
-            signal,
-          }),
-        ).unwrap();
+        const currentToken = selectToken(getState());
+        return sendSignal(currentToken ?? "", serverLobbyId, toUserId, signal);
       });
       const currentScriptUrl = getState().lobby.scriptUrl;
       p2pLobbyService.initP2PLobby(
@@ -568,13 +539,14 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
           },
           onGameMessage: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
-            void dispatch(api.endpoints.heartbeat.initiate(heartbeatLobbyId))
-              .unwrap()
-              .catch((e) => console.error("[p2p] heartbeat failed", e));
+            const currentToken = selectToken(getState());
+            heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
+              console.error("[p2p] heartbeat failed", e),
+            );
           },
         },
       );
-      dispatch(_setHosting({ ...lobbyStatus, isPassiveHostTab: false }));
+      dispatch(_setHosting({ inviteUrl: lobbyStatus.inviteUrl, allowGuests: getState().lobby.allowGuests, isPassiveHostTab: false }));
       notifications.show({
         title: "Active host",
         message: "This tab is now the active host.",
@@ -586,12 +558,30 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
   };
 }
 
+export function setLobbyAllowGuests(val: boolean): AppThunk<Promise<void>> {
+  return async (dispatch, getState) => {
+    const { serverLobbyId } = getState().lobby;
+    dispatch(_setAllowGuests(val));
+    if (serverLobbyId) {
+      try {
+        await dispatch(
+          api.endpoints.patchLobby.initiate({ id: serverLobbyId, patch: { allowGuests: val } }),
+        ).unwrap();
+      } catch (err) {
+        dispatch(_setAllowGuests(!val)); // revert
+        logLobbyWarning("update allow guests failed", err);
+      }
+    }
+  };
+}
+
 export const selectLobbyStatus = (state: RootState) => state.lobby.status;
 export const selectLobbyScriptUrl = (state: RootState) => state.lobby.scriptUrl;
 export const selectLobbyLocalUserId = (state: RootState) =>
   state.lobby.localUserId;
 export const selectLobbyServerLobbyId = (state: RootState) =>
   state.lobby.serverLobbyId;
+export const selectLobbyAllowGuests = (state: RootState) => state.lobby.allowGuests;
 export const selectLobbyPlayers = (state: RootState) => state.lobby.players;
 export const selectPendingInvite = (state: RootState) =>
   state.lobby.pendingInvite;

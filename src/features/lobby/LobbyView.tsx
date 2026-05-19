@@ -110,7 +110,6 @@ export default function LobbyView() {
       <PageContainer>
         <ActiveLobbyView
           inviteUrl={lobbyStatus.inviteUrl}
-          allowGuests={lobbyStatus.allowGuests}
           isPassiveHostTab={lobbyStatus.isPassiveHostTab}
         />
       </PageContainer>
@@ -120,7 +119,7 @@ export default function LobbyView() {
   if (lobbyStatus.phase === "active") {
     return (
       <PageContainer>
-        <ActiveLobbyView inviteUrl="" allowGuests={false} />
+        <ActiveLobbyView inviteUrl="" />
       </PageContainer>
     );
   }

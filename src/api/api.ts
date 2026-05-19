@@ -29,6 +29,65 @@ import type {
   ListLobbiesResponse,
   TurnCredentials,
 } from "./types/lobby";
+
+// ---------------------------------------------------------------------------
+// Plain utility functions (fire-and-forget / custom caching)
+// ---------------------------------------------------------------------------
+
+const API_URL = import.meta.env.VITE_API_URL as string;
+
+async function _authedPost(url: string, token: string, body?: object): Promise<void> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`POST ${url} failed: ${res.status}`);
+}
+
+export async function sendSignal(token: string, lobbyId: string, toUserId: string, signal: object): Promise<void> {
+  await _authedPost(`${API_URL}/lobby/${lobbyId}/signal`, token, { toUserId, signal });
+}
+
+export async function sendSignalDirect(token: string, toUserId: string, signal: object): Promise<void> {
+  await _authedPost(`${API_URL}/signal/${toUserId}`, token, { signal });
+}
+
+export async function heartbeat(token: string, lobbyId: string): Promise<void> {
+  await _authedPost(`${API_URL}/lobby/${lobbyId}/heartbeat`, token);
+}
+
+let _cachedTurn: { servers: RTCIceServer[]; expiresAt: number } | null = null;
+
+export async function getTurnCredentials(token: string): Promise<RTCIceServer[]> {
+  const now = Date.now();
+  if (_cachedTurn && _cachedTurn.expiresAt > now + 60_000) return _cachedTurn.servers;
+  const res = await fetch(`${API_URL}/turn-credentials`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    console.warn("[turn] Failed to fetch TURN credentials, falling back to STUN only");
+    return [];
+  }
+  const creds: TurnCredentials = await res.json();
+  const expiry = parseInt(creds.username.split(":")[0], 10);
+  const servers = _buildTurnServers(creds);
+  _cachedTurn = { servers, expiresAt: isNaN(expiry) ? now + 3_600_000 : expiry * 1000 };
+  return servers;
+}
+
+function _buildTurnServers(creds: TurnCredentials): RTCIceServer[] {
+  const servers: RTCIceServer[] = [];
+  for (const url of creds.urls) {
+    servers.push({ urls: url, username: creds.username, credential: creds.credential });
+    if (url.startsWith("turn:") && !url.includes("?transport="))
+      servers.push({ urls: url + "?transport=tcp", username: creds.username, credential: creds.credential });
+  }
+  return servers;
+}
 import type { PublicUser, User, UserListResponse } from "./types/user/users";
 
 const rawBaseQuery = fetchBaseQuery({
@@ -132,51 +191,6 @@ export const api = createApi({
         { type: "Lobby" as const, id },
         "Lobby",
       ],
-    }),
-    heartbeat: builder.mutation<void, string>({
-      query: (id) => ({ url: `lobby/${id}/heartbeat`, method: "POST" }),
-    }),
-    sendSignal: builder.mutation<
-      void,
-      { lobbyId: string; toUserId: string; signal: object }
-    >({
-      query: ({ lobbyId, toUserId, signal }) => ({
-        url: `lobby/${lobbyId}/signal`,
-        method: "POST",
-        body: { toUserId, signal },
-      }),
-    }),
-    sendSignalDirect: builder.mutation<
-      void,
-      { toUserId: string; signal: object }
-    >({
-      query: ({ toUserId, signal }) => ({
-        url: `signal/${toUserId}`,
-        method: "POST",
-        body: { signal },
-      }),
-    }),
-    getTurnCredentials: builder.query<RTCIceServer[], void>({
-      query: () => "turn-credentials",
-      keepUnusedDataFor: 3600,
-      transformResponse: (creds: TurnCredentials) => {
-        const servers: RTCIceServer[] = [];
-        for (const url of creds.urls) {
-          servers.push({
-            urls: url,
-            username: creds.username,
-            credential: creds.credential,
-          });
-          if (url.startsWith("turn:") && !url.includes("?transport=")) {
-            servers.push({
-              urls: url + "?transport=tcp",
-              username: creds.username,
-              credential: creds.credential,
-            });
-          }
-        }
-        return servers;
-      },
     }),
     signIn: builder.mutation<LoginResponse, SigninPayload>({
       query: (body) => ({ url: "auth/signin", method: "post", body }),
@@ -303,10 +317,6 @@ export const {
   useCreateLobbyMutation,
   useDeleteLobbyMutation,
   usePatchLobbyMutation,
-  useHeartbeatMutation,
-  useSendSignalMutation,
-  useSendSignalDirectMutation,
-  useGetTurnCredentialsQuery,
   useSignInMutation,
   useUpdateUserMutation,
   useGuestLoginMutation,

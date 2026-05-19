@@ -14,36 +14,33 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import {
   IconBrandGithub,
   IconCopy,
   IconQrcode,
   IconUser,
 } from "@tabler/icons-react";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { usePatchLobbyMutation } from "../../api/api";
 import { useDispatch, useSelector } from "../../app/hooks";
 import {
   becomeActiveHost,
   closeLobby,
   leaveLobby,
+  selectLobbyAllowGuests,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
   selectLobbyServerLobbyId,
+  setLobbyAllowGuests,
 } from "./lobbySlice";
 import { getGithubBrowseUrl } from "./scriptUrl";
 import { selectAllVariants } from "./variantsSlice";
 
 export default function ActiveLobbyView({
   inviteUrl,
-  allowGuests: initialAllowGuests,
   isPassiveHostTab,
 }: {
   inviteUrl: string;
-  allowGuests: boolean;
   isPassiveHostTab?: boolean;
 }) {
   const dispatch = useDispatch();
@@ -52,31 +49,12 @@ export default function ActiveLobbyView({
   const scriptUrl = useSelector(selectLobbyScriptUrl);
   const variants = useSelector(selectAllVariants);
   const players = useSelector(selectLobbyPlayers);
-  const [allowGuests, setAllowGuests] = useState(initialAllowGuests);
-  const [patchLobbyMutation] = usePatchLobbyMutation();
+  const allowGuests = useSelector(selectLobbyAllowGuests);
   const isHost = inviteUrl !== "";
 
-  const handleGuestToggle = async (val: boolean) => {
-    setAllowGuests(val);
+  const handleGuestToggle = (val: boolean) => {
     if (serverLobbyId) {
-      try {
-        await patchLobbyMutation({
-          id: serverLobbyId,
-          patch: { allowGuests: val },
-        }).unwrap();
-        notifications.show({
-          title: "Settings updated",
-          message: "Guest permissions changed.",
-          color: "green",
-        });
-      } catch (err) {
-        notifications.show({
-          title: "Error",
-          message: "Failed to update settings.",
-          color: "red",
-        });
-        setAllowGuests(!val);
-      }
+      void dispatch(setLobbyAllowGuests(val));
     }
   };
 
