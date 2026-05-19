@@ -3,7 +3,7 @@ import { notifications } from "@mantine/notifications";
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import { useServerLogoutMutation } from "../../api/api";
+import { useServerLogoutMutation } from "../../api/userApi";
 import { logout, selectLoggedOutCause, selectUser } from "./authSlice";
 
 type Props = {};

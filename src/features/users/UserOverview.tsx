@@ -1,7 +1,7 @@
 import { Avatar, Badge, Box, Group, Loader, Stack, Text, TextInput, Tooltip, Button, Accordion } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
-import { useListUsersQuery, useSendFriendRequestMutation } from "../../api/api";
+import { useListUsersQuery, useSendFriendRequestMutation } from "../../api/userApi";
 import { PublicUser } from "../../api/types/user/users";
 import { useSelector } from "../../app/hooks";
 import { selectLoginState as selectAuthState, selectUser } from "../auth/authSlice";

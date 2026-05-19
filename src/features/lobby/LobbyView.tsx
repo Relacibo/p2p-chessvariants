@@ -2,7 +2,7 @@ import { Alert, Button, Center, Loader, Paper, Stack, Text, TextInput, Title } f
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
-import { useGuestLoginMutation } from "../../api/api";
+import { useGuestLoginMutation } from "../../api/userApi";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { login, selectToken } from "../auth/authSlice";
 import useConfigureLayout from "../layout/hooks";

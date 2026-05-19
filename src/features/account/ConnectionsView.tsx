@@ -9,7 +9,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useGetConnectionsQuery, useUnlinkProviderMutation } from "../../api/api";
+import { useGetConnectionsQuery, useUnlinkProviderMutation } from "../../api/userApi";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
 import PageContainer from "../layout/PageContainer";

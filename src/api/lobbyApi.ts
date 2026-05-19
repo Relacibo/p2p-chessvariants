@@ -1,6 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-export type LobbyStatus = "waiting" | "inGame" | "finished";
+export type LobbyStatus = "waiting" | "in-game" | "finished";
 
 export type LobbyInfo = {
   id: string;

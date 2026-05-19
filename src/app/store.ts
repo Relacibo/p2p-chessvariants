@@ -5,7 +5,7 @@ import {
   ThunkAction,
 } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query/react";
-import { api } from "../api/api";
+import { api } from "../api/userApi";
 import { errorHandler } from "../api/errorHandler";
 import authMiddleware from "../features/auth/authMiddleware";
 import auth from "../features/auth/authSlice";

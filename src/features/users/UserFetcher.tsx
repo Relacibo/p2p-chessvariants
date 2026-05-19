@@ -1,4 +1,4 @@
-import { useGetUserQuery } from "../../api/api";
+import { useGetUserQuery } from "../../api/userApi";
 import UserDisplay from "./UserDisplay";
 import type React from "react";
 

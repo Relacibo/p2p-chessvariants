@@ -11,7 +11,7 @@ import { modals } from "@mantine/modals";
 import { QueryStatus } from "@reduxjs/toolkit/query";
 import { useEffect, useState } from "react";
 import { User } from "../../api/types/user/users";
-import { useSignUpMutation } from "../../api/api";
+import { useSignUpMutation } from "../../api/userApi";
 import { OauthData } from "../../api/types/auth/auth";
 import { handleError } from "../../util/notification";
 

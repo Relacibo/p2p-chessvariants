@@ -1,6 +1,6 @@
 import { ActionIcon, Table, Text, Tooltip } from "@mantine/core";
 import { IconUserMinus } from "@tabler/icons-react";
-import { useListFriendsQuery, useRemoveFriendMutation } from "../../api/api";
+import { useListFriendsQuery, useRemoveFriendMutation } from "../../api/userApi";
 import AppLoader from "../loader/AppLoader";
 import ErrorDisplay from "../error/ErrorDisplay";
 

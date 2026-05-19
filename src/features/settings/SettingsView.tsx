@@ -18,7 +18,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetConnectionsQuery, useUnlinkProviderMutation, useUpdateUserMutation } from "../../api/api";
+import { useGetConnectionsQuery, useUnlinkProviderMutation, useUpdateUserMutation } from "../../api/userApi";
 import { selectUser, updateUserState } from "../auth/authSlice";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";

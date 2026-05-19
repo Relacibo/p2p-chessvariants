@@ -14,7 +14,7 @@ import {
   Anchor,
 } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { useListUsersByIdsQuery } from "../../api/api";
+import { useListUsersByIdsQuery } from "../../api/userApi";
 import { listLobbies, type LobbyInfo } from "../../api/lobbyApi";
 import { getGithubBrowseUrl } from "../lobby/scriptUrl";
 import useConfigureLayout from "../layout/hooks";
@@ -23,13 +23,13 @@ const PAGE_SIZE = 10;
 
 const STATUS_COLORS: Record<string, string> = {
   waiting: "green",
-  inGame: "blue",
+  "in-game": "blue",
   finished: "gray",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   waiting: "Waiting",
-  inGame: "In Game",
+  "in-game": "In Game",
   finished: "Finished",
 };
 
