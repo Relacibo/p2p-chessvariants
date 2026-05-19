@@ -49,7 +49,7 @@ function LobbyRow({
   const navigate = useNavigate();
 
   const handleJoin = async () => {
-    navigate(`/lobby/${lobby.id}/join`);
+    navigate(`/lobby/${lobby.id}`);
   };
 
   const browseUrl = getGithubBrowseUrl(lobby.scriptUrl);
