@@ -14,7 +14,7 @@ import {
   useDeclineFriendRequestMutation,
   useListFriendRequestsFromQuery,
   useListFriendRequestsToQuery,
-} from "../../api/userApi";
+} from "../../api/api";
 import ErrorDisplay from "../error/ErrorDisplay";
 import AppLoader from "../loader/AppLoader";
 

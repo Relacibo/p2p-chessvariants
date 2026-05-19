@@ -3,7 +3,7 @@ import { useLocalStorage } from "@mantine/hooks";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { generateId, sha256Base64Url } from "../../../../util/crypto";
 import { useEffect, useState } from "react";
-import { useSignInMutation } from "../../../../api/userApi";
+import { useSignInMutation } from "../../../../api/api";
 import { SignupResult } from "../../SignupModal";
 import useLogin from "../../useLogin";
 import { LichessOauthData } from "../../../../api/types/auth/lichess";

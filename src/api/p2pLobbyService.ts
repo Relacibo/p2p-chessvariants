@@ -5,22 +5,17 @@
  */
 
 import {
-  P2PMsg,
-  LobbyJoin,
+  GameMessage,
+  HostMigration,
   LobbyInfo,
+  LobbyJoin,
+  LobbyLeave,
+  P2PMsg,
+  Player,
   PlayerJoined,
   PlayerLeft,
-  HostMigration,
-  LobbyLeave,
-  GameMessage,
-  Player,
 } from "./bebop/generated";
 import * as webrtcService from "./webrtcService";
-import * as lobbyApi from "./lobbyApi";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export type P2PLobbyPlayer = {
   userId: string;
@@ -37,11 +32,8 @@ export type P2PLobbyCallbacks = {
   onPlayerLeft: (userId: string) => void;
   onHostMigration: (newHostUserId: string, lobbyId?: string) => void;
   onGameMessage: (fromUserId: string, payload: Uint8Array) => void;
+  onHeartbeat?: (lobbyId: string) => void;
 };
-
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 
 let myUserId: string | null = null;
 let myDisplayName: string | null = null;
@@ -52,19 +44,6 @@ let hostPriority: string[] = [];
 let players: P2PLobbyPlayer[] = [];
 let callbacks: P2PLobbyCallbacks | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-let token: string | null = null;
-
-// ---------------------------------------------------------------------------
-// Init / Reset
-// ---------------------------------------------------------------------------
-
-export function updateAuthToken(newToken: string): void {
-  token = newToken;
-  // If heartbeat is running and we now have a valid token + lobby, restart it
-  if (isHost && serverLobbyId && newToken && heartbeatInterval === null) {
-    startHeartbeat(serverLobbyId, newToken);
-  }
-}
 
 export function initP2PLobby(
   userId: string,
@@ -72,15 +51,13 @@ export function initP2PLobby(
   _isHost: boolean,
   lobbyId: string | null,
   variantUrl: string | null,
-  _token: string | null,
-  cbs: P2PLobbyCallbacks
+  cbs: P2PLobbyCallbacks,
 ): void {
   myUserId = userId;
   myDisplayName = displayName;
   isHost = _isHost;
   serverLobbyId = lobbyId;
   scriptUrl = variantUrl;
-  token = _token;
   callbacks = cbs;
   players = [];
   hostPriority = [userId];
@@ -95,14 +72,13 @@ export function initP2PLobby(
   });
 
   if (!isHost) {
-    // Send LobbyJoin as soon as the DataChannel to the host is open
     webrtcService.onPeerConnected((connectedUserId) => {
       sendLobbyJoin(connectedUserId);
     });
   }
 
-  if (isHost && serverLobbyId && token) {
-    startHeartbeat(serverLobbyId, token);
+  if (isHost && serverLobbyId) {
+    startHeartbeat(serverLobbyId);
   }
 }
 
@@ -113,27 +89,27 @@ export function resetP2PLobby(): void {
   isHost = false;
   serverLobbyId = null;
   scriptUrl = null;
-  token = null;
   callbacks = null;
   players = [];
   hostPriority = [];
 }
 
-// ---------------------------------------------------------------------------
-// Outgoing messages
-// ---------------------------------------------------------------------------
-
-/** Joiner calls this after WebRTC DataChannel opens to announce themselves to the host. */
 export function sendLobbyJoin(toUserId: string): void {
   if (!myUserId) return;
   const msg = P2PMsg.encode({
     tag: 1,
-    value: LobbyJoin({ userId: myUserId, displayName: myDisplayName ?? myUserId }),
+    value: LobbyJoin({
+      userId: myUserId,
+      displayName: myDisplayName ?? myUserId,
+    }),
   });
   webrtcService.sendToPeer(toUserId, msg);
 }
 
-export function sendGameMessage(toUserId: string, payload: Uint8Array<ArrayBuffer>): void {
+export function sendGameMessage(
+  toUserId: string,
+  payload: Uint8Array<ArrayBuffer>,
+): void {
   const msg = P2PMsg.encode({ tag: 7, value: GameMessage({ payload }) });
   webrtcService.sendToPeer(toUserId, msg);
 }
@@ -143,62 +119,59 @@ export function broadcastGameMessage(payload: Uint8Array<ArrayBuffer>): void {
   webrtcService.sendToAll(msg);
 }
 
-// ---------------------------------------------------------------------------
-// Incoming message handler
-// ---------------------------------------------------------------------------
-
-function handleMessage(fromUserId: string, msg: ReturnType<typeof P2PMsg.decode>): void {
+function handleMessage(
+  fromUserId: string,
+  msg: ReturnType<typeof P2PMsg.decode>,
+): void {
   switch (msg.tag) {
-    case 1: // LobbyJoin — only host handles this
+    case 1:
       if (isHost) handleLobbyJoin(fromUserId, msg.value as LobbyJoin);
       break;
-    case 2: // LobbyInfo — only joiners receive this
+    case 2:
       handleLobbyInfo(msg.value as LobbyInfo);
       break;
-    case 3: // PlayerJoined
+    case 3:
       handlePlayerJoined(msg.value as PlayerJoined);
       break;
-    case 4: // PlayerLeft
+    case 4:
       handlePlayerLeft(msg.value as PlayerLeft);
       break;
-    case 5: // HostMigration
+    case 5:
       handleHostMigration(msg.value as HostMigration);
       break;
-    case 6: // LobbyLeave
+    case 6:
       handlePlayerLeft({ userId: fromUserId });
       break;
-    case 7: // GameMessage
-      callbacks?.onGameMessage(fromUserId, (msg.value as GameMessage).payload ?? new Uint8Array());
+    case 7:
+      callbacks?.onGameMessage(
+        fromUserId,
+        (msg.value as GameMessage).payload ?? new Uint8Array(),
+      );
       break;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Host logic
-// ---------------------------------------------------------------------------
 
 function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
   const userId = join.userId ?? fromUserId;
   const displayName = join.displayName ?? userId;
 
-  // Add to list if not already present
   if (!players.find((p) => p.userId === userId)) {
     players.push({ userId, displayName });
     hostPriority.push(userId);
   }
 
-  // Send full lobby state back to the joiner
   const lobbyInfoMsg = P2PMsg.encode({
     tag: 2,
     value: LobbyInfo({
       variantUrl: scriptUrl ?? "",
-      players: players.map((p): Player => ({ userId: p.userId, displayName: p.displayName })),
-      hostPriority: hostPriority,
+      players: players.map(
+        (p): Player => ({ userId: p.userId, displayName: p.displayName }),
+      ),
+      hostPriority,
     }),
   });
   webrtcService.sendToPeer(userId, lobbyInfoMsg);
 
-  // Broadcast PlayerJoined to all other peers
   const joinedMsg = P2PMsg.encode({
     tag: 3,
     value: PlayerJoined({
@@ -211,10 +184,6 @@ function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Client/shared logic
-// ---------------------------------------------------------------------------
 
 function handleLobbyInfo(info: LobbyInfo): void {
   players = (info.players ?? []).map((p: Player) => ({
@@ -255,18 +224,20 @@ function handlePlayerLeft(msg: { userId?: string }): void {
 
 function handleHostMigration(msg: HostMigration): void {
   const newHostUserId = msg.newHostUserId ?? "";
-  hostPriority = [newHostUserId, ...hostPriority.filter((id) => id !== newHostUserId)];
+  if (msg.lobbyId) {
+    serverLobbyId = msg.lobbyId;
+  }
+  hostPriority = [
+    newHostUserId,
+    ...hostPriority.filter((id) => id !== newHostUserId),
+  ];
   callbacks?.onHostMigration(newHostUserId, msg.lobbyId ?? undefined);
 
-  if (newHostUserId === myUserId) {
+  if (newHostUserId === myUserId && serverLobbyId) {
     isHost = true;
-    if (serverLobbyId && token) startHeartbeat(serverLobbyId, token);
+    startHeartbeat(serverLobbyId);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Host migration
-// ---------------------------------------------------------------------------
 
 function tryBecomingHost(): void {
   if (!myUserId || hostPriority[0] !== myUserId) return;
@@ -274,12 +245,10 @@ function tryBecomingHost(): void {
   isHost = true;
   console.info("[p2p] I am now the host");
 
-  // Re-register with server if we have a lobby
-  if (serverLobbyId && token) {
-    startHeartbeat(serverLobbyId, token);
+  if (serverLobbyId) {
+    startHeartbeat(serverLobbyId);
   }
 
-  // Announce to all peers
   const migrationMsg = P2PMsg.encode({
     tag: 5,
     value: HostMigration({
@@ -290,20 +259,10 @@ function tryBecomingHost(): void {
   webrtcService.sendToAll(migrationMsg);
 }
 
-// ---------------------------------------------------------------------------
-// Heartbeat
-// ---------------------------------------------------------------------------
-
-function startHeartbeat(lobbyId: string, _initialToken: string): void {
+function startHeartbeat(lobbyId: string): void {
   stopHeartbeat();
   heartbeatInterval = setInterval(() => {
-    if (!token) {
-      console.warn("[p2p] heartbeat skipped: no token");
-      return;
-    }
-    lobbyApi
-      .heartbeat(lobbyId, token)
-      .catch((e) => console.error("[p2p] heartbeat failed", e));
+    callbacks?.onHeartbeat?.(lobbyId);
   }, 60_000);
 }
 
@@ -314,12 +273,10 @@ function stopHeartbeat(): void {
   }
 }
 
-/** Call when a peer disconnects (from webrtcService connectionState callback). */
 export function onPeerDisconnected(userId: string): void {
   handlePlayerLeft({ userId });
 }
 
-/** Send LobbyLeave to all peers and clean up. */
 export function leaveLobby(): void {
   const msg = P2PMsg.encode({ tag: 6, value: LobbyLeave({}) });
   webrtcService.sendToAll(msg);

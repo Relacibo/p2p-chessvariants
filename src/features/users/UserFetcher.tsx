@@ -1,4 +1,4 @@
-import { useGetUserQuery } from "../../api/userApi";
+import { useGetUserQuery } from "../../api/api";
 import UserDisplay from "./UserDisplay";
 import type React from "react";
 
@@ -11,7 +11,7 @@ const UserFetcher = ({ id, placeholder }: Props) => {
   return isSuccess && data ? (
     <UserDisplay user={data}></UserDisplay>
   ) : (
-    placeholder ?? <></>
+    (placeholder ?? <></>)
   );
 };
 export default UserFetcher;

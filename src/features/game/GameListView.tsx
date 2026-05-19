@@ -1,23 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  Stack,
-  Group,
-  Text,
-  Badge,
-  Avatar,
-  Button,
-  Loader,
-  Center,
-  Paper,
-  Pagination,
-  Tooltip,
   Anchor,
+  Avatar,
+  Badge,
+  Button,
+  Center,
+  Loader,
+  Pagination,
+  Paper,
+  Group,
+  Stack,
+  Text,
+  Tooltip,
 } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { useListUsersByIdsQuery } from "../../api/userApi";
-import { listLobbies, type LobbyInfo } from "../../api/lobbyApi";
-import { getGithubBrowseUrl } from "../lobby/scriptUrl";
+import { useListLobbiesQuery, useListUsersByIdsQuery } from "../../api/api";
+import type { LobbyInfo } from "../../api/types/lobby";
 import useConfigureLayout from "../layout/hooks";
+import { getGithubBrowseUrl } from "../lobby/scriptUrl";
 
 const PAGE_SIZE = 10;
 
@@ -34,10 +34,18 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function gravatarUrl(avatarHash: string | undefined): string | undefined {
-  return avatarHash ? `https://www.gravatar.com/avatar/${avatarHash}?d=identicon` : undefined;
+  return avatarHash
+    ? `https://www.gravatar.com/avatar/${avatarHash}?d=identicon`
+    : undefined;
 }
 
-function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName: string; avatarHash?: string } }) {
+function LobbyRow({
+  lobby,
+  hostUser,
+}: {
+  lobby: LobbyInfo;
+  hostUser?: { userName: string; avatarHash?: string };
+}) {
   const navigate = useNavigate();
 
   const handleJoin = async () => {
@@ -53,7 +61,10 @@ function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName
     <Paper p="sm" withBorder radius="sm">
       <Group justify="space-between" wrap="nowrap">
         <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-          <Tooltip label={hostUser ? `@${hostUser.userName}` : "Guest host"} withArrow>
+          <Tooltip
+            label={hostUser ? `@${hostUser.userName}` : "Guest host"}
+            withArrow
+          >
             <Avatar
               src={gravatarUrl(hostUser?.avatarHash)}
               size="md"
@@ -72,7 +83,9 @@ function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName
                 <Anchor href={browseUrl} target="_blank" size="xs" c="dimmed">
                   {scriptName}
                 </Anchor>
-              ) : scriptName}
+              ) : (
+                scriptName
+              )}
             </Text>
           </Stack>
         </Group>
@@ -82,7 +95,8 @@ function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName
             {STATUS_LABELS[lobby.status] ?? lobby.status}
           </Badge>
           <Text size="xs" c="dimmed" w={50} ta="right">
-            {lobby.playerCount}{lobby.maxPlayers != null ? `/${lobby.maxPlayers}` : ""} 👤
+            {lobby.playerCount}
+            {lobby.maxPlayers != null ? `/${lobby.maxPlayers}` : ""} 👤
           </Text>
           {lobby.status === "waiting" && (
             <Button size="xs" onClick={handleJoin}>
@@ -98,38 +112,46 @@ function LobbyRow({ lobby, hostUser }: { lobby: LobbyInfo; hostUser?: { userName
 export default function GameListView() {
   useConfigureLayout(() => ({ navPinned: true }));
   const [page, setPage] = useState(0);
-  const [lobbies, setLobbies] = useState<LobbyInfo[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, isError } = useListLobbiesQuery({
+    page,
+    limit: PAGE_SIZE,
+    status: "waiting",
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    listLobbies({ page, limit: PAGE_SIZE, status: "waiting" })
-      .then((res) => {
-        setLobbies(res.items);
-        setTotal(res.total);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [page]);
+  const lobbies = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const hostUserIds = [
+    ...new Set(lobbies.map((l) => l.hostUserId).filter(Boolean)),
+  ];
+  const { data: hostUsers } = useListUsersByIdsQuery(hostUserIds, {
+    skip: hostUserIds.length === 0,
+  });
+  const userMap = Object.fromEntries(
+    (hostUsers?.items ?? []).map((u) => [u.id, u]),
+  );
 
-  // Collect unique host user IDs (only registered users have UUIDs)
-  const hostUserIds = [...new Set(lobbies.map((l) => l.hostUserId).filter(Boolean))];
-  const { data: hostUsers } = useListUsersByIdsQuery(hostUserIds, { skip: hostUserIds.length === 0 });
-  const userMap = Object.fromEntries((hostUsers?.items ?? []).map((u) => [u.id, u]));
-
-  if (loading) {
-    return <Center py="xl"><Loader size="sm" /></Center>;
+  if (isLoading) {
+    return (
+      <Center py="xl">
+        <Loader size="sm" />
+      </Center>
+    );
   }
 
-  if (error) {
-    return <Text c="red" size="sm">Failed to load lobbies: {error}</Text>;
+  if (isError) {
+    return (
+      <Text c="red" size="sm">
+        Failed to load lobbies.
+      </Text>
+    );
   }
 
   if (lobbies.length === 0) {
-    return <Text c="dimmed" size="sm" ta="center" py="xl">No open lobbies right now.</Text>;
+    return (
+      <Text c="dimmed" size="sm" ta="center" py="xl">
+        No open lobbies right now.
+      </Text>
+    );
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -137,7 +159,11 @@ export default function GameListView() {
   return (
     <Stack gap="xs">
       {lobbies.map((lobby) => (
-        <LobbyRow key={lobby.id} lobby={lobby} hostUser={userMap[lobby.hostUserId]} />
+        <LobbyRow
+          key={lobby.id}
+          lobby={lobby}
+          hostUser={userMap[lobby.hostUserId]}
+        />
       ))}
       {totalPages > 1 && (
         <Pagination
@@ -151,4 +177,3 @@ export default function GameListView() {
     </Stack>
   );
 }
-

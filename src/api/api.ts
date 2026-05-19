@@ -5,15 +5,9 @@ import {
   fetchBaseQuery,
   FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react";
-import { RootState } from "../app/store";
-import {
-  FriendRequestFrom as FriendRequestFromResponse,
-  FriendRequestToResponse,
-  SendFriendRequest as SendFriendRequestPayload,
-} from "./types/friends/friendRequests";
-import { FriendsListResponse } from "./types/friends/friends";
-import type { PublicUser, User, UserListResponse } from "./types/user/users";
-import {
+import { invalidToken, login } from "../features/auth/authSlice";
+import type { RootState } from "../app/store";
+import type {
   ConnectionsResponse,
   LinkPayload,
   LoginResponse,
@@ -21,7 +15,21 @@ import {
   SignupPayload,
   UnlinkPayload,
 } from "./types/auth/auth";
-import { invalidToken, login } from "../features/auth/authSlice";
+import type {
+  FriendRequestFrom as FriendRequestFromResponse,
+  FriendRequestToResponse,
+  SendFriendRequest as SendFriendRequestPayload,
+} from "./types/friends/friendRequests";
+import type { FriendsListResponse } from "./types/friends/friends";
+import type {
+  CreateLobbyPayload,
+  LobbyInfo,
+  LobbyPatch,
+  ListLobbiesParams,
+  ListLobbiesResponse,
+  TurnCredentials,
+} from "./types/lobby";
+import type { PublicUser, User, UserListResponse } from "./types/user/users";
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_API_URL}/`,
@@ -29,11 +37,11 @@ const rawBaseQuery = fetchBaseQuery({
   credentials: "include",
   prepareHeaders(headers, api) {
     const state = api.getState() as RootState;
-    let session = state.auth.session;
+    const session = state.auth.session;
     if (session.state === "logged-in") {
       headers.set("authorization", `Bearer ${session.token}`);
-      return headers;
     }
+    return headers;
   },
 });
 
@@ -60,7 +68,6 @@ const baseQueryWithAuth: BaseQueryFn<
           user: User;
         };
         api.dispatch(login({ token, user }));
-        // Retry the original request with the new access token
         result = await rawBaseQuery(args, api, extraOptions);
       } else {
         api.dispatch(invalidToken());
@@ -73,10 +80,9 @@ const baseQueryWithAuth: BaseQueryFn<
   return result;
 };
 
-// Define a service using a base URL and expected endpoints
 export const api = createApi({
   reducerPath: "api",
-  tagTypes: ["Friend", "FriendRequest"],
+  tagTypes: ["Friend", "FriendRequest", "Lobby"],
   baseQuery: baseQueryWithAuth,
   endpoints: (builder) => ({
     getUser: builder.query<User, string>({
@@ -85,7 +91,10 @@ export const api = createApi({
     deleteUser: builder.mutation<void, string>({
       query: (user_id) => ({ url: `users/${user_id}`, method: "delete" }),
     }),
-    listUsers: builder.query<UserListResponse, { q?: string; page?: number; limit?: number } | void>({
+    listUsers: builder.query<
+      UserListResponse,
+      { q?: string; page?: number; limit?: number } | void
+    >({
       query: (params) => ({
         url: "users",
         params: params || undefined,
@@ -97,29 +106,103 @@ export const api = createApi({
         params: ids.length ? { ids: ids.join(",") } : undefined,
       }),
     }),
-
+    listLobbies: builder.query<ListLobbiesResponse, ListLobbiesParams | void>({
+      query: (params) => ({ url: "lobby", params: params || undefined }),
+      providesTags: ["Lobby"],
+    }),
+    createLobby: builder.mutation<{ lobbyId: string }, CreateLobbyPayload>({
+      query: (body) => ({ url: "lobby", method: "POST", body }),
+      invalidatesTags: ["Lobby"],
+    }),
+    getLobby: builder.query<LobbyInfo, string>({
+      query: (id) => `lobby/${id}`,
+      providesTags: (_result, _error, id) => [{ type: "Lobby" as const, id }],
+    }),
+    deleteLobby: builder.mutation<void, string>({
+      query: (id) => ({ url: `lobby/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Lobby"],
+    }),
+    patchLobby: builder.mutation<void, { id: string; patch: LobbyPatch }>({
+      query: ({ id, patch }) => ({
+        url: `lobby/${id}`,
+        method: "PATCH",
+        body: patch,
+      }),
+      invalidatesTags: (_result, _error, { id }) => [
+        { type: "Lobby" as const, id },
+        "Lobby",
+      ],
+    }),
+    heartbeat: builder.mutation<void, string>({
+      query: (id) => ({ url: `lobby/${id}/heartbeat`, method: "POST" }),
+    }),
+    sendSignal: builder.mutation<
+      void,
+      { lobbyId: string; toUserId: string; signal: object }
+    >({
+      query: ({ lobbyId, toUserId, signal }) => ({
+        url: `lobby/${lobbyId}/signal`,
+        method: "POST",
+        body: { toUserId, signal },
+      }),
+    }),
+    sendSignalDirect: builder.mutation<
+      void,
+      { toUserId: string; signal: object }
+    >({
+      query: ({ toUserId, signal }) => ({
+        url: `signal/${toUserId}`,
+        method: "POST",
+        body: { signal },
+      }),
+    }),
+    getTurnCredentials: builder.query<RTCIceServer[], void>({
+      query: () => "turn-credentials",
+      keepUnusedDataFor: 3600,
+      transformResponse: (creds: TurnCredentials) => {
+        const servers: RTCIceServer[] = [];
+        for (const url of creds.urls) {
+          servers.push({
+            urls: url,
+            username: creds.username,
+            credential: creds.credential,
+          });
+          if (url.startsWith("turn:") && !url.includes("?transport=")) {
+            servers.push({
+              urls: url + "?transport=tcp",
+              username: creds.username,
+              credential: creds.credential,
+            });
+          }
+        }
+        return servers;
+      },
+    }),
     signIn: builder.mutation<LoginResponse, SigninPayload>({
       query: (body) => ({ url: "auth/signin", method: "post", body }),
     }),
     signUp: builder.mutation<LoginResponse, SignupPayload>({
       query: (body) => ({ url: "auth/signup", method: "post", body }),
     }),
-    guestLogin: builder.mutation<LoginResponse & { result: "success" }, { displayName: string }>({
+    guestLogin: builder.mutation<
+      LoginResponse & { result: "success" },
+      { displayName: string }
+    >({
       query: (body) => ({
         url: "auth/guest",
         method: "post",
         body,
       }),
     }),
-    updateUser: builder.mutation<User, { useGravatar: boolean; customGravatarEmail?: string | null }>({
+    updateUser: builder.mutation<
+      User,
+      { useGravatar: boolean; customGravatarEmail?: string | null }
+    >({
       query: (body) => ({
         url: "users/me",
         method: "PATCH",
         body,
       }),
-      // We could invalidate user, but the user is currently stored in authSlice not API slice.
-      // Easiest is to let the user re-login or reload to see the effect instantly, 
-      // or we can optimistically update authSlice.
     }),
     serverLogout: builder.mutation<void, void>({
       query: () => ({ url: "auth/logout", method: "post" }),
@@ -133,14 +216,12 @@ export const api = createApi({
     unlinkProvider: builder.mutation<void, UnlinkPayload>({
       query: (body) => ({ url: "auth/unlink", method: "post", body }),
     }),
-    // Outgoing friend requests (sent TO others)
     listFriendRequestsTo: builder.query<FriendRequestToResponse, string>({
       query: (userId) => `users/${userId}/friend-requests/outgoing`,
       providesTags: (_result, _error, userId) => [
         { type: "FriendRequest", id: `TO_${userId}` },
       ],
     }),
-    // Incoming friend requests (FROM others)
     listFriendRequestsFrom: builder.query<FriendRequestFromResponse, string>({
       query: (userId) => `users/${userId}/friend-requests/incoming`,
       providesTags: (_result, _error, userId) => [
@@ -212,13 +293,20 @@ export const api = createApi({
   }),
 });
 
-// Export hooks for usage in functional components, which are
-// auto-generated based on the defined endpoints
 export const {
   useGetUserQuery,
   useListUsersQuery,
   useListUsersByIdsQuery,
   useDeleteUserMutation,
+  useListLobbiesQuery,
+  useGetLobbyQuery,
+  useCreateLobbyMutation,
+  useDeleteLobbyMutation,
+  usePatchLobbyMutation,
+  useHeartbeatMutation,
+  useSendSignalMutation,
+  useSendSignalDirectMutation,
+  useGetTurnCredentialsQuery,
   useSignInMutation,
   useUpdateUserMutation,
   useGuestLoginMutation,

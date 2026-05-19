@@ -18,7 +18,11 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetConnectionsQuery, useUnlinkProviderMutation, useUpdateUserMutation } from "../../api/userApi";
+import {
+  useGetConnectionsQuery,
+  useUnlinkProviderMutation,
+  useUpdateUserMutation,
+} from "../../api/api";
 import { selectUser, updateUserState } from "../auth/authSlice";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
@@ -33,8 +37,9 @@ const SettingsView = () => {
   useConfigureLayout(() => ({ navPinned: true }));
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
-  const activeTab: TabValue =
-    VALID_TABS.includes(tab as TabValue) ? (tab as TabValue) : "profile";
+  const activeTab: TabValue = VALID_TABS.includes(tab as TabValue)
+    ? (tab as TabValue)
+    : "profile";
   const user = useSelector(selectUser);
 
   const handleTabChange = (value: string | null) => {
@@ -52,28 +57,28 @@ const SettingsView = () => {
   return (
     <PageContainer>
       <Stack maw={600} gap={0}>
-      <Title order={2} mb="lg">
-        Settings
-      </Title>
-      <Tabs value={activeTab} onChange={handleTabChange}>
-        <Tabs.List mb="xl">
-          <Tabs.Tab value="profile">Profile</Tabs.Tab>
-          <Tabs.Tab value="connections">Connections</Tabs.Tab>
-          <Tabs.Tab value="game">Game</Tabs.Tab>
-        </Tabs.List>
+        <Title order={2} mb="lg">
+          Settings
+        </Title>
+        <Tabs value={activeTab} onChange={handleTabChange}>
+          <Tabs.List mb="xl">
+            <Tabs.Tab value="profile">Profile</Tabs.Tab>
+            <Tabs.Tab value="connections">Connections</Tabs.Tab>
+            <Tabs.Tab value="game">Game</Tabs.Tab>
+          </Tabs.List>
 
-        <Tabs.Panel value="profile">
-          <ProfileTab />
-        </Tabs.Panel>
+          <Tabs.Panel value="profile">
+            <ProfileTab />
+          </Tabs.Panel>
 
-        <Tabs.Panel value="connections">
-          <ConnectionsTab />
-        </Tabs.Panel>
+          <Tabs.Panel value="connections">
+            <ConnectionsTab />
+          </Tabs.Panel>
 
-        <Tabs.Panel value="game">
-          <Text c="dimmed">Game settings coming soon.</Text>
-        </Tabs.Panel>
-      </Tabs>
+          <Tabs.Panel value="game">
+            <Text c="dimmed">Game settings coming soon.</Text>
+          </Tabs.Panel>
+        </Tabs>
       </Stack>
     </PageContainer>
   );
@@ -91,23 +96,44 @@ const ProfileTab = () => {
       return;
     }
     if (user.customAvatarHash) {
-      setGravatarUrl("https://www.gravatar.com/avatar/" + user.customAvatarHash + "?d=identicon");
+      setGravatarUrl(
+        "https://www.gravatar.com/avatar/" +
+          user.customAvatarHash +
+          "?d=identicon",
+      );
       return;
     }
     const email = user.email.trim().toLowerCase();
-    crypto.subtle.digest("SHA-256", new TextEncoder().encode(email)).then(buffer => {
-      const hashHex = Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, "0")).join("");
-      setGravatarUrl("https://www.gravatar.com/avatar/" + hashHex + "?d=identicon");
-    });
+    crypto.subtle
+      .digest("SHA-256", new TextEncoder().encode(email))
+      .then((buffer) => {
+        const hashHex = Array.from(new Uint8Array(buffer))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        setGravatarUrl(
+          "https://www.gravatar.com/avatar/" + hashHex + "?d=identicon",
+        );
+      });
   }, [user.useGravatar, user.customAvatarHash, user.email]);
 
-  const handleUpdate = async (patch: { useGravatar: boolean; customGravatarEmail?: string | null }) => {
+  const handleUpdate = async (patch: {
+    useGravatar: boolean;
+    customGravatarEmail?: string | null;
+  }) => {
     try {
       const updatedUser = await updateUser(patch).unwrap();
       dispatch(updateUserState(updatedUser));
-      notifications.show({ title: "Profile updated", message: "Your settings have been saved.", color: "green" });
+      notifications.show({
+        title: "Profile updated",
+        message: "Your settings have been saved.",
+        color: "green",
+      });
     } catch (err) {
-      notifications.show({ title: "Error", message: "Could not update profile.", color: "red" });
+      notifications.show({
+        title: "Error",
+        message: "Could not update profile.",
+        color: "red",
+      });
     }
   };
 
@@ -122,25 +148,39 @@ const ProfileTab = () => {
           </Avatar>
         )}
         <div>
-          <Text fw={600} size="lg">{user.displayName}</Text>
-          <Text size="sm" c="dimmed">@{user.userName}</Text>
+          <Text fw={600} size="lg">
+            {user.displayName}
+          </Text>
+          <Text size="sm" c="dimmed">
+            @{user.userName}
+          </Text>
         </div>
       </Group>
       <Divider />
       <Stack gap="xs">
         <Group justify="space-between">
-        <Text size="sm" c="dimmed">Email</Text>
+          <Text size="sm" c="dimmed">
+            Email
+          </Text>
           <Group gap="xs">
             <Text size="sm">{user.email}</Text>
-          {user.verifiedEmail && <Badge size="xs" color="green">Verified</Badge>}
+            {user.verifiedEmail && (
+              <Badge size="xs" color="green">
+                Verified
+              </Badge>
+            )}
           </Group>
         </Group>
         <Group justify="space-between">
-        <Text size="sm" c="dimmed">Username</Text>
+          <Text size="sm" c="dimmed">
+            Username
+          </Text>
           <Text size="sm">@{user.userName}</Text>
         </Group>
         <Group justify="space-between">
-        <Text size="sm" c="dimmed">Display name</Text>
+          <Text size="sm" c="dimmed">
+            Display name
+          </Text>
           <Text size="sm">{user.displayName}</Text>
         </Group>
       </Stack>
@@ -152,17 +192,41 @@ const ProfileTab = () => {
             label="Use Gravatar"
             description="We will calculate an SHA-256 hash of your email address to fetch your profile picture from Gravatar. Your raw email address is never exposed."
             checked={!!user.useGravatar}
-            onChange={(e) => handleUpdate({ useGravatar: e.currentTarget.checked })}
+            onChange={(e) =>
+              handleUpdate({ useGravatar: e.currentTarget.checked })
+            }
           />
           {user.useGravatar && (
             <Stack gap="xs">
               {user.customAvatarHash && (
-                <Group justify="space-between" p="xs" style={{ background: "var(--mantine-color-default)", borderRadius: "var(--mantine-radius-sm)", border: "1px solid var(--mantine-color-default-border)" }}>
+                <Group
+                  justify="space-between"
+                  p="xs"
+                  style={{
+                    background: "var(--mantine-color-default)",
+                    borderRadius: "var(--mantine-radius-sm)",
+                    border: "1px solid var(--mantine-color-default-border)",
+                  }}
+                >
                   <Stack gap={2}>
-                    <Text size="xs" fw={500}>Custom hash active</Text>
-                    <Text size="xs" c="dimmed" ff="monospace">{user.customAvatarHash}</Text>
+                    <Text size="xs" fw={500}>
+                      Custom hash active
+                    </Text>
+                    <Text size="xs" c="dimmed" ff="monospace">
+                      {user.customAvatarHash}
+                    </Text>
                   </Stack>
-                  <Button size="xs" variant="subtle" color="red" onClick={() => handleUpdate({ useGravatar: true, customGravatarEmail: null })}>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={() =>
+                      handleUpdate({
+                        useGravatar: true,
+                        customGravatarEmail: null,
+                      })
+                    }
+                  >
                     Clear
                   </Button>
                 </Group>
@@ -170,10 +234,17 @@ const ProfileTab = () => {
               <TextInput
                 label="Custom Gravatar Email"
                 description="Overrides your primary account email for Gravatar. We only store the hash, never the raw email."
-                placeholder={user.customAvatarHash ? "Enter new email to override" : "gravatar@example.com"}
+                placeholder={
+                  user.customAvatarHash
+                    ? "Enter new email to override"
+                    : "gravatar@example.com"
+                }
                 onBlur={(e) => {
                   if (e.currentTarget.value.trim() !== "") {
-                    handleUpdate({ useGravatar: true, customGravatarEmail: e.currentTarget.value });
+                    handleUpdate({
+                      useGravatar: true,
+                      customGravatarEmail: e.currentTarget.value,
+                    });
                     e.currentTarget.value = "";
                   }
                 }}
@@ -210,11 +281,16 @@ const ConnectionsTab = () => {
   };
 
   if (isLoading) {
-    return <Center><Loader /></Center>;
+    return (
+      <Center>
+        <Loader />
+      </Center>
+    );
   }
 
-  const totalConnections =
-    connections ? Number(connections.google) + Number(connections.lichess) : 0;
+  const totalConnections = connections
+    ? Number(connections.google) + Number(connections.lichess)
+    : 0;
 
   return (
     <Stack gap="md">

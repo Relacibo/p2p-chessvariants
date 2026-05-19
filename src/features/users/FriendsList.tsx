@@ -1,6 +1,6 @@
 import { ActionIcon, Table, Text, Tooltip } from "@mantine/core";
 import { IconUserMinus } from "@tabler/icons-react";
-import { useListFriendsQuery, useRemoveFriendMutation } from "../../api/userApi";
+import { useListFriendsQuery, useRemoveFriendMutation } from "../../api/api";
 import AppLoader from "../loader/AppLoader";
 import ErrorDisplay from "../error/ErrorDisplay";
 
@@ -14,8 +14,7 @@ const FriendsList = ({ userId }: Props) => {
 
   if (isLoading) return <AppLoader />;
   if (!isSuccess) return <ErrorDisplay />;
-  if (data.friends.length === 0)
-    return <Text c="dimmed">No friends yet</Text>;
+  if (data.friends.length === 0) return <Text c="dimmed">No friends yet</Text>;
 
   return (
     <Table>
@@ -36,9 +35,7 @@ const FriendsList = ({ userId }: Props) => {
                 <ActionIcon
                   color="red"
                   variant="subtle"
-                  onClick={() =>
-                    removeFriend({ userId, friendId: friend.id })
-                  }
+                  onClick={() => removeFriend({ userId, friendId: friend.id })}
                 >
                   <IconUserMinus size={16} />
                 </ActionIcon>

@@ -1,14 +1,29 @@
-import { Alert, Button, Center, Loader, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Center,
+  Loader,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
-import { useGuestLoginMutation } from "../../api/userApi";
+import { useGuestLoginMutation } from "../../api/api";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { login, selectToken } from "../auth/authSlice";
 import useConfigureLayout from "../layout/hooks";
 import PageContainer from "../layout/PageContainer";
 import ActiveLobbyView from "./ActiveLobbyView";
-import { joinLobbyById, joinLobbyByPeer, selectLobbyStatus, _setIdle } from "./lobbySlice";
+import {
+  joinLobbyById,
+  joinLobbyByPeer,
+  selectLobbyStatus,
+  _setIdle,
+} from "./lobbySlice";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 
 const JOIN_TIMEOUT_MS = 10_000;
@@ -18,7 +33,10 @@ export default function LobbyView() {
   const dispatch = useDispatch();
   const token = useSelector(selectToken);
   const lobbyStatus = useSelector(selectLobbyStatus);
-  const { lobbyId, peerId } = useParams<{ lobbyId?: string; peerId?: string }>();
+  const { lobbyId, peerId } = useParams<{
+    lobbyId?: string;
+    peerId?: string;
+  }>();
   const navigate = useNavigate();
   const [hasAutoJoined, setHasAutoJoined] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
@@ -28,20 +46,31 @@ export default function LobbyView() {
   const guestForm = useForm({
     initialValues: { displayName: "" },
     validate: {
-      displayName: (v) => (v.trim().length > 0 ? null : "Display name is required"),
+      displayName: (v) =>
+        v.trim().length > 0 ? null : "Display name is required",
     },
   });
 
-  const type: "lobby" | "peer" | null = lobbyId ? "lobby" : peerId ? "peer" : null;
+  const type: "lobby" | "peer" | null = lobbyId
+    ? "lobby"
+    : peerId
+      ? "peer"
+      : null;
 
   // Auto-join when token is available and we haven't joined yet
   useEffect(() => {
     if (!type || !token || hasAutoJoined) return;
-    if (lobbyStatus.phase === "hosting" || lobbyStatus.phase === "active" || lobbyStatus.phase === "joining") return;
+    if (
+      lobbyStatus.phase === "hosting" ||
+      lobbyStatus.phase === "active" ||
+      lobbyStatus.phase === "joining"
+    )
+      return;
     setHasAutoJoined(true);
-    const run = type === "lobby"
-      ? dispatch(joinLobbyById(lobbyId!))
-      : dispatch(joinLobbyByPeer(peerId!));
+    const run =
+      type === "lobby"
+        ? dispatch(joinLobbyById(lobbyId!))
+        : dispatch(joinLobbyByPeer(peerId!));
     Promise.resolve(run).catch(() => {});
   }, [token, type]);
 
@@ -53,23 +82,37 @@ export default function LobbyView() {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setTimedOut(false);
     }
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, [lobbyStatus.phase]);
 
   const handleGuestJoin = async (values: { displayName: string }) => {
     try {
       const res = await guestLogin(values).unwrap();
       dispatch(login({ token: res.token, user: res.user }));
-      notifications.show({ title: "Joined as guest", message: "Connecting to lobby...", color: "blue" });
+      notifications.show({
+        title: "Joined as guest",
+        message: "Connecting to lobby...",
+        color: "blue",
+      });
     } catch (e: any) {
-      notifications.show({ title: "Error", message: e.message || "Failed to join as guest", color: "red" });
+      notifications.show({
+        title: "Error",
+        message: e.message || "Failed to join as guest",
+        color: "red",
+      });
     }
   };
 
   if (lobbyStatus.phase === "hosting") {
     return (
       <PageContainer>
-        <ActiveLobbyView inviteUrl={lobbyStatus.inviteUrl} allowGuests={lobbyStatus.allowGuests} isPassiveHostTab={lobbyStatus.isPassiveHostTab} />
+        <ActiveLobbyView
+          inviteUrl={lobbyStatus.inviteUrl}
+          allowGuests={lobbyStatus.allowGuests}
+          isPassiveHostTab={lobbyStatus.isPassiveHostTab}
+        />
       </PageContainer>
     );
   }
@@ -85,7 +128,9 @@ export default function LobbyView() {
   if (lobbyStatus.phase === "creating") {
     return (
       <PageContainer>
-        <Center pt="xl"><Loader /></Center>
+        <Center pt="xl">
+          <Loader />
+        </Center>
       </PageContainer>
     );
   }
@@ -95,8 +140,16 @@ export default function LobbyView() {
       <PageContainer>
         <Paper p="md" maw={480} mx="auto">
           <Stack>
-            <Alert color="red" title="Failed to join lobby">{lobbyStatus.message}</Alert>
-            <Button variant="default" onClick={() => { dispatch(_setIdle()); navigate("/"); }}>
+            <Alert color="red" title="Failed to join lobby">
+              {lobbyStatus.message}
+            </Alert>
+            <Button
+              variant="default"
+              onClick={() => {
+                dispatch(_setIdle());
+                navigate("/");
+              }}
+            >
               Go to Home
             </Button>
           </Stack>
@@ -112,12 +165,25 @@ export default function LobbyView() {
           <Paper p="md" maw={480} mx="auto">
             <Stack>
               <Alert color="orange" title="Connection timed out">
-                Could not connect to the lobby after {JOIN_TIMEOUT_MS / 1000} seconds.
+                Could not connect to the lobby after {JOIN_TIMEOUT_MS / 1000}{" "}
+                seconds.
               </Alert>
-              <Button variant="default" onClick={() => { dispatch(_setIdle()); navigate("/"); }}>
+              <Button
+                variant="default"
+                onClick={() => {
+                  dispatch(_setIdle());
+                  navigate("/");
+                }}
+              >
                 Go to Home
               </Button>
-              <Button onClick={() => { setTimedOut(false); setHasAutoJoined(false); dispatch(_setIdle()); }}>
+              <Button
+                onClick={() => {
+                  setTimedOut(false);
+                  setHasAutoJoined(false);
+                  dispatch(_setIdle());
+                }}
+              >
                 Retry
               </Button>
             </Stack>
@@ -146,13 +212,18 @@ export default function LobbyView() {
             <Title order={3}>Join Lobby</Title>
             <form onSubmit={guestForm.onSubmit(handleGuestJoin)}>
               <Stack>
-                <Alert color="yellow">You are not logged in. Enter a display name to join as a guest.</Alert>
+                <Alert color="yellow">
+                  You are not logged in. Enter a display name to join as a
+                  guest.
+                </Alert>
                 <TextInput
                   label="Display Name"
                   placeholder="Guest Player"
                   {...guestForm.getInputProps("displayName")}
                 />
-                <Button type="submit" loading={isGuestLoggingIn}>Join as Guest</Button>
+                <Button type="submit" loading={isGuestLoggingIn}>
+                  Join as Guest
+                </Button>
               </Stack>
             </form>
           </Stack>
@@ -169,7 +240,9 @@ export default function LobbyView() {
   // idle + token but not yet triggered auto-join — show spinner while effect fires
   return (
     <PageContainer>
-      <Center><Loader /></Center>
+      <Center>
+        <Loader />
+      </Center>
     </PageContainer>
   );
 }

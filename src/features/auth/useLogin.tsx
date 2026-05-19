@@ -1,5 +1,5 @@
 import { useDispatch } from "react-redux";
-import { useSignInMutation } from "../../api/userApi";
+import { useSignInMutation } from "../../api/api";
 import { OauthData } from "../../api/types/auth/auth";
 import { useState } from "react";
 import SignupModal, { SignupResult } from "./SignupModal";

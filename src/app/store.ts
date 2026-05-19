@@ -5,15 +5,15 @@ import {
   ThunkAction,
 } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query/react";
-import { api } from "../api/userApi";
+import { api } from "../api/api";
 import { errorHandler } from "../api/errorHandler";
 import authMiddleware from "../features/auth/authMiddleware";
 import auth from "../features/auth/authSlice";
 import darkmode from "../features/darkmode/darkmodeSlice";
-import variantEnvironment from "../features/variant-environment/variantsSlice";
-import worker from "../features/worker/workerSlice";
 import lobby from "../features/lobby/lobbySlice";
 import lobbyVariants from "../features/lobby/variantsSlice";
+import variantEnvironment from "../features/variant-environment/variantsSlice";
+import worker from "../features/worker/workerSlice";
 import { loadState, persistenceMiddleware } from "./persistence";
 
 const rootReducer = combineReducers({
@@ -34,7 +34,7 @@ export const store = configureStore({
       api.middleware,
       errorHandler,
       authMiddleware,
-      persistenceMiddleware
+      persistenceMiddleware,
     ),
 });
 
@@ -47,5 +47,4 @@ export type AppThunk<ReturnType = void> = ThunkAction<
   Action<string>
 >;
 
-// optional, but required for refetchOnFocus/refetchOnReconnect behaviors
 setupListeners(store.dispatch);

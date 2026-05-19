@@ -9,7 +9,10 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useGetConnectionsQuery, useUnlinkProviderMutation } from "../../api/userApi";
+import {
+  useGetConnectionsQuery,
+  useUnlinkProviderMutation,
+} from "../../api/api";
 import ConnectWithGoogleButton from "../auth/providers/google/ConnectWithGoogleButton";
 import ConnectWithLichessButton from "../auth/providers/lichess/ConnectWithLichessButton";
 import PageContainer from "../layout/PageContainer";
@@ -45,15 +48,14 @@ const ConnectionsView = () => {
     );
   }
 
-  const totalConnections =
-    connections ? Number(connections.google) + Number(connections.lichess) : 0;
+  const totalConnections = connections
+    ? Number(connections.google) + Number(connections.lichess)
+    : 0;
 
   return (
     <PageContainer>
       <Stack maw={600} gap="md">
-        <Title order={2}>
-          Verbundene Accounts
-        </Title>
+        <Title order={2}>Verbundene Accounts</Title>
 
         <Group justify="space-between" align="center">
           <div>

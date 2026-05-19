@@ -1,36 +1,35 @@
 import {
   Alert,
+  Badge,
+  Box,
   Button,
   Code,
   CopyButton,
   Group,
+  List,
   Paper,
   Stack,
-  Text,
-  Title,
-  List,
-  ThemeIcon,
-  Badge,
-  Box,
   Switch,
+  Text,
+  ThemeIcon,
+  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { patchLobby } from "../../api/lobbyApi";
-import { selectToken } from "../auth/authSlice";
 import {
   IconBrandGithub,
   IconCopy,
-  IconUser,
   IconQrcode,
+  IconUser,
 } from "@tabler/icons-react";
-import { useDispatch, useSelector } from "../../app/hooks";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
+import { usePatchLobbyMutation } from "../../api/api";
+import { useDispatch, useSelector } from "../../app/hooks";
 import {
-  leaveLobby,
-  closeLobby,
   becomeActiveHost,
+  closeLobby,
+  leaveLobby,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
   selectLobbyServerLobbyId,
@@ -38,27 +37,46 @@ import {
 import { getGithubBrowseUrl } from "./scriptUrl";
 import { selectAllVariants } from "./variantsSlice";
 
-export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGuests, isPassiveHostTab }: { inviteUrl: string; allowGuests: boolean; isPassiveHostTab?: boolean }) {
+export default function ActiveLobbyView({
+  inviteUrl,
+  allowGuests: initialAllowGuests,
+  isPassiveHostTab,
+}: {
+  inviteUrl: string;
+  allowGuests: boolean;
+  isPassiveHostTab?: boolean;
+}) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const token = useSelector(selectToken);
   const serverLobbyId = useSelector(selectLobbyServerLobbyId);
   const scriptUrl = useSelector(selectLobbyScriptUrl);
   const variants = useSelector(selectAllVariants);
   const players = useSelector(selectLobbyPlayers);
   const [allowGuests, setAllowGuests] = useState(initialAllowGuests);
+  const [patchLobbyMutation] = usePatchLobbyMutation();
   const isHost = inviteUrl !== "";
 
   const handleGuestToggle = async (val: boolean) => {
     setAllowGuests(val);
-    if (serverLobbyId && token) {
-       try {
-         await patchLobby(serverLobbyId, { allowGuests: val }, token);
-         notifications.show({ title: "Settings updated", message: "Guest permissions changed.", color: "green" });
-       } catch (err) {
-         notifications.show({ title: "Error", message: "Failed to update settings.", color: "red" });
-         setAllowGuests(!val); // revert
-       }
+    if (serverLobbyId) {
+      try {
+        await patchLobbyMutation({
+          id: serverLobbyId,
+          patch: { allowGuests: val },
+        }).unwrap();
+        notifications.show({
+          title: "Settings updated",
+          message: "Guest permissions changed.",
+          color: "green",
+        });
+      } catch (err) {
+        notifications.show({
+          title: "Error",
+          message: "Failed to update settings.",
+          color: "red",
+        });
+        setAllowGuests(!val);
+      }
     }
   };
 
@@ -66,15 +84,13 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
     variants.find((v) => v.url === scriptUrl)?.name || "Custom Variant";
   const browseUrl = scriptUrl ? getGithubBrowseUrl(scriptUrl) : "";
 
-  // Note: Min/Max players would ideally be fetched from the engine,
-  // but for now we just show the active players.
-
   return (
     <Paper p="xl" shadow="sm" radius="md" withBorder>
       <Stack gap="lg">
         {isPassiveHostTab && (
           <Alert color="yellow" title="Not the active host tab">
-            Another tab is the active host for this lobby and is sending heartbeats.
+            Another tab is the active host for this lobby and is sending
+            heartbeats.
             <Button
               size="xs"
               variant="filled"
@@ -106,7 +122,6 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
           )}
         </Group>
 
-        
         {isHost && (
           <Box mt="md">
             <Switch
@@ -119,13 +134,30 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
         )}
         <Box>
           <Text size="sm" fw={500} mb="xs">
-
             Invite link
           </Text>
           <Group align="flex-start" wrap="nowrap">
-            <QRCodeSVG value={inviteUrl} size={128} bgColor="#ffffff" fgColor="#000000" style={{ padding: 8, background: "white", borderRadius: 4 }} />
-            <Group style={{ flex: 1, minWidth: 0 }} gap="xs" align="center" wrap="nowrap">
-              <Code style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <QRCodeSVG
+              value={inviteUrl}
+              size={128}
+              bgColor="#ffffff"
+              fgColor="#000000"
+              style={{ padding: 8, background: "white", borderRadius: 4 }}
+            />
+            <Group
+              style={{ flex: 1, minWidth: 0 }}
+              gap="xs"
+              align="center"
+              wrap="nowrap"
+            >
+              <Code
+                style={{
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {inviteUrl}
               </Code>
               <CopyButton value={inviteUrl}>
@@ -171,7 +203,9 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
                   <Group justify="space-between" style={{ width: "100%" }}>
                     <Text>{p.name || "Anonymous"}</Text>
                     {p.name?.startsWith("Guest ") && (
-                      <Badge color="gray" size="sm" variant="outline" ml="xs">Guest</Badge>
+                      <Badge color="gray" size="sm" variant="outline" ml="xs">
+                        Guest
+                      </Badge>
                     )}
                     {p.ready && (
                       <Badge color="green" size="sm">
@@ -196,7 +230,10 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
               variant="subtle"
               color="red"
               size="sm"
-              onClick={async () => { await dispatch(closeLobby()); navigate("/", { replace: true }); }}
+              onClick={async () => {
+                await dispatch(closeLobby());
+                navigate("/", { replace: true });
+              }}
             >
               Close lobby
             </Button>
@@ -205,7 +242,10 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
               variant="subtle"
               color="orange"
               size="sm"
-              onClick={async () => { await dispatch(leaveLobby()); navigate("/", { replace: true }); }}
+              onClick={async () => {
+                await dispatch(leaveLobby());
+                navigate("/", { replace: true });
+              }}
             >
               Leave lobby
             </Button>
@@ -215,5 +255,3 @@ export default function ActiveLobbyView({ inviteUrl, allowGuests: initialAllowGu
     </Paper>
   );
 }
-
-

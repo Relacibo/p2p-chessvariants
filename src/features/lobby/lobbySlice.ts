@@ -1,17 +1,16 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import type { AppThunk, RootState } from "../../app/store";
-import * as lobbyApi from "../../api/lobbyApi";
-import * as webrtcService from "../../api/webrtcService";
-import * as p2pLobbyService from "../../api/p2pLobbyService";
-import { getTurnCredentials } from "../../api/turnApi";
-import { buildPeerHandle, getSessionId, userIdFromPeerHandle } from "../../api/peerSession";
-import { selectToken, selectUser } from "../auth/authSlice";
 import { notifications } from "@mantine/notifications";
+import { api } from "../../api/api";
+import {
+  buildPeerHandle,
+  getSessionId,
+  userIdFromPeerHandle,
+} from "../../api/peerSession";
+import * as p2pLobbyService from "../../api/p2pLobbyService";
+import * as webrtcService from "../../api/webrtcService";
+import type { AppThunk, RootState } from "../../app/store";
+import { selectToken, selectUser } from "../auth/authSlice";
 import { parseScriptConfig } from "./scriptUrl";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export type LobbyPlayer = {
   userId: string;
@@ -22,7 +21,12 @@ export type LobbyPlayer = {
 export type LobbyStatus =
   | { phase: "idle" }
   | { phase: "creating" }
-  | { phase: "hosting"; inviteUrl: string; allowGuests: boolean; isPassiveHostTab: boolean }
+  | {
+      phase: "hosting";
+      inviteUrl: string;
+      allowGuests: boolean;
+      isPassiveHostTab: boolean;
+    }
   | { phase: "joining" }
   | { phase: "active" }
   | { phase: "error"; message: string };
@@ -51,10 +55,6 @@ function logLobbyWarning(context: string, err: unknown): void {
     color: "red",
   });
 }
-
-// ---------------------------------------------------------------------------
-// Slice
-// ---------------------------------------------------------------------------
 
 const initialState: LobbyState = {
   status: { phase: "idle" },
@@ -89,8 +89,20 @@ export const {
     _setCreating: (state) => {
       state.status = { phase: "creating" };
     },
-    _setHosting: (state, action: PayloadAction<{ inviteUrl: string; allowGuests: boolean; isPassiveHostTab: boolean }>) => {
-      state.status = { phase: "hosting", inviteUrl: action.payload.inviteUrl, allowGuests: action.payload.allowGuests, isPassiveHostTab: action.payload.isPassiveHostTab };
+    _setHosting: (
+      state,
+      action: PayloadAction<{
+        inviteUrl: string;
+        allowGuests: boolean;
+        isPassiveHostTab: boolean;
+      }>,
+    ) => {
+      state.status = {
+        phase: "hosting",
+        inviteUrl: action.payload.inviteUrl,
+        allowGuests: action.payload.allowGuests,
+        isPassiveHostTab: action.payload.isPassiveHostTab,
+      };
     },
     _setJoining: (state) => {
       state.status = { phase: "joining" };
@@ -134,14 +146,12 @@ export const {
   },
 });
 
-// ---------------------------------------------------------------------------
-// Thunks
-// ---------------------------------------------------------------------------
+type LobbyDispatch = Parameters<AppThunk<Promise<void>>>[0];
 
-/** Fetches TURN credentials and updates the webrtcService ICE servers. Falls back silently. */
-async function _applyTurnCredentials(token: string): Promise<void> {
+async function _applyTurnCredentials(dispatch: LobbyDispatch): Promise<void> {
+  const request = dispatch(api.endpoints.getTurnCredentials.initiate());
   try {
-    const turnServers = await getTurnCredentials(token);
+    const turnServers = await request.unwrap();
     if (turnServers.length > 0) {
       webrtcService.setIceServers([
         { urls: "stun:stun.l.google.com:19302" },
@@ -150,10 +160,16 @@ async function _applyTurnCredentials(token: string): Promise<void> {
     }
   } catch (err) {
     console.warn("[turn] Could not apply TURN credentials:", err);
+  } finally {
+    request.unsubscribe();
   }
 }
 
-export function createLobby(scriptUrl: string, useServerLobby: boolean = false, allowGuests: boolean = true): AppThunk<Promise<void>> {
+export function createLobby(
+  scriptUrl: string,
+  useServerLobby: boolean = false,
+  allowGuests: boolean = true,
+): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
     if (!token) {
@@ -171,61 +187,107 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
 
     try {
       let lobbyId: string | null = null;
-      if (useServerLobby && token) {
+      if (useServerLobby) {
         const scriptConfig = await parseScriptConfig(scriptUrl);
-        const res = await lobbyApi.createLobby({
-          scriptUrl,
-          allowGuests,
-          hostPeerSessionId: getSessionId(),
-          minPlayers: scriptConfig.minPlayers,
-          maxPlayers: scriptConfig.maxPlayers,
-        }, token);
+        const res = await dispatch(
+          api.endpoints.createLobby.initiate({
+            scriptUrl,
+            allowGuests,
+            hostPeerSessionId: getSessionId(),
+            minPlayers: scriptConfig.minPlayers,
+            maxPlayers: scriptConfig.maxPlayers,
+          }),
+        ).unwrap();
         lobbyId = res.lobbyId;
         dispatch(_setServerLobbyId(lobbyId));
       }
 
       dispatch(_setLocalUserId(user.id));
-      dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
+      dispatch(
+        _playerJoined({
+          userId: user.id,
+          name: user.displayName ?? null,
+          ready: false,
+        }),
+      );
 
-      await _applyTurnCredentials(token);
+      await _applyTurnCredentials(dispatch);
 
-      // Init P2P as host — always read current token so refreshes are picked up
-      if (useServerLobby && token && lobbyId) {
+      if (useServerLobby && lobbyId) {
         const capturedLobbyId = lobbyId;
         webrtcService.init((toUserId, signal) => {
-          const currentToken = selectToken(getState());
-          return lobbyApi.sendSignal(capturedLobbyId, toUserId, signal, currentToken ?? "");
+          return dispatch(
+            api.endpoints.sendSignal.initiate({
+              lobbyId: capturedLobbyId,
+              toUserId,
+              signal,
+            }),
+          ).unwrap();
         });
       } else {
         webrtcService.init((toUserId, signal) => {
-          const currentToken = selectToken(getState());
-          return lobbyApi.sendSignalDirect(toUserId, signal, currentToken ?? "");
+          return dispatch(
+            api.endpoints.sendSignalDirect.initiate({
+              toUserId,
+              signal,
+            }),
+          ).unwrap();
         });
       }
 
-      p2pLobbyService.initP2PLobby(user.id, user.displayName ?? user.id, true, lobbyId, scriptUrl, token || "", {
-        onLobbyInfo: () => {},
-        onPlayerJoined: (player) =>
-          dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
-        onPlayerLeft: (userId) => dispatch(_playerLeft(userId)),
-        onHostMigration: (_newHost) => {},
-        onGameMessage: () => {},
-      });
+      p2pLobbyService.initP2PLobby(
+        user.id,
+        user.displayName ?? user.id,
+        true,
+        lobbyId,
+        scriptUrl,
+        {
+          onLobbyInfo: () => {},
+          onPlayerJoined: (player) =>
+            dispatch(
+              _playerJoined({
+                userId: player.userId,
+                name: player.displayName,
+                ready: false,
+              }),
+            ),
+          onPlayerLeft: (userId) => dispatch(_playerLeft(userId)),
+          onHostMigration: (_newHost) => {},
+          onGameMessage: () => {},
+          onHeartbeat: (heartbeatLobbyId) => {
+            void dispatch(api.endpoints.heartbeat.initiate(heartbeatLobbyId))
+              .unwrap()
+              .catch((e) => console.error("[p2p] heartbeat failed", e));
+          },
+        },
+      );
 
-      const inviteUrl = useServerLobby && lobbyId
-        ? window.location.origin + "/lobby/" + lobbyId
-        : window.location.origin + "/lobby/by-peer-id/" + buildPeerHandle(user.id);
-        
-      dispatch(_setHosting({ inviteUrl, allowGuests, isPassiveHostTab: false }));
-      notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });
+      const inviteUrl =
+        useServerLobby && lobbyId
+          ? window.location.origin + "/lobby/" + lobbyId
+          : window.location.origin +
+            "/lobby/by-peer-id/" +
+            buildPeerHandle(user.id);
+
+      dispatch(
+        _setHosting({ inviteUrl, allowGuests, isPassiveHostTab: false }),
+      );
+      notifications.show({
+        title: "Lobby created!",
+        message: "Share the invite link with players.",
+        color: "green",
+      });
     } catch (err) {
       logLobbyWarning("create lobby failed", err);
-      dispatch(_setError(err instanceof Error ? err.message : "Failed to create lobby"));
+      dispatch(
+        _setError(
+          err instanceof Error ? err.message : "Failed to create lobby",
+        ),
+      );
     }
   };
 }
 
-/** Join via server lobby ID (lobby invite link). */
 export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
@@ -242,54 +304,109 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
     dispatch(_setJoining());
 
     try {
-      const lobbyInfo = await lobbyApi.getLobby(lobbyId);
+      const request = dispatch(api.endpoints.getLobby.initiate(lobbyId));
+      let lobbyInfo;
+      try {
+        lobbyInfo = await request.unwrap();
+      } finally {
+        request.unsubscribe();
+      }
+
       dispatch(_setScriptUrl(lobbyInfo.scriptUrl));
       dispatch(_setServerLobbyId(lobbyId));
       dispatch(_setLocalUserId(user.id));
 
-      // If the current user is the host (e.g. after a page reload), re-init as host
       if (lobbyInfo.hostUserId === user.id) {
-        const isActiveHostTab = !lobbyInfo.hostPeerSessionId || lobbyInfo.hostPeerSessionId === getSessionId();
-        dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
+        const isActiveHostTab =
+          !lobbyInfo.hostPeerSessionId ||
+          lobbyInfo.hostPeerSessionId === getSessionId();
+        dispatch(
+          _playerJoined({
+            userId: user.id,
+            name: user.displayName ?? null,
+            ready: false,
+          }),
+        );
         const inviteUrl = window.location.origin + "/lobby/" + lobbyId;
-        dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests, isPassiveHostTab: !isActiveHostTab }));
+        dispatch(
+          _setHosting({
+            inviteUrl,
+            allowGuests: lobbyInfo.allowGuests,
+            isPassiveHostTab: !isActiveHostTab,
+          }),
+        );
         if (isActiveHostTab) {
-          await _applyTurnCredentials(token);
+          await _applyTurnCredentials(dispatch);
           webrtcService.init((toUserId, signal) => {
-            const currentToken = selectToken(getState());
-            return lobbyApi.sendSignal(lobbyId, toUserId, signal, currentToken ?? "");
+            return dispatch(
+              api.endpoints.sendSignal.initiate({
+                lobbyId,
+                toUserId,
+                signal,
+              }),
+            ).unwrap();
           });
-          p2pLobbyService.initP2PLobby(user.id, user.displayName ?? user.id, true, lobbyId, lobbyInfo.scriptUrl, token, {
-            onLobbyInfo: () => {},
-            onPlayerJoined: (player) =>
-              dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
-            onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-            onHostMigration: (_newHost, newLobbyId) => {
-              if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+          p2pLobbyService.initP2PLobby(
+            user.id,
+            user.displayName ?? user.id,
+            true,
+            lobbyId,
+            lobbyInfo.scriptUrl,
+            {
+              onLobbyInfo: () => {},
+              onPlayerJoined: (player) =>
+                dispatch(
+                  _playerJoined({
+                    userId: player.userId,
+                    name: player.displayName,
+                    ready: false,
+                  }),
+                ),
+              onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
+              onHostMigration: (_newHost, newLobbyId) => {
+                if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+              },
+              onGameMessage: () => {},
+              onHeartbeat: (heartbeatLobbyId) => {
+                void dispatch(
+                  api.endpoints.heartbeat.initiate(heartbeatLobbyId),
+                )
+                  .unwrap()
+                  .catch((e) => console.error("[p2p] heartbeat failed", e));
+              },
             },
-            onGameMessage: () => {},
-          });
+          );
         }
         return;
       }
 
-      // Signal relay via lobby context — always read current token from state
-      await _applyTurnCredentials(token);
+      await _applyTurnCredentials(dispatch);
       webrtcService.init((toUserId, signal) => {
-        const currentToken = selectToken(getState());
-        return lobbyApi.sendSignal(lobbyId, toUserId, signal, currentToken ?? "");
+        return dispatch(
+          api.endpoints.sendSignal.initiate({
+            lobbyId,
+            toUserId,
+            signal,
+          }),
+        ).unwrap();
       });
-      _initP2PAsJoiner(dispatch, user.id, user.displayName ?? user.id, lobbyInfo.hostUserId, lobbyId, lobbyInfo.scriptUrl, token);
-      // Joiner always initiates the WebRTC connection so the host (which never calls connectToPeers) can answer
+      _initP2PAsJoiner(
+        dispatch,
+        user.id,
+        user.displayName ?? user.id,
+        lobbyId,
+        lobbyInfo.scriptUrl,
+      );
       await webrtcService.connectToPeers([lobbyInfo.hostUserId], user.id, true);
     } catch (err) {
       logLobbyWarning("join lobby failed", err);
-      dispatch(_setError(err instanceof Error ? err.message : "Failed to join lobby"));
+      dispatch(
+        _setError(err instanceof Error ? err.message : "Failed to join lobby"),
+      );
     }
   };
 }
 
-/** Join directly via host's user ID (peer invite link, no server lobby lookup). */
 export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
@@ -303,54 +420,76 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
       return;
     }
 
-    // Extract the real user ID from the handle (supports legacy plain userId too)
     const hostUserId = userIdFromPeerHandle(peerHandle);
 
     dispatch(_setJoining());
     dispatch(_setLocalUserId(user.id));
 
-    await _applyTurnCredentials(token);
+    await _applyTurnCredentials(dispatch);
 
-    // Signal relay direct (no lobby context) — always read current token from state
     webrtcService.init((toUserId, signal) => {
-      const currentToken = selectToken(getState());
-      return lobbyApi.sendSignalDirect(toUserId, signal, currentToken ?? "");
+      return dispatch(
+        api.endpoints.sendSignalDirect.initiate({
+          toUserId,
+          signal,
+        }),
+      ).unwrap();
     });
-    _initP2PAsJoiner(dispatch, user.id, user.displayName ?? user.id, hostUserId, null, null, token);
-    // Joiner always initiates the WebRTC connection
+    _initP2PAsJoiner(
+      dispatch,
+      user.id,
+      user.displayName ?? user.id,
+      null,
+      null,
+    );
     await webrtcService.connectToPeers([hostUserId], user.id, true);
   };
 }
 
 function _initP2PAsJoiner(
-  dispatch: Parameters<AppThunk>[0],
+  dispatch: LobbyDispatch,
   userId: string,
   displayName: string,
-  hostUserId: string,
   lobbyId: string | null,
   variantUrl: string | null,
-  authToken: string
-) {
-  p2pLobbyService.initP2PLobby(userId, displayName, false, lobbyId, variantUrl, authToken, {
-    onLobbyInfo: (info) => {
-      dispatch(_setScriptUrl(info.variantUrl));
-      for (const p of info.players) {
-        dispatch(_playerJoined({ userId: p.userId, name: p.displayName, ready: false }));
-      }
-      dispatch(_setActive());
+): void {
+  p2pLobbyService.initP2PLobby(
+    userId,
+    displayName,
+    false,
+    lobbyId,
+    variantUrl,
+    {
+      onLobbyInfo: (info) => {
+        dispatch(_setScriptUrl(info.variantUrl));
+        for (const p of info.players) {
+          dispatch(
+            _playerJoined({
+              userId: p.userId,
+              name: p.displayName,
+              ready: false,
+            }),
+          );
+        }
+        dispatch(_setActive());
+      },
+      onPlayerJoined: (player) =>
+        dispatch(
+          _playerJoined({
+            userId: player.userId,
+            name: player.displayName,
+            ready: false,
+          }),
+        ),
+      onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
+      onHostMigration: (_newHost, newLobbyId) => {
+        if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+      },
+      onGameMessage: () => {},
     },
-    onPlayerJoined: (player) =>
-      dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
-    onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-    onHostMigration: (_newHost, newLobbyId) => {
-      if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
-    },
-    onGameMessage: () => {},
-  });
-  // LobbyJoin is now sent automatically via webrtcService.onPeerConnected when DataChannel opens
+  );
 }
 
-/** Leave a lobby as a non-host participant (disconnects P2P, does NOT delete the lobby). */
 export function leaveLobby(): AppThunk<Promise<void>> {
   return async (dispatch) => {
     p2pLobbyService.leaveLobby();
@@ -359,18 +498,18 @@ export function leaveLobby(): AppThunk<Promise<void>> {
   };
 }
 
-/** Close the lobby as host (deletes it on the server and disconnects). */
 export function closeLobby(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const { serverLobbyId } = getState().lobby;
-    const token = selectToken(getState());
 
     p2pLobbyService.leaveLobby();
     webrtcService.reset();
 
-    if (serverLobbyId && token) {
+    if (serverLobbyId) {
       try {
-        await lobbyApi.deleteLobby(serverLobbyId, token);
+        await dispatch(
+          api.endpoints.deleteLobby.initiate(serverLobbyId),
+        ).unwrap();
       } catch (err) {
         logLobbyWarning("delete lobby failed during cleanup", err);
       }
@@ -379,7 +518,6 @@ export function closeLobby(): AppThunk<Promise<void>> {
   };
 }
 
-/** Claim host role for this tab: PATCHes hostPeerSessionId on the server and starts P2P/heartbeat. */
 export function becomeActiveHost(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const state = getState();
@@ -387,43 +525,75 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
     const lobbyStatus = selectLobbyStatus(state);
     const token = selectToken(state);
     const user = selectUser(state);
-    if (!token || !user || !serverLobbyId || lobbyStatus.phase !== "hosting") return;
+    if (!token || !user || !serverLobbyId || lobbyStatus.phase !== "hosting")
+      return;
 
     try {
-      await lobbyApi.patchLobby(serverLobbyId, { hostPeerSessionId: getSessionId() }, token);
-      await _applyTurnCredentials(token);
+      await dispatch(
+        api.endpoints.patchLobby.initiate({
+          id: serverLobbyId,
+          patch: { hostPeerSessionId: getSessionId() },
+        }),
+      ).unwrap();
+      await _applyTurnCredentials(dispatch);
       webrtcService.init((toUserId, signal) => {
-        const currentToken = selectToken(getState());
-        return lobbyApi.sendSignal(serverLobbyId, toUserId, signal, currentToken ?? "");
+        return dispatch(
+          api.endpoints.sendSignal.initiate({
+            lobbyId: serverLobbyId,
+            toUserId,
+            signal,
+          }),
+        ).unwrap();
       });
       const currentScriptUrl = getState().lobby.scriptUrl;
-      p2pLobbyService.initP2PLobby(user.id, user.displayName ?? user.id, true, serverLobbyId, currentScriptUrl, token, {
-        onLobbyInfo: () => {},
-        onPlayerJoined: (player) =>
-          dispatch(_playerJoined({ userId: player.userId, name: player.displayName, ready: false })),
-        onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-        onHostMigration: (_newHost, newLobbyId) => {
-          if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+      p2pLobbyService.initP2PLobby(
+        user.id,
+        user.displayName ?? user.id,
+        true,
+        serverLobbyId,
+        currentScriptUrl,
+        {
+          onLobbyInfo: () => {},
+          onPlayerJoined: (player) =>
+            dispatch(
+              _playerJoined({
+                userId: player.userId,
+                name: player.displayName,
+                ready: false,
+              }),
+            ),
+          onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
+          onHostMigration: (_newHost, newLobbyId) => {
+            if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
+          },
+          onGameMessage: () => {},
+          onHeartbeat: (heartbeatLobbyId) => {
+            void dispatch(api.endpoints.heartbeat.initiate(heartbeatLobbyId))
+              .unwrap()
+              .catch((e) => console.error("[p2p] heartbeat failed", e));
+          },
         },
-        onGameMessage: () => {},
-      });
+      );
       dispatch(_setHosting({ ...lobbyStatus, isPassiveHostTab: false }));
-      notifications.show({ title: "Active host", message: "This tab is now the active host.", color: "green" });
+      notifications.show({
+        title: "Active host",
+        message: "This tab is now the active host.",
+        color: "green",
+      });
     } catch (err) {
       logLobbyWarning("become active host failed", err);
     }
   };
 }
 
-// ---------------------------------------------------------------------------
-// Selectors
-// ---------------------------------------------------------------------------
-
 export const selectLobbyStatus = (state: RootState) => state.lobby.status;
 export const selectLobbyScriptUrl = (state: RootState) => state.lobby.scriptUrl;
-export const selectLobbyLocalUserId = (state: RootState) => state.lobby.localUserId;
-export const selectLobbyServerLobbyId = (state: RootState) => state.lobby.serverLobbyId;
+export const selectLobbyLocalUserId = (state: RootState) =>
+  state.lobby.localUserId;
+export const selectLobbyServerLobbyId = (state: RootState) =>
+  state.lobby.serverLobbyId;
 export const selectLobbyPlayers = (state: RootState) => state.lobby.players;
-export const selectPendingInvite = (state: RootState) => state.lobby.pendingInvite;
+export const selectPendingInvite = (state: RootState) =>
+  state.lobby.pendingInvite;
 
 export default reducer;

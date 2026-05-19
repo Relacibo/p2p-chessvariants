@@ -1,4 +1,4 @@
-import { useLinkProviderMutation } from "../../api/userApi";
+import { useLinkProviderMutation } from "../../api/api";
 import { LinkPayload, OauthData } from "../../api/types/auth/auth";
 
 const useLinkProvider = () => {
