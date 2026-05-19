@@ -59,7 +59,7 @@ export function initP2PLobby(
   serverLobbyId = lobbyId;
   scriptUrl = variantUrl;
   callbacks = cbs;
-  players = [];
+  players = [{ userId, displayName }];
   hostPriority = [userId];
 
   webrtcService.setMessageCallback((fromUserId, data) => {
