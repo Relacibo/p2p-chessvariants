@@ -213,8 +213,8 @@ export function createLobby(scriptUrl: string, useServerLobby: boolean = false, 
       });
 
       const inviteUrl = useServerLobby && lobbyId
-        ? window.location.origin + "/lobby/" + lobbyId + "/join"
-        : window.location.origin + "/lobby/by-peer-id/" + buildPeerHandle(user.id) + "/join";
+        ? window.location.origin + "/lobby/" + lobbyId
+        : window.location.origin + "/lobby/by-peer-id/" + buildPeerHandle(user.id);
         
       dispatch(_setHosting({ inviteUrl, allowGuests, isPassiveHostTab: false }));
       notifications.show({ title: "Lobby created!", message: "Share the invite link with players.", color: "green" });
@@ -251,7 +251,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       if (lobbyInfo.hostUserId === user.id) {
         const isActiveHostTab = !lobbyInfo.hostPeerSessionId || lobbyInfo.hostPeerSessionId === getSessionId();
         dispatch(_playerJoined({ userId: user.id, name: user.displayName ?? null, ready: false }));
-        const inviteUrl = window.location.origin + "/lobby/" + lobbyId + "/join";
+        const inviteUrl = window.location.origin + "/lobby/" + lobbyId;
         dispatch(_setHosting({ inviteUrl, allowGuests: lobbyInfo.allowGuests, isPassiveHostTab: !isActiveHostTab }));
         if (isActiveHostTab) {
           await _applyTurnCredentials(token);
