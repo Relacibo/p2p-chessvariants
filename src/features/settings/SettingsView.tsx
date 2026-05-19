@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import {
+  ActionIcon,
   Avatar,
   Badge,
   Button,
@@ -14,7 +15,9 @@ import {
   Switch,
   TextInput,
   Paper,
+  Tooltip,
 } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
@@ -198,57 +201,58 @@ const ProfileTab = () => {
           />
           {user.useGravatar && (
             <Stack gap="xs">
-              {user.customAvatarHash && (
-                <Group
-                  justify="space-between"
-                  p="xs"
-                  style={{
-                    background: "var(--mantine-color-default)",
-                    borderRadius: "var(--mantine-radius-sm)",
-                    border: "1px solid var(--mantine-color-default-border)",
-                  }}
-                >
-                  <Stack gap={2}>
-                    <Text size="xs" fw={500}>
-                      Custom hash active
-                    </Text>
-                    <Text size="xs" c="dimmed" ff="monospace">
-                      {user.customAvatarHash}
-                    </Text>
-                  </Stack>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="red"
-                    onClick={() =>
+              {user.customAvatarHash ? (
+                <Group gap="xs" align="center">
+                  <Text size="xs" fw={500} c="dimmed">
+                    Custom email:
+                  </Text>
+                  <Tooltip
+                    label={user.customAvatarHash}
+                    position="top"
+                    withArrow
+                  >
+                    <Badge
+                      variant="light"
+                      size="sm"
+                      ff="monospace"
+                      pr={3}
+                      rightSection={
+                        <ActionIcon
+                          size="xs"
+                          variant="transparent"
+                          color="blue"
+                          aria-label="Clear custom email"
+                          onClick={() =>
+                            handleUpdate({
+                              useGravatar: true,
+                              customGravatarEmail: null,
+                            })
+                          }
+                        >
+                          <IconX size="0.6rem" />
+                        </ActionIcon>
+                      }
+                    >
+                      {user.customAvatarHash.slice(0, 8)}…
+                    </Badge>
+                  </Tooltip>
+                </Group>
+              ) : (
+                <TextInput
+                  size="xs"
+                  label="Custom Gravatar email"
+                  placeholder="email@example.com"
+                  onBlur={(e) => {
+                    if (e.currentTarget.value.trim() !== "") {
                       handleUpdate({
                         useGravatar: true,
-                        customGravatarEmail: null,
-                      })
+                        customGravatarEmail: e.currentTarget.value,
+                      });
+                      e.currentTarget.value = "";
                     }
-                  >
-                    Clear
-                  </Button>
-                </Group>
+                  }}
+                />
               )}
-              <TextInput
-                label="Custom Gravatar Email"
-                description="Overrides your primary account email for Gravatar. We only store the hash, never the raw email."
-                placeholder={
-                  user.customAvatarHash
-                    ? "Enter new email to override"
-                    : "gravatar@example.com"
-                }
-                onBlur={(e) => {
-                  if (e.currentTarget.value.trim() !== "") {
-                    handleUpdate({
-                      useGravatar: true,
-                      customGravatarEmail: e.currentTarget.value,
-                    });
-                    e.currentTarget.value = "";
-                  }
-                }}
-              />
             </Stack>
           )}
         </Stack>
