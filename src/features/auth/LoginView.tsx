@@ -19,7 +19,7 @@ const LoginView = ({}: Props) => {
       navigate("/");
     }
   }, [loggedIn]);
-  useSwitchView(() => ({ sidebarAlwaysExtendedInLarge: false }));
+  useSwitchView(() => ({ navPinned: false }));
   return (
     <Container h={"100vh"}>
       <Center h={"100vh"}>

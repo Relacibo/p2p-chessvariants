@@ -14,7 +14,7 @@ import UserOverview from "./UserOverview";
 import PageContainer from "../layout/PageContainer";
 
 export default function CommunityView() {
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useConfigureLayout(() => ({ navPinned: true }));
 
   const authState = useSelector(selectLoginState);
   const user = useSelector(selectUser);

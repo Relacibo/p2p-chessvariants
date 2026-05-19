@@ -11,7 +11,7 @@ import { selectAllVariants } from "../lobby/variantsSlice";
 import { selectGame } from "../variant-environment/variantsSlice";
 
 function PlaygroundView() {
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: false }));
+  useConfigureLayout(() => ({ navPinned: false }));
   const { id } = useParams();
   const gameInfo = useSelector(selectGame(id!));
   const variants = useSelector(selectAllVariants);

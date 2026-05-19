@@ -17,11 +17,12 @@ export type LayoutProps = {
 };
 
 export type LayoutConfig = {
-  sidebarAlwaysExtendedInLarge: boolean;
+  /** When true on desktop, sidebar is always open and cannot be collapsed. */
+  navPinned: boolean;
 };
 
 const defaultConfig: LayoutConfig = {
-  sidebarAlwaysExtendedInLarge: false,
+  navPinned: false,
 };
 
 export const LayoutContext = createContext<{
@@ -40,12 +41,12 @@ function Layout(props: LayoutProps) {
   const { children } = props;
   const [sidebarCollapsedState, setSidebarCollapsed] = useState(true);
   const [config, setConfig] = useState(defaultConfig);
-  const { sidebarAlwaysExtendedInLarge } = config;
+  const { navPinned } = config;
   const theme = useMantineTheme();
   const isSmallQuery = `(max-width: ${theme.breakpoints.sm})`;
   const isMobile = !!useMediaQuery(isSmallQuery);
 
-  const collapsable = !sidebarAlwaysExtendedInLarge || isMobile;
+  const collapsable = !navPinned || isMobile;
 
   const sidebarCollapsed = collapsable && sidebarCollapsedState;
   return (
@@ -96,10 +97,11 @@ function Layout(props: LayoutProps) {
           <Button
             size="compact-md"
             variant="outline"
-            pos={"absolute"}
+            pos={"fixed"}
             bottom={"1em"}
             left={"1em"}
             p={0}
+            style={{ zIndex: 300 }}
             onClick={() => {
               setSidebarCollapsed(false);
             }}

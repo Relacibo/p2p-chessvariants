@@ -30,7 +30,7 @@ type TabValue = "profile" | "connections" | "game";
 const VALID_TABS: TabValue[] = ["profile", "connections", "game"];
 
 const SettingsView = () => {
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useConfigureLayout(() => ({ navPinned: true }));
   const navigate = useNavigate();
   const { tab } = useParams<{ tab?: string }>();
   const activeTab: TabValue =

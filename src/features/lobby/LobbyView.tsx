@@ -7,7 +7,7 @@ import { Navigate, useParams } from "react-router-dom";
 import PageContainer from "../layout/PageContainer";
 
 export default function LobbyView() {
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useConfigureLayout(() => ({ navPinned: true }));
   const lobbyStatus = useSelector(selectLobbyStatus);
   const { lobbyId, peerId } = useParams<{ lobbyId?: string; peerId?: string }>();
 

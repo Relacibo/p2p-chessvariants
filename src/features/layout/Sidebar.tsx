@@ -53,28 +53,16 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
         </Stack>
       </AppShell.Section>
       {!isMobile && collapsable && (
-        <div
-          style={{
-            zIndex: 30,
-            position: "absolute",
-            right: ".5em",
-            bottom: ".5em",
-          }}
-        >
+        <AppShell.Section>
           <Button
-            variant="outline"
-            size="compact-md"
-            style={{
-              padding: 0,
-              width: "small",
-            }}
-            onClick={() => {
-              collapse();
-            }}
+            variant="subtle"
+            size="compact-sm"
+            w="100%"
+            onClick={collapse}
           >
             <IconChevronLeft />
           </Button>
-        </div>
+        </AppShell.Section>
       )}
     </AppShell.Navbar>
   );

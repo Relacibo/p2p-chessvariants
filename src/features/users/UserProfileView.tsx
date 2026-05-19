@@ -7,7 +7,7 @@ import PageContainer from "../layout/PageContainer";
 
 const UserProfileView = () => {
   const user = useSelector(selectUser);
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useConfigureLayout(() => ({ navPinned: true }));
 
   if (!user) return <ErrorDisplay />;
 

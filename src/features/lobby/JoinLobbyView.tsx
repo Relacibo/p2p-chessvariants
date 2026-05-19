@@ -12,7 +12,7 @@ import useConfigureLayout from "../layout/hooks";
 import PageContainer from "../layout/PageContainer";
 
 export default function JoinLobbyView() {
-  useConfigureLayout(() => ({ sidebarAlwaysExtendedInLarge: true }));
+  useConfigureLayout(() => ({ navPinned: true }));
   const dispatch = useDispatch();
   const token = useSelector(selectToken);
   const lobbyStatus = useSelector(selectLobbyStatus);
