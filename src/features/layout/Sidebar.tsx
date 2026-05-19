@@ -1,4 +1,4 @@
-import { Button, AppShell, Stack, useMantineTheme } from "@mantine/core";
+import { Button, AppShell, Stack, Group, Box } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import {
   IconChevronLeft,
@@ -21,7 +21,6 @@ type Props = {
 };
 
 const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
-  let theme = useMantineTheme();
   const user = useSelector(selectUser);
 
   return (
@@ -49,21 +48,26 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
       <AppShell.Section mt="auto">
         <Stack gap={"sm"}>
           <DarkmodeSelector />
-          <Auth />
+          {!isMobile && collapsable ? (
+            <Group gap="xs" wrap="nowrap">
+              <Box style={{ flex: 1, minWidth: 0 }}>
+                <Auth />
+              </Box>
+              <Button
+                variant="outline"
+                size="compact-md"
+                p={0}
+                onClick={collapse}
+                style={{ flexShrink: 0 }}
+              >
+                <IconChevronLeft />
+              </Button>
+            </Group>
+          ) : (
+            <Auth />
+          )}
         </Stack>
       </AppShell.Section>
-      {!isMobile && collapsable && (
-        <AppShell.Section>
-          <Button
-            variant="subtle"
-            size="compact-sm"
-            w="100%"
-            onClick={collapse}
-          >
-            <IconChevronLeft />
-          </Button>
-        </AppShell.Section>
-      )}
     </AppShell.Navbar>
   );
 };
