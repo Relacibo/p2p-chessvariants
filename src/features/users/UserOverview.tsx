@@ -4,13 +4,15 @@ import {
   Box,
   Group,
   Loader,
+  Paper,
   Stack,
   Text,
   TextInput,
-  Tooltip,
   Button,
-  Accordion,
+  UnstyledButton,
+  Collapse,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useState } from "react";
 import { useListUsersQuery, useSendFriendRequestMutation } from "../../api/api";
@@ -21,7 +23,7 @@ import {
   selectUser,
 } from "../auth/authSlice";
 import ErrorDisplay from "../error/ErrorDisplay";
-import { IconHeartHandshake, IconUser } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconHeartHandshake } from "@tabler/icons-react";
 
 function UserOverview() {
   const authState = useSelector(selectAuthState);
@@ -49,7 +51,7 @@ function UserOverview() {
   const content = isLoading ? (
     <Loader />
   ) : isSuccess ? (
-    <Accordion variant="separated" chevronPosition="right">
+    <Stack gap="xs">
       {users
         .filter((u) => u.id !== currentUser?.id)
         .map((user) => (
@@ -60,7 +62,7 @@ function UserOverview() {
             onFriendRequest={onClickFriendRequest}
           />
         ))}
-    </Accordion>
+    </Stack>
   ) : (
     <ErrorDisplay />
   );
@@ -87,83 +89,100 @@ type UserRowProps = {
 function UserRow({ user, isLoggedIn, onFriendRequest }: UserRowProps) {
   const { id, userName, displayName, avatarHash, createdAt } = user;
   const isGuest = userName.startsWith("Guest ");
+  const [opened, { toggle }] = useDisclosure(false);
 
   const gravatar = "https://www.gravatar.com/avatar/";
   const avatarUrl = avatarHash ? gravatar + avatarHash + "?d=identicon" : null;
+  const ChevronIcon = opened ? IconChevronUp : IconChevronDown;
 
   return (
-    <Accordion.Item value={id}>
-      <Accordion.Control>
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+    <Paper withBorder radius="md" style={{ overflow: "hidden" }}>
+      {/* Collapsed row — hidden when open */}
+      {!opened && (
+        <UnstyledButton onClick={toggle} style={{ width: "100%" }}>
+          <Group p="sm" justify="space-between" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
+              {avatarUrl ? (
+                <Avatar src={avatarUrl} radius="xl" size="sm" />
+              ) : (
+                <Avatar radius="xl" size="sm" color="blue">
+                  {displayName?.substring(0, 2)?.toUpperCase() || "U"}
+                </Avatar>
+              )}
+              <Text size="sm" fw={500}>
+                {displayName || userName}
+              </Text>
+              {isGuest && (
+                <Badge color="gray" variant="outline" size="xs">
+                  Guest
+                </Badge>
+              )}
+            </Group>
+            <Group gap="xs" wrap="nowrap">
+              <Text size="xs" c="dimmed" display={{ base: "none", sm: "block" }}>
+                Joined: {new Date(createdAt).toLocaleDateString()}
+              </Text>
+              <ChevronIcon size="0.9rem" />
+            </Group>
+          </Group>
+        </UnstyledButton>
+      )}
+
+      {/* Expanded detail — shown instead of the row */}
+      <Collapse expanded={opened}>
+        <Box p="md">
+          <Group align="flex-start">
             {avatarUrl ? (
-              <Avatar src={avatarUrl} radius="xl" size="sm" />
+              <Avatar src={avatarUrl} radius="md" size="xl" />
             ) : (
-              <Avatar radius="xl" size="sm" color="blue">
+              <Avatar radius="md" size="xl" color="blue">
                 {displayName?.substring(0, 2)?.toUpperCase() || "U"}
               </Avatar>
             )}
-            <Text size="sm" fw={500}>
-              {displayName || userName}
-            </Text>
-            {isGuest && (
-              <Badge color="gray" variant="outline" size="xs">
-                Guest
-              </Badge>
-            )}
-          </Group>
-          <Text size="xs" c="dimmed" display={{ base: "none", sm: "block" }}>
-            Joined: {new Date(createdAt).toLocaleDateString()}
-          </Text>
-        </Group>
-      </Accordion.Control>
-      <Accordion.Panel>
-        <Group align="flex-start">
-          {avatarUrl ? (
-            <Avatar src={avatarUrl} radius="md" size="xl" />
-          ) : (
-            <Avatar radius="md" size="xl" color="blue">
-              {displayName?.substring(0, 2)?.toUpperCase() || "U"}
-            </Avatar>
-          )}
-          <Stack gap="xs" style={{ flex: 1 }}>
-            <Box>
-              <Text fw={700} size="lg">
-                {displayName || userName}
+            <Stack gap="xs" style={{ flex: 1 }}>
+              <Box>
+                <Text fw={700} size="lg">
+                  {displayName || userName}
+                </Text>
+                <Text c="dimmed" size="sm">
+                  @{userName}
+                </Text>
+              </Box>
+              <Text size="xs" c="dimmed">
+                Member since {new Date(createdAt).toLocaleString()}
               </Text>
-              <Text c="dimmed" size="sm">
-                @{userName}
-              </Text>
-            </Box>
-            <Text size="xs" c="dimmed">
-              Member since {new Date(createdAt).toLocaleString()}
-            </Text>
-            {isGuest && (
-              <Text c="dimmed" size="xs">
-                This is a temporary guest account.
-              </Text>
-            )}
-
-            <Group mt="xs">
-              {isLoggedIn && !isGuest && (
-                <Button
-                  variant="light"
-                  color="green"
-                  size="sm"
-                  leftSection={<IconHeartHandshake size={16} />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFriendRequest(id);
-                  }}
-                >
-                  Add Friend
-                </Button>
+              {isGuest && (
+                <Text c="dimmed" size="xs">
+                  This is a temporary guest account.
+                </Text>
               )}
-            </Group>
-          </Stack>
-        </Group>
-      </Accordion.Panel>
-    </Accordion.Item>
+              <Group mt="xs" justify="space-between">
+                {isLoggedIn && !isGuest && (
+                  <Button
+                    variant="light"
+                    color="green"
+                    size="sm"
+                    leftSection={<IconHeartHandshake size={16} />}
+                    onClick={() => onFriendRequest(id)}
+                  >
+                    Add Friend
+                  </Button>
+                )}
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  leftSection={<IconChevronUp size="0.9rem" />}
+                  onClick={toggle}
+                  ml="auto"
+                >
+                  Collapse
+                </Button>
+              </Group>
+            </Stack>
+          </Group>
+        </Box>
+      </Collapse>
+    </Paper>
   );
 }
 
