@@ -4,16 +4,18 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import CreateLobbyView from "../lobby/CreateLobbyView";
 import GameListView from "../game/GameListView";
-import { selectLobbyStatus } from "../lobby/lobbySlice";
+import { selectLobbyStatus, selectIsHost, selectInviteUrl } from "../lobby/lobbySlice";
 import PageContainer from "../layout/PageContainer";
 
 export default function PlayView() {
   const lobbyStatus = useSelector(selectLobbyStatus);
+  const isHost = useSelector(selectIsHost);
+  const inviteUrl = useSelector(selectInviteUrl);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (lobbyStatus.phase === "hosting") {
-      const url = new URL(lobbyStatus.inviteUrl);
+    if (lobbyStatus.phase === "active" && isHost && inviteUrl) {
+      const url = new URL(inviteUrl);
       // Navigate to the lobby room (strip /join suffix from invite URL)
       const lobbyPath = url.pathname.replace(/\/join$/, "");
       navigate(lobbyPath, { replace: true });

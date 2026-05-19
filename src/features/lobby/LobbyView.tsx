@@ -61,7 +61,6 @@ export default function LobbyView() {
   useEffect(() => {
     if (!type || !token || hasAutoJoined) return;
     if (
-      lobbyStatus.phase === "hosting" ||
       lobbyStatus.phase === "active" ||
       lobbyStatus.phase === "joining"
     )
@@ -105,21 +104,10 @@ export default function LobbyView() {
     }
   };
 
-  if (lobbyStatus.phase === "hosting") {
-    return (
-      <PageContainer>
-        <ActiveLobbyView
-          inviteUrl={lobbyStatus.inviteUrl}
-          isPassiveHostTab={lobbyStatus.isPassiveHostTab}
-        />
-      </PageContainer>
-    );
-  }
-
   if (lobbyStatus.phase === "active") {
     return (
       <PageContainer>
-        <ActiveLobbyView inviteUrl="" />
+        <ActiveLobbyView />
       </PageContainer>
     );
   }

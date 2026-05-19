@@ -27,6 +27,9 @@ import {
   becomeActiveHost,
   closeLobby,
   leaveLobby,
+  selectIsHost,
+  selectIsPassiveHostTab,
+  selectInviteUrl,
   selectLobbyAllowGuests,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
@@ -36,13 +39,7 @@ import {
 import { getGithubBrowseUrl } from "./scriptUrl";
 import { selectAllVariants } from "./variantsSlice";
 
-export default function ActiveLobbyView({
-  inviteUrl,
-  isPassiveHostTab,
-}: {
-  inviteUrl: string;
-  isPassiveHostTab?: boolean;
-}) {
+export default function ActiveLobbyView() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const serverLobbyId = useSelector(selectLobbyServerLobbyId);
@@ -50,7 +47,9 @@ export default function ActiveLobbyView({
   const variants = useSelector(selectAllVariants);
   const players = useSelector(selectLobbyPlayers);
   const allowGuests = useSelector(selectLobbyAllowGuests);
-  const isHost = inviteUrl !== "";
+  const isHost = useSelector(selectIsHost);
+  const inviteUrl = useSelector(selectInviteUrl);
+  const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
 
   const handleGuestToggle = (val: boolean) => {
     if (serverLobbyId) {

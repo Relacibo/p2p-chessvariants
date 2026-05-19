@@ -21,7 +21,6 @@ export type LobbyPlayer = {
 export type LobbyStatus =
   | { phase: "idle" }
   | { phase: "creating" }
-  | { phase: "hosting"; inviteUrl: string; isPassiveHostTab: boolean }
   | { phase: "joining" }
   | { phase: "active" }
   | { phase: "error"; message: string };
@@ -37,6 +36,8 @@ export type LobbyState = {
   scriptUrl: string | null;
   localUserId: string | null;
   serverLobbyId: string | null;
+  isHost: boolean;
+  hostPeerSessionId: string | null;
   allowGuests: boolean;
   players: LobbyPlayer[];
   pendingInvite: LobbyInvite | null;
@@ -57,6 +58,8 @@ const initialState: LobbyState = {
   scriptUrl: null,
   localUserId: null,
   serverLobbyId: null,
+  isHost: false,
+  hostPeerSessionId: null,
   allowGuests: true,
   players: [],
   pendingInvite: null,
@@ -65,7 +68,8 @@ const initialState: LobbyState = {
 export const {
   actions: {
     _setCreating,
-    _setHosting,
+    _setIsHost,
+    _setHostPeerSessionId,
     _setJoining,
     _setActive,
     _setError,
@@ -87,20 +91,11 @@ export const {
     _setCreating: (state) => {
       state.status = { phase: "creating" };
     },
-    _setHosting: (
-      state,
-      action: PayloadAction<{
-        inviteUrl: string;
-        allowGuests: boolean;
-        isPassiveHostTab: boolean;
-      }>,
-    ) => {
-      state.status = {
-        phase: "hosting",
-        inviteUrl: action.payload.inviteUrl,
-        isPassiveHostTab: action.payload.isPassiveHostTab,
-      };
-      state.allowGuests = action.payload.allowGuests;
+    _setIsHost: (state, action: PayloadAction<boolean>) => {
+      state.isHost = action.payload;
+    },
+    _setHostPeerSessionId: (state, action: PayloadAction<string | null>) => {
+      state.hostPeerSessionId = action.payload;
     },
     _setJoining: (state) => {
       state.status = { phase: "joining" };
@@ -116,6 +111,8 @@ export const {
       state.scriptUrl = null;
       state.localUserId = null;
       state.serverLobbyId = null;
+      state.isHost = false;
+      state.hostPeerSessionId = null;
       state.allowGuests = true;
       state.players = [];
     },
@@ -253,16 +250,9 @@ export function createLobby(
         },
       );
 
-      const inviteUrl =
-        useServerLobby && lobbyId
-          ? window.location.origin + "/lobby/" + lobbyId
-          : window.location.origin +
-            "/lobby/by-peer-id/" +
-            buildPeerHandle(user.id);
-
-      dispatch(
-        _setHosting({ inviteUrl, allowGuests, isPassiveHostTab: false }),
-      );
+      dispatch(_setIsHost(true));
+      dispatch(_setHostPeerSessionId(getSessionId()));
+      dispatch(_setActive());
       notifications.show({
         title: "Lobby created!",
         message: "Share the invite link with players.",
@@ -318,14 +308,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
             ready: false,
           }),
         );
-        const inviteUrl = window.location.origin + "/lobby/" + lobbyId;
-        dispatch(
-          _setHosting({
-            inviteUrl,
-            allowGuests: lobbyInfo.allowGuests,
-            isPassiveHostTab: !isActiveHostTab,
-          }),
-        );
+        dispatch(_setIsHost(true));
+        dispatch(_setHostPeerSessionId(lobbyInfo.hostPeerSessionId ?? null));
+        dispatch(_setAllowGuests(lobbyInfo.allowGuests));
+        dispatch(_setActive());
         if (isActiveHostTab) {
           await _applyTurnCredentials(token);
           webrtcService.init((toUserId, signal) => {
@@ -498,10 +484,9 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const state = getState();
     const { serverLobbyId } = state.lobby;
-    const lobbyStatus = selectLobbyStatus(state);
     const token = selectToken(state);
     const user = selectUser(state);
-    if (!token || !user || !serverLobbyId || lobbyStatus.phase !== "hosting")
+    if (!token || !user || !serverLobbyId || !state.lobby.isHost)
       return;
 
     try {
@@ -546,7 +531,7 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
           },
         },
       );
-      dispatch(_setHosting({ inviteUrl: lobbyStatus.inviteUrl, allowGuests: getState().lobby.allowGuests, isPassiveHostTab: false }));
+      dispatch(_setHostPeerSessionId(getSessionId()));
       notifications.show({
         title: "Active host",
         message: "This tab is now the active host.",
@@ -581,9 +566,33 @@ export const selectLobbyLocalUserId = (state: RootState) =>
   state.lobby.localUserId;
 export const selectLobbyServerLobbyId = (state: RootState) =>
   state.lobby.serverLobbyId;
+export const selectIsHost = (state: RootState) => state.lobby.isHost;
+export const selectHostPeerSessionId = (state: RootState) =>
+  state.lobby.hostPeerSessionId;
 export const selectLobbyAllowGuests = (state: RootState) => state.lobby.allowGuests;
 export const selectLobbyPlayers = (state: RootState) => state.lobby.players;
 export const selectPendingInvite = (state: RootState) =>
   state.lobby.pendingInvite;
+
+export const selectInviteUrl = (state: RootState): string => {
+  const { isHost, serverLobbyId, localUserId } = state.lobby;
+  if (!isHost) return "";
+  if (serverLobbyId)
+    return window.location.origin + "/lobby/" + serverLobbyId;
+  if (localUserId)
+    return (
+      window.location.origin +
+      "/lobby/by-peer-id/" +
+      buildPeerHandle(localUserId)
+    );
+  return "";
+};
+
+export const selectIsPassiveHostTab = (state: RootState): boolean => {
+  const { isHost, hostPeerSessionId } = state.lobby;
+  return (
+    isHost && !!hostPeerSessionId && hostPeerSessionId !== getSessionId()
+  );
+};
 
 export default reducer;
