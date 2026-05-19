@@ -20,6 +20,7 @@ type SseCallback = (event: SseEvent) => void;
 
 let controller: AbortController | null = null;
 const callbacks = new Set<SseCallback>();
+let onUnauthorized: (() => void) | null = null;
 
 export function onSseEvent(callback: SseCallback): () => void {
   callbacks.add(callback);
@@ -32,16 +33,27 @@ function emit(event: SseEvent) {
   }
 }
 
-export function connectSse(token: string): void {
+export function connectSse(token: string, onAuthError?: () => void): void {
   if (controller) {
     controller.abort();
   }
   controller = new AbortController();
+  onUnauthorized = onAuthError ?? null;
 
   fetchEventSource(`${API_URL}/events`, {
     headers: { Authorization: `Bearer ${token}` },
     signal: controller.signal,
     openWhenHidden: true,
+    async onopen(response) {
+      if (response.status === 401) {
+        console.warn("[sse] 401 Unauthorized — stopping retries, logging out");
+        onUnauthorized?.();
+        throw new Error("sse_unauthorized");
+      }
+      if (!response.ok) {
+        throw new Error(`sse_http_${response.status}`);
+      }
+    },
     onmessage(ev) {
       if (!ev.event) return;
       try {
@@ -52,9 +64,11 @@ export function connectSse(token: string): void {
       }
     },
     onerror(err) {
-      if (controller?.signal.aborted) throw err; // intentional disconnect — stop retrying silently
+      if (controller?.signal.aborted) throw err; // intentional disconnect
+      const msg = err instanceof Error ? err.message : "";
+      if (msg === "sse_unauthorized") throw err; // stop retrying on 401
       console.error("[sse] connection error", err);
-      // returning normally lets fetchEventSource retry on transient errors
+      // returning normally retries on transient errors
     },
   });
 }

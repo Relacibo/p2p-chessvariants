@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { selectToken } from "./authSlice";
+import { logout, selectToken } from "./authSlice";
 import { connectSse, disconnectSse, onSseEvent } from "../../api/sseService";
 import * as webrtcService from "../../api/webrtcService";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
@@ -18,7 +18,7 @@ export function SseManager() {
   useEffect(() => {
     if (!token) return;
 
-    connectSse(token);
+    connectSse(token, () => dispatch(logout()));
 
     const unsub = onSseEvent((event) => {
       switch (event.type) {
