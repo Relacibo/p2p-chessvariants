@@ -114,9 +114,17 @@ function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
 function setupDataChannel(dc: RTCDataChannel, remoteUserId: string) {
   dc.binaryType = "arraybuffer";
   dc.onopen = () => {
+    console.log(`[webrtc] data channel open (↔${remoteUserId.slice(0, 8)})`);
     peerConnectedCallback?.(remoteUserId);
   };
+  dc.onclose = () => {
+    console.log(`[webrtc] data channel closed (↔${remoteUserId.slice(0, 8)})`);
+  };
+  dc.onerror = (ev) => {
+    console.error(`[webrtc] data channel error (↔${remoteUserId.slice(0, 8)})`, ev);
+  };
   dc.onmessage = (ev) => {
+    console.log(`[webrtc] data channel message (from ${remoteUserId.slice(0, 8)}), ${ev.data.byteLength} bytes`);
     if (messageCallback) {
       messageCallback(remoteUserId, new Uint8Array(ev.data));
     }
@@ -189,9 +197,11 @@ export async function handleSignal(
 }
 
 export function sendToAll(data: Uint8Array): void {
-  for (const [, { dataChannel }] of peers) {
+  for (const [userId, { dataChannel }] of peers) {
     if (dataChannel?.readyState === "open") {
       dataChannel.send(data as Uint8Array<ArrayBuffer>);
+    } else {
+      console.warn(`[webrtc] sendToAll: channel to ${userId.slice(0, 8)} not open (${dataChannel?.readyState ?? "no channel"})`);
     }
   }
 }
@@ -202,5 +212,6 @@ export function sendToPeer(toUserId: string, data: Uint8Array): boolean {
     state.dataChannel.send(data as Uint8Array<ArrayBuffer>);
     return true;
   }
+  console.warn(`[webrtc] sendToPeer: channel to ${toUserId.slice(0, 8)} not open (${state?.dataChannel?.readyState ?? "no peer/channel"})`);
   return false;
 }

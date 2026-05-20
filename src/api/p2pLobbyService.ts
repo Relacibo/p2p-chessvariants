@@ -96,6 +96,7 @@ export function resetP2PLobby(): void {
 
 export function sendLobbyJoin(toUserId: string): void {
   if (!myUserId) return;
+  console.log(`[p2p] sendLobbyJoin → ${toUserId.slice(0, 8)} (me: ${myUserId.slice(0, 8)})`);
   const msg = P2PMsg.encode({
     tag: 1,
     value: LobbyJoin({
@@ -103,7 +104,8 @@ export function sendLobbyJoin(toUserId: string): void {
       displayName: myDisplayName ?? myUserId,
     }),
   });
-  webrtcService.sendToPeer(toUserId, msg);
+  const sent = webrtcService.sendToPeer(toUserId, msg);
+  console.log(`[p2p] sendLobbyJoin result: ${sent ? "sent" : "FAILED - channel not ready"}`);
 }
 
 export function sendGameMessage(
@@ -123,6 +125,8 @@ function handleMessage(
   fromUserId: string,
   msg: ReturnType<typeof P2PMsg.decode>,
 ): void {
+  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",5:"HostMigration",6:"LobbyLeave",7:"GameMessage"};
+  console.log(`[p2p] received ${tagNames[msg.tag] ?? `tag=${msg.tag}`} from ${fromUserId.slice(0, 8)} (isHost=${isHost})`);
   switch (msg.tag) {
     case 1:
       if (isHost) handleLobbyJoin(fromUserId, msg.value as LobbyJoin);
@@ -154,6 +158,7 @@ function handleMessage(
 function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
   const userId = join.userId ?? fromUserId;
   const displayName = join.displayName ?? userId;
+  console.log(`[p2p] handleLobbyJoin from ${userId.slice(0, 8)}, current players: [${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
 
   if (!players.find((p) => p.userId === userId)) {
     players.push({ userId, displayName });
@@ -161,6 +166,7 @@ function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
     callbacks?.onPlayerJoined({ userId, displayName });
   }
 
+  console.log(`[p2p] sending LobbyInfo to ${userId.slice(0, 8)}, players: [${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
   const lobbyInfoMsg = P2PMsg.encode({
     tag: 2,
     value: LobbyInfo({
@@ -192,6 +198,7 @@ function handleLobbyInfo(info: LobbyInfo): void {
     displayName: p.displayName ?? "",
   }));
   hostPriority = info.hostPriority ?? [];
+  console.log(`[p2p] handleLobbyInfo: players=[${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
   callbacks?.onLobbyInfo({
     variantUrl: info.variantUrl ?? "",
     players,
