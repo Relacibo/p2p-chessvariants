@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router-dom";
 import PlaygroundView from "./features/game/PlaygroundView";
 import UserProfileView from "./features/users/UserProfileView";
 import MatchFail from "./MatchFail";
@@ -7,17 +7,20 @@ import PlayView from "./features/home/PlayView";
 import CommunityView from "./features/users/CommunityView";
 import SettingsView from "./features/settings/SettingsView";
 import LobbyView from "./features/lobby/LobbyView";
+import { useSelector } from "react-redux";
+import { selectIsGuest } from "./features/auth/authSlice";
 
 const AppRoutes = () => {
+  const isGuest = useSelector(selectIsGuest);
   return (
     <Routes>
       <Route path="auth/login/*" element={<LoginView/>}/>
       <Route path="auth/link/*" element={<div />} />
       <Route path="view/:id" element={<PlaygroundView />} />
-      <Route path="user-profile/*" element={<UserProfileView />} />
-      <Route path="community/*" element={<CommunityView />} />
-      <Route path="settings" element={<SettingsView />} />
-      <Route path="settings/:tab" element={<SettingsView />} />
+      <Route path="user-profile/*" element={isGuest ? <Navigate to="/" replace /> : <UserProfileView />} />
+      <Route path="community/*" element={isGuest ? <Navigate to="/" replace /> : <CommunityView />} />
+      <Route path="settings" element={isGuest ? <Navigate to="/" replace /> : <SettingsView />} />
+      <Route path="settings/:tab" element={isGuest ? <Navigate to="/" replace /> : <SettingsView />} />
       <Route path="lobby/:lobbyId" element={<LobbyView />} />
       <Route path="lobby/by-peer-id/:peerId" element={<LobbyView />} />
       <Route path="" element={<PlayView />} />

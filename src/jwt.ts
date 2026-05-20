@@ -2,6 +2,7 @@ import { jwtDecode } from "jwt-decode";
 
 export type Claims = {
   sub: string;
+  is_guest: boolean;
   aud: string[];
   iss: string[];
   exp: number;
