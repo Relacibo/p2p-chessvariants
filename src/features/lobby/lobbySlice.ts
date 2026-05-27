@@ -329,6 +329,7 @@ export function createLobby(
             );
           },
           onLobbyClosed: () => {},
+          onKicked: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
             const currentToken = selectToken(getState());
             heartbeat(currentToken ?? "", heartbeatLobbyId).catch((err: any) => {
@@ -447,6 +448,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
                 );
               },
               onLobbyClosed: () => {},
+              onKicked: () => {},
               onHeartbeat: (heartbeatLobbyId) => {
                 const currentToken = selectToken(getState());
                 heartbeat(currentToken ?? "", heartbeatLobbyId).catch((err: any) => {
@@ -573,6 +575,14 @@ function _initP2PAsJoiner(
       onLobbyClosed: () => {
         handleRemoteLobbyClosed(dispatch);
       },
+      onKicked: () => {
+        dispatch(_setIdle());
+        notifications.show({
+          title: "Kicked",
+          message: "You were kicked from the lobby.",
+          color: "red",
+        });
+      },
     },
   );
 }
@@ -602,6 +612,14 @@ export function closeLobby(): AppThunk<Promise<void>> {
       }
     }
     dispatch(_setIdle());
+  };
+}
+
+export function kickPlayer(userId: string): AppThunk {
+  return (_dispatch, getState) => {
+    const state = getState();
+    if (!state.lobby.isHost) return;
+    p2pLobbyService.kickPlayer(userId);
   };
 }
 
@@ -659,6 +677,7 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
             );
           },
           onLobbyClosed: () => {},
+          onKicked: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
             const currentToken = selectToken(getState());
             heartbeat(currentToken ?? "", heartbeatLobbyId).catch((err: any) => {

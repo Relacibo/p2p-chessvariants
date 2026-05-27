@@ -46,4 +46,10 @@ union P2pMsg {
     7 -> message GameMessage {
         1 -> byte[] Payload;
     }
+
+    // Sent by the host to all peers to kick a player.
+    // Recipient with matching UserId must leave the lobby.
+    8 -> message LobbyKick {
+        1 -> guid UserId;
+    }
 }

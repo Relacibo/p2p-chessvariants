@@ -8,6 +8,7 @@ import {
   GameMessage,
   LobbyInfo,
   LobbyJoin,
+  LobbyKick,
   LobbyLeave,
   P2PMsg,
   Player,
@@ -35,6 +36,7 @@ export type P2PLobbyCallbacks = {
     state: RTCPeerConnectionState,
   ) => void;
   onLobbyClosed: () => void;
+  onKicked: () => void;
   onHeartbeat?: (lobbyId: string) => void;
 };
 
@@ -145,7 +147,7 @@ function handleMessage(
   fromUserId: string,
   msg: ReturnType<typeof P2PMsg.decode>,
 ): void {
-  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",6:"LobbyLeave",7:"GameMessage"};
+  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",6:"LobbyLeave",7:"GameMessage",8:"LobbyKick"};
   console.log(`[p2p] received ${tagNames[msg.tag] ?? `tag=${msg.tag}`} from ${fromUserId.slice(0, 8)} (isHost=${isHost})`);
   switch (msg.tag) {
     case 1:
@@ -173,6 +175,11 @@ function handleMessage(
         fromUserId,
         (msg.value as GameMessage).payload ?? new Uint8Array(),
       );
+      break;
+    case 8:
+      if (currentHostId === fromUserId) {
+        handleLobbyKick(msg.value as LobbyKick);
+      }
       break;
   }
 }
@@ -303,6 +310,28 @@ function scheduleHostReconnect(hostUserId: string): void {
     if (!myUserId || !callbacks) return;
     void webrtcService.connectToPeers([hostUserId], myUserId, true);
   }, delay);
+}
+
+export function kickPlayer(userId: string): void {
+  if (!isHost || !myUserId) return;
+  console.log(`[p2p] kicking ${userId.slice(0, 8)}`);
+  const msg = P2PMsg.encode({ tag: 8, value: LobbyKick({ userId }) });
+  webrtcService.sendToAll(msg);
+  // Host removes them locally too
+  handlePlayerLeft({ userId });
+}
+
+function handleLobbyKick(kick: LobbyKick): void {
+  const userId = kick.userId ?? "";
+  if (userId === myUserId) {
+    // We were kicked
+    console.log("[p2p] we were kicked from the lobby");
+    callbacks?.onKicked();
+    resetP2PLobby();
+  } else {
+    // Someone else was kicked
+    handlePlayerLeft({ userId });
+  }
 }
 
 export function leaveLobby(): void {

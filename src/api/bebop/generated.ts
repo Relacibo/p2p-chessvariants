@@ -17,35 +17,37 @@
 import { BebopView, BebopRuntimeError, BebopRecord } from "bebop";
 
 export const BEBOP_SCHEMA = new Uint8Array ([
-3, 9, 0, 0, 0, 80, 108, 97, 121, 101, 114, 0, 1, 0, 0, 20,
-0, 0, 0, 0, 2, 85, 115, 101, 114, 73, 100, 0, 244, 255,
-255, 255, 0, 68, 105, 115, 112, 108, 97, 121, 78, 97, 109,
-101, 0, 245, 255, 255, 255, 0, 76, 111, 98, 98, 121, 74,
-111, 105, 110, 0, 2, 0, 5, 0, 0, 0, 2, 85, 115, 101, 114,
-73, 100, 0, 244, 255, 255, 255, 0, 1, 68, 105, 115, 112,
-108, 97, 121, 78, 97, 109, 101, 0, 245, 255, 255, 255, 0,
-2, 76, 111, 98, 98, 121, 73, 110, 102, 111, 0, 2, 0, 5, 0,
-0, 0, 3, 86, 97, 114, 105, 97, 110, 116, 85, 114, 108, 0,
-245, 255, 255, 255, 0, 1, 80, 108, 97, 121, 101, 114, 115,
-0, 242, 255, 255, 255, 0, 0, 0, 0, 0, 0, 2, 72, 111, 115,
-116, 80, 114, 105, 111, 114, 105, 116, 121, 0, 242, 255,
-255, 255, 0, 244, 255, 255, 255, 0, 3, 80, 108, 97, 121,
-101, 114, 74, 111, 105, 110, 101, 100, 0, 2, 0, 5, 0, 0,
-0, 1, 80, 108, 97, 121, 101, 114, 0, 0, 0, 0, 0, 0, 1, 80,
-108, 97, 121, 101, 114, 76, 101, 102, 116, 0, 2, 0, 5, 0,
-0, 0, 1, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255,
-255, 0, 1, 72, 111, 115, 116, 77, 105, 103, 114, 97, 116,
-105, 111, 110, 0, 2, 0, 5, 0, 0, 0, 2, 78, 101, 119, 72,
-111, 115, 116, 85, 115, 101, 114, 73, 100, 0, 244, 255,
-255, 255, 0, 1, 76, 111, 98, 98, 121, 73, 100, 0, 245,
-255, 255, 255, 0, 2, 76, 111, 98, 98, 121, 76, 101, 97,
-118, 101, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 71, 97, 109, 101,
-77, 101, 115, 115, 97, 103, 101, 0, 2, 0, 5, 0, 0, 0, 1,
-80, 97, 121, 108, 111, 97, 100, 0, 242, 255, 255, 255, 0,
-254, 255, 255, 255, 0, 1, 80, 50, 112, 77, 115, 103, 0, 3,
-0, 5, 0, 0, 0, 7, 1, 1, 0, 0, 0, 2, 2, 0, 0, 0, 3, 3, 0,
-0, 0, 4, 4, 0, 0, 0, 5, 5, 0, 0, 0, 6, 6, 0, 0, 0, 7, 7,
-0, 0, 0, 0, 0, 0, 0
+3, 10, 0, 0, 0, 80, 108, 97, 121, 101, 114, 0, 1, 0, 0,
+20, 0, 0, 0, 0, 2, 85, 115, 101, 114, 73, 100, 0, 244,
+255, 255, 255, 0, 68, 105, 115, 112, 108, 97, 121, 78, 97,
+109, 101, 0, 245, 255, 255, 255, 0, 76, 111, 98, 98, 121,
+74, 111, 105, 110, 0, 2, 0, 5, 0, 0, 0, 2, 85, 115, 101,
+114, 73, 100, 0, 244, 255, 255, 255, 0, 1, 68, 105, 115,
+112, 108, 97, 121, 78, 97, 109, 101, 0, 245, 255, 255,
+255, 0, 2, 76, 111, 98, 98, 121, 73, 110, 102, 111, 0, 2,
+0, 5, 0, 0, 0, 3, 86, 97, 114, 105, 97, 110, 116, 85, 114,
+108, 0, 245, 255, 255, 255, 0, 1, 80, 108, 97, 121, 101,
+114, 115, 0, 242, 255, 255, 255, 0, 0, 0, 0, 0, 0, 2, 72,
+111, 115, 116, 80, 114, 105, 111, 114, 105, 116, 121, 0,
+242, 255, 255, 255, 0, 244, 255, 255, 255, 0, 3, 80, 108,
+97, 121, 101, 114, 74, 111, 105, 110, 101, 100, 0, 2, 0,
+5, 0, 0, 0, 1, 80, 108, 97, 121, 101, 114, 0, 0, 0, 0, 0,
+0, 1, 80, 108, 97, 121, 101, 114, 76, 101, 102, 116, 0, 2,
+0, 5, 0, 0, 0, 1, 85, 115, 101, 114, 73, 100, 0, 244, 255,
+255, 255, 0, 1, 72, 111, 115, 116, 77, 105, 103, 114, 97,
+116, 105, 111, 110, 0, 2, 0, 5, 0, 0, 0, 2, 78, 101, 119,
+72, 111, 115, 116, 85, 115, 101, 114, 73, 100, 0, 244,
+255, 255, 255, 0, 1, 76, 111, 98, 98, 121, 73, 100, 0,
+245, 255, 255, 255, 0, 2, 76, 111, 98, 98, 121, 76, 101,
+97, 118, 101, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 71, 97, 109,
+101, 77, 101, 115, 115, 97, 103, 101, 0, 2, 0, 5, 0, 0, 0,
+1, 80, 97, 121, 108, 111, 97, 100, 0, 242, 255, 255, 255,
+0, 254, 255, 255, 255, 0, 1, 76, 111, 98, 98, 121, 75,
+105, 99, 107, 0, 2, 0, 5, 0, 0, 0, 1, 85, 115, 101, 114,
+73, 100, 0, 244, 255, 255, 255, 0, 1, 80, 50, 112, 77,
+115, 103, 0, 3, 0, 5, 0, 0, 0, 8, 1, 1, 0, 0, 0, 2, 2, 0,
+0, 0, 3, 3, 0, 0, 0, 4, 4, 0, 0, 0, 5, 5, 0, 0, 0, 6, 6,
+0, 0, 0, 7, 7, 0, 0, 0, 8, 8, 0, 0, 0, 0, 0, 0, 0
 ]);
 
 export interface Player {
@@ -605,7 +607,73 @@ export const GameMessage = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assi
 ));
 
 
-export type P2PMsg = { tag: 1, value: LobbyJoin } | { tag: 2, value: LobbyInfo } | { tag: 3, value: PlayerJoined } | { tag: 4, value: PlayerLeft } | { tag: 5, value: HostMigration } | { tag: 6, value: LobbyLeave } | { tag: 7, value: GameMessage };
+export interface LobbyKick {
+
+  userId?: string;
+}
+
+export const LobbyKick = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: LobbyKick): LobbyKick & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return LobbyKick.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: LobbyKick): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      LobbyKick.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: LobbyKick, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.userId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.userId);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): LobbyKick & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = LobbyKick.readFrom(view);
+      return LobbyKick(decoded);
+    },
+
+    readFrom(view: BebopView): LobbyKick {
+      const message: LobbyKick = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.userId = view.readGuid();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export type P2PMsg = { tag: 1, value: LobbyJoin } | { tag: 2, value: LobbyInfo } | { tag: 3, value: PlayerJoined } | { tag: 4, value: PlayerLeft } | { tag: 5, value: HostMigration } | { tag: 6, value: LobbyLeave } | { tag: 7, value: GameMessage } | { tag: 8, value: LobbyKick };
 
 export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
@@ -647,6 +715,10 @@ export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
       return P2PMsg({ tag: 7, value });
     },
 
+    fromLobbyKick(value: LobbyKick): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 8, value });
+    },
+
     encode(record: P2PMsg): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
@@ -680,6 +752,9 @@ export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
         case 7:
           GameMessage.encodeInto(record.value, view);
           break;
+        case 8:
+          LobbyKick.encodeInto(record.value, view);
+          break;
       }
       const end = view.length;
       view.fillMessageLength(pos, end - start);
@@ -711,6 +786,8 @@ export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
           return { tag: 6, value: LobbyLeave.readFrom(view) };
         case 7:
           return { tag: 7, value: GameMessage.readFrom(view) };
+        case 8:
+          return { tag: 8, value: LobbyKick.readFrom(view) };
         default:
           view.index = end;
           throw new BebopRuntimeError(`Unknown union discriminator: ${tag}`);

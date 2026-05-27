@@ -24,6 +24,7 @@ import {
   IconCopy,
   IconQrcode,
   IconUser,
+  IconUserOff,
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
@@ -32,6 +33,7 @@ import { useDispatch, useSelector } from "../../app/hooks";
 import {
   becomeActiveHost,
   closeLobby,
+  kickPlayer,
   leaveLobby,
   selectIsHost,
   selectHostUserId,
@@ -267,6 +269,17 @@ export default function ActiveLobbyView() {
                           <Badge color="green" size="sm">
                             Ready
                           </Badge>
+                        )}
+                        {isHost && !isLocalPlayer && (
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            size="sm"
+                            title="Kick player"
+                            onClick={() => dispatch(kickPlayer(p.userId))}
+                          >
+                            <IconUserOff size="0.9rem" />
+                          </ActionIcon>
                         )}
                       </Group>
                     </Group>
