@@ -113,8 +113,12 @@ function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
       pc.connectionState === "failed" ||
       pc.connectionState === "closed"
     ) {
-      peerDisconnectedCallback?.(remoteUserId);
-      peers.delete(remoteUserId);
+      // Only fire callbacks if this is still the active peer for this user
+      // (it may have been replaced by a new peer from a reconnect offer)
+      if (peers.get(remoteUserId)?.pc === pc) {
+        peerDisconnectedCallback?.(remoteUserId);
+        peers.delete(remoteUserId);
+      }
     }
   };
 
@@ -195,6 +199,16 @@ export async function handleSignal(
   let state = peers.get(fromUserId);
 
   if (signal.type === "offer") {
+    if (state) {
+      const cs = state.pc.connectionState;
+      if (cs === "failed" || cs === "closed" || cs === "disconnected") {
+        // Stale peer from a previous connection — close it and create fresh
+        console.log(`[webrtc] replacing stale peer (→${fromUserId.slice(0, 8)}, was: ${cs})`);
+        state.pc.close();
+        peers.delete(fromUserId);
+        state = undefined;
+      }
+    }
     if (!state) {
       state = createPeer(fromUserId, false);
     }
