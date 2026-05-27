@@ -1,33 +1,34 @@
 /**
- * Each browser tab gets a unique session UUID stored in sessionStorage.
- * This makes non-server lobby invite URLs unique per tab, so the same
- * user can host multiple lobbies in different tabs simultaneously.
+ * Each user gets a stable peer UUID stored in localStorage (per userId).
+ * This ensures a consistent peer identity across tabs and page refreshes
+ * for the same user on the same browser.
  *
- * The peer handle encodes both the session UUID and the user's ID:
- *   `<sessionUUID>~<userId>`
+ * The peer handle encodes both the peer UUID and the user's ID:
+ *   `<peerUUID>~<userId>`
  *
  * The user ID is embedded so that the WebRTC signaling layer can still
  * route messages to the correct user via the server's SSE stream.
+ *
+ * Note: Only one primary tab per user participates in the WebRTC mesh,
+ * so having a shared UUID across tabs causes no collision.
  */
 
-const SESSION_KEY = "p2p_peer_session_id";
+const PEER_ID_PREFIX = "p2pcv-peer-id-";
 
-export function getSessionId(): string {
-  return getOrCreateSessionId();
-}
-
-function getOrCreateSessionId(): string {
-  let id = sessionStorage.getItem(SESSION_KEY);
+/** Returns (or creates) the stable peer UUID for the given user. */
+export function getOrCreatePeerId(userId: string): string {
+  const key = `${PEER_ID_PREFIX}${userId}`;
+  let id = localStorage.getItem(key);
   if (!id) {
     id = crypto.randomUUID();
-    sessionStorage.setItem(SESSION_KEY, id);
+    localStorage.setItem(key, id);
   }
   return id;
 }
 
-/** Returns a stable, tab-unique peer handle: `<sessionUUID>~<userId>` */
+/** Returns a stable peer handle: `<peerUUID>~<userId>` */
 export function buildPeerHandle(userId: string): string {
-  return `${getOrCreateSessionId()}~${userId}`;
+  return `${getOrCreatePeerId(userId)}~${userId}`;
 }
 
 /**

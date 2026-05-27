@@ -47,6 +47,11 @@ let currentHostId: string | null = null;
 let players: P2PLobbyPlayer[] = [];
 let callbacks: P2PLobbyCallbacks | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+const MAX_RECONNECT_ATTEMPTS = 3;
+const RECONNECT_DELAY_MS = 3000;
 
 export function initP2PLobby(
   userId: string,
@@ -94,6 +99,11 @@ export function initP2PLobby(
 
 export function resetP2PLobby(): void {
   stopHeartbeat();
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempts = 0;
   myUserId = null;
   myDisplayName = null;
   isHost = false;
@@ -204,6 +214,11 @@ function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
 }
 
 function handleLobbyInfo(info: LobbyInfo): void {
+  reconnectAttempts = 0;
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   players = (info.players ?? []).map((p: Player) => ({
     userId: p.userId ?? "",
     displayName: p.displayName ?? "",
@@ -266,7 +281,26 @@ function stopHeartbeat(): void {
 
 function handlePeerDisconnected(userId: string): void {
   console.log(`[p2p] peer disconnected: ${userId.slice(0, 8)}, isHost=${isHost}`);
+  const wasHost = userId === currentHostId && !isHost;
   handlePlayerLeft({ userId });
+  if (wasHost) {
+    scheduleHostReconnect(userId);
+  }
+}
+
+function scheduleHostReconnect(hostUserId: string): void {
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.log("[p2p] host reconnect: max attempts reached, giving up");
+    return;
+  }
+  reconnectAttempts++;
+  const delay = RECONNECT_DELAY_MS * reconnectAttempts;
+  console.log(`[p2p] host reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (!myUserId || !callbacks) return;
+    void webrtcService.connectToPeers([hostUserId], myUserId, true);
+  }, delay);
 }
 
 export function leaveLobby(): void {

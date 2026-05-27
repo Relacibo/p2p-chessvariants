@@ -3,7 +3,7 @@ import { notifications } from "@mantine/notifications";
 import { api, getTurnCredentials, sendSignal, sendSignalDirect, heartbeat } from "../../api/api";
 import {
   buildPeerHandle,
-  getSessionId,
+  getOrCreatePeerId,
   userIdFromPeerHandle,
 } from "../../api/peerSession";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
@@ -40,6 +40,7 @@ export type LobbyState = {
   serverLobbyId: string | null;
   isHost: boolean;
   isPrimaryTab: boolean;
+  myPeerId: string | null;
   hostUserId: string | null;
   hostPeerSessionId: string | null;
   allowGuests: boolean;
@@ -64,6 +65,7 @@ const initialState: LobbyState = {
   serverLobbyId: null,
   isHost: false,
   isPrimaryTab: true,
+  myPeerId: null,
   hostUserId: null,
   hostPeerSessionId: null,
   allowGuests: true,
@@ -76,6 +78,7 @@ export const {
     _setCreating,
     _setIsHost,
     _setIsPrimaryTab,
+    _setMyPeerId,
     _setHostUserId,
     _setHostPeerSessionId,
     _setJoining,
@@ -107,6 +110,9 @@ export const {
     _setIsPrimaryTab: (state, action: PayloadAction<boolean>) => {
       state.isPrimaryTab = action.payload;
     },
+    _setMyPeerId: (state, action: PayloadAction<string | null>) => {
+      state.myPeerId = action.payload;
+    },
     _setHostUserId: (state, action: PayloadAction<string | null>) => {
       state.hostUserId = action.payload;
     },
@@ -132,6 +138,7 @@ export const {
       state.serverLobbyId = null;
       state.isHost = false;
       state.isPrimaryTab = true;
+      state.myPeerId = null;
       state.hostUserId = null;
       state.hostPeerSessionId = null;
       state.allowGuests = true;
@@ -259,7 +266,7 @@ export function createLobby(
           api.endpoints.createLobby.initiate({
             scriptUrl,
             allowGuests,
-            hostPeerSessionId: getSessionId(),
+            hostPeerSessionId: getOrCreatePeerId(user.id),
             minPlayers: scriptConfig.minPlayers,
             maxPlayers: scriptConfig.maxPlayers,
           }),
@@ -338,7 +345,8 @@ export function createLobby(
       );
 
       dispatch(_setIsHost(true));
-      dispatch(_setHostPeerSessionId(getSessionId()));
+      dispatch(_setMyPeerId(getOrCreatePeerId(user.id)));
+      dispatch(_setHostPeerSessionId(getOrCreatePeerId(user.id)));
       dispatch(_setActive());
       notifications.show({
         title: "Lobby created!",
@@ -388,9 +396,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       dispatch(_setHostUserId(lobbyInfo.hostUserId));
 
       if (lobbyInfo.hostUserId === user.id) {
+        const myPeerId = getOrCreatePeerId(user.id);
         const isActiveHostTab =
           !lobbyInfo.hostPeerSessionId ||
-          lobbyInfo.hostPeerSessionId === getSessionId();
+          lobbyInfo.hostPeerSessionId === myPeerId;
         dispatch(
           _playerJoined({
             userId: user.id,
@@ -400,6 +409,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
           }),
         );
         dispatch(_setIsHost(true));
+        dispatch(_setMyPeerId(myPeerId));
         dispatch(_setHostPeerSessionId(lobbyInfo.hostPeerSessionId ?? null));
         dispatch(_setAllowGuests(lobbyInfo.allowGuests));
         dispatch(_setActive());
@@ -608,10 +618,11 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
       return;
 
     try {
+      const myPeerId = getOrCreatePeerId(user.id);
       await dispatch(
         api.endpoints.patchLobby.initiate({
           id: serverLobbyId,
-          patch: { hostPeerSessionId: getSessionId() },
+          patch: { hostPeerSessionId: myPeerId },
         }),
       ).unwrap();
       await _applyTurnCredentials(token);
@@ -662,7 +673,8 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
           },
         },
       );
-      dispatch(_setHostPeerSessionId(getSessionId()));
+      dispatch(_setMyPeerId(myPeerId));
+      dispatch(_setHostPeerSessionId(myPeerId));
       notifications.show({
         title: "Active host",
         message: "This tab is now the active host.",
@@ -723,9 +735,9 @@ export const selectInviteUrl = (state: RootState): string => {
 };
 
 export const selectIsPassiveHostTab = (state: RootState): boolean => {
-  const { isHost, hostPeerSessionId } = state.lobby;
+  const { isHost, hostPeerSessionId, myPeerId } = state.lobby;
   return (
-    isHost && !!hostPeerSessionId && hostPeerSessionId !== getSessionId()
+    isHost && !!hostPeerSessionId && !!myPeerId && hostPeerSessionId !== myPeerId
   );
 };
 
