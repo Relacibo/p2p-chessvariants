@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
@@ -14,6 +15,7 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import {
   IconBrandGithub,
   IconCopy,
@@ -52,6 +54,7 @@ export default function ActiveLobbyView() {
   const isHost = useSelector(selectIsHost);
   const inviteUrl = useSelector(selectInviteUrl);
   const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
+  const isMobile = useMediaQuery("(max-width: 48em)");
 
   const handleGuestToggle = (val: boolean) => {
     if (serverLobbyId) {
@@ -147,46 +150,88 @@ export default function ActiveLobbyView() {
           <Text size="sm" fw={500} mb="xs">
             Invite link
           </Text>
-          <Group align="flex-start" wrap="nowrap">
-            <QRCodeSVG
-              value={inviteUrl}
-              size={128}
-              bgColor="#ffffff"
-              fgColor="#000000"
-              style={{ padding: 8, background: "white", borderRadius: 4 }}
-            />
-            <Group
-              style={{ flex: 1, minWidth: 0 }}
-              gap="xs"
-              align="center"
-              wrap="nowrap"
-            >
-              <Code
+          {isMobile ? (
+            <Stack gap="xs">
+              <QRCodeSVG
+                value={inviteUrl}
                 style={{
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  width: "100%",
+                  height: "auto",
+                  padding: 8,
+                  background: "white",
+                  borderRadius: 4,
+                  display: "block",
                 }}
+              />
+              <Group gap="xs" wrap="nowrap">
+                <Code
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {inviteUrl}
+                </Code>
+                <CopyButton value={inviteUrl}>
+                  {({ copied, copy }) => (
+                    <ActionIcon
+                      size="md"
+                      variant="light"
+                      color={copied ? "teal" : "blue"}
+                      onClick={copy}
+                      style={{ flexShrink: 0 }}
+                      title={copied ? "Copied!" : "Copy link"}
+                    >
+                      <IconCopy size="1rem" />
+                    </ActionIcon>
+                  )}
+                </CopyButton>
+              </Group>
+            </Stack>
+          ) : (
+            <Group align="flex-start" wrap="nowrap">
+              <QRCodeSVG
+                value={inviteUrl}
+                size={128}
+                bgColor="#ffffff"
+                fgColor="#000000"
+                style={{ padding: 8, background: "white", borderRadius: 4 }}
+              />
+              <Group
+                style={{ flex: 1, minWidth: 0 }}
+                gap="xs"
+                align="center"
+                wrap="nowrap"
               >
-                {inviteUrl}
-              </Code>
-              <CopyButton value={inviteUrl}>
-                {({ copied, copy }) => (
-                  <Button
-                    size="compact-sm"
-                    variant="light"
-                    color={copied ? "teal" : "blue"}
-                    leftSection={<IconCopy size="0.9rem" />}
-                    onClick={copy}
-                    style={{ flexShrink: 0 }}
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </Button>
-                )}
-              </CopyButton>
+                <Code
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {inviteUrl}
+                </Code>
+                <CopyButton value={inviteUrl}>
+                  {({ copied, copy }) => (
+                    <ActionIcon
+                      size="md"
+                      variant="light"
+                      color={copied ? "teal" : "blue"}
+                      onClick={copy}
+                      style={{ flexShrink: 0 }}
+                      title={copied ? "Copied!" : "Copy link"}
+                    >
+                      <IconCopy size="1rem" />
+                    </ActionIcon>
+                  )}
+                </CopyButton>
+              </Group>
             </Group>
-          </Group>
+          )}
         </Box>
 
         <Box>
