@@ -203,13 +203,10 @@ function mapConnectionStateToStatus(
   if (state === "connected") {
     return "connected";
   }
-  if (
-    state === "failed" ||
-    state === "disconnected" ||
-    state === "closed"
-  ) {
+  if (state === "failed" || state === "closed") {
     return "failed";
   }
+  // "disconnected" is transient — show as connecting (yellow) while ICE tries to recover
   return "connecting";
 }
 

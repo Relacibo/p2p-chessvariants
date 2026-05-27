@@ -108,17 +108,25 @@ function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
   pc.onconnectionstatechange = () => {
     console.log(`[webrtc] connection state (→${remoteUserId.slice(0, 8)}): ${pc.connectionState}`);
     connectionStateCallback?.(remoteUserId, pc.connectionState);
-    if (
-      pc.connectionState === "disconnected" ||
-      pc.connectionState === "failed" ||
-      pc.connectionState === "closed"
-    ) {
-      // Only fire callbacks if this is still the active peer for this user
-      // (it may have been replaced by a new peer from a reconnect offer)
+    if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+      // Only clean up on terminal states. "disconnected" is transient — ICE
+      // may recover on its own (especially on mobile or flaky networks).
       if (peers.get(remoteUserId)?.pc === pc) {
         peerDisconnectedCallback?.(remoteUserId);
         peers.delete(remoteUserId);
       }
+    } else if (pc.connectionState === "disconnected") {
+      // Schedule cleanup after 10s if still disconnected (no "failed" event on some browsers)
+      setTimeout(() => {
+        if (peers.get(remoteUserId)?.pc === pc && pc.connectionState !== "connected") {
+          console.log(`[webrtc] disconnected timeout (→${remoteUserId.slice(0, 8)}), treating as failed`);
+          pc.close();
+          if (peers.get(remoteUserId)?.pc === pc) {
+            peerDisconnectedCallback?.(remoteUserId);
+            peers.delete(remoteUserId);
+          }
+        }
+      }, 10_000);
     }
   };
 
