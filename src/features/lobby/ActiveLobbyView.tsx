@@ -4,7 +4,6 @@ import {
   Badge,
   Box,
   Button,
-  Code,
   CopyButton,
   Group,
   List,
@@ -12,6 +11,7 @@ import {
   Stack,
   Switch,
   Text,
+  TextInput,
   ThemeIcon,
   Title,
 } from "@mantine/core";
@@ -19,6 +19,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useMantineTheme } from "@mantine/core";
 import {
   IconBrandGithub,
+  IconCheck,
   IconCopy,
   IconQrcode,
   IconUser,
@@ -165,32 +166,19 @@ export default function ActiveLobbyView() {
                   display: "block",
                 }}
               />
-              <Group gap="xs" wrap="nowrap">
-                <Code
-                  style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {inviteUrl}
-                </Code>
-                <CopyButton value={inviteUrl}>
-                  {({ copied, copy }) => (
-                    <ActionIcon
-                      size="md"
-                      variant="light"
-                      color={copied ? "teal" : "blue"}
-                      onClick={copy}
-                      style={{ flexShrink: 0 }}
-                      title={copied ? "Copied!" : "Copy link"}
-                    >
-                      <IconCopy size="1rem" />
-                    </ActionIcon>
-                  )}
-                </CopyButton>
-              </Group>
+              <CopyButton value={inviteUrl}>
+                {({ copied, copy }) => (
+                  <TextInput
+                    value={inviteUrl}
+                    readOnly
+                    rightSection={
+                      <ActionIcon variant="subtle" color={copied ? "teal" : "gray"} onClick={copy} title={copied ? "Copied!" : "Copy link"}>
+                        {copied ? <IconCheck size="1rem" /> : <IconCopy size="1rem" />}
+                      </ActionIcon>
+                    }
+                  />
+                )}
+              </CopyButton>
             </Stack>
           ) : (
             <Group align="flex-start" wrap="nowrap">
@@ -201,37 +189,20 @@ export default function ActiveLobbyView() {
                 fgColor="#000000"
                 style={{ padding: 8, background: "white", borderRadius: 4 }}
               />
-              <Group
-                style={{ flex: 1, minWidth: 0 }}
-                gap="xs"
-                align="center"
-                wrap="nowrap"
-              >
-                <Code
-                  style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {inviteUrl}
-                </Code>
-                <CopyButton value={inviteUrl}>
-                  {({ copied, copy }) => (
-                    <ActionIcon
-                      size="md"
-                      variant="light"
-                      color={copied ? "teal" : "blue"}
-                      onClick={copy}
-                      style={{ flexShrink: 0 }}
-                      title={copied ? "Copied!" : "Copy link"}
-                    >
-                      <IconCopy size="1rem" />
-                    </ActionIcon>
-                  )}
-                </CopyButton>
-              </Group>
+              <CopyButton value={inviteUrl}>
+                {({ copied, copy }) => (
+                  <TextInput
+                    value={inviteUrl}
+                    readOnly
+                    style={{ flex: 1 }}
+                    rightSection={
+                      <ActionIcon variant="subtle" color={copied ? "teal" : "gray"} onClick={copy} title={copied ? "Copied!" : "Copy link"}>
+                        {copied ? <IconCheck size="1rem" /> : <IconCopy size="1rem" />}
+                      </ActionIcon>
+                    }
+                  />
+                )}
+              </CopyButton>
             </Group>
           )}
         </Box>
