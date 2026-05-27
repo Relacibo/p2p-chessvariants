@@ -355,6 +355,8 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       return;
     }
 
+    p2pLobbyService.resetP2PLobby();
+    webrtcService.reset();
     dispatch(_setJoining());
 
     try {
@@ -476,6 +478,8 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
 
     const hostUserId = userIdFromPeerHandle(peerHandle);
 
+    p2pLobbyService.resetP2PLobby();
+    webrtcService.reset();
     dispatch(_setJoining());
     dispatch(_setLocalUserId(user.id));
 

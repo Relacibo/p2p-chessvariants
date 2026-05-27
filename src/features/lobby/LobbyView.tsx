@@ -78,11 +78,7 @@ export default function LobbyView() {
   // Auto-join when token is available and we haven't joined yet
   useEffect(() => {
     if (!type || !token || hasAutoJoined) return;
-    if (
-      lobbyStatus.phase === "active" ||
-      lobbyStatus.phase === "joining"
-    )
-      return;
+    if (lobbyStatus.phase === "joining") return;
     setHasAutoJoined(true);
     const run =
       type === "lobby"

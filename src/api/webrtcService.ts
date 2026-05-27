@@ -160,6 +160,18 @@ export async function connectToPeers(
 ): Promise<void> {
   for (const remoteId of allMemberIds) {
     if (remoteId === myUserId) continue;
+    // Skip if already connected or connecting (not failed/closed/disconnected)
+    const existing = peers.get(remoteId);
+    if (existing) {
+      const cs = existing.pc.connectionState;
+      if (cs === "new" || cs === "connecting" || cs === "connected") {
+        console.log(`[webrtc] connectToPeers: skipping ${remoteId.slice(0, 8)}, already ${cs}`);
+        continue;
+      }
+      // Clean up failed/closed/disconnected peer before retrying
+      existing.pc.close();
+      peers.delete(remoteId);
+    }
     // When alwaysInitiate is true (joiner role), always send the offer.
     // Otherwise use lexicographic order to avoid duplicate offers in full-mesh setups.
     const isInitiator = alwaysInitiate || myUserId < remoteId;
