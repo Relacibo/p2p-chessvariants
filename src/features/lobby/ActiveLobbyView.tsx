@@ -14,9 +14,10 @@ import {
   TextInput,
   ThemeIcon,
   Title,
+  useMantineTheme,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useMantineTheme } from "@mantine/core";
+import { useEffect } from "react";
 import {
   IconBrandGithub,
   IconCheck,
@@ -26,6 +27,7 @@ import {
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
+import { broadcastLobbyState } from "../../api/tabCoordination";
 import { useDispatch, useSelector } from "../../app/hooks";
 import {
   becomeActiveHost,
@@ -70,6 +72,24 @@ export default function ActiveLobbyView() {
   const variantName =
     variants.find((v) => v.url === scriptUrl)?.name || "Custom Variant";
   const browseUrl = scriptUrl ? getGithubBrowseUrl(scriptUrl) : "";
+
+  useEffect(() => {
+    if (!serverLobbyId) {
+      return;
+    }
+
+    broadcastLobbyState(serverLobbyId, {
+      players: players.map((player) => ({
+        userId: player.userId,
+        name: player.name,
+        connectionStatus: player.connectionStatus,
+        role: player.userId === hostUserId ? "host" : undefined,
+      })),
+      isHost,
+      hostUserId,
+      scriptUrl,
+    });
+  }, [hostUserId, isHost, players, scriptUrl, serverLobbyId]);
 
   const renderConnectionBadge = (
     connectionStatus: (typeof players)[number]["connectionStatus"],

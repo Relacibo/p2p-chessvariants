@@ -15,17 +15,27 @@ import { notifications } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { useGuestLoginMutation } from "../../api/api";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
+import {
+  checkIsPrimary,
+  onTakeoverRequest,
+  registerAsPrimary,
+  yieldPrimary,
+} from "../../api/tabCoordination";
 import * as webrtcService from "../../api/webrtcService";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { login, selectToken } from "../auth/authSlice";
+import { login, selectToken, selectUser } from "../auth/authSlice";
 import useConfigureLayout from "../layout/hooks";
 import PageContainer from "../layout/PageContainer";
 import ActiveLobbyView from "./ActiveLobbyView";
+import SecondaryTabView from "./SecondaryTabView";
 import {
+  becomeActiveHost,
   joinLobbyById,
   joinLobbyByPeer,
+  selectIsPassiveHostTab,
   selectLobbyStatus,
   _setIdle,
+  _setIsPrimaryTab,
 } from "./lobbySlice";
 import { Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
@@ -35,7 +45,9 @@ export default function LobbyView() {
   useConfigureLayout(() => ({ navPinned: true }));
   const dispatch = useDispatch();
   const token = useSelector(selectToken);
+  const user = useSelector(selectUser);
   const lobbyStatus = useSelector(selectLobbyStatus);
+  const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
   const { lobbyId, peerId } = useParams<{
     lobbyId?: string;
     peerId?: string;
@@ -43,6 +55,7 @@ export default function LobbyView() {
   const navigate = useNavigate();
   const location = useLocation();
   const [hasAutoJoined, setHasAutoJoined] = useState(false);
+  const [tabRole, setTabRole] = useState<"checking" | "primary" | "secondary">("checking");
   const [timedOut, setTimedOut] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevTokenRef = useRef<string | null>(null);
@@ -75,11 +88,67 @@ export default function LobbyView() {
     } else if (!token) {
       prevTokenRef.current = null;
     }
-  }, [token]);
+  }, [dispatch, hasAutoJoined, lobbyStatus.phase, token]);
+
+  useEffect(() => {
+    if (!token || !type) {
+      return;
+    }
+    if (type !== "lobby" || !lobbyId || !user) {
+      setTabRole("primary");
+      return;
+    }
+
+    let cancelled = false;
+    setTabRole("checking");
+    void checkIsPrimary(lobbyId, user.id).then((isPrimary) => {
+      if (!cancelled) {
+        setTabRole(isPrimary ? "primary" : "secondary");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lobbyId, token, type, user]);
+
+  useEffect(() => {
+    dispatch(_setIsPrimaryTab(tabRole !== "secondary"));
+  }, [dispatch, tabRole]);
+
+  useEffect(() => {
+    if (tabRole !== "primary" || type !== "lobby" || !lobbyId || !user) {
+      return;
+    }
+
+    return registerAsPrimary(lobbyId, user.id);
+  }, [lobbyId, tabRole, type, user]);
+
+  useEffect(() => {
+    if (tabRole !== "primary" || type !== "lobby" || !lobbyId || !user) {
+      return;
+    }
+
+    return onTakeoverRequest(lobbyId, user.id, () => {
+      p2pLobbyService.resetP2PLobby();
+      webrtcService.reset();
+      dispatch(_setIdle());
+      setHasAutoJoined(false);
+      setTimedOut(false);
+      setTabRole("secondary");
+      yieldPrimary(lobbyId);
+    });
+  }, [dispatch, lobbyId, tabRole, type, user]);
+
+  useEffect(() => {
+    if (tabRole === "primary" && lobbyStatus.phase === "active" && isPassiveHostTab) {
+      void dispatch(becomeActiveHost());
+    }
+  }, [dispatch, isPassiveHostTab, lobbyStatus.phase, tabRole]);
 
   // Auto-join when token is available and we haven't joined yet
   useEffect(() => {
-    if (!type || !token || hasAutoJoined) return;
+    if (!type || !token || hasAutoJoined || tabRole !== "primary") return;
     if (lobbyStatus.phase === "joining") return;
     setHasAutoJoined(true);
     const run =
@@ -87,7 +156,7 @@ export default function LobbyView() {
         ? dispatch(joinLobbyById(lobbyId!))
         : dispatch(joinLobbyByPeer(peerId!));
     Promise.resolve(run).catch(() => {});
-  }, [token, type, hasAutoJoined]);
+  }, [dispatch, hasAutoJoined, lobbyId, lobbyStatus.phase, peerId, tabRole, token, type]);
 
   // Start/clear join timeout
   useEffect(() => {
@@ -128,6 +197,27 @@ export default function LobbyView() {
       });
     }
   };
+
+  if (token && type === "lobby" && tabRole === "checking") {
+    return (
+      <PageContainer>
+        <Center>
+          <Stack align="center" gap="md">
+            <Loader />
+            <Text c="dimmed">Checking for an active tab...</Text>
+          </Stack>
+        </Center>
+      </PageContainer>
+    );
+  }
+
+  if (token && type === "lobby" && tabRole === "secondary" && lobbyId && user) {
+    return (
+      <PageContainer>
+        <SecondaryTabView lobbyId={lobbyId} userId={user.id} />
+      </PageContainer>
+    );
+  }
 
   if (lobbyStatus.phase === "active") {
     return (

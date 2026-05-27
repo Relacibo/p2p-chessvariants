@@ -39,6 +39,7 @@ export type LobbyState = {
   localUserId: string | null;
   serverLobbyId: string | null;
   isHost: boolean;
+  isPrimaryTab: boolean;
   hostUserId: string | null;
   hostPeerSessionId: string | null;
   allowGuests: boolean;
@@ -62,6 +63,7 @@ const initialState: LobbyState = {
   localUserId: null,
   serverLobbyId: null,
   isHost: false,
+  isPrimaryTab: true,
   hostUserId: null,
   hostPeerSessionId: null,
   allowGuests: true,
@@ -73,6 +75,7 @@ export const {
   actions: {
     _setCreating,
     _setIsHost,
+    _setIsPrimaryTab,
     _setHostUserId,
     _setHostPeerSessionId,
     _setJoining,
@@ -101,6 +104,9 @@ export const {
     _setIsHost: (state, action: PayloadAction<boolean>) => {
       state.isHost = action.payload;
     },
+    _setIsPrimaryTab: (state, action: PayloadAction<boolean>) => {
+      state.isPrimaryTab = action.payload;
+    },
     _setHostUserId: (state, action: PayloadAction<string | null>) => {
       state.hostUserId = action.payload;
     },
@@ -125,6 +131,7 @@ export const {
       state.localUserId = null;
       state.serverLobbyId = null;
       state.isHost = false;
+      state.isPrimaryTab = true;
       state.hostUserId = null;
       state.hostPeerSessionId = null;
       state.allowGuests = true;
@@ -686,11 +693,14 @@ export function setLobbyAllowGuests(val: boolean): AppThunk<Promise<void>> {
 
 export const selectLobbyStatus = (state: RootState) => state.lobby.status;
 export const selectLobbyScriptUrl = (state: RootState) => state.lobby.scriptUrl;
+export const selectScriptUrl = selectLobbyScriptUrl;
 export const selectLobbyLocalUserId = (state: RootState) =>
   state.lobby.localUserId;
 export const selectLobbyServerLobbyId = (state: RootState) =>
   state.lobby.serverLobbyId;
+export const selectServerLobbyId = selectLobbyServerLobbyId;
 export const selectIsHost = (state: RootState) => state.lobby.isHost;
+export const selectIsPrimaryTab = (state: RootState) => state.lobby.isPrimaryTab;
 export const selectHostUserId = (state: RootState) => state.lobby.hostUserId;
 export const selectHostPeerSessionId = (state: RootState) =>
   state.lobby.hostPeerSessionId;
