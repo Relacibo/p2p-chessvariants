@@ -32,6 +32,11 @@ export type P2PLobbyCallbacks = {
   onPlayerLeft: (userId: string) => void;
   onHostMigration: (newHostUserId: string, lobbyId?: string) => void;
   onGameMessage: (fromUserId: string, payload: Uint8Array) => void;
+  onConnectionStateChanged: (
+    userId: string,
+    state: RTCPeerConnectionState,
+  ) => void;
+  onLobbyClosed: () => void;
   onHeartbeat?: (lobbyId: string) => void;
 };
 
@@ -69,6 +74,13 @@ export function initP2PLobby(
     } catch (e) {
       console.error("[p2p] failed to decode message", e);
     }
+  });
+
+  webrtcService.onPeerDisconnected((disconnectedUserId) => {
+    handlePeerDisconnected(disconnectedUserId);
+  });
+  webrtcService.onConnectionStateChanged((userId, state) => {
+    callbacks?.onConnectionStateChanged(userId, state);
   });
 
   if (!isHost) {
@@ -144,7 +156,11 @@ function handleMessage(
       handleHostMigration(msg.value as HostMigration);
       break;
     case 6:
-      handlePlayerLeft({ userId: fromUserId });
+      if (hostPriority[0] === fromUserId && !isHost) {
+        callbacks?.onLobbyClosed();
+      } else {
+        handlePlayerLeft({ userId: fromUserId });
+      }
       break;
     case 7:
       callbacks?.onGameMessage(
@@ -204,6 +220,13 @@ function handleLobbyInfo(info: LobbyInfo): void {
     players,
     hostPriority,
   });
+
+  const hostId = hostPriority[0] ?? "";
+  for (const p of players) {
+    if (p.userId !== myUserId && p.userId !== hostId && !webrtcService.hasPeer(p.userId)) {
+      void webrtcService.connectToPeers([p.userId], myUserId!, false);
+    }
+  }
 }
 
 function handlePlayerJoined(msg: PlayerJoined): void {
@@ -214,10 +237,24 @@ function handlePlayerJoined(msg: PlayerJoined): void {
     if (!hostPriority.includes(userId)) hostPriority.push(userId);
   }
   callbacks?.onPlayerJoined({ userId, displayName });
+
+  if (userId !== myUserId && !webrtcService.hasPeer(userId)) {
+    void webrtcService.connectToPeers([userId], myUserId!, false);
+  }
 }
 
 function handlePlayerLeft(msg: { userId?: string }): void {
   const userId = msg.userId ?? "";
+  if (!userId) {
+    return;
+  }
+
+  const wasKnownPlayer =
+    players.some((p) => p.userId === userId) || hostPriority.includes(userId);
+  if (!wasKnownPlayer) {
+    return;
+  }
+
   players = players.filter((p) => p.userId !== userId);
 
   const wasHost = hostPriority[0] === userId;
@@ -227,6 +264,11 @@ function handlePlayerLeft(msg: { userId?: string }): void {
 
   if (wasHost) {
     tryBecomingHost();
+  }
+
+  if (isHost) {
+    const leftMsg = P2PMsg.encode({ tag: 4, value: PlayerLeft({ userId }) });
+    webrtcService.sendToAll(leftMsg);
   }
 }
 
@@ -281,7 +323,8 @@ function stopHeartbeat(): void {
   }
 }
 
-export function onPeerDisconnected(userId: string): void {
+function handlePeerDisconnected(userId: string): void {
+  console.log(`[p2p] peer disconnected: ${userId.slice(0, 8)}, isHost=${isHost}`);
   handlePlayerLeft({ userId });
 }
 

@@ -16,6 +16,7 @@ export type LobbyPlayer = {
   userId: string;
   name: string | null;
   ready: boolean;
+  connectionStatus: "self" | "connecting" | "connected" | "failed";
 };
 
 export type LobbyStatus =
@@ -80,6 +81,7 @@ export const {
     _setAllowGuests,
     _playerJoined,
     _playerLeft,
+    _playerConnectionChanged,
     _lobbyInviteReceived,
     _clearPendingInvite,
   },
@@ -136,6 +138,18 @@ export const {
     _playerLeft: (state, action: PayloadAction<string>) => {
       state.players = state.players.filter((p) => p.userId !== action.payload);
     },
+    _playerConnectionChanged: (
+      state,
+      action: PayloadAction<{
+        userId: string;
+        status: "connecting" | "connected" | "failed";
+      }>,
+    ) => {
+      const player = state.players.find((p) => p.userId === action.payload.userId);
+      if (player) {
+        player.connectionStatus = action.payload.status;
+      }
+    },
     _lobbyInviteReceived: (state, action: PayloadAction<LobbyInvite>) => {
       state.pendingInvite = action.payload;
     },
@@ -146,6 +160,43 @@ export const {
 });
 
 type LobbyDispatch = Parameters<AppThunk<Promise<void>>>[0];
+
+function getInitialConnectionStatus(
+  localUserId: string,
+  playerUserId: string,
+): LobbyPlayer["connectionStatus"] {
+  if (playerUserId === localUserId) {
+    return "self";
+  }
+  return webrtcService.hasPeer(playerUserId) ? "connected" : "connecting";
+}
+
+function mapConnectionStateToStatus(
+  state: RTCPeerConnectionState,
+): "connecting" | "connected" | "failed" {
+  if (state === "connected") {
+    return "connected";
+  }
+  if (
+    state === "failed" ||
+    state === "disconnected" ||
+    state === "closed"
+  ) {
+    return "failed";
+  }
+  return "connecting";
+}
+
+function handleRemoteLobbyClosed(dispatch: LobbyDispatch): void {
+  p2pLobbyService.resetP2PLobby();
+  webrtcService.reset();
+  dispatch(_setIdle());
+  notifications.show({
+    title: "Lobby closed",
+    message: "The host closed the lobby.",
+    color: "gray",
+  });
+}
 
 async function _applyTurnCredentials(token: string): Promise<void> {
   try {
@@ -204,6 +255,7 @@ export function createLobby(
           userId: user.id,
           name: user.displayName ?? null,
           ready: false,
+          connectionStatus: "self",
         }),
       );
 
@@ -236,11 +288,24 @@ export function createLobby(
                 userId: player.userId,
                 name: player.displayName,
                 ready: false,
+                connectionStatus: getInitialConnectionStatus(
+                  user.id,
+                  player.userId,
+                ),
               }),
             ),
           onPlayerLeft: (userId) => dispatch(_playerLeft(userId)),
           onHostMigration: (_newHost) => {},
           onGameMessage: () => {},
+          onConnectionStateChanged: (peerUserId, state) => {
+            dispatch(
+              _playerConnectionChanged({
+                userId: peerUserId,
+                status: mapConnectionStateToStatus(state),
+              }),
+            );
+          },
+          onLobbyClosed: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
             const currentToken = selectToken(getState());
             heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
@@ -306,6 +371,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
             userId: user.id,
             name: user.displayName ?? null,
             ready: false,
+            connectionStatus: "self",
           }),
         );
         dispatch(_setIsHost(true));
@@ -332,6 +398,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
                     userId: player.userId,
                     name: player.displayName,
                     ready: false,
+                    connectionStatus: getInitialConnectionStatus(
+                      user.id,
+                      player.userId,
+                    ),
                   }),
                 ),
               onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
@@ -339,6 +409,15 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
                 if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
               },
               onGameMessage: () => {},
+              onConnectionStateChanged: (peerUserId, state) => {
+                dispatch(
+                  _playerConnectionChanged({
+                    userId: peerUserId,
+                    status: mapConnectionStateToStatus(state),
+                  }),
+                );
+              },
+              onLobbyClosed: () => {},
               onHeartbeat: (heartbeatLobbyId) => {
                 const currentToken = selectToken(getState());
                 heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
@@ -430,6 +509,7 @@ function _initP2PAsJoiner(
               userId: p.userId,
               name: p.displayName,
               ready: false,
+              connectionStatus: getInitialConnectionStatus(userId, p.userId),
             }),
           );
         }
@@ -441,6 +521,7 @@ function _initP2PAsJoiner(
             userId: player.userId,
             name: player.displayName,
             ready: false,
+            connectionStatus: getInitialConnectionStatus(userId, player.userId),
           }),
         ),
       onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
@@ -448,6 +529,17 @@ function _initP2PAsJoiner(
         if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
       },
       onGameMessage: () => {},
+      onConnectionStateChanged: (peerUserId, state) => {
+        dispatch(
+          _playerConnectionChanged({
+            userId: peerUserId,
+            status: mapConnectionStateToStatus(state),
+          }),
+        );
+      },
+      onLobbyClosed: () => {
+        handleRemoteLobbyClosed(dispatch);
+      },
     },
   );
 }
@@ -516,6 +608,10 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
                 userId: player.userId,
                 name: player.displayName,
                 ready: false,
+                connectionStatus: getInitialConnectionStatus(
+                  user.id,
+                  player.userId,
+                ),
               }),
             ),
           onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
@@ -523,6 +619,15 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
             if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
           },
           onGameMessage: () => {},
+          onConnectionStateChanged: (peerUserId, state) => {
+            dispatch(
+              _playerConnectionChanged({
+                userId: peerUserId,
+                status: mapConnectionStateToStatus(state),
+              }),
+            );
+          },
+          onLobbyClosed: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
             const currentToken = selectToken(getState());
             heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>

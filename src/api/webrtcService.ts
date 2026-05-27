@@ -29,6 +29,8 @@ type PeerState = {
 let signalSender: SignalSender | null = null;
 let messageCallback: DataChannelMessageCallback | null = null;
 let peerConnectedCallback: ((userId: string) => void) | null = null;
+let peerDisconnectedCallback: ((userId: string) => void) | null = null;
+let connectionStateCallback: ((userId: string, state: RTCPeerConnectionState) => void) | null = null;
 const peers = new Map<string, PeerState>();
 
 export function setMessageCallback(cb: DataChannelMessageCallback) {
@@ -37,6 +39,20 @@ export function setMessageCallback(cb: DataChannelMessageCallback) {
 
 export function onPeerConnected(cb: (userId: string) => void) {
   peerConnectedCallback = cb;
+}
+
+export function onPeerDisconnected(cb: (userId: string) => void) {
+  peerDisconnectedCallback = cb;
+}
+
+export function onConnectionStateChanged(
+  cb: (userId: string, state: RTCPeerConnectionState) => void,
+) {
+  connectionStateCallback = cb;
+}
+
+export function hasPeer(userId: string): boolean {
+  return peers.has(userId);
 }
 
 export function init(sendSignal: SignalSender) {
@@ -50,12 +66,14 @@ export function setIceServers(servers: RTCIceServer[]) {
 }
 
 export function reset() {
+  signalSender = null;
+  peerConnectedCallback = null;
+  peerDisconnectedCallback = null;
+  connectionStateCallback = null;
   for (const [, { pc }] of peers) {
     pc.close();
   }
   peers.clear();
-  signalSender = null;
-  peerConnectedCallback = null;
   iceServers = STUN_SERVERS;
 }
 
@@ -89,10 +107,13 @@ function createPeer(remoteUserId: string, isInitiator: boolean): PeerState {
 
   pc.onconnectionstatechange = () => {
     console.log(`[webrtc] connection state (→${remoteUserId.slice(0, 8)}): ${pc.connectionState}`);
+    connectionStateCallback?.(remoteUserId, pc.connectionState);
     if (
       pc.connectionState === "disconnected" ||
-      pc.connectionState === "failed"
+      pc.connectionState === "failed" ||
+      pc.connectionState === "closed"
     ) {
+      peerDisconnectedCallback?.(remoteUserId);
       peers.delete(remoteUserId);
     }
   };

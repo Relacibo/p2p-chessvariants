@@ -31,6 +31,7 @@ import {
   selectIsPassiveHostTab,
   selectInviteUrl,
   selectLobbyAllowGuests,
+  selectLobbyLocalUserId,
   selectLobbyPlayers,
   selectLobbyScriptUrl,
   selectLobbyServerLobbyId,
@@ -46,6 +47,7 @@ export default function ActiveLobbyView() {
   const scriptUrl = useSelector(selectLobbyScriptUrl);
   const variants = useSelector(selectAllVariants);
   const players = useSelector(selectLobbyPlayers);
+  const localUserId = useSelector(selectLobbyLocalUserId);
   const allowGuests = useSelector(selectLobbyAllowGuests);
   const isHost = useSelector(selectIsHost);
   const inviteUrl = useSelector(selectInviteUrl);
@@ -60,6 +62,38 @@ export default function ActiveLobbyView() {
   const variantName =
     variants.find((v) => v.url === scriptUrl)?.name || "Custom Variant";
   const browseUrl = scriptUrl ? getGithubBrowseUrl(scriptUrl) : "";
+
+  const renderConnectionBadge = (
+    connectionStatus: (typeof players)[number]["connectionStatus"],
+    isLocalPlayer: boolean,
+  ) => {
+    if (isLocalPlayer || connectionStatus === "self") {
+      return (
+        <Badge color="blue" size="sm" variant="light">
+          You
+        </Badge>
+      );
+    }
+    if (connectionStatus === "connected") {
+      return (
+        <ThemeIcon color="green" size={18} radius="xl" variant="light">
+          <Box w={8} h={8} bg="green.6" style={{ borderRadius: "50%" }} />
+        </ThemeIcon>
+      );
+    }
+    if (connectionStatus === "failed") {
+      return (
+        <Badge color="red" size="sm" variant="light">
+          Disconnected
+        </Badge>
+      );
+    }
+    return (
+      <Badge color="yellow" size="sm" variant="light">
+        Connecting
+      </Badge>
+    );
+  };
 
   return (
     <Paper p="xl" shadow="sm" radius="md" withBorder>
@@ -175,23 +209,29 @@ export default function ActiveLobbyView() {
                 </ThemeIcon>
               }
             >
-              {players.map((p) => (
-                <List.Item key={p.userId}>
-                  <Group justify="space-between" style={{ width: "100%" }}>
-                    <Text>{p.name || "Anonymous"}</Text>
-                    {p.name?.startsWith("Guest ") && (
-                      <Badge color="gray" size="sm" variant="outline" ml="xs">
-                        Guest
-                      </Badge>
-                    )}
-                    {p.ready && (
-                      <Badge color="green" size="sm">
-                        Ready
-                      </Badge>
-                    )}
-                  </Group>
-                </List.Item>
-              ))}
+              {players.map((p) => {
+                const isLocalPlayer = p.userId === localUserId;
+                return (
+                  <List.Item key={p.userId}>
+                    <Group justify="space-between" style={{ width: "100%" }}>
+                      <Text>{p.name || "Anonymous"}</Text>
+                      <Group gap="xs">
+                        {renderConnectionBadge(p.connectionStatus, isLocalPlayer)}
+                        {p.name?.startsWith("Guest ") && (
+                          <Badge color="gray" size="sm" variant="outline">
+                            Guest
+                          </Badge>
+                        )}
+                        {p.ready && (
+                          <Badge color="green" size="sm">
+                            Ready
+                          </Badge>
+                        )}
+                      </Group>
+                    </Group>
+                  </List.Item>
+                );
+              })}
               {players.length === 0 && (
                 <Text c="dimmed" fs="italic">
                   Waiting for others to join...
