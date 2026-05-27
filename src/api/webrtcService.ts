@@ -200,14 +200,14 @@ export async function handleSignal(
 
   if (signal.type === "offer") {
     if (state) {
-      const cs = state.pc.connectionState;
-      if (cs === "failed" || cs === "closed" || cs === "disconnected") {
-        // Stale peer from a previous connection — close it and create fresh
-        console.log(`[webrtc] replacing stale peer (→${fromUserId.slice(0, 8)}, was: ${cs})`);
-        state.pc.close();
-        peers.delete(fromUserId);
-        state = undefined;
-      }
+      // A new offer always means the remote side wants a fresh connection.
+      // Close any existing peer unconditionally to avoid negotiating on a
+      // stale or dying connection (the remote may have reset while we still
+      // show it as "connected" due to ICE keepalive lag).
+      console.log(`[webrtc] replacing existing peer on new offer (→${fromUserId.slice(0, 8)}, was: ${state.pc.connectionState})`);
+      state.pc.close();
+      peers.delete(fromUserId);
+      state = undefined;
     }
     if (!state) {
       state = createPeer(fromUserId, false);
