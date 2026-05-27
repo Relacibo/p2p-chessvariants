@@ -282,7 +282,9 @@ function stopHeartbeat(): void {
 function handlePeerDisconnected(userId: string): void {
   console.log(`[p2p] peer disconnected: ${userId.slice(0, 8)}, isHost=${isHost}`);
   const wasHost = userId === currentHostId && !isHost;
-  handlePlayerLeft({ userId });
+  // Mark as failed/disconnected — don't remove from the player list.
+  // A deliberate leave (LobbyLeave message) will call handlePlayerLeft instead.
+  callbacks?.onConnectionStateChanged(userId, "failed");
   if (wasHost) {
     scheduleHostReconnect(userId);
   }
