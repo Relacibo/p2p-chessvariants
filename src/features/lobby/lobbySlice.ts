@@ -576,10 +576,9 @@ export const selectPendingInvite = (state: RootState) =>
 
 export const selectInviteUrl = (state: RootState): string => {
   const { isHost, serverLobbyId, localUserId } = state.lobby;
-  if (!isHost) return "";
   if (serverLobbyId)
     return window.location.origin + "/lobby/" + serverLobbyId;
-  if (localUserId)
+  if (isHost && localUserId)
     return (
       window.location.origin +
       "/lobby/by-peer-id/" +

@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Center,
+  Divider,
   Loader,
   Paper,
   Stack,
@@ -24,7 +25,7 @@ import {
   selectLobbyStatus,
   _setIdle,
 } from "./lobbySlice";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
 const JOIN_TIMEOUT_MS = 10_000;
 
@@ -38,9 +39,11 @@ export default function LobbyView() {
     peerId?: string;
   }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [hasAutoJoined, setHasAutoJoined] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevTokenRef = useRef<string | null>(null);
 
   const [guestLogin, { isLoading: isGuestLoggingIn }] = useGuestLoginMutation();
   const guestForm = useForm({
@@ -57,6 +60,21 @@ export default function LobbyView() {
       ? "peer"
       : null;
 
+  // When token changes from null → new token (re-login after expiry), reset auto-join
+  useEffect(() => {
+    if (token && token !== prevTokenRef.current) {
+      prevTokenRef.current = token;
+      if (hasAutoJoined) {
+        setHasAutoJoined(false);
+        if (lobbyStatus.phase === "error") {
+          dispatch(_setIdle());
+        }
+      }
+    } else if (!token) {
+      prevTokenRef.current = null;
+    }
+  }, [token]);
+
   // Auto-join when token is available and we haven't joined yet
   useEffect(() => {
     if (!type || !token || hasAutoJoined) return;
@@ -71,7 +89,7 @@ export default function LobbyView() {
         ? dispatch(joinLobbyById(lobbyId!))
         : dispatch(joinLobbyByPeer(peerId!));
     Promise.resolve(run).catch(() => {});
-  }, [token, type]);
+  }, [token, type, hasAutoJoined]);
 
   // Start/clear join timeout
   useEffect(() => {
@@ -190,19 +208,23 @@ export default function LobbyView() {
     );
   }
 
-  // Not logged in → guest login form
+  // Not logged in → offer guest login or full login
   if (!token) {
+    const loginRedirect = `/auth/login?redirect=${encodeURIComponent(location.pathname)}`;
     return (
       <PageContainer>
         <Paper p="md" maw={480} mx="auto">
           <Stack>
             <Title order={3}>Join Lobby</Title>
+            <Button
+              variant="default"
+              onClick={() => navigate(loginRedirect)}
+            >
+              Login with account
+            </Button>
+            <Divider label="or join as guest" labelPosition="center" />
             <form onSubmit={guestForm.onSubmit(handleGuestJoin)}>
               <Stack>
-                <Alert color="yellow">
-                  You are not logged in. Enter a display name to join as a
-                  guest.
-                </Alert>
                 <TextInput
                   label="Display Name"
                   placeholder="Guest Player"
