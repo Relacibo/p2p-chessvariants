@@ -16,6 +16,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import { useMantineTheme } from "@mantine/core";
 import {
   IconBrandGithub,
   IconCopy,
@@ -54,7 +55,8 @@ export default function ActiveLobbyView() {
   const isHost = useSelector(selectIsHost);
   const inviteUrl = useSelector(selectInviteUrl);
   const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
-  const isMobile = useMediaQuery("(max-width: 48em)");
+  const theme = useMantineTheme();
+  const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`);
 
   const handleGuestToggle = (val: boolean) => {
     if (serverLobbyId) {
