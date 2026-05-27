@@ -32,6 +32,7 @@ import {
   closeLobby,
   leaveLobby,
   selectIsHost,
+  selectHostUserId,
   selectIsPassiveHostTab,
   selectInviteUrl,
   selectLobbyAllowGuests,
@@ -54,6 +55,7 @@ export default function ActiveLobbyView() {
   const localUserId = useSelector(selectLobbyLocalUserId);
   const allowGuests = useSelector(selectLobbyAllowGuests);
   const isHost = useSelector(selectIsHost);
+  const hostUserId = useSelector(selectHostUserId);
   const inviteUrl = useSelector(selectInviteUrl);
   const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
   const theme = useMantineTheme();
@@ -235,6 +237,11 @@ export default function ActiveLobbyView() {
                       <Text>{p.name || "Anonymous"}</Text>
                       <Group gap="xs">
                         {renderConnectionBadge(p.connectionStatus, isLocalPlayer)}
+                        {p.userId === hostUserId && (
+                          <Badge color="yellow" size="sm" variant="light">
+                            Host
+                          </Badge>
+                        )}
                         {p.name?.startsWith("Guest ") && (
                           <Badge color="gray" size="sm" variant="outline">
                             Guest

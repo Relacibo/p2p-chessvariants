@@ -38,6 +38,7 @@ export type LobbyState = {
   localUserId: string | null;
   serverLobbyId: string | null;
   isHost: boolean;
+  hostUserId: string | null;
   hostPeerSessionId: string | null;
   allowGuests: boolean;
   players: LobbyPlayer[];
@@ -60,6 +61,7 @@ const initialState: LobbyState = {
   localUserId: null,
   serverLobbyId: null,
   isHost: false,
+  hostUserId: null,
   hostPeerSessionId: null,
   allowGuests: true,
   players: [],
@@ -70,6 +72,7 @@ export const {
   actions: {
     _setCreating,
     _setIsHost,
+    _setHostUserId,
     _setHostPeerSessionId,
     _setJoining,
     _setActive,
@@ -96,6 +99,9 @@ export const {
     _setIsHost: (state, action: PayloadAction<boolean>) => {
       state.isHost = action.payload;
     },
+    _setHostUserId: (state, action: PayloadAction<string | null>) => {
+      state.hostUserId = action.payload;
+    },
     _setHostPeerSessionId: (state, action: PayloadAction<string | null>) => {
       state.hostPeerSessionId = action.payload;
     },
@@ -114,6 +120,7 @@ export const {
       state.localUserId = null;
       state.serverLobbyId = null;
       state.isHost = false;
+      state.hostUserId = null;
       state.hostPeerSessionId = null;
       state.allowGuests = true;
       state.players = [];
@@ -250,6 +257,7 @@ export function createLobby(
       }
 
       dispatch(_setLocalUserId(user.id));
+      dispatch(_setHostUserId(user.id));
       dispatch(
         _playerJoined({
           userId: user.id,
@@ -295,7 +303,7 @@ export function createLobby(
               }),
             ),
           onPlayerLeft: (userId) => dispatch(_playerLeft(userId)),
-          onHostMigration: (_newHost) => {},
+          onHostMigration: (_newHost) => { dispatch(_setHostUserId(_newHost)); },
           onGameMessage: () => {},
           onConnectionStateChanged: (peerUserId, state) => {
             dispatch(
@@ -361,6 +369,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       dispatch(_setScriptUrl(lobbyInfo.scriptUrl));
       dispatch(_setServerLobbyId(lobbyId));
       dispatch(_setLocalUserId(user.id));
+      dispatch(_setHostUserId(lobbyInfo.hostUserId));
 
       if (lobbyInfo.hostUserId === user.id) {
         const isActiveHostTab =
@@ -525,7 +534,8 @@ function _initP2PAsJoiner(
           }),
         ),
       onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-      onHostMigration: (_newHost, newLobbyId) => {
+      onHostMigration: (newHost, newLobbyId) => {
+        dispatch(_setHostUserId(newHost));
         if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
       },
       onGameMessage: () => {},
@@ -615,7 +625,8 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
               }),
             ),
           onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-          onHostMigration: (_newHost, newLobbyId) => {
+          onHostMigration: (newHost, newLobbyId) => {
+            dispatch(_setHostUserId(newHost));
             if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
           },
           onGameMessage: () => {},
@@ -672,6 +683,7 @@ export const selectLobbyLocalUserId = (state: RootState) =>
 export const selectLobbyServerLobbyId = (state: RootState) =>
   state.lobby.serverLobbyId;
 export const selectIsHost = (state: RootState) => state.lobby.isHost;
+export const selectHostUserId = (state: RootState) => state.lobby.hostUserId;
 export const selectHostPeerSessionId = (state: RootState) =>
   state.lobby.hostPeerSessionId;
 export const selectLobbyAllowGuests = (state: RootState) => state.lobby.allowGuests;
