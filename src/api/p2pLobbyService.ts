@@ -46,6 +46,7 @@ let isHost = false;
 let serverLobbyId: string | null = null;
 let scriptUrl: string | null = null;
 let hostPriority: string[] = [];
+let currentHostId: string | null = null;
 let players: P2PLobbyPlayer[] = [];
 let callbacks: P2PLobbyCallbacks | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
@@ -66,6 +67,7 @@ export function initP2PLobby(
   callbacks = cbs;
   players = [{ userId, displayName }];
   hostPriority = [userId];
+  currentHostId = isHost ? userId : null;
 
   webrtcService.setMessageCallback((fromUserId, data) => {
     try {
@@ -104,6 +106,7 @@ export function resetP2PLobby(): void {
   callbacks = null;
   players = [];
   hostPriority = [];
+  currentHostId = null;
 }
 
 export function sendLobbyJoin(toUserId: string): void {
@@ -156,8 +159,9 @@ function handleMessage(
       handleHostMigration(msg.value as HostMigration);
       break;
     case 6:
-      if (hostPriority[0] === fromUserId && !isHost) {
+      if (currentHostId === fromUserId && !isHost) {
         callbacks?.onLobbyClosed();
+        currentHostId = null;
       } else {
         handlePlayerLeft({ userId: fromUserId });
       }
@@ -214,6 +218,7 @@ function handleLobbyInfo(info: LobbyInfo): void {
     displayName: p.displayName ?? "",
   }));
   hostPriority = info.hostPriority ?? [];
+  currentHostId = hostPriority[0] ?? null;
   console.log(`[p2p] handleLobbyInfo: players=[${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
   callbacks?.onLobbyInfo({
     variantUrl: info.variantUrl ?? "",
@@ -281,6 +286,7 @@ function handleHostMigration(msg: HostMigration): void {
     newHostUserId,
     ...hostPriority.filter((id) => id !== newHostUserId),
   ];
+  currentHostId = newHostUserId;
   callbacks?.onHostMigration(newHostUserId, msg.lobbyId ?? undefined);
 
   if (newHostUserId === myUserId && serverLobbyId) {

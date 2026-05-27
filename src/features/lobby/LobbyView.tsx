@@ -14,6 +14,8 @@ import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { useGuestLoginMutation } from "../../api/api";
+import * as p2pLobbyService from "../../api/p2pLobbyService";
+import * as webrtcService from "../../api/webrtcService";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { login, selectToken } from "../auth/authSlice";
 import useConfigureLayout from "../layout/hooks";
@@ -99,6 +101,15 @@ export default function LobbyView() {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [lobbyStatus.phase]);
+
+  useEffect(() => {
+    if (lobbyStatus.phase === "closed") {
+      p2pLobbyService.resetP2PLobby();
+      webrtcService.reset();
+      dispatch(_setIdle());
+      navigate("/");
+    }
+  }, [dispatch, lobbyStatus.phase, navigate]);
 
   const handleGuestJoin = async (values: { displayName: string }) => {
     try {

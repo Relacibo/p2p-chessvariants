@@ -24,6 +24,7 @@ export type LobbyStatus =
   | { phase: "creating" }
   | { phase: "joining" }
   | { phase: "active" }
+  | { phase: "closed" }
   | { phase: "error"; message: string };
 
 export type LobbyInvite = {
@@ -77,6 +78,7 @@ export const {
     _setJoining,
     _setActive,
     _setError,
+    _setLobbyClosed,
     _setIdle,
     _setLocalUserId,
     _setScriptUrl,
@@ -113,6 +115,9 @@ export const {
     },
     _setError: (state, action: PayloadAction<string>) => {
       state.status = { phase: "error", message: action.payload };
+    },
+    _setLobbyClosed: (state) => {
+      state.status = { phase: "closed" };
     },
     _setIdle: (state) => {
       state.status = { phase: "idle" };
@@ -197,7 +202,7 @@ function mapConnectionStateToStatus(
 function handleRemoteLobbyClosed(dispatch: LobbyDispatch): void {
   p2pLobbyService.resetP2PLobby();
   webrtcService.reset();
-  dispatch(_setIdle());
+  dispatch(_setLobbyClosed());
   notifications.show({
     title: "Lobby closed",
     message: "The host closed the lobby.",
@@ -316,9 +321,12 @@ export function createLobby(
           onLobbyClosed: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
             const currentToken = selectToken(getState());
-            heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
-              console.error("[p2p] heartbeat failed", e),
-            );
+            heartbeat(currentToken ?? "", heartbeatLobbyId).catch((err: any) => {
+              console.error("[p2p] heartbeat failed", err);
+              if (err?.status === 404 || err?.status === 403) {
+                handleRemoteLobbyClosed(dispatch);
+              }
+            });
           },
         },
       );
@@ -431,9 +439,12 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
               onLobbyClosed: () => {},
               onHeartbeat: (heartbeatLobbyId) => {
                 const currentToken = selectToken(getState());
-                heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
-                  console.error("[p2p] heartbeat failed", e),
-                );
+                heartbeat(currentToken ?? "", heartbeatLobbyId).catch((err: any) => {
+                  console.error("[p2p] heartbeat failed", err);
+                  if (err?.status === 404 || err?.status === 403) {
+                    handleRemoteLobbyClosed(dispatch);
+                  }
+                });
               },
             },
           );
@@ -645,9 +656,12 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
           onLobbyClosed: () => {},
           onHeartbeat: (heartbeatLobbyId) => {
             const currentToken = selectToken(getState());
-            heartbeat(currentToken ?? "", heartbeatLobbyId).catch((e) =>
-              console.error("[p2p] heartbeat failed", e),
-            );
+            heartbeat(currentToken ?? "", heartbeatLobbyId).catch((err: any) => {
+              console.error("[p2p] heartbeat failed", err);
+              if (err?.status === 404 || err?.status === 403) {
+                handleRemoteLobbyClosed(dispatch);
+              }
+            });
           },
         },
       );
