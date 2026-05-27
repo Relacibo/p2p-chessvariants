@@ -308,7 +308,6 @@ export function createLobby(
               }),
             ),
           onPlayerLeft: (userId) => dispatch(_playerLeft(userId)),
-          onHostMigration: (_newHost) => { dispatch(_setHostUserId(_newHost)); },
           onGameMessage: () => {},
           onConnectionStateChanged: (peerUserId, state) => {
             dispatch(
@@ -424,9 +423,6 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
                   }),
                 ),
               onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-              onHostMigration: (_newHost, newLobbyId) => {
-                if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
-              },
               onGameMessage: () => {},
               onConnectionStateChanged: (peerUserId, state) => {
                 dispatch(
@@ -493,6 +489,7 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
     webrtcService.reset();
     dispatch(_setJoining());
     dispatch(_setLocalUserId(user.id));
+    dispatch(_setHostUserId(hostUserId));
 
     await _applyTurnCredentials(token);
 
@@ -527,6 +524,7 @@ function _initP2PAsJoiner(
     {
       onLobbyInfo: (info) => {
         dispatch(_setScriptUrl(info.variantUrl));
+        if (info.hostUserId) dispatch(_setHostUserId(info.hostUserId));
         for (const p of info.players) {
           dispatch(
             _playerJoined({
@@ -549,10 +547,6 @@ function _initP2PAsJoiner(
           }),
         ),
       onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-      onHostMigration: (newHost, newLobbyId) => {
-        dispatch(_setHostUserId(newHost));
-        if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
-      },
       onGameMessage: () => {},
       onConnectionStateChanged: (peerUserId, state) => {
         dispatch(
@@ -640,10 +634,6 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
               }),
             ),
           onPlayerLeft: (uid) => dispatch(_playerLeft(uid)),
-          onHostMigration: (newHost, newLobbyId) => {
-            dispatch(_setHostUserId(newHost));
-            if (newLobbyId) dispatch(_setServerLobbyId(newLobbyId));
-          },
           onGameMessage: () => {},
           onConnectionStateChanged: (peerUserId, state) => {
             dispatch(
