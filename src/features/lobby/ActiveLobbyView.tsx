@@ -96,11 +96,7 @@ export default function ActiveLobbyView() {
     isLocalPlayer: boolean,
   ) => {
     if (isLocalPlayer || connectionStatus === "self") {
-      return (
-        <Badge color="blue" size="sm" variant="light">
-          You
-        </Badge>
-      );
+      return null;
     }
     if (connectionStatus === "connected") {
       return (
@@ -111,9 +107,9 @@ export default function ActiveLobbyView() {
     }
     if (connectionStatus === "failed") {
       return (
-        <Badge color="red" size="sm" variant="light">
-          Disconnected
-        </Badge>
+        <ThemeIcon color="red" size={18} radius="xl" variant="light">
+          <Box w={8} h={8} bg="red.6" style={{ borderRadius: "50%" }} />
+        </ThemeIcon>
       );
     }
     return (
