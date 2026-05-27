@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGuestLoginMutation } from "../../api/api";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import {
+  broadcastLobbyState,
   checkIsPrimary,
   onTakeoverRequest,
   registerAsPrimary,
@@ -32,8 +33,13 @@ import {
   becomeActiveHost,
   joinLobbyById,
   joinLobbyByPeer,
+  selectIsHost,
+  selectHostUserId,
   selectIsPassiveHostTab,
+  selectLobbyPlayers,
+  selectLobbyScriptUrl,
   selectLobbyStatus,
+  selectLobbyServerLobbyId,
   _setIdle,
   _setIsPrimaryTab,
 } from "./lobbySlice";
@@ -48,6 +54,11 @@ export default function LobbyView() {
   const user = useSelector(selectUser);
   const lobbyStatus = useSelector(selectLobbyStatus);
   const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
+  const serverLobbyId = useSelector(selectLobbyServerLobbyId);
+  const players = useSelector(selectLobbyPlayers);
+  const isHost = useSelector(selectIsHost);
+  const hostUserId = useSelector(selectHostUserId);
+  const scriptUrl = useSelector(selectLobbyScriptUrl);
   const { lobbyId, peerId } = useParams<{
     lobbyId?: string;
     peerId?: string;
@@ -57,6 +68,7 @@ export default function LobbyView() {
   const [hasAutoJoined, setHasAutoJoined] = useState(false);
   const [tabRole, setTabRole] = useState<"checking" | "primary" | "secondary">("checking");
   const [timedOut, setTimedOut] = useState(false);
+  const [broadcastTrigger, setBroadcastTrigger] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevTokenRef = useRef<string | null>(null);
 
@@ -121,7 +133,10 @@ export default function LobbyView() {
       return;
     }
 
-    return registerAsPrimary(lobbyId, user.id);
+    return registerAsPrimary(lobbyId, user.id, () => {
+      // A secondary tab just opened — immediately push current state to it
+      setBroadcastTrigger((n) => n + 1);
+    });
   }, [lobbyId, tabRole, type, user]);
 
   useEffect(() => {
@@ -145,6 +160,26 @@ export default function LobbyView() {
       void dispatch(becomeActiveHost());
     }
   }, [dispatch, isPassiveHostTab, lobbyStatus.phase, tabRole]);
+
+  // Broadcast lobby state to secondary tabs whenever state changes or a new secondary tab appears
+  useEffect(() => {
+    if (tabRole !== "primary" || lobbyStatus.phase !== "active" || !serverLobbyId) {
+      return;
+    }
+    broadcastLobbyState(serverLobbyId, {
+      players: players.map((player) => ({
+        userId: player.userId,
+        name: player.name,
+        connectionStatus: player.connectionStatus,
+        role: player.userId === hostUserId ? "host" : undefined,
+      })),
+      isHost,
+      hostUserId,
+      scriptUrl,
+    });
+  // broadcastTrigger is intentionally included to force a broadcast when secondary tab joins
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcastTrigger, hostUserId, isHost, players, scriptUrl, serverLobbyId, tabRole, lobbyStatus.phase]);
 
   // Auto-join when token is available and we haven't joined yet
   useEffect(() => {

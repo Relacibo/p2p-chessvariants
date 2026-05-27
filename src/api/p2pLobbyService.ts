@@ -51,6 +51,8 @@ let callbacks: P2PLobbyCallbacks | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+// Best known state timestamp from incoming LobbyJoin messages (used on host reconnect)
+let bestStateTimestamp = 0n;
 
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAY_MS = 3000;
@@ -106,6 +108,7 @@ export function resetP2PLobby(): void {
     reconnectTimer = null;
   }
   reconnectAttempts = 0;
+  bestStateTimestamp = 0n;
   myUserId = null;
   myDisplayName = null;
   isHost = false;
@@ -124,6 +127,8 @@ export function sendLobbyJoin(toUserId: string): void {
     value: LobbyJoin({
       userId: myUserId,
       displayName: myDisplayName ?? myUserId,
+      knownPlayers: players.map((p): Player => ({ userId: p.userId, displayName: p.displayName })),
+      stateTimestamp: BigInt(Date.now()),
     }),
   });
   const sent = webrtcService.sendToPeer(toUserId, msg);
@@ -187,7 +192,24 @@ function handleMessage(
 function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
   const userId = join.userId ?? fromUserId;
   const displayName = join.displayName ?? userId;
-  console.log(`[p2p] handleLobbyJoin from ${userId.slice(0, 8)}, current players: [${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
+  const ts = join.stateTimestamp ?? 0n;
+  console.log(`[p2p] handleLobbyJoin from ${userId.slice(0, 8)}, ts=${ts}, bestTs=${bestStateTimestamp}, current players: [${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
+
+  // If this guest has a newer snapshot than what we know, merge their player list.
+  // This helps rebuild state after a host refresh.
+  if (ts > bestStateTimestamp && join.knownPlayers && join.knownPlayers.length > 0) {
+    bestStateTimestamp = ts;
+    for (const kp of join.knownPlayers) {
+      if (!kp.userId || kp.userId === myUserId) continue;
+      if (!players.find((p) => p.userId === kp.userId)) {
+        const p = { userId: kp.userId, displayName: kp.displayName ?? kp.userId };
+        players.push(p);
+        // Notify Redux — connection status will be "connecting" until they reconnect
+        callbacks?.onPlayerJoined({ userId: p.userId, displayName: p.displayName });
+        console.log(`[p2p] merged known player ${p.userId.slice(0, 8)} from snapshot`);
+      }
+    }
+  }
 
   if (!players.find((p) => p.userId === userId)) {
     players.push({ userId, displayName });

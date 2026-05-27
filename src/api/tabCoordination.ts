@@ -76,11 +76,17 @@ export async function checkIsPrimary(
   });
 }
 
-/** Primary tab calls this to respond to pings. Returns cleanup function. */
-export function registerAsPrimary(lobbyId: string, userId: string): () => void {
+/** Primary tab calls this to respond to pings. Returns cleanup function.
+ *  onSecondaryDetected fires whenever a new secondary tab appears (ping received). */
+export function registerAsPrimary(
+  lobbyId: string,
+  userId: string,
+  onSecondaryDetected?: () => void,
+): () => void {
   return onMessage((msg) => {
     if (msg.type === "ping" && msg.lobbyId === lobbyId && msg.userId === userId) {
       send({ type: "pong", lobbyId, userId });
+      onSecondaryDetected?.();
     }
   });
 }

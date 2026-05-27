@@ -11,6 +11,8 @@ union P2pMsg {
     1 -> message LobbyJoin {
         1 -> guid UserId;
         2 -> string DisplayName;
+        3 -> Player[] KnownPlayers;
+        4 -> int64 StateTimestamp;
     }
 
     // Sent by the host to a newly connected peer with full lobby state.
