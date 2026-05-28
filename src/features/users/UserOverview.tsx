@@ -71,7 +71,7 @@ function UserOverview() {
     <Stack>
       <TextInput
         label="Search users"
-        placeholder="alice"
+        placeholder="mario"
         value={searchQuery}
         onChange={(event) => setSearchQuery(event.currentTarget.value)}
       />
