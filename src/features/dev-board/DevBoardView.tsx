@@ -1,11 +1,10 @@
 import {
   ActionIcon,
-  Alert,
   Badge,
   Box,
   Button,
   Code,
-  Divider,
+  Drawer,
   Group,
   Loader,
   NumberInput,
@@ -15,9 +14,10 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
+  Tooltip,
 } from "@mantine/core";
-import { IconRefresh, IconTrash } from "@tabler/icons-react";
+import { useDisclosure } from "@mantine/hooks";
+import { IconPlayerSkipBack, IconSettings, IconTrash } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
@@ -31,9 +31,8 @@ import {
   WasmVariantConfig,
 } from "../chessboard/types";
 
-// ── Preset scripts served from /dev-scripts/ ─────────────────────────────────
 const PRESETS = [
-  { label: "Simple Chess (2p)", value: "/dev-scripts/simple_chess.rhai", players: 2 },
+  { label: "Seirawan Chess (2p)", value: "/dev-scripts/seirawan_chess.rhai", players: 2 },
   { label: "Bughouse (4p)", value: "/dev-scripts/bughouse.rhai", players: 4 },
   { label: "4-Player Chess (4p)", value: "/dev-scripts/four_player_chess.rhai", players: 4 },
 ];
@@ -47,7 +46,6 @@ interface LogEntry {
 
 let logSeq = 0;
 
-/** Extracts a human-readable message from any thrown value, including WASM CvJsError objects. */
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
@@ -65,16 +63,40 @@ function actionLabel(a: WasmAction): string {
   return JSON.stringify(a);
 }
 
+function useBoardSize(reserveVisible: boolean) {
+  const compute = useCallback(() => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const availW = reserveVisible ? vw - 160 : vw;
+    return Math.floor(Math.min(vh * 0.95, availW * 0.97));
+  }, [reserveVisible]);
+
+  const [size, setSize] = useState(compute);
+
+  useEffect(() => {
+    const handler = () => setSize(compute());
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [compute]);
+
+  useEffect(() => { setSize(compute()); }, [compute]);
+
+  return size;
+}
+
+const PLAYER_COLORS_LABEL = ["White", "Black", "Red", "Blue"];
+const PLAYER_BADGE_COLORS = ["gray", "dark", "red", "blue"] as const;
+
 export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
 
-  // ── Config ────────────────────────────────────────────────────────────────
+  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
+
   const [preset, setPreset] = useState<string>(PRESETS[0].value);
   const [customUrl, setCustomUrl] = useState("");
   const [playerCount, setPlayerCount] = useState<number | string>(2);
   const [controllingPlayer, setControllingPlayer] = useState(0);
 
-  // ── Engine state ──────────────────────────────────────────────────────────
   const engineRef = useRef<ChessvariantEngine | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(null);
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
@@ -87,7 +109,8 @@ export function DevBoardView() {
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  const boardSize = useBoardSize(!!reservePile);
+
   const syncState = useCallback((engine: ChessvariantEngine, turn: number) => {
     setBoardState(JSON.parse(engine.boardStateJson()));
     setCurrentTurn(turn);
@@ -105,7 +128,6 @@ export function DevBoardView() {
       setLog([]);
       setLastAction(undefined);
       setSelectedDropPiece(null);
-
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -125,7 +147,6 @@ export function DevBoardView() {
     [syncState]
   );
 
-  // Auto-load first preset on mount
   useEffect(() => {
     const p = PRESETS[0];
     setPlayerCount(p.players);
@@ -133,7 +154,6 @@ export function DevBoardView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When preset changes, update default player count
   const handlePresetChange = (val: string | null) => {
     if (!val) return;
     setPreset(val);
@@ -146,9 +166,9 @@ export function DevBoardView() {
     const url = customUrl.trim() || preset;
     const n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
     loadScript(url, n);
+    closeDrawer();
   };
 
-  // ── Action handler ────────────────────────────────────────────────────────
   const handleSubmitAction = useCallback(
     (action: WasmAction) => {
       const engine = engineRef.current;
@@ -160,16 +180,9 @@ export function DevBoardView() {
         setSelectedDropPiece(null);
         setLog((prev) => [
           ...prev,
-          {
-            id: ++logSeq,
-            timestamp: new Date().toLocaleTimeString(),
-            playerIndex: currentTurn,
-            action,
-          },
+          { id: ++logSeq, timestamp: new Date().toLocaleTimeString(), playerIndex: currentTurn, action },
         ]);
         syncState(engine, newTurn);
-
-        // In local dev mode: auto-advance controlling player to whoever's turn it is
         setControllingPlayer(newTurn);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
@@ -178,145 +191,145 @@ export function DevBoardView() {
     [currentTurn, syncState]
   );
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  const PLAYER_COLORS_LABEL = ["White", "Black", "Red", "Blue"];
-
   return (
-    <Stack gap="md" h="100%">
-      {/* ── Header ── */}
-      <Group justify="space-between" align="flex-end">
-        <Title order={3}>Board Dev View</Title>
-        <Group gap="xs">
-          <Select
-            size="xs"
-            label="Preset"
-            data={PRESETS.map((p) => ({ value: p.value, label: p.label }))}
-            value={preset}
-            onChange={handlePresetChange}
-            w={200}
-          />
-          <TextInput
-            size="xs"
-            label="Custom URL"
-            placeholder="https://..."
-            value={customUrl}
-            onChange={(e) => setCustomUrl(e.currentTarget.value)}
-            w={240}
-          />
-          <NumberInput
-            size="xs"
-            label="Players"
-            min={2}
-            max={4}
-            value={playerCount}
-            onChange={setPlayerCount}
-            w={80}
-          />
-          <Button
-            size="xs"
-            mt={18}
-            leftSection={<IconRefresh size="0.85rem" />}
-            onClick={handleLoad}
-            loading={loading}
-          >
-            Load
-          </Button>
-        </Group>
-      </Group>
+    <Box style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {/* Dev drawer toggle */}
+      <Tooltip label="Dev controls" position="left" withArrow>
+        <ActionIcon
+          variant="filled"
+          color="dark"
+          size="lg"
+          radius="xl"
+          style={{ position: "fixed", top: 12, right: 12, zIndex: 200 }}
+          onClick={openDrawer}
+        >
+          <IconSettings size="1.1rem" />
+        </ActionIcon>
+      </Tooltip>
 
-      {error && (
-        <Alert color="red" title="Error" withCloseButton onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      {/* ── Main layout ── */}
-      <Group align="flex-start" gap="md" style={{ flex: 1, minHeight: 0 }}>
-        {/* Board */}
-        <Box>
-          {loading && <Loader />}
-          {!loading && boardState && variantConfig && (
-            <Stack gap="xs">
-              <Group gap="xs">
-                <Badge variant="light" color="blue">
-                  Turn: {PLAYER_COLORS_LABEL[currentTurn] ?? `Player ${currentTurn}`}
+      {/* Board + reserve pile */}
+      <Group
+        gap={12}
+        align="flex-start"
+        justify="center"
+        style={{ width: "100%", height: "100%", paddingTop: 4 }}
+      >
+        <Stack gap={6} align="center">
+          {!loading && boardState && (
+            <Group gap="xs">
+              <Badge variant="light" color={PLAYER_BADGE_COLORS[currentTurn] ?? "gray"}>
+                Turn: {PLAYER_COLORS_LABEL[currentTurn] ?? `Player ${currentTurn}`}
+              </Badge>
+              {variantConfig && (
+                <Badge variant="outline" color="dimmed" size="sm">
+                  {variantConfig.name}
                 </Badge>
-                <Badge variant="outline">
-                  Controlling: {PLAYER_COLORS_LABEL[controllingPlayer] ?? `Player ${controllingPlayer}`}
-                </Badge>
-              </Group>
-              <Chessboard
-                variantConfig={variantConfig}
-                boardState={boardState}
-                validActions={validActions}
-                playerIndex={controllingPlayer}
-                onSubmitAction={handleSubmitAction}
-                lastAction={lastAction}
-                selectedDropPiece={selectedDropPiece}
-                onClearDropPiece={() => setSelectedDropPiece(null)}
-                size={480}
-              />
-            </Stack>
+              )}
+            </Group>
           )}
-        </Box>
 
-        {/* Reserve Pile */}
-        {reservePile && (
-          <Box w={160}>
-            <Text size="sm" fw={600} mb="xs">
-              Reserve Pile
-            </Text>
+          {loading && <Loader mt={40} />}
+
+          {error && (
+            <Paper withBorder p="sm" style={{ maxWidth: 480 }}>
+              <Text c="red" size="sm" fw={600}>Error</Text>
+              <Text size="sm">{error}</Text>
+              <Button size="xs" variant="subtle" mt={4} onClick={() => setError(null)}>Dismiss</Button>
+            </Paper>
+          )}
+
+          {!loading && boardState && variantConfig && (
+            <Chessboard
+              variantConfig={variantConfig}
+              boardState={boardState}
+              validActions={validActions}
+              playerIndex={controllingPlayer}
+              onSubmitAction={handleSubmitAction}
+              lastAction={lastAction}
+              selectedDropPiece={selectedDropPiece}
+              onClearDropPiece={() => setSelectedDropPiece(null)}
+              size={boardSize}
+            />
+          )}
+        </Stack>
+
+        {reservePile && !loading && (
+          <Box style={{ paddingTop: 32, minWidth: 140, maxWidth: 160 }}>
+            <Text size="xs" fw={600} mb={6} c="dimmed">Reserve pile</Text>
             <ReservePile
               reservePile={reservePile}
               playerIndex={controllingPlayer}
               selectedPiece={selectedDropPiece}
               onSelectPiece={setSelectedDropPiece}
-              tileSize={36}
+              tileSize={44}
             />
           </Box>
         )}
+      </Group>
 
-        <Divider orientation="vertical" />
+      {/* Dev Drawer */}
+      <Drawer
+        opened={drawerOpen}
+        onClose={closeDrawer}
+        title="Dev controls"
+        position="right"
+        size="sm"
+        overlayProps={{ opacity: 0.3 }}
+      >
+        <Stack gap="md">
+          <Select
+            label="Preset"
+            data={PRESETS.map((p) => ({ value: p.value, label: p.label }))}
+            value={preset}
+            onChange={handlePresetChange}
+          />
+          <TextInput
+            label="Custom URL"
+            placeholder="https://..."
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.currentTarget.value)}
+          />
+          <NumberInput
+            label="Players"
+            min={2}
+            max={4}
+            value={playerCount}
+            onChange={setPlayerCount}
+          />
+          <Button
+            leftSection={<IconPlayerSkipBack size="0.85rem" />}
+            onClick={handleLoad}
+            loading={loading}
+            fullWidth
+          >
+            Load / Restart
+          </Button>
 
-        {/* Event Log */}
-        <Stack gap="xs" style={{ flex: 1, minWidth: 220, maxWidth: 340 }}>
-          <Group justify="space-between">
-            <Text size="sm" fw={600}>
-              Action Log
-            </Text>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => setLog([])}
-              title="Clear log"
-            >
+          <Select
+            label="Controlling player (local)"
+            data={Array.from(
+              { length: typeof playerCount === "number" ? playerCount : 2 },
+              (_, i) => ({ value: String(i), label: `${PLAYER_COLORS_LABEL[i] ?? `Player ${i}`} (${i})` })
+            )}
+            value={String(controllingPlayer)}
+            onChange={(v) => v != null && setControllingPlayer(Number(v))}
+          />
+
+          <Group justify="space-between" align="center">
+            <Text size="sm" fw={600}>Action Log</Text>
+            <ActionIcon variant="subtle" size="sm" onClick={() => setLog([])} title="Clear">
               <IconTrash size="0.85rem" />
             </ActionIcon>
           </Group>
-          <ScrollArea h={480} type="auto">
+          <ScrollArea h={400} type="auto">
             {log.length === 0 && (
-              <Text size="xs" c="dimmed" fs="italic">
-                No actions yet.
-              </Text>
+              <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>
             )}
-            {log.map((entry) => (
+            {[...log].reverse().map((entry) => (
               <Paper key={entry.id} withBorder p={6} mb={4}>
                 <Group gap="xs" mb={2}>
-                  <Badge size="xs" variant="light" color="gray">
-                    {entry.timestamp}
-                  </Badge>
-                  <Badge
-                    size="xs"
-                    color={
-                      entry.playerIndex === 0
-                        ? "gray"
-                        : entry.playerIndex === 1
-                        ? "dark"
-                        : entry.playerIndex === 2
-                        ? "red"
-                        : "blue"
-                    }
-                  >
+                  <Badge size="xs" variant="light" color="gray">{entry.timestamp}</Badge>
+                  <Badge size="xs" color={PLAYER_BADGE_COLORS[entry.playerIndex] ?? "gray"}>
                     {PLAYER_COLORS_LABEL[entry.playerIndex] ?? `P${entry.playerIndex}`}
                   </Badge>
                 </Group>
@@ -327,8 +340,8 @@ export function DevBoardView() {
             ))}
           </ScrollArea>
         </Stack>
-      </Group>
-    </Stack>
+      </Drawer>
+    </Box>
   );
 }
 
