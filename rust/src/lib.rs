@@ -207,16 +207,24 @@ impl ChessvariantEngine {
 
     /// Returns the list of valid actions for the given player as a JSON string.
     /// Calls the script's `valid_actions(state)` function.
+    /// Returns `[]` if the script does not define `valid_actions`.
     /// Shape: `Action[]` where Action = `{ type, from?, to?, piece?, tag?, value? }`
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validActionsJson))]
     pub fn valid_actions_json(&self, player_index: i32) -> Result<String, CvError> {
         let mut scope = Scope::new();
-        let actions_dyn = self.engine.call_fn::<Dynamic>(
+        let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
             "valid_actions",
             (self.game_state.clone(),),
-        )?;
+        );
+        let actions_dyn = match result {
+            Ok(v) => v,
+            Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(_, _)) => {
+                return Ok("[]".to_string());
+            }
+            Err(e) => return Err(CvError::from(e)),
+        };
         // Filter to only the given player's actions
         let all: Vec<Action> = rhai::serde::from_dynamic(&actions_dyn)?;
         let _ = player_index; // currently valid_actions returns all; script may filter internally

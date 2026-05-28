@@ -47,6 +47,14 @@ interface LogEntry {
 
 let logSeq = 0;
 
+/** Extracts a human-readable message from any thrown value, including WASM CvJsError objects. */
+function extractErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  try { return JSON.stringify(e); } catch { return String(e); }
+}
+
 function actionLabel(a: WasmAction): string {
   if (a.type === "move" && a.from && a.to)
     return `move (${a.from.row},${a.from.col})→(${a.to.row},${a.to.col})`;
@@ -109,7 +117,7 @@ export function DevBoardView() {
         setControllingPlayer(initTurn);
         syncState(engine, initTurn);
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(extractErrorMessage(e));
       } finally {
         setLoading(false);
       }
@@ -164,7 +172,7 @@ export function DevBoardView() {
         // In local dev mode: auto-advance controlling player to whoever's turn it is
         setControllingPlayer(newTurn);
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(extractErrorMessage(e));
       }
     },
     [currentTurn, syncState]
