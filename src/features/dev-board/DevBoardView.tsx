@@ -17,7 +17,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconPlayerSkipBack, IconSettings, IconTrash } from "@tabler/icons-react";
+import { IconPlayerSkipBack, IconSettings, IconTrash, IconX } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
@@ -49,7 +49,8 @@ let logSeq = 0;
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  if (e && typeof e === "object" && "message" in e)
+    return String((e as { message: unknown }).message);
   try { return JSON.stringify(e); } catch { return String(e); }
 }
 
@@ -61,27 +62,6 @@ function actionLabel(a: WasmAction): string {
   if (a.type === "choose" && a.tag)
     return `choose ${a.tag}=${a.value ?? "?"}`;
   return JSON.stringify(a);
-}
-
-function useBoardSize(reserveVisible: boolean) {
-  const compute = useCallback(() => {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const availW = reserveVisible ? vw - 160 : vw;
-    return Math.floor(Math.min(vh * 0.95, availW * 0.97));
-  }, [reserveVisible]);
-
-  const [size, setSize] = useState(compute);
-
-  useEffect(() => {
-    const handler = () => setSize(compute());
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, [compute]);
-
-  useEffect(() => { setSize(compute()); }, [compute]);
-
-  return size;
 }
 
 const PLAYER_COLORS_LABEL = ["White", "Black", "Red", "Blue"];
@@ -109,8 +89,28 @@ export function DevBoardView() {
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
 
-  const boardSize = useBoardSize(!!reservePile);
+  // ── Measure container for accurate board sizing ───────────────────────────
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ w: window.innerWidth, h: window.innerHeight - 70 });
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setContainerSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const boardSize = Math.floor(Math.min(containerSize.h * 0.97, containerSize.w * 0.97));
+  // Space available to the right of the centered board
+  const sideSpace = Math.floor((containerSize.w - boardSize) / 2);
+  const reservePileWidth = 148;
+  const showReserveSide = sideSpace >= reservePileWidth + 8;
+
+  // ── Engine helpers ────────────────────────────────────────────────────────
   const syncState = useCallback((engine: ChessvariantEngine, turn: number) => {
     setBoardState(JSON.parse(engine.boardStateJson()));
     setCurrentTurn(turn);
@@ -191,83 +191,107 @@ export function DevBoardView() {
     [currentTurn, syncState]
   );
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <Box style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
-      {/* Dev drawer toggle */}
+    // Container fills content area below the header; no scroll
+    <Box
+      ref={containerRef}
+      style={{
+        position: "fixed",
+        inset: 0,
+        paddingTop: "var(--app-shell-header-height, 70px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      {/* ── Centered board ── */}
+      {loading && <Loader />}
+      {!loading && boardState && variantConfig && (
+        <Chessboard
+          variantConfig={variantConfig}
+          boardState={boardState}
+          validActions={validActions}
+          playerIndex={controllingPlayer}
+          onSubmitAction={handleSubmitAction}
+          lastAction={lastAction}
+          selectedDropPiece={selectedDropPiece}
+          onClearDropPiece={() => setSelectedDropPiece(null)}
+          size={boardSize}
+        />
+      )}
+
+      {/* ── Reserve pile: right of board when space allows, else below-right overlay ── */}
+      {reservePile && !loading && (
+        <Box
+          style={
+            showReserveSide
+              ? {
+                  position: "absolute",
+                  right: Math.max(8, sideSpace - reservePileWidth - 8),
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: reservePileWidth,
+                }
+              : {
+                  position: "absolute",
+                  bottom: 56,
+                  right: 8,
+                  width: reservePileWidth,
+                  opacity: 0.92,
+                }
+          }
+        >
+          <ReservePile
+            reservePile={reservePile}
+            playerIndex={controllingPlayer}
+            selectedPiece={selectedDropPiece}
+            onSelectPiece={setSelectedDropPiece}
+            tileSize={44}
+          />
+        </Box>
+      )}
+
+      {/* ── Error: floating bottom-left ── */}
+      {error && (
+        <Paper
+          withBorder
+          shadow="sm"
+          p="sm"
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: 16,
+            maxWidth: 320,
+            zIndex: 100,
+          }}
+        >
+          <Group justify="space-between" mb={4} gap="xs">
+            <Text size="xs" fw={700} c="red">Error</Text>
+            <ActionIcon size="xs" variant="subtle" onClick={() => setError(null)}>
+              <IconX size="0.7rem" />
+            </ActionIcon>
+          </Group>
+          <Text size="xs">{error}</Text>
+        </Paper>
+      )}
+
+      {/* ── Dev gear button ── */}
       <Tooltip label="Dev controls" position="left" withArrow>
         <ActionIcon
           variant="filled"
           color="dark"
           size="lg"
           radius="xl"
-          style={{ position: "fixed", top: 12, right: 12, zIndex: 200 }}
+          style={{ position: "absolute", top: 8, right: 8, zIndex: 200 }}
           onClick={openDrawer}
         >
           <IconSettings size="1.1rem" />
         </ActionIcon>
       </Tooltip>
 
-      {/* Board + reserve pile */}
-      <Group
-        gap={12}
-        align="flex-start"
-        justify="center"
-        style={{ width: "100%", height: "100%", paddingTop: 4 }}
-      >
-        <Stack gap={6} align="center">
-          {!loading && boardState && (
-            <Group gap="xs">
-              <Badge variant="light" color={PLAYER_BADGE_COLORS[currentTurn] ?? "gray"}>
-                Turn: {PLAYER_COLORS_LABEL[currentTurn] ?? `Player ${currentTurn}`}
-              </Badge>
-              {variantConfig && (
-                <Badge variant="outline" color="dimmed" size="sm">
-                  {variantConfig.name}
-                </Badge>
-              )}
-            </Group>
-          )}
-
-          {loading && <Loader mt={40} />}
-
-          {error && (
-            <Paper withBorder p="sm" style={{ maxWidth: 480 }}>
-              <Text c="red" size="sm" fw={600}>Error</Text>
-              <Text size="sm">{error}</Text>
-              <Button size="xs" variant="subtle" mt={4} onClick={() => setError(null)}>Dismiss</Button>
-            </Paper>
-          )}
-
-          {!loading && boardState && variantConfig && (
-            <Chessboard
-              variantConfig={variantConfig}
-              boardState={boardState}
-              validActions={validActions}
-              playerIndex={controllingPlayer}
-              onSubmitAction={handleSubmitAction}
-              lastAction={lastAction}
-              selectedDropPiece={selectedDropPiece}
-              onClearDropPiece={() => setSelectedDropPiece(null)}
-              size={boardSize}
-            />
-          )}
-        </Stack>
-
-        {reservePile && !loading && (
-          <Box style={{ paddingTop: 32, minWidth: 140, maxWidth: 160 }}>
-            <Text size="xs" fw={600} mb={6} c="dimmed">Reserve pile</Text>
-            <ReservePile
-              reservePile={reservePile}
-              playerIndex={controllingPlayer}
-              selectedPiece={selectedDropPiece}
-              onSelectPiece={setSelectedDropPiece}
-              tileSize={44}
-            />
-          </Box>
-        )}
-      </Group>
-
-      {/* Dev Drawer */}
+      {/* ── Dev Drawer ── */}
       <Drawer
         opened={drawerOpen}
         onClose={closeDrawer}
@@ -289,13 +313,7 @@ export function DevBoardView() {
             value={customUrl}
             onChange={(e) => setCustomUrl(e.currentTarget.value)}
           />
-          <NumberInput
-            label="Players"
-            min={2}
-            max={4}
-            value={playerCount}
-            onChange={setPlayerCount}
-          />
+          <NumberInput label="Players" min={2} max={4} value={playerCount} onChange={setPlayerCount} />
           <Button
             leftSection={<IconPlayerSkipBack size="0.85rem" />}
             onClick={handleLoad}
