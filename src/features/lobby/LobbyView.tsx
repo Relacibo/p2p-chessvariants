@@ -87,11 +87,15 @@ export default function LobbyView() {
       ? "peer"
       : null;
 
-  // When token changes from null → new token (re-login after expiry), reset auto-join
+  const userId = user?.id ?? null;
+
+  // When token changes from null → new token (re-login after expiry), reset auto-join.
+  // Don't reset when the lobby is already active — token refreshes (e.g. silent 401 retry
+  // in baseQueryWithAuth) would otherwise trigger a full re-join mid-session.
   useEffect(() => {
     if (token && token !== prevTokenRef.current) {
       prevTokenRef.current = token;
-      if (hasAutoJoined) {
+      if (hasAutoJoined && lobbyStatus.phase !== "active") {
         setHasAutoJoined(false);
         if (lobbyStatus.phase === "error") {
           dispatch(_setIdle());
@@ -106,14 +110,14 @@ export default function LobbyView() {
     if (!token || !type) {
       return;
     }
-    if (type !== "lobby" || !lobbyId || !user) {
+    if (type !== "lobby" || !lobbyId || !userId) {
       setTabRole("primary");
       return;
     }
 
     let cancelled = false;
     setTabRole("checking");
-    void checkIsPrimary(lobbyId, user.id).then((isPrimary) => {
+    void checkIsPrimary(lobbyId, userId).then((isPrimary) => {
       if (!cancelled) {
         setTabRole(isPrimary ? "primary" : "secondary");
       }
@@ -122,29 +126,31 @@ export default function LobbyView() {
     return () => {
       cancelled = true;
     };
-  }, [lobbyId, token, type, user]);
+  // Use userId (string) instead of user (object) so token-refresh object-reference
+  // changes don't re-trigger the tab-role check and cause a brief "checking" flash.
+  }, [lobbyId, token, type, userId]);
 
   useEffect(() => {
     dispatch(_setIsPrimaryTab(tabRole !== "secondary"));
   }, [dispatch, tabRole]);
 
   useEffect(() => {
-    if (tabRole !== "primary" || type !== "lobby" || !lobbyId || !user) {
+    if (tabRole !== "primary" || type !== "lobby" || !lobbyId || !userId) {
       return;
     }
 
-    return registerAsPrimary(lobbyId, user.id, () => {
+    return registerAsPrimary(lobbyId, userId, () => {
       // A secondary tab just opened — immediately push current state to it
       setBroadcastTrigger((n) => n + 1);
     });
-  }, [lobbyId, tabRole, type, user]);
+  }, [lobbyId, tabRole, type, userId]);
 
   useEffect(() => {
-    if (tabRole !== "primary" || type !== "lobby" || !lobbyId || !user) {
+    if (tabRole !== "primary" || type !== "lobby" || !lobbyId || !userId) {
       return;
     }
 
-    return onTakeoverRequest(lobbyId, user.id, () => {
+    return onTakeoverRequest(lobbyId, userId, () => {
       p2pLobbyService.resetP2PLobby();
       webrtcService.reset();
       dispatch(_setIdle());
@@ -153,7 +159,7 @@ export default function LobbyView() {
       setTabRole("secondary");
       yieldPrimary(lobbyId);
     });
-  }, [dispatch, lobbyId, tabRole, type, user]);
+  }, [dispatch, lobbyId, tabRole, type, userId]);
 
   useEffect(() => {
     if (tabRole === "primary" && lobbyStatus.phase === "active" && isPassiveHostTab) {
