@@ -412,7 +412,22 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
         dispatch(_setAllowGuests(lobbyInfo.allowGuests));
         dispatch(_setActive());
         if (isActiveHostTab) {
-          await _applyTurnCredentials(token);
+          // Confirm to the API that we're the active host. This handles the case
+          // where the peer ID changed (e.g. localStorage cleared) and ensures any
+          // fresh guests joining after a refresh see the correct hostPeerSessionId.
+          await Promise.all([
+            dispatch(
+              api.endpoints.patchLobby.initiate({
+                id: lobbyId,
+                patch: { hostPeerSessionId: myPeerId },
+              }),
+            )
+              .unwrap()
+              .catch((err) =>
+                console.warn("[lobby] host peer session patch failed:", err),
+              ),
+            _applyTurnCredentials(token),
+          ]);
           webrtcService.init((toUserId, signal) => {
             const currentToken = selectToken(getState());
             return sendSignal(currentToken ?? "", lobbyId, toUserId, signal);
