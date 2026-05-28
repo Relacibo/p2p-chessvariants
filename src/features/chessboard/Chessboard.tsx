@@ -13,6 +13,7 @@ import {
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
+  WasmPiece,
   WasmVariantConfig,
 } from "./types";
 import { getCachedImage, getPieceImageUrl, preloadAllPieceImages } from "./pieceImages";
@@ -36,6 +37,9 @@ export type ChessboardProps = {
   boardIndex?: number;
   onSubmitAction: (action: WasmAction) => void;
   lastAction?: WasmAction;
+  /** When set, highlights valid drop squares for this piece (from reserve pile). */
+  selectedDropPiece?: WasmPiece | null;
+  onClearDropPiece?: () => void;
   /** Pixel width/height of the board square. Defaults to 480. */
   size?: number;
 };
@@ -52,6 +56,8 @@ export function Chessboard({
   boardIndex = 0,
   onSubmitAction,
   lastAction,
+  selectedDropPiece = null,
+  onClearDropPiece,
   size = 480,
 }: ChessboardProps) {
   const { rows, cols } = boardState;
@@ -83,13 +89,24 @@ export function Chessboard({
   }, [variantConfig]);
 
   const validTargets = useMemo(() => {
-    if (!selected) return new Set<string>();
     const s = new Set<string>();
-    for (const a of validActions)
-      if (a.from && coordsEq(a.from, selected) && a.to)
-        s.add(`${a.to.row},${a.to.col}`);
+    if (selected) {
+      for (const a of validActions)
+        if (a.from && coordsEq(a.from, selected) && a.to)
+          s.add(`${a.to.row},${a.to.col}`);
+    }
+    if (selectedDropPiece) {
+      for (const a of validActions)
+        if (
+          a.type === "drop" &&
+          a.piece?.pieceType === selectedDropPiece.pieceType &&
+          a.piece?.color === selectedDropPiece.color &&
+          a.to
+        )
+          s.add(`${a.to.row},${a.to.col}`);
+    }
     return s;
-  }, [selected, validActions]);
+  }, [selected, selectedDropPiece, validActions]);
 
   const findAction = useCallback(
     (from: WasmBoardCoords, to: WasmBoardCoords) =>
@@ -123,6 +140,26 @@ export function Chessboard({
 
   const handleTileClick = (row: number, col: number) => {
     const clicked: WasmBoardCoords = { row, col, boardIndex };
+
+    // Drop from reserve pile
+    if (selectedDropPiece) {
+      const action = validActions.find(
+        (a) =>
+          a.type === "drop" &&
+          a.piece?.pieceType === selectedDropPiece.pieceType &&
+          a.piece?.color === selectedDropPiece.color &&
+          a.to &&
+          coordsEq(a.to, clicked)
+      );
+      if (action) {
+        onSubmitAction(action);
+        onClearDropPiece?.();
+      } else {
+        onClearDropPiece?.();
+      }
+      setSelected(null);
+      return;
+    }
 
     if (selected) {
       const action = findAction(selected, clicked);

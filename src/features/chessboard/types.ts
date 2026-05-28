@@ -43,7 +43,10 @@ export interface WasmBoardScriptConfig {
   disabled_rects: WasmDisabledRect[];
 }
 
-/** Variant config as returned by `variantConfigJson()`. */
+/** Reserve pile state as returned by `reservePileJson()`. */
+export interface WasmReservePileState {
+  reserve_piles: WasmPiece[][];
+}
 export interface WasmVariantConfig {
   name: string;
   version: string;

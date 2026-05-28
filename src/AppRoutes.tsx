@@ -7,6 +7,7 @@ import PlayView from "./features/home/PlayView";
 import CommunityView from "./features/users/CommunityView";
 import SettingsView from "./features/settings/SettingsView";
 import LobbyView from "./features/lobby/LobbyView";
+import DevBoardView from "./features/dev-board/DevBoardView";
 import { useSelector } from "react-redux";
 import { selectIsGuest } from "./features/auth/authSlice";
 
@@ -23,6 +24,7 @@ const AppRoutes = () => {
       <Route path="settings/:tab" element={isGuest ? <Navigate to="/" replace /> : <SettingsView />} />
       <Route path="lobby/:lobbyId" element={<LobbyView />} />
       <Route path="lobby/by-peer-id/:peerId" element={<LobbyView />} />
+      <Route path="dev" element={<DevBoardView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>
