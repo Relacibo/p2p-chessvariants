@@ -90,12 +90,12 @@ export default function LobbyView() {
   const userId = user?.id ?? null;
 
   // When token changes from null → new token (re-login after expiry), reset auto-join.
-  // Don't reset when the lobby is already active — token refreshes (e.g. silent 401 retry
-  // in baseQueryWithAuth) would otherwise trigger a full re-join mid-session.
+  // Don't reset when the lobby is already active or the user was kicked — token refreshes
+  // (e.g. silent 401 retry in baseQueryWithAuth) would otherwise trigger a full re-join.
   useEffect(() => {
     if (token && token !== prevTokenRef.current) {
       prevTokenRef.current = token;
-      if (hasAutoJoined && lobbyStatus.phase !== "active") {
+      if (hasAutoJoined && lobbyStatus.phase !== "active" && lobbyStatus.phase !== "kicked") {
         setHasAutoJoined(false);
         if (lobbyStatus.phase === "error") {
           dispatch(_setIdle());
@@ -190,7 +190,7 @@ export default function LobbyView() {
   // Auto-join when token is available and we haven't joined yet
   useEffect(() => {
     if (!type || !token || hasAutoJoined || tabRole !== "primary") return;
-    if (lobbyStatus.phase === "joining") return;
+    if (lobbyStatus.phase === "joining" || lobbyStatus.phase === "kicked") return;
     setHasAutoJoined(true);
     const run =
       type === "lobby"
@@ -274,6 +274,29 @@ export default function LobbyView() {
         <Center pt="xl">
           <Loader />
         </Center>
+      </PageContainer>
+    );
+  }
+
+  if (lobbyStatus.phase === "kicked") {
+    return (
+      <PageContainer>
+        <Paper p="md" maw={480} mx="auto">
+          <Stack>
+            <Alert color="red" title="Kicked">
+              You were kicked from the lobby.
+            </Alert>
+            <Button
+              variant="default"
+              onClick={() => {
+                dispatch(_setIdle());
+                navigate("/");
+              }}
+            >
+              Go to Home
+            </Button>
+          </Stack>
+        </Paper>
       </PageContainer>
     );
   }

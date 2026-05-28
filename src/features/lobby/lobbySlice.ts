@@ -25,6 +25,7 @@ export type LobbyStatus =
   | { phase: "joining" }
   | { phase: "active" }
   | { phase: "closed" }
+  | { phase: "kicked" }
   | { phase: "error"; message: string };
 
 export type LobbyInvite = {
@@ -86,6 +87,7 @@ export const {
     _setError,
     _setLobbyClosed,
     _setIdle,
+    _setKicked,
     _setLocalUserId,
     _setScriptUrl,
     _setServerLobbyId,
@@ -133,6 +135,19 @@ export const {
     },
     _setIdle: (state) => {
       state.status = { phase: "idle" };
+      state.scriptUrl = null;
+      state.localUserId = null;
+      state.serverLobbyId = null;
+      state.isHost = false;
+      state.isPrimaryTab = true;
+      state.myPeerId = null;
+      state.hostUserId = null;
+      state.hostPeerSessionId = null;
+      state.allowGuests = true;
+      state.players = [];
+    },
+    _setKicked: (state) => {
+      state.status = { phase: "kicked" };
       state.scriptUrl = null;
       state.localUserId = null;
       state.serverLobbyId = null;
@@ -591,7 +606,7 @@ function _initP2PAsJoiner(
         handleRemoteLobbyClosed(dispatch);
       },
       onKicked: () => {
-        dispatch(_setIdle());
+        dispatch(_setKicked());
         notifications.show({
           title: "Kicked",
           message: "You were kicked from the lobby.",
