@@ -170,7 +170,13 @@ impl ChessvariantEngine {
             .get("board")
             .ok_or_else(|| CvError::Internal("game_state has no 'board' key".into()))?
             .clone();
-        let board: game::state::BoardState = rhai::serde::from_dynamic(&board_dyn)?;
+        // BoardState is a Rhai CustomType — stored as a native Rust value, so use try_cast.
+        // Fall back to serde deserialization if the script stores it as a plain map.
+        let board = if let Some(b) = board_dyn.clone().try_cast::<game::state::BoardState>() {
+            b
+        } else {
+            rhai::serde::from_dynamic(&board_dyn)?
+        };
         let json = serde_json::to_string(&board)?;
         Ok(json)
     }
@@ -191,7 +197,11 @@ impl ChessvariantEngine {
                 None => return Ok(None),
             }
         };
-        let pile: ReservePileState = rhai::serde::from_dynamic(&pile_dyn)?;
+        let pile = if let Some(p) = pile_dyn.clone().try_cast::<ReservePileState>() {
+            p
+        } else {
+            rhai::serde::from_dynamic(&pile_dyn)?
+        };
         let json = serde_json::to_string(&pile)?;
         Ok(Some(json))
     }
