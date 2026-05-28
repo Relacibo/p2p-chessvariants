@@ -115,122 +115,68 @@ pub struct Piece {
         get = Self::get_piece_type_as_string
     )]
     piece_type: String,
+    // Stored as a raw string so arbitrary colors ("red", "blue", ...) survive
+    // serialization intact. The PieceColor enum is kept for standard logic helpers.
     #[rhai_type(set = Self::set_color_from_string, get = Self::get_color_as_string)]
-    color: PieceColor,
+    color: String,
     data: Option<Dynamic>,
 }
 
 impl Piece {
     pub fn rhai_new(color: String, piece_type: String) -> Self {
-        Self {
-            piece_type,
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type, color, data: None }
     }
 
     pub fn rhai_new_with_data(color: String, piece_type: String, data: Dynamic) -> Self {
-        Self {
-            piece_type,
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type, color, data: Some(data) }
     }
 
     pub fn rhai_make_king(color: String) -> Self {
-        Self {
-            piece_type: "king".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type: "king".to_string(), color, data: None }
     }
 
     pub fn rhai_make_king_with_data(color: String, data: Dynamic) -> Self {
-        Self {
-            piece_type: "king".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type: "king".to_string(), color, data: Some(data) }
     }
 
     pub fn rhai_make_queen(color: String) -> Self {
-        Self {
-            piece_type: "queen".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type: "queen".to_string(), color, data: None }
     }
 
     pub fn rhai_make_queen_with_data(color: String, data: Dynamic) -> Self {
-        Self {
-            piece_type: "queen".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type: "queen".to_string(), color, data: Some(data) }
     }
 
     pub fn rhai_make_knight(color: String) -> Self {
-        Self {
-            piece_type: "knight".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type: "knight".to_string(), color, data: None }
     }
 
     pub fn rhai_make_knight_with_data(color: String, data: Dynamic) -> Self {
-        Self {
-            piece_type: "knight".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type: "knight".to_string(), color, data: Some(data) }
     }
 
     pub fn rhai_make_bishop(color: String) -> Self {
-        Self {
-            piece_type: "bishop".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type: "bishop".to_string(), color, data: None }
     }
 
     pub fn rhai_make_bishop_with_data(color: String, data: Dynamic) -> Self {
-        Self {
-            piece_type: "bishop".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type: "bishop".to_string(), color, data: Some(data) }
     }
 
     pub fn rhai_make_rook(color: String) -> Self {
-        Self {
-            piece_type: "rook".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type: "rook".to_string(), color, data: None }
     }
 
     pub fn rhai_make_rook_with_data(color: String, data: Dynamic) -> Self {
-        Self {
-            piece_type: "rook".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type: "rook".to_string(), color, data: Some(data) }
     }
 
     pub fn rhai_make_pawn(color: String) -> Self {
-        Self {
-            piece_type: "pawn".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: None,
-        }
+        Self { piece_type: "pawn".to_string(), color, data: None }
     }
 
     pub fn rhai_make_pawn_with_data(color: String, data: Dynamic) -> Self {
-        Self {
-            piece_type: "pawn".to_string(),
-            color: color.try_into().unwrap_or_default(),
-            data: Some(data),
-        }
+        Self { piece_type: "pawn".to_string(), color, data: Some(data) }
     }
 
     pub fn build_rhai_type(builder: &mut TypeBuilder<Self>) {
@@ -260,19 +206,19 @@ impl Piece {
     }
 
     pub fn set_color_from_string(&mut self, value: String) {
-        self.color = value.try_into().unwrap_or_default();
+        self.color = value;
     }
 
     pub fn get_color_as_string(&self) -> String {
-        self.color.to_string()
+        self.color.clone()
     }
 
     pub fn piece_type_name(&self) -> &str {
         &self.piece_type
     }
 
-    pub fn color_name(&self) -> &'static str {
-        self.color.as_str()
+    pub fn color_name(&self) -> &str {
+        &self.color
     }
 }
 

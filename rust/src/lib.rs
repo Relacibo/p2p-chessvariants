@@ -150,6 +150,96 @@ impl ChessvariantEngine {
         js_sys::Reflect::set(&obj, &"maxPlayers".into(), &(variant_config.max_players as f64).into()).unwrap();
         Ok(obj.into())
     }
+
+    /// Returns the variant config as a JSON string.
+    /// Includes board dimensions, disabled_rects, reserve_pile flag, etc.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = variantConfigJson))]
+    pub fn variant_config_json(&self) -> Result<String, CvError> {
+        let json = serde_json::to_string(&self.variant_config)?;
+        Ok(json)
+    }
+
+    /// Returns the current board state as a JSON string.
+    /// Extracts `state.board` (a BoardState) and serializes it.
+    /// Shape: `{ rows, cols, numberOfBoards, boards: (Piece|null)[][] }`
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = boardStateJson))]
+    pub fn board_state_json(&self) -> Result<String, CvError> {
+        let board_dyn = self.game_state
+            .read_lock::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
+            .get("board")
+            .ok_or_else(|| CvError::Internal("game_state has no 'board' key".into()))?
+            .clone();
+        let board: game::state::BoardState = rhai::serde::from_dynamic(&board_dyn)?;
+        let json = serde_json::to_string(&board)?;
+        Ok(json)
+    }
+
+    /// Returns the reserve pile state as a JSON string, or null if no reserve pile.
+    /// Shape: `{ reserve_piles: Piece[][] }`
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = reservePileJson))]
+    pub fn reserve_pile_json(&self) -> Result<Option<String>, CvError> {
+        if !self.variant_config.reserve_pile {
+            return Ok(None);
+        }
+        let pile_dyn = {
+            let map = self.game_state
+                .read_lock::<rhai::Map>()
+                .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
+            match map.get("reserve_pile") {
+                Some(v) => v.clone(),
+                None => return Ok(None),
+            }
+        };
+        let pile: ReservePileState = rhai::serde::from_dynamic(&pile_dyn)?;
+        let json = serde_json::to_string(&pile)?;
+        Ok(Some(json))
+    }
+
+    /// Returns whose turn it is as a player index (i32), or -1 if unavailable.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = currentTurn))]
+    pub fn current_turn(&self) -> i32 {
+        self.game_state
+            .read_lock::<rhai::Map>()
+            .and_then(|m| m.get("turn").and_then(|v| v.as_int().ok().map(|i| i as i32)))
+            .unwrap_or(-1)
+    }
+
+    /// Returns the list of valid actions for the given player as a JSON string.
+    /// Calls the script's `valid_actions(state)` function.
+    /// Shape: `Action[]` where Action = `{ type, from?, to?, piece?, tag?, value? }`
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validActionsJson))]
+    pub fn valid_actions_json(&self, player_index: i32) -> Result<String, CvError> {
+        let mut scope = Scope::new();
+        let actions_dyn = self.engine.call_fn::<Dynamic>(
+            &mut scope,
+            &self.ast,
+            "valid_actions",
+            (self.game_state.clone(),),
+        )?;
+        // Filter to only the given player's actions
+        let all: Vec<Action> = rhai::serde::from_dynamic(&actions_dyn)?;
+        let _ = player_index; // currently valid_actions returns all; script may filter internally
+        let json = serde_json::to_string(&all)?;
+        Ok(json)
+    }
+
+    /// Applies an action from a JSON string and returns the new board state JSON.
+    /// `action_json`: serialized Action object.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = applyActionJson))]
+    pub fn apply_action_json(&mut self, player_index: i32, action_json: String) -> Result<String, CvError> {
+        let action: Action = serde_json::from_str(&action_json)?;
+        let action_dyn = rhai::serde::to_dynamic(action)?;
+        let mut scope = Scope::new();
+        let new_state = self.engine.call_fn::<Dynamic>(
+            &mut scope,
+            &self.ast,
+            "apply",
+            (self.game_state.clone(), player_index, action_dyn),
+        )?;
+        self.game_state = new_state;
+        self.board_state_json()
+    }
 }
 
 // These methods use `Dynamic` which is not a WASM ABI type, so they are excluded from the

@@ -1,10 +1,13 @@
 use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
+use serde::{Deserialize, Serialize};
 
 use super::{piece::Piece, state::BoardCoords};
 
-#[derive(Clone, Debug, Default, CustomType, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, CustomType, PartialEq)]
+#[serde(rename_all = "camelCase")]
 #[rhai_type(extra = Self::build_rhai_type)]
 pub struct Action {
+    #[serde(rename = "type")]
     #[rhai_type(name = "type", get = Self::get_type)]
     pub kind: String,
     #[rhai_type(get = Self::get_from)]

@@ -21,6 +21,10 @@ pub enum CvError {
         enum_type: String,
         converting_from: String,
     },
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("Internal error: {0}")]
+    Internal(String),
     #[error("Unexpected")]
     Unexpected,
 }
@@ -55,12 +59,14 @@ impl CvJsError {
 impl From<CvError> for CvJsError {
     fn from(value: CvError) -> Self {
         use CvError::*;
-        let name = match value {
+        let name = match &value {
             RhaiEvalAlt(_) => "rhai-eval-alt".to_owned(),
             RhaiParse(_) => "rhai-parse".to_owned(),
             Unexpected => "unexpected".to_owned(),
             RhaiFunctionReturnObject { .. } => "rhai-function-return-object".to_owned(),
             EnumConversion { .. } => "enum-conversion".to_owned(),
+            Json(_) => "json".to_owned(),
+            Internal(_) => "internal".to_owned(),
         };
         CvJsError {
             name,

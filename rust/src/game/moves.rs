@@ -6,7 +6,7 @@ fn push_coord(result: &mut Vec<BoardCoords>, coords: BoardCoords) {
     result.push(coords);
 }
 
-fn board_piece_color(board: &BoardState, coords: &BoardCoords) -> Option<&'static str> {
+fn board_piece_color<'a>(board: &'a BoardState, coords: &BoardCoords) -> Option<&'a str> {
     board.get_piece(coords).map(|piece| piece.color_name())
 }
 

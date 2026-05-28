@@ -32,6 +32,20 @@ pub struct BoardScriptConfig {
     pub cols: i32,
     #[serde(default = "default_board_count")]
     pub count: i32,
+    /// Rectangular regions that are not part of the playable board (e.g. cut corners
+    /// in four-player chess). Each entry is `[r1, c1, r2, c2]` — top-left and size.
+    #[serde(default)]
+    pub disabled_rects: Vec<DisabledRect>,
+}
+
+/// A rectangular region of tiles that are disabled (not rendered, not playable).
+/// `r1`/`c1` = top-left corner, `r2`/`c2` = width/height of the region.
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+pub struct DisabledRect {
+    pub r1: i32,
+    pub c1: i32,
+    pub r2: i32,
+    pub c2: i32,
 }
 
 fn default_board_count() -> i32 {
