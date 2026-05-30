@@ -43,16 +43,22 @@ export interface WasmBoardScriptConfig {
   disabled_rects: WasmDisabledRect[];
 }
 
-/** Reserve pile state as returned by `reservePileJson()`. */
+export interface WasmPlayerConfig {
+  name: string;
+  color: string;
+  board: number;
+  team: string;
+}
+
 export interface WasmReservePileState {
   reserve_piles: WasmPiece[][];
 }
+
 export interface WasmVariantConfig {
   name: string;
   version: string;
   api_version: number;
-  min_players: number;
-  max_players: number;
+  players: WasmPlayerConfig[];
   reserve_pile: boolean;
   check_protection: boolean;
   board: WasmBoardScriptConfig;

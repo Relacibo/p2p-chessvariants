@@ -41,7 +41,7 @@ const PRESETS = [
 interface LogEntry {
   id: number;
   timestamp: string;
-  playerIndex: number;
+  player: string;
   action: WasmAction;
 }
 
@@ -76,14 +76,14 @@ export function DevBoardView() {
   const [preset, setPreset] = useState<string>(PRESETS[0].value);
   const [customUrl, setCustomUrl] = useState("");
   const [playerCount, setPlayerCount] = useState<number | string>(2);
-  const [controllingPlayer, setControllingPlayer] = useState(0);
+  const [controllingPlayer, setControllingPlayer] = useState<string>("");
+  const [activePlayers, setActivePlayers] = useState<string[]>([]);
 
   const engineRef = useRef<ChessvariantEngine | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(null);
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
   const [reservePile, setReservePile] = useState<WasmReservePileState | null>(null);
   const [validActions, setValidActions] = useState<WasmAction[]>([]);
-  const [currentTurn, setCurrentTurn] = useState(0);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
   const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(null);
   const [loading, setLoading] = useState(false);
@@ -113,22 +113,34 @@ export function DevBoardView() {
   const showReserveSide = sideSpace >= reservePileWidth + 8;
 
   // ── Engine helpers ────────────────────────────────────────────────────────
-  const syncState = useCallback((engine: ChessvariantEngine, turn: number) => {
+  const syncState = useCallback((engine: ChessvariantEngine) => {
     setBoardState(JSON.parse(engine.boardStateJson()));
-    setCurrentTurn(turn);
-    let va: WasmAction[] = [];
-    try {
-      va = JSON.parse(engine.validActionsJson(turn));
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("validActionsJson threw:", err);
+    
+    const ap: string[] = JSON.parse(engine.activePlayersJson());
+    setActivePlayers(ap);
+    
+    // Dev-mode: if no controllingPlayer set, use first active player
+    if (!controllingPlayer || !ap.includes(controllingPlayer)) {
+      setControllingPlayer(ap[0] ?? "");
     }
-    // eslint-disable-next-line no-console
-    console.log("syncState: turn", turn, "validActions", va.length, "first:", JSON.stringify(va[0]));
-    setValidActions(va);
+    
+    // Valid actions for controlling player
+    if (controllingPlayer) {
+      let va: WasmAction[] = [];
+      try {
+        va = JSON.parse(engine.validActionsJson(controllingPlayer));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("validActionsJson threw:", err);
+      }
+      // eslint-disable-next-line no-console
+      console.log("syncState: player", controllingPlayer, "validActions", va.length, "first:", JSON.stringify(va[0]));
+      setValidActions(va);
+    }
+    
     const rpJson = engine.reservePileJson();
     setReservePile(rpJson ? JSON.parse(rpJson) : null);
-  }, []);
+  }, [controllingPlayer]);
 
   const loadScript = useCallback(
     async (url: string, numPlayers: number) => {
@@ -146,9 +158,10 @@ export function DevBoardView() {
         const engine = new ChessvariantEngine(script, numPlayers);
         engineRef.current = engine;
         setVariantConfig(JSON.parse(engine.variantConfigJson()));
-        const initTurn = engine.currentTurn();
-        setControllingPlayer(initTurn);
-        syncState(engine, initTurn);
+        const initPlayers: string[] = JSON.parse(engine.activePlayersJson());
+        setControllingPlayer(initPlayers[0] ?? "");
+        setActivePlayers(initPlayers);
+        syncState(engine);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
       } finally {
@@ -183,23 +196,21 @@ export function DevBoardView() {
   const handleSubmitAction = useCallback(
     (action: WasmAction) => {
       const engine = engineRef.current;
-      if (!engine) return;
+      if (!engine || !controllingPlayer) return;
       try {
-        engine.applyActionJson(currentTurn, JSON.stringify(action));
-        const newTurn = engine.currentTurn();
+        engine.applyActionJson(controllingPlayer, JSON.stringify(action));
         setLastAction(action);
         setSelectedDropPiece(null);
         setLog((prev) => [
           ...prev,
-          { id: ++logSeq, timestamp: new Date().toLocaleTimeString(), playerIndex: currentTurn, action },
+          { id: ++logSeq, timestamp: new Date().toLocaleTimeString(), player: controllingPlayer, action },
         ]);
-        syncState(engine, newTurn);
-        setControllingPlayer(newTurn);
+        syncState(engine);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
       }
     },
-    [currentTurn, syncState]
+    [controllingPlayer, syncState]
   );
 
   // ── Render ────────────────────────────────────────────────────────────────

@@ -8,8 +8,7 @@ fn config() {
         api_version: 1,
         name: "Simple Chess (test)",
         version: "1.0.0",
-        min_players: 2,
-        max_players: 2,
+        players: ["white", "black"],
         board: #{ type: "rectangle", rows: 8, cols: 8 },
     }
 }
@@ -17,23 +16,33 @@ fn config() {
 fn init(player_count) {
     #{
         board: standard_start_position(),
-        turn: 0,
+        active_players: ["white"],
+        running_clocks: ["white"],
         game_over: (),
     }
 }
 
+fn valid_actions(state, player) {
+    // Simple chess doesn't define valid_actions - any piece can move anywhere
+    []
+}
+
 fn apply(state, player, action) {
-    if player != state.turn { throw `not your turn (expected ${state.turn}, got ${player})`; }
+    if !state.active_players.contains(player) { throw `${player} is not active`; }
     if action.type != "move" { throw "only move actions are supported"; }
 
     let src_piece = board_get(state.board, action.from);
     if src_piece == () { throw "no piece at source square"; }
 
-    let player_colors = ["white", "black"];
-    if src_piece.color != player_colors[player] { throw "that piece does not belong to you"; }
+    // Get player's color from state.players
+    let player_color = state.players
+        .filter(|p| p.name == player)
+        .map(|p| p.color)
+        .head();
+    if src_piece.color != player_color { throw "that piece does not belong to you"; }
 
     let dst_piece = board_get(state.board, action.to);
-    if dst_piece != () && dst_piece.color == player_colors[player] { throw "cannot capture your own piece"; }
+    if dst_piece != () && dst_piece.color == player_color { throw "cannot capture your own piece"; }
 
     let new_board = board_move_piece(state.board, action.from, action.to);
 
@@ -43,8 +52,11 @@ fn apply(state, player, action) {
         game_over = Winner(player);
     }
 
+    // Switch turn
+    let next = if player == "white" { "black" } else { "white" };
     state.board = new_board;
-    state.turn = (state.turn + 1) % 2;
+    state.active_players = [next];
+    state.running_clocks = [next];
     state.game_over = game_over;
     state
 }

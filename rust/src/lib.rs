@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use error::CvError;
 use game::{
     actions::Action,
@@ -35,7 +36,7 @@ pub struct ChessvariantEngine {
     ast: AST,
     pub(crate) game_state: Dynamic,
     pub(crate) variant_config: VariantConfig,
-    pub(crate) cached_valid_actions: Option<(i32, Vec<Action>)>,
+    pub(crate) cached_valid_actions: Option<(String, Vec<Action>)>,
 }
 
 fn action_to_rhai_dynamic(action: Action) -> Dynamic {
@@ -144,8 +145,8 @@ fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
 
     engine.register_fn(
         "engine_valid_actions",
-        move |state: rhai::Dynamic| -> rhai::Array {
-            engine_builtins::engine_valid_actions_impl(state, check_protection, &cp_valid)
+        move |state: rhai::Dynamic, player: String| -> rhai::Array {
+            engine_builtins::engine_valid_actions_impl(state, player, check_protection, &cp_valid)
         },
     );
 
@@ -186,7 +187,42 @@ impl ChessvariantEngine {
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
         register_engine_builtins(&mut engine, &variant_config);
-        let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
+        let mut game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
+        
+        // Auto-populate players and teams from config into the game state
+        {
+            let mut state_map = game_state
+                .read_lock::<rhai::Map>()
+                .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
+                .clone();
+            
+            // Build players array from config
+            let players_arr: rhai::Array = variant_config.players.iter().map(|p| {
+                let mut m = rhai::Map::new();
+                m.insert("name".into(), Dynamic::from(p.name.clone()));
+                m.insert("color".into(), Dynamic::from(p.color.clone()));
+                m.insert("board".into(), Dynamic::from(p.board as i64));
+                m.insert("team".into(), Dynamic::from(p.team.clone()));
+                Dynamic::from_map(m)
+            }).collect();
+            state_map.insert("players".into(), Dynamic::from(players_arr));
+            
+            // Build teams map from config
+            let mut teams_map: HashMap<String, rhai::Array> = HashMap::new();
+            for p in &variant_config.players {
+                teams_map.entry(p.team.clone())
+                    .or_insert_with(|| rhai::Array::new())
+                    .push(Dynamic::from(p.name.clone()));
+            }
+            // Convert HashMap to rhai::Map
+            let mut teams_rhai = rhai::Map::new();
+            for (k, v) in teams_map {
+                teams_rhai.insert(k.into(), Dynamic::from(v));
+            }
+            state_map.insert("teams".into(), Dynamic::from_map(teams_rhai));
+            
+            game_state = Dynamic::from_map(state_map);
+        }
 
         Ok(ChessvariantEngine {
             engine,
@@ -202,18 +238,14 @@ impl ChessvariantEngine {
         self.variant_config.name.clone()
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
-    pub fn min_players(&self) -> i32 {
-        self.variant_config.min_players
-    }
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
-    pub fn max_players(&self) -> i32 {
-        self.variant_config.max_players
+    /// Returns the number of players defined in the config.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playerCount))]
+    pub fn player_count(&self) -> i32 {
+        self.variant_config.players.len() as i32
     }
 
     /// Parse only the `config()` section of a script (no game init).
-    /// Returns `{ name, minPlayers, maxPlayers }` as a JS object.
+    /// Returns `{ name, playerCount }` as a JS object.
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen(js_name = parseConfig)]
     pub fn parse_config(script_content: String) -> Result<JsValue, CvError> {
@@ -225,8 +257,7 @@ impl ChessvariantEngine {
         let variant_config: VariantConfig = dynamic_config.try_into()?;
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(&obj, &"name".into(), &variant_config.name.into()).unwrap();
-        js_sys::Reflect::set(&obj, &"minPlayers".into(), &(variant_config.min_players as f64).into()).unwrap();
-        js_sys::Reflect::set(&obj, &"maxPlayers".into(), &(variant_config.max_players as f64).into()).unwrap();
+        js_sys::Reflect::set(&obj, &"playerCount".into(), &(variant_config.players.len() as f64).into()).unwrap();
         Ok(obj.into())
     }
 
@@ -294,32 +325,57 @@ impl ChessvariantEngine {
             .unwrap_or(-1)
     }
 
+    /// Returns the list of active player names as a JSON string array.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = activePlayersJson))]
+    pub fn active_players_json(&self) -> Result<String, CvError> {
+        let ap = self.game_state
+            .read_lock::<rhai::Map>()
+            .and_then(|m| m.get("active_players").cloned())
+            .and_then(|v| v.try_cast::<rhai::Array>());
+        match ap {
+            Some(arr) => {
+                let names: Vec<String> = arr.iter()
+                    .filter_map(|d| d.clone().into_string().ok())
+                    .collect();
+                Ok(serde_json::to_string(&names)?)
+            }
+            None => Ok("[]".into()),
+        }
+    }
+
+    /// Returns the list of player names (from config) as a JSON string array.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playersJson))]
+    pub fn players_json(&self) -> Result<String, CvError> {
+        let names: Vec<&str> = self.variant_config.players.iter().map(|p| p.name.as_str()).collect();
+        Ok(serde_json::to_string(&names)?)
+    }
+
     /// Returns the list of valid actions for the given player as a JSON string.
-    /// Calls the script's `valid_actions(state)` function.
+    /// Calls the script's `valid_actions(state, player)` function.
     /// Returns `[]` if the script does not define `valid_actions`.
     /// Shape: `Action[]` where Action = `{ type, from?, to?, piece?, tag?, value? }`
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validActionsJson))]
-    pub fn valid_actions_json(&mut self, player_index: i32) -> Result<String, CvError> {
+    pub fn valid_actions_json(&mut self, player: String) -> Result<String, CvError> {
         // Check cache first
         if let Some((cached_player, cached_actions)) = &self.cached_valid_actions {
-            if *cached_player == player_index {
+            if *cached_player == player {
                 return Ok(serde_json::to_string(cached_actions)?);
             }
         }
         // Cache miss - compute and cache
-        let actions = self.compute_valid_actions(player_index)?;
-        self.cached_valid_actions = Some((player_index, actions.clone()));
+        let actions = self.compute_valid_actions(&player)?;
+        self.cached_valid_actions = Some((player.clone(), actions.clone()));
         Ok(serde_json::to_string(&actions)?)
     }
 
     /// Internal method to compute valid actions for a player (used for caching).
-    fn compute_valid_actions(&self, player_index: i32) -> Result<Vec<Action>, CvError> {
+    fn compute_valid_actions(&self, player: &str) -> Result<Vec<Action>, CvError> {
         let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
             "valid_actions",
-            (self.game_state.clone(),),
+            (self.game_state.clone(), player.to_string()),
         );
         let actions_dyn = match result {
             Ok(v) => v,
@@ -328,7 +384,6 @@ impl ChessvariantEngine {
             }
             Err(e) => return Err(CvError::from(e)),
         };
-        // Filter to only the given player's actions
         // The array may contain native Rhai CustomType (Action) or serde-mapped objects.
         let all: Vec<Action> = {
             let arr = actions_dyn
@@ -343,14 +398,13 @@ impl ChessvariantEngine {
                 })
                 .collect()
         };
-        let _ = player_index; // currently valid_actions returns all; script may filter internally
         Ok(all)
     }
 
     /// Applies an action from a JSON string and returns the new board state JSON.
     /// `action_json`: serialized Action object.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = applyActionJson))]
-    pub fn apply_action_json(&mut self, player_index: i32, action_json: String) -> Result<String, CvError> {
+    pub fn apply_action_json(&mut self, player: String, action_json: String) -> Result<String, CvError> {
         let action: Action = serde_json::from_str(&action_json)?;
         // Convert to a Rhai map that contains native BoardCoords so scripts can use
         // board_get(board, action.from) etc. without type errors.
@@ -360,16 +414,11 @@ impl ChessvariantEngine {
             &mut scope,
             &self.ast,
             "apply",
-            (self.game_state.clone(), player_index, action_dyn),
+            (self.game_state.clone(), player.clone(), action_dyn),
         )?;
         self.game_state = new_state;
-        // Compute and cache valid actions for the next player
-        let next_turn = self.current_turn();
-        if next_turn >= 0 {
-            if let Ok(actions) = self.compute_valid_actions(next_turn) {
-                self.cached_valid_actions = Some((next_turn, actions));
-            }
-        }
+        // Invalidate cache after apply
+        self.cached_valid_actions = None;
         self.board_state_json()
     }
 
@@ -383,15 +432,15 @@ impl ChessvariantEngine {
 // These methods use `Dynamic` which is not a WASM ABI type, so they are excluded from the
 // wasm_bindgen impl block. They are available for native use and integration tests.
 impl ChessvariantEngine {
-    /// Applies an action submitted by `player_index`.
+    /// Applies an action submitted by `player`.
     /// Returns the new state on success, or an error if the script rejects the action.
-    pub fn apply(&mut self, player_index: i32, action: Dynamic) -> Result<Dynamic, CvError> {
+    pub fn apply(&mut self, player: String, action: Dynamic) -> Result<Dynamic, CvError> {
         let mut scope = Scope::new();
         let new_state = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
             "apply",
-            (self.game_state.clone(), player_index, action),
+            (self.game_state.clone(), player.clone(), action),
         )?;
         self.game_state = new_state.clone();
         Ok(new_state)

@@ -165,10 +165,11 @@ pub fn is_king_in_check(
     false
 }
 
-/// Core implementation of `engine_valid_actions(state)`.
-/// Generates all legal moves for the player whose turn it is in `state`.
+/// Core implementation of `engine_valid_actions(state, player)`.
+/// Generates all legal moves for the given player.
 pub fn engine_valid_actions_impl(
     state: Dynamic,
+    player: String,
     check_protection: bool,
     custom_pieces: &HashMap<String, Vec<String>>,
 ) -> Array {
@@ -186,15 +187,8 @@ pub fn engine_valid_actions_impl(
         None => return Array::new(),
     };
 
-    let turn = map
-        .get("turn")
-        .and_then(|t| t.as_int().ok())
-        .unwrap_or(0) as i32;
-
-    let color = match turn % 2 {
-        0 => "white",
-        _ => "black",
-    };
+    // Get player's color from state.players
+    let color = get_player_color(&map, &player).unwrap_or("white".to_string());
 
     let mut actions = Array::new();
 
@@ -210,13 +204,13 @@ pub fn engine_valid_actions_impl(
                 }
 
                 let piece_type = piece.piece_type_name().to_string();
-                let dests = get_pseudo_move_dests(&board, &from, &piece_type, color, custom_pieces);
+                let dests = get_pseudo_move_dests(&board, &from, &piece_type, &color, custom_pieces);
 
                 for dest in dests {
                     if check_protection {
                         let mut temp_board = board.clone();
                         apply_move_to_board(&mut temp_board, &from, &dest);
-                        if is_king_in_check(&temp_board, color, custom_pieces) {
+                        if is_king_in_check(&temp_board, &color, custom_pieces) {
                             continue;
                         }
                     }
@@ -227,4 +221,16 @@ pub fn engine_valid_actions_impl(
     }
 
     actions
+}
+
+/// Helper to get a player's color from state.players
+fn get_player_color(map: &rhai::Map, player: &str) -> Option<String> {
+    let players_arr = map.get("players")?.clone().try_cast::<rhai::Array>()?;
+    for p in players_arr {
+        let pm = p.try_cast::<rhai::Map>()?;
+        if pm.get("name")?.clone().into_string().ok()? == player {
+            return pm.get("color")?.clone().into_string().ok();
+        }
+    }
+    None
 }
