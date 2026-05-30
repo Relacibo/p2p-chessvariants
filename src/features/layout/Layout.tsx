@@ -59,7 +59,7 @@ function Layout(props: LayoutProps) {
       }}
     >
       <AppShell
-        header={isMobile ? { height: { base: 50 } } : undefined}
+        header={{ height: { base: 50, sm: 70 } }}
         navbar={{
           collapsed: {
             mobile: sidebarCollapsed,
