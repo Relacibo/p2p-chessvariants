@@ -12,6 +12,9 @@
     "build": "yarn wasm && tsc && vite build",
     "preview": "vite preview",
     "postinstall": "node scripts/postinstall.js"
+    "lint:ts": "tsc --noEmit",
+    "lint:rust": "cargo check --manifest-path=rust/Cargo.toml",
+     "lint": "yarn lint:ts && yarn lint:rust"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
