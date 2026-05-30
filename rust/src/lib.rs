@@ -35,6 +35,7 @@ pub struct ChessvariantEngine {
     ast: AST,
     pub(crate) game_state: Dynamic,
     pub(crate) variant_config: VariantConfig,
+    pub(crate) cached_valid_actions: Option<(i32, Vec<Action>)>,
 }
 
 fn action_to_rhai_dynamic(action: Action) -> Dynamic {
@@ -192,6 +193,7 @@ impl ChessvariantEngine {
             ast,
             game_state,
             variant_config,
+            cached_valid_actions: None,
         })
     }
 
@@ -297,7 +299,21 @@ impl ChessvariantEngine {
     /// Returns `[]` if the script does not define `valid_actions`.
     /// Shape: `Action[]` where Action = `{ type, from?, to?, piece?, tag?, value? }`
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validActionsJson))]
-    pub fn valid_actions_json(&self, player_index: i32) -> Result<String, CvError> {
+    pub fn valid_actions_json(&mut self, player_index: i32) -> Result<String, CvError> {
+        // Check cache first
+        if let Some((cached_player, cached_actions)) = &self.cached_valid_actions {
+            if *cached_player == player_index {
+                return Ok(serde_json::to_string(cached_actions)?);
+            }
+        }
+        // Cache miss - compute and cache
+        let actions = self.compute_valid_actions(player_index)?;
+        self.cached_valid_actions = Some((player_index, actions.clone()));
+        Ok(serde_json::to_string(&actions)?)
+    }
+
+    /// Internal method to compute valid actions for a player (used for caching).
+    fn compute_valid_actions(&self, player_index: i32) -> Result<Vec<Action>, CvError> {
         let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
@@ -308,7 +324,7 @@ impl ChessvariantEngine {
         let actions_dyn = match result {
             Ok(v) => v,
             Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(_, _)) => {
-                return Ok("[]".to_string());
+                return Ok(vec![]);
             }
             Err(e) => return Err(CvError::from(e)),
         };
@@ -328,8 +344,7 @@ impl ChessvariantEngine {
                 .collect()
         };
         let _ = player_index; // currently valid_actions returns all; script may filter internally
-        let json = serde_json::to_string(&all)?;
-        Ok(json)
+        Ok(all)
     }
 
     /// Applies an action from a JSON string and returns the new board state JSON.
@@ -348,6 +363,13 @@ impl ChessvariantEngine {
             (self.game_state.clone(), player_index, action_dyn),
         )?;
         self.game_state = new_state;
+        // Compute and cache valid actions for the next player
+        let next_turn = self.current_turn();
+        if next_turn >= 0 {
+            if let Ok(actions) = self.compute_valid_actions(next_turn) {
+                self.cached_valid_actions = Some((next_turn, actions));
+            }
+        }
         self.board_state_json()
     }
 
