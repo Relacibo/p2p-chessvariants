@@ -1,0 +1,60 @@
+- generic [ref=e3]:
+  - main [ref=e4]:
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - heading "Waiting for players..." [level=2] [ref=e61]
+          - paragraph [ref=e62]: "Variant: 4 Player Chess"
+        - link "Source" [ref=e63] [cursor=pointer]:
+          - /url: https://github.com/Relacibo/p2p-chessvariants/blob/be9983ee0604a3c6f15bae6e050ec8cd9d845775/variants/four_player_chess.rhai
+          - generic [ref=e64]:
+            - img [ref=e66]
+            - generic [ref=e68]: Source
+      - generic [ref=e69]:
+        - paragraph [ref=e70]: Invite link
+        - generic [ref=e71]:
+          - img [ref=e72]
+          - generic [ref=e76]:
+            - textbox [ref=e77]: https://ggchess.org/lobby/785c8558-4e57-4a5a-b703-8c255cdbcf6e
+            - button "Copy link" [ref=e79] [cursor=pointer]:
+              - img [ref=e81]
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - paragraph [ref=e86]: Connected Players
+          - generic [ref=e88]: "2"
+        - list [ref=e90]:
+          - listitem [ref=e91]:
+            - generic [ref=e92]:
+              - img [ref=e95]
+              - generic [ref=e99]:
+                - paragraph [ref=e100]: Relacibo
+                - generic [ref=e105]: Host
+          - listitem [ref=e106]:
+            - generic [ref=e107]:
+              - img [ref=e110]
+              - paragraph [ref=e115]: PWWatcher
+      - button "Leave lobby" [ref=e117] [cursor=pointer]:
+        - generic [ref=e119]: Leave lobby
+  - navigation [ref=e23]:
+    - link "gg ggchess.org" [ref=e25] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e26]:
+        - img "gg" [ref=e28]
+        - paragraph [ref=e29]: ggchess.org
+    - generic [ref=e31]:
+      - link "Play" [ref=e32] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e33]:
+          - img [ref=e34]
+          - text: Play
+      - link "Community" [ref=e37] [cursor=pointer]:
+        - /url: /community
+        - generic [ref=e38]:
+          - img [ref=e39]
+          - text: Community
+    - generic [ref=e45]:
+      - generic [ref=e47]:
+        - switch "Dark mode" [ref=e48]
+        - generic [ref=e53] [cursor=pointer]: Dark mode
+      - button "Guest PWWatcher (Log out)" [ref=e120] [cursor=pointer]:
+        - generic [ref=e122]: Guest PWWatcher (Log out)

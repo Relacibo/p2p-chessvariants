@@ -1,0 +1,49 @@
+- generic [ref=e3]:
+  - main [ref=e4]:
+    - generic [ref=e7]:
+      - generic [ref=e11]:
+        - heading "Create Lobby" [level=3] [ref=e12]
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]:
+              - generic [ref=e17]: Select Variant
+              - generic [ref=e18]:
+                - button "Select Variant" [ref=e19] [cursor=pointer]: Pick a variant
+                - generic:
+                  - img
+            - button [ref=e20] [cursor=pointer]:
+              - img [ref=e22]
+          - generic [ref=e25] [cursor=pointer]:
+            - generic [ref=e26]:
+              - checkbox "Create server lobby" [disabled] [ref=e27]
+              - img
+            - generic [ref=e28]:
+              - generic [ref=e29]: Create server lobby
+              - paragraph [ref=e30]: Enable server-side lobby tracking/events
+          - button "Create Lobby" [ref=e31] [cursor=pointer]:
+            - generic [ref=e33]: Create Lobby
+      - heading "Active Games & Lobbies" [level=3] [ref=e36]
+  - navigation [ref=e39]:
+    - link "gg ggchess.org" [ref=e41] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e42]:
+        - img "gg" [ref=e44]
+        - paragraph [ref=e45]: ggchess.org
+    - generic [ref=e47]:
+      - link "Play" [ref=e48] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e49]:
+          - img [ref=e50]
+          - text: Play
+      - link "Community" [ref=e53] [cursor=pointer]:
+        - /url: /community
+        - generic [ref=e54]:
+          - img [ref=e55]
+          - text: Community
+    - generic [ref=e61]:
+      - generic [ref=e63]:
+        - switch "Dark mode" [ref=e64]
+        - generic [ref=e69] [cursor=pointer]: Dark mode
+      - link "Log in" [ref=e70] [cursor=pointer]:
+        - /url: /auth/login
+        - generic [ref=e72]: Log in
