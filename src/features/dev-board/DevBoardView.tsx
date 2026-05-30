@@ -225,21 +225,21 @@ export function DevBoardView() {
           <Loader />
         </Box>
       )}
-      {!loading && boardState && variantConfig && (
-        <Chessboard
-          variantConfig={variantConfig}
-          boardState={boardState}
-          validActions={validActions}
-          playerIndex={controllingPlayer}
-          onSubmitAction={handleSubmitAction}
-          lastAction={lastAction}
-          selectedDropPiece={selectedDropPiece}
-          onClearDropPiece={() => setSelectedDropPiece(null)}
-          size={boardSize}
-          stageWidth={containerSize.w}
-          stageHeight={containerSize.h}
-        />
-      )}
+       {!loading && boardState && variantConfig && (
+         <Chessboard
+           variantConfig={variantConfig}
+           boardState={boardState}
+           validActions={validActions}
+           player={controllingPlayer}
+           onSubmitAction={handleSubmitAction}
+           lastAction={lastAction}
+           selectedDropPiece={selectedDropPiece}
+           onClearDropPiece={() => setSelectedDropPiece(null)}
+           size={boardSize}
+           stageWidth={containerSize.w}
+           stageHeight={containerSize.h}
+         />
+       )}
 
       {/* ── Reserve pile: right of board when space allows, else below-right overlay ── */}
       {reservePile && !loading && (
@@ -344,12 +344,9 @@ export function DevBoardView() {
 
           <Select
             label="Controlling player (local)"
-            data={Array.from(
-              { length: typeof playerCount === "number" ? playerCount : 2 },
-              (_, i) => ({ value: String(i), label: `${PLAYER_COLORS_LABEL[i] ?? `Player ${i}`} (${i})` })
-            )}
-            value={String(controllingPlayer)}
-            onChange={(v) => v != null && setControllingPlayer(Number(v))}
+            data={variantConfig?.players.map(p => ({ value: p.name, label: `${p.color} (${p.name})` })) ?? []}
+            value={controllingPlayer}
+            onChange={(v) => v != null && setControllingPlayer(v)}
           />
 
           <Group justify="space-between" align="center">

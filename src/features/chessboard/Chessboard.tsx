@@ -34,7 +34,7 @@ export type ChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
   validActions: WasmAction[];
-  playerIndex: number;
+  player: string;
   boardIndex?: number;
   onSubmitAction: (action: WasmAction) => void;
   lastAction?: WasmAction;
@@ -59,7 +59,7 @@ export function Chessboard({
   variantConfig,
   boardState,
   validActions,
-  playerIndex,
+  player,
   boardIndex = 0,
   onSubmitAction,
   lastAction,
@@ -97,10 +97,10 @@ export function Chessboard({
       (stageRef.current.container().style.cursor = cursor);
   };
 
-  // Player 0 (white) sees row 7 (their pieces) at the visual bottom.
-  // row 0 = black backrank is at the top → default rendering is already correct for player 0.
-  // Player 1 (black) wants row 0 at the bottom → needs flip.
-  const flipped = playerIndex % 2 !== 0;
+  // Player color determines board orientation
+  // white sees row 7 at bottom, black sees row 0 at bottom
+  // For 4+ players, use player name to determine color
+  const flipped = variantConfig.players.find(p => p.name === player)?.color === "black";
 
   useEffect(() => {
     preloadAllPieceImages().then(() => setImagesLoaded(true));
@@ -166,7 +166,7 @@ export function Chessboard({
   const getPiece = (row: number, col: number) =>
     boardState.boards[boardIndex]?.[row * cols + col] ?? null;
 
-  const myColor = PLAYER_COLORS[playerIndex] ?? "white";
+  const myColor = variantConfig.players.find(p => p.name === player)?.color ?? "white";
 
   const handleTileClick = (row: number, col: number) => {
     const clicked: WasmBoardCoords = { row, col, boardIndex };
