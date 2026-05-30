@@ -84,36 +84,6 @@ fn has_hand_piece(state, player, piece_type) {
   false  // default fallback
 }
 
-fn is_gating_square(player, row, col) {
-  row == back_rank(player) && col >= 0 && col <= 7
-}
-  }
-  moves
-}
-
-fn pawn_dests(board, from, player) {
-  let r     = from.row;
-  let c     = from.col;
-  let dir   = if player_color(player) == "white" { -1 } else { 1 };
-  let start = if player_color(player) == "white" { 6 } else { 1 };
-  let moves = [];
-
-  let fwd = Coords(r + dir, c);
-  if board_get(board, fwd) == () {
-    moves.push(fwd);
-    if r == start {
-      let fwd2 = Coords(r + 2*dir, c);
-      if board_get(board, fwd2) == () { moves.push(fwd2); }
-    }
-  }
-  for dc in [-1, 1] {
-    let cap = Coords(r + dir, c + dc);
-    let sq  = board_get(board, cap);
-    if sq != () && sq.color != player_color(player) { moves.push(cap); }
-  }
-  moves
-}
-
 // ── Gating helpers ───────────────────────────────────────────
 
 // Did this piece move off a back-rank square for the first time?

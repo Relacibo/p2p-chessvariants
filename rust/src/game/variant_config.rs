@@ -16,11 +16,7 @@ use crate::error;
 pub enum AllowedPlayerCount {
     Exact(u32),
     Discrete(Vec<u32>),
-    Range {
-        min: u32,
-        max: u32,
-        step: u32,
-    },
+    Range { min: u32, max: u32, step: u32 },
 }
 
 impl Default for AllowedPlayerCount {
@@ -48,12 +44,13 @@ impl AllowedPlayerCount {
         }
         // Case 2: array of integers → Discrete
         if let Some(arr) = value.clone().try_cast::<rhai::Array>() {
-            let vals: Vec<u32> = arr.iter()
+            let vals: Vec<u32> = arr
+                .iter()
                 .filter_map(|v| v.as_int().ok().map(|n| n as u32))
                 .collect();
             if vals.is_empty() {
                 return Err(error::CvError::Internal(
-                    "allowed_player_count array must not be empty".into()
+                    "allowed_player_count array must not be empty".into(),
                 ));
             }
             return Ok(AllowedPlayerCount::Discrete(vals));
@@ -66,7 +63,7 @@ impl AllowedPlayerCount {
             return Ok(AllowedPlayerCount::Range { min, max, step });
         }
         Err(error::CvError::Internal(
-            "allowed_player_count must be integer, array, or {min, max, step} map".into()
+            "allowed_player_count must be integer, array, or {min, max, step} map".into(),
         ))
     }
 }
@@ -161,7 +158,8 @@ impl TryFrom<Dynamic> for VariantConfig {
     type Error = error::CvError;
 
     fn try_from(value: Dynamic) -> Result<Self, Self::Error> {
-        let map = value.try_cast::<rhai::Map>()
+        let map = value
+            .try_cast::<rhai::Map>()
             .ok_or_else(|| error::CvError::Internal("config must be an object".into()))?;
 
         let name: String = map
@@ -182,7 +180,11 @@ impl TryFrom<Dynamic> for VariantConfig {
         let colors: Vec<String> = map
             .get("colors")
             .and_then(|v| v.clone().try_cast::<rhai::Array>())
-            .map(|arr| arr.iter().filter_map(|v| v.clone().into_string().ok()).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.clone().into_string().ok())
+                    .collect()
+            })
             .unwrap_or_default();
 
         let allowed_player_count = map
@@ -206,7 +208,11 @@ impl TryFrom<Dynamic> for VariantConfig {
         let promotion_pieces: Vec<String> = map
             .get("promotion_pieces")
             .and_then(|v| v.clone().try_cast::<rhai::Array>())
-            .map(|arr: rhai::Array| arr.iter().filter_map(|v: &rhai::Dynamic| v.clone().into_string().ok()).collect())
+            .map(|arr: rhai::Array| {
+                arr.iter()
+                    .filter_map(|v: &rhai::Dynamic| v.clone().into_string().ok())
+                    .collect()
+            })
             .unwrap_or_else(default_promotion_pieces);
 
         let board: BoardScriptConfig = map

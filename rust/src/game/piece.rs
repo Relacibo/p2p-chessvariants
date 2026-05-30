@@ -124,59 +124,115 @@ pub struct Piece {
 
 impl Piece {
     pub fn rhai_new(color: String, piece_type: String) -> Self {
-        Self { piece_type, color, data: None }
+        Self {
+            piece_type,
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_new_with_data(color: String, piece_type: String, data: Dynamic) -> Self {
-        Self { piece_type, color, data: Some(data) }
+        Self {
+            piece_type,
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn rhai_make_king(color: String) -> Self {
-        Self { piece_type: "king".to_string(), color, data: None }
+        Self {
+            piece_type: "king".to_string(),
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_make_king_with_data(color: String, data: Dynamic) -> Self {
-        Self { piece_type: "king".to_string(), color, data: Some(data) }
+        Self {
+            piece_type: "king".to_string(),
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn rhai_make_queen(color: String) -> Self {
-        Self { piece_type: "queen".to_string(), color, data: None }
+        Self {
+            piece_type: "queen".to_string(),
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_make_queen_with_data(color: String, data: Dynamic) -> Self {
-        Self { piece_type: "queen".to_string(), color, data: Some(data) }
+        Self {
+            piece_type: "queen".to_string(),
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn rhai_make_knight(color: String) -> Self {
-        Self { piece_type: "knight".to_string(), color, data: None }
+        Self {
+            piece_type: "knight".to_string(),
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_make_knight_with_data(color: String, data: Dynamic) -> Self {
-        Self { piece_type: "knight".to_string(), color, data: Some(data) }
+        Self {
+            piece_type: "knight".to_string(),
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn rhai_make_bishop(color: String) -> Self {
-        Self { piece_type: "bishop".to_string(), color, data: None }
+        Self {
+            piece_type: "bishop".to_string(),
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_make_bishop_with_data(color: String, data: Dynamic) -> Self {
-        Self { piece_type: "bishop".to_string(), color, data: Some(data) }
+        Self {
+            piece_type: "bishop".to_string(),
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn rhai_make_rook(color: String) -> Self {
-        Self { piece_type: "rook".to_string(), color, data: None }
+        Self {
+            piece_type: "rook".to_string(),
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_make_rook_with_data(color: String, data: Dynamic) -> Self {
-        Self { piece_type: "rook".to_string(), color, data: Some(data) }
+        Self {
+            piece_type: "rook".to_string(),
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn rhai_make_pawn(color: String) -> Self {
-        Self { piece_type: "pawn".to_string(), color, data: None }
+        Self {
+            piece_type: "pawn".to_string(),
+            color,
+            data: None,
+        }
     }
 
     pub fn rhai_make_pawn_with_data(color: String, data: Dynamic) -> Self {
-        Self { piece_type: "pawn".to_string(), color, data: Some(data) }
+        Self {
+            piece_type: "pawn".to_string(),
+            color,
+            data: Some(data),
+        }
     }
 
     pub fn build_rhai_type(builder: &mut TypeBuilder<Self>) {
@@ -226,17 +282,14 @@ impl PartialEq for Piece {
     fn eq(&self, other: &Self) -> bool {
         self.piece_type == other.piece_type
             && self.color == other.color
-            && self
-                .data
-                .as_ref()
-                .map(|value| format!("{value:?}"))
+            && self.data.as_ref().map(|value| format!("{value:?}"))
                 == other.data.as_ref().map(|value| format!("{value:?}"))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{standard_piece_type, Piece, PieceType};
+    use super::{Piece, PieceType, standard_piece_type};
 
     #[test]
     fn test_standard_piece_type() {

@@ -27,13 +27,19 @@ pub fn parse_custom_pieces(pieces_dyn: Option<Dynamic>) -> HashMap<String, Vec<S
             None => continue,
         };
 
-        let def_type = match def_map.get("type").and_then(|t| t.clone().into_string().ok()) {
+        let def_type = match def_map
+            .get("type")
+            .and_then(|t| t.clone().into_string().ok())
+        {
             Some(t) => t,
             None => continue,
         };
 
         if def_type == "combine" {
-            let pieces_arr = match def_map.get("pieces").and_then(|p| p.clone().try_cast::<Array>()) {
+            let pieces_arr = match def_map
+                .get("pieces")
+                .and_then(|p| p.clone().try_cast::<Array>())
+            {
                 Some(a) => a,
                 None => continue,
             };
@@ -64,17 +70,47 @@ pub fn get_pseudo_move_dests(
     }
 
     match piece_type {
-        "pawn" => from_array(moves::rhai_pawn_moves(board.clone(), from.clone(), color.to_string())),
-        "rook" => from_array(moves::rhai_rook_moves(board.clone(), from.clone(), color.to_string())),
-        "knight" => from_array(moves::rhai_knight_moves(board.clone(), from.clone(), color.to_string())),
-        "bishop" => from_array(moves::rhai_bishop_moves(board.clone(), from.clone(), color.to_string())),
-        "queen" => from_array(moves::rhai_queen_moves(board.clone(), from.clone(), color.to_string())),
-        "king" => from_array(moves::rhai_king_moves(board.clone(), from.clone(), color.to_string())),
+        "pawn" => from_array(moves::rhai_pawn_moves(
+            board.clone(),
+            from.clone(),
+            color.to_string(),
+        )),
+        "rook" => from_array(moves::rhai_rook_moves(
+            board.clone(),
+            from.clone(),
+            color.to_string(),
+        )),
+        "knight" => from_array(moves::rhai_knight_moves(
+            board.clone(),
+            from.clone(),
+            color.to_string(),
+        )),
+        "bishop" => from_array(moves::rhai_bishop_moves(
+            board.clone(),
+            from.clone(),
+            color.to_string(),
+        )),
+        "queen" => from_array(moves::rhai_queen_moves(
+            board.clone(),
+            from.clone(),
+            color.to_string(),
+        )),
+        "king" => from_array(moves::rhai_king_moves(
+            board.clone(),
+            from.clone(),
+            color.to_string(),
+        )),
         custom => {
             if let Some(parts) = custom_pieces.get(custom) {
                 let mut result = Vec::new();
                 for part in parts {
-                    result.extend(get_pseudo_move_dests(board, from, part, color, custom_pieces));
+                    result.extend(get_pseudo_move_dests(
+                        board,
+                        from,
+                        part,
+                        color,
+                        custom_pieces,
+                    ));
                 }
                 result.sort_unstable_by_key(|c| (c.row, c.col, c.board_index));
                 result.dedup_by_key(|c| (c.row, c.col, c.board_index));
@@ -188,7 +224,10 @@ pub fn engine_valid_actions_impl(
     };
 
     // Get player's color from player map
-    let color = player.get("color").and_then(|v| v.clone().into_string().ok()).unwrap_or("white".to_string());
+    let color = player
+        .get("color")
+        .and_then(|v| v.clone().into_string().ok())
+        .unwrap_or("white".to_string());
 
     let mut actions = Array::new();
 
@@ -204,7 +243,8 @@ pub fn engine_valid_actions_impl(
                 }
 
                 let piece_type = piece.piece_type_name().to_string();
-                let dests = get_pseudo_move_dests(&board, &from, &piece_type, &color, custom_pieces);
+                let dests =
+                    get_pseudo_move_dests(&board, &from, &piece_type, &color, custom_pieces);
 
                 for dest in dests {
                     if check_protection {

@@ -1,6 +1,9 @@
 use rhai::{Array, Dynamic, Map};
 
-use super::{piece::Piece, state::{BoardCoords, BoardState}};
+use super::{
+    piece::Piece,
+    state::{BoardCoords, BoardState},
+};
 
 fn piece_to_dynamic(piece: Option<&Piece>) -> Dynamic {
     piece.cloned().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
@@ -41,7 +44,11 @@ pub fn rhai_board_set(mut board: BoardState, coords: BoardCoords, piece: Dynamic
     board
 }
 
-pub fn rhai_board_move_piece(mut board: BoardState, from: BoardCoords, to: BoardCoords) -> BoardState {
+pub fn rhai_board_move_piece(
+    mut board: BoardState,
+    from: BoardCoords,
+    to: BoardCoords,
+) -> BoardState {
     if !board.in_bounds(&from) || !board.in_bounds(&to) {
         return board;
     }
@@ -69,7 +76,11 @@ pub fn rhai_board_find(board: BoardState, piece_type: String, color: String) -> 
 
             let row = (index / board.cols as usize) as i32;
             let col = (index % board.cols as usize) as i32;
-            result.push(Dynamic::from(BoardCoords::new(row, col, board_index as i32)));
+            result.push(Dynamic::from(BoardCoords::new(
+                row,
+                col,
+                board_index as i32,
+            )));
         }
     }
 
@@ -163,11 +174,22 @@ pub fn rhai_jump(board: BoardState, from: BoardCoords, offsets: Array) -> Array 
 mod tests {
     use rhai::{Array, Dynamic, Map};
 
-    use super::{rhai_board_get, rhai_board_move_piece, rhai_board_set, rhai_jump, rhai_ray, rhai_xray};
-    use crate::game::{piece::Piece, state::{BoardCoords, BoardState}};
+    use super::{
+        rhai_board_get, rhai_board_move_piece, rhai_board_set, rhai_jump, rhai_ray, rhai_xray,
+    };
+    use crate::game::{
+        piece::Piece,
+        state::{BoardCoords, BoardState},
+    };
 
     fn map_coords(dynamic: &Dynamic) -> BoardCoords {
-        dynamic.clone().cast::<Map>().get("coords").unwrap().clone().cast::<BoardCoords>()
+        dynamic
+            .clone()
+            .cast::<Map>()
+            .get("coords")
+            .unwrap()
+            .clone()
+            .cast::<BoardCoords>()
     }
 
     fn map_piece(dynamic: &Dynamic) -> Dynamic {
@@ -184,38 +206,71 @@ mod tests {
     fn test_board_set_and_get() {
         let board = BoardState::board_empty(8, 8);
         let piece = Piece::rhai_make_rook("white".into());
-        let board = rhai_board_set(board, BoardCoords::new_board_0(1, 2), Dynamic::from(piece.clone()));
-        assert_eq!(rhai_board_get(board, BoardCoords::new_board_0(1, 2)).cast::<Piece>(), piece);
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(1, 2),
+            Dynamic::from(piece.clone()),
+        );
+        assert_eq!(
+            rhai_board_get(board, BoardCoords::new_board_0(1, 2)).cast::<Piece>(),
+            piece
+        );
     }
 
     #[test]
     fn test_board_move_piece() {
         let board = BoardState::board_empty(8, 8);
         let piece = Piece::rhai_make_knight("white".into());
-        let board = rhai_board_set(board, BoardCoords::new_board_0(4, 4), Dynamic::from(piece.clone()));
-        let board = rhai_board_move_piece(board, BoardCoords::new_board_0(4, 4), BoardCoords::new_board_0(2, 5));
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(4, 4),
+            Dynamic::from(piece.clone()),
+        );
+        let board = rhai_board_move_piece(
+            board,
+            BoardCoords::new_board_0(4, 4),
+            BoardCoords::new_board_0(2, 5),
+        );
         assert!(rhai_board_get(board.clone(), BoardCoords::new_board_0(4, 4)).is_unit());
-        assert_eq!(rhai_board_get(board, BoardCoords::new_board_0(2, 5)).cast::<Piece>(), piece);
+        assert_eq!(
+            rhai_board_get(board, BoardCoords::new_board_0(2, 5)).cast::<Piece>(),
+            piece
+        );
     }
 
     #[test]
     fn test_ray_empty_board() {
         let board = BoardState::board_empty(8, 8);
-        let ray = rhai_ray(board, BoardCoords::new_board_0(3, 3), vec![Dynamic::from(0_i32), Dynamic::from(1_i32)]);
+        let ray = rhai_ray(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            vec![Dynamic::from(0_i32), Dynamic::from(1_i32)],
+        );
         let coords: Vec<_> = ray.iter().map(map_coords).collect();
-        assert_eq!(coords, vec![
-            BoardCoords::new_board_0(3, 4),
-            BoardCoords::new_board_0(3, 5),
-            BoardCoords::new_board_0(3, 6),
-            BoardCoords::new_board_0(3, 7),
-        ]);
+        assert_eq!(
+            coords,
+            vec![
+                BoardCoords::new_board_0(3, 4),
+                BoardCoords::new_board_0(3, 5),
+                BoardCoords::new_board_0(3, 6),
+                BoardCoords::new_board_0(3, 7),
+            ]
+        );
     }
 
     #[test]
     fn test_ray_stops_at_piece() {
         let board = BoardState::board_empty(8, 8);
-        let board = rhai_board_set(board, BoardCoords::new_board_0(3, 5), Dynamic::from(Piece::rhai_make_pawn("black".into())));
-        let ray = rhai_ray(board, BoardCoords::new_board_0(3, 3), vec![Dynamic::from(0_i32), Dynamic::from(1_i32)]);
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(3, 5),
+            Dynamic::from(Piece::rhai_make_pawn("black".into())),
+        );
+        let ray = rhai_ray(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            vec![Dynamic::from(0_i32), Dynamic::from(1_i32)],
+        );
         assert_eq!(ray.len(), 2);
         assert!(map_piece(&ray[1]).is::<Piece>());
         assert_eq!(map_coords(&ray[1]), BoardCoords::new_board_0(3, 5));
@@ -224,8 +279,16 @@ mod tests {
     #[test]
     fn test_xray_passes_through() {
         let board = BoardState::board_empty(8, 8);
-        let board = rhai_board_set(board, BoardCoords::new_board_0(3, 5), Dynamic::from(Piece::rhai_make_pawn("black".into())));
-        let ray = rhai_xray(board, BoardCoords::new_board_0(3, 3), vec![Dynamic::from(0_i32), Dynamic::from(1_i32)]);
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(3, 5),
+            Dynamic::from(Piece::rhai_make_pawn("black".into())),
+        );
+        let ray = rhai_xray(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            vec![Dynamic::from(0_i32), Dynamic::from(1_i32)],
+        );
         assert_eq!(ray.len(), 4);
         assert_eq!(map_coords(&ray[3]), BoardCoords::new_board_0(3, 7));
     }
@@ -258,6 +321,12 @@ mod tests {
         let board = BoardState::board_empty(8, 8);
         let jumps = rhai_jump(board, BoardCoords::new_board_0(0, 0), knight_offsets());
         let coords: Vec<_> = jumps.iter().map(map_coords).collect();
-        assert_eq!(coords, vec![BoardCoords::new_board_0(1, 2), BoardCoords::new_board_0(2, 1)]);
+        assert_eq!(
+            coords,
+            vec![
+                BoardCoords::new_board_0(1, 2),
+                BoardCoords::new_board_0(2, 1)
+            ]
+        );
     }
 }

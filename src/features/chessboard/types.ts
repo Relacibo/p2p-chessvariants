@@ -59,9 +59,11 @@ export interface WasmVariantConfig {
   version: string;
   api_version: number;
   colors: string[];
+  players: WasmPlayerConfig[];
   allowed_player_count: AllowedPlayerCount;
   reserve_pile: boolean;
   check_protection: boolean;
+  promotion_pieces: string[];
   board: WasmBoardScriptConfig;
 }
 

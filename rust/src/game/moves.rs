@@ -14,7 +14,12 @@ fn to_array(coords: Vec<BoardCoords>) -> Array {
     coords.into_iter().map(Dynamic::from).collect()
 }
 
-fn push_if_targetable(board: &BoardState, coords: BoardCoords, color: &str, result: &mut Vec<BoardCoords>) {
+fn push_if_targetable(
+    board: &BoardState,
+    coords: BoardCoords,
+    color: &str,
+    result: &mut Vec<BoardCoords>,
+) {
     if !board.in_bounds(&coords) {
         return;
     }
@@ -26,7 +31,12 @@ fn push_if_targetable(board: &BoardState, coords: BoardCoords, color: &str, resu
     }
 }
 
-pub fn slides(board: &BoardState, from: &BoardCoords, directions: &[(i32, i32)], color: &str) -> Vec<BoardCoords> {
+pub fn slides(
+    board: &BoardState,
+    from: &BoardCoords,
+    directions: &[(i32, i32)],
+    color: &str,
+) -> Vec<BoardCoords> {
     if !board.in_bounds(from) {
         return Vec::new();
     }
@@ -104,7 +114,12 @@ pub fn rhai_pawn_moves(board: BoardState, from: BoardCoords, color: String) -> A
 }
 
 pub fn rhai_rook_moves(board: BoardState, from: BoardCoords, color: String) -> Array {
-    to_array(slides(&board, &from, &[(1, 0), (-1, 0), (0, 1), (0, -1)], &color))
+    to_array(slides(
+        &board,
+        &from,
+        &[(1, 0), (-1, 0), (0, 1), (0, -1)],
+        &color,
+    ))
 }
 
 pub fn rhai_knight_moves(board: BoardState, from: BoardCoords, color: String) -> Array {
@@ -124,13 +139,23 @@ pub fn rhai_knight_moves(board: BoardState, from: BoardCoords, color: String) ->
     ];
     let mut result = Vec::new();
     for (dr, dc) in offsets {
-        push_if_targetable(&board, BoardCoords::new(from.row + dr, from.col + dc, from.board_index), &color, &mut result);
+        push_if_targetable(
+            &board,
+            BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
+            &color,
+            &mut result,
+        );
     }
     to_array(result)
 }
 
 pub fn rhai_bishop_moves(board: BoardState, from: BoardCoords, color: String) -> Array {
-    to_array(slides(&board, &from, &[(1, 1), (1, -1), (-1, 1), (-1, -1)], &color))
+    to_array(slides(
+        &board,
+        &from,
+        &[(1, 1), (1, -1), (-1, 1), (-1, -1)],
+        &color,
+    ))
 }
 
 pub fn rhai_queen_moves(board: BoardState, from: BoardCoords, color: String) -> Array {
@@ -162,7 +187,12 @@ pub fn rhai_king_moves(board: BoardState, from: BoardCoords, color: String) -> A
             if dr == 0 && dc == 0 {
                 continue;
             }
-            push_if_targetable(&board, BoardCoords::new(from.row + dr, from.col + dc, from.board_index), &color, &mut result);
+            push_if_targetable(
+                &board,
+                BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
+                &color,
+                &mut result,
+            );
         }
     }
     to_array(result)
@@ -174,8 +204,15 @@ mod tests {
 
     use rhai::{Array, Dynamic};
 
-    use super::{rhai_bishop_moves, rhai_king_moves, rhai_knight_moves, rhai_pawn_moves, rhai_queen_moves, rhai_rook_moves};
-    use crate::game::{board::rhai_board_set, piece::Piece, state::{BoardCoords, BoardState}};
+    use super::{
+        rhai_bishop_moves, rhai_king_moves, rhai_knight_moves, rhai_pawn_moves, rhai_queen_moves,
+        rhai_rook_moves,
+    };
+    use crate::game::{
+        board::rhai_board_set,
+        piece::Piece,
+        state::{BoardCoords, BoardState},
+    };
 
     fn coords_set(array: Array) -> BTreeSet<(i32, i32)> {
         array
@@ -188,7 +225,11 @@ mod tests {
     #[test]
     fn test_rook_moves_open_board() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_rook_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let moves = coords_set(rhai_rook_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert_eq!(moves.len(), 14);
         assert!(moves.contains(&(3, 0)));
         assert!(moves.contains(&(7, 3)));
@@ -197,8 +238,16 @@ mod tests {
     #[test]
     fn test_rook_blocked_by_own_piece() {
         let board = BoardState::board_empty(8, 8);
-        let board = rhai_board_set(board, BoardCoords::new_board_0(3, 5), Dynamic::from(Piece::rhai_make_pawn("white".into())));
-        let moves = coords_set(rhai_rook_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(3, 5),
+            Dynamic::from(Piece::rhai_make_pawn("white".into())),
+        );
+        let moves = coords_set(rhai_rook_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert!(!moves.contains(&(3, 5)));
         assert!(!moves.contains(&(3, 6)));
     }
@@ -206,8 +255,16 @@ mod tests {
     #[test]
     fn test_rook_captures_enemy() {
         let board = BoardState::board_empty(8, 8);
-        let board = rhai_board_set(board, BoardCoords::new_board_0(3, 5), Dynamic::from(Piece::rhai_make_pawn("black".into())));
-        let moves = coords_set(rhai_rook_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(3, 5),
+            Dynamic::from(Piece::rhai_make_pawn("black".into())),
+        );
+        let moves = coords_set(rhai_rook_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert!(moves.contains(&(3, 5)));
         assert!(!moves.contains(&(3, 6)));
     }
@@ -215,21 +272,33 @@ mod tests {
     #[test]
     fn test_knight_moves_center() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_knight_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let moves = coords_set(rhai_knight_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert_eq!(moves.len(), 8);
     }
 
     #[test]
     fn test_pawn_white_single_push() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_pawn_moves(board, BoardCoords::new_board_0(5, 4), "white".into()));
+        let moves = coords_set(rhai_pawn_moves(
+            board,
+            BoardCoords::new_board_0(5, 4),
+            "white".into(),
+        ));
         assert!(moves.contains(&(4, 4)));
     }
 
     #[test]
     fn test_pawn_white_double_push_from_start() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_pawn_moves(board, BoardCoords::new_board_0(6, 4), "white".into()));
+        let moves = coords_set(rhai_pawn_moves(
+            board,
+            BoardCoords::new_board_0(6, 4),
+            "white".into(),
+        ));
         assert!(moves.contains(&(5, 4)));
         assert!(moves.contains(&(4, 4)));
     }
@@ -237,15 +306,27 @@ mod tests {
     #[test]
     fn test_pawn_white_capture() {
         let board = BoardState::board_empty(8, 8);
-        let board = rhai_board_set(board, BoardCoords::new_board_0(5, 5), Dynamic::from(Piece::rhai_make_knight("black".into())));
-        let moves = coords_set(rhai_pawn_moves(board, BoardCoords::new_board_0(6, 4), "white".into()));
+        let board = rhai_board_set(
+            board,
+            BoardCoords::new_board_0(5, 5),
+            Dynamic::from(Piece::rhai_make_knight("black".into())),
+        );
+        let moves = coords_set(rhai_pawn_moves(
+            board,
+            BoardCoords::new_board_0(6, 4),
+            "white".into(),
+        ));
         assert!(moves.contains(&(5, 5)));
     }
 
     #[test]
     fn test_pawn_black_moves() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_pawn_moves(board, BoardCoords::new_board_0(1, 4), "black".into()));
+        let moves = coords_set(rhai_pawn_moves(
+            board,
+            BoardCoords::new_board_0(1, 4),
+            "black".into(),
+        ));
         assert!(moves.contains(&(2, 4)));
         assert!(moves.contains(&(3, 4)));
     }
@@ -253,7 +334,11 @@ mod tests {
     #[test]
     fn test_bishop_moves() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_bishop_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let moves = coords_set(rhai_bishop_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert_eq!(moves.len(), 13);
         assert!(moves.contains(&(0, 0)));
         assert!(moves.contains(&(6, 6)));
@@ -262,21 +347,33 @@ mod tests {
     #[test]
     fn test_queen_moves() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_queen_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let moves = coords_set(rhai_queen_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert_eq!(moves.len(), 27);
     }
 
     #[test]
     fn test_king_moves_center() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_king_moves(board, BoardCoords::new_board_0(3, 3), "white".into()));
+        let moves = coords_set(rhai_king_moves(
+            board,
+            BoardCoords::new_board_0(3, 3),
+            "white".into(),
+        ));
         assert_eq!(moves.len(), 8);
     }
 
     #[test]
     fn test_king_moves_corner() {
         let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_king_moves(board, BoardCoords::new_board_0(0, 0), "white".into()));
+        let moves = coords_set(rhai_king_moves(
+            board,
+            BoardCoords::new_board_0(0, 0),
+            "white".into(),
+        ));
         assert_eq!(moves, BTreeSet::from([(0, 1), (1, 0), (1, 1)]));
     }
 }

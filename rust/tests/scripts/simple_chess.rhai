@@ -34,16 +34,15 @@ fn valid_actions(state, player) {
 }
 
 fn apply(state, player, action) {
-    if !state.active_players.contains(player) { throw `${player} is not active`; }
+    // player is a map #{ board, color }
+    let player_color = player.color;
+
+    if !state.active_players.contains(player_color) { throw `${player_color} is not active`; }
     if action.type != "move" { throw "only move actions are supported"; }
 
     let src_piece = board_get(state.board, action.from);
     if src_piece == () { throw "no piece at source square"; }
 
-    // Get player's color from state.players
-    let player_color = state.players
-        .filter(|p| p.name == player)
-        .map(|p| p.color)[0];
     if src_piece.color != player_color { throw "that piece does not belong to you"; }
 
     let dst_piece = board_get(state.board, action.to);
@@ -56,13 +55,13 @@ fn apply(state, player, action) {
     if dst_piece != () && dst_piece.type == "king" {
         // Find player index
         let player_idx = state.players
-            .filter(|p| p.name == player)
+            .filter(|p| p.color == player_color)
             .map(|p| p.board)[0];
         game_over = Winner(player_idx);
     }
 
     // Switch turn
-    let next = if player == "white" { "black" } else { "white" };
+    let next = if player_color == "white" { "black" } else { "white" };
     state.board = new_board;
     state.active_players = [next];
     state.running_clocks = [next];

@@ -38,15 +38,13 @@ fn valid_actions(state, player) {
 }
 
 fn apply(state, player, action) {
-    if action.type != "move" { throw "only move actions are supported"; }
+    // player is a map #{ board, color }
+    let player_color = player.color;
 
-    // Get player's color from state.players
-    let player_color = state.players
-        .filter(|p| p.name == player)
-        .map(|p| p.color)[0];
+    if action.type != "move" { throw "only move actions are supported"; }
     
     // Check turn: active player must match
-    let is_active = state.active_players.contains(player);
+    let is_active = state.active_players.contains(player_color);
     if !is_active {
         throw "not your turn";
     }
@@ -64,7 +62,7 @@ fn apply(state, player, action) {
     if dst_piece != () && dst_piece.type == "king" {
         // Find player index
         let player_idx = state.players
-            .filter(|p| p.name == player)
+            .filter(|p| p.color == player_color)
             .map(|p| p.board)[0];
         game_over = Winner(player_idx);
     }

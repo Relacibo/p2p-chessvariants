@@ -68,7 +68,10 @@ impl Action {
     }
 
     pub fn get_from(&self) -> Dynamic {
-        self.from.clone().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
+        self.from
+            .clone()
+            .map(Dynamic::from)
+            .unwrap_or(Dynamic::UNIT)
     }
 
     pub fn get_to(&self) -> Dynamic {
@@ -76,7 +79,10 @@ impl Action {
     }
 
     pub fn get_piece(&self) -> Dynamic {
-        self.piece.clone().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
+        self.piece
+            .clone()
+            .map(Dynamic::from)
+            .unwrap_or(Dynamic::UNIT)
     }
 
     pub fn get_tag(&self) -> Dynamic {
@@ -84,7 +90,10 @@ impl Action {
     }
 
     pub fn get_value(&self) -> Dynamic {
-        self.value.clone().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
+        self.value
+            .clone()
+            .map(Dynamic::from)
+            .unwrap_or(Dynamic::UNIT)
     }
 }
 
@@ -95,14 +104,23 @@ mod tests {
 
     #[test]
     fn test_move_action() {
-        let action = Action::rhai_move(BoardCoords::new_board_0(1, 2), BoardCoords::new_board_0(3, 4));
+        let action = Action::rhai_move(
+            BoardCoords::new_board_0(1, 2),
+            BoardCoords::new_board_0(3, 4),
+        );
         assert_eq!(action.get_type(), "move");
-        assert_eq!(action.get_from().cast::<BoardCoords>(), BoardCoords::new_board_0(1, 2));
+        assert_eq!(
+            action.get_from().cast::<BoardCoords>(),
+            BoardCoords::new_board_0(1, 2)
+        );
     }
 
     #[test]
     fn test_drop_action() {
-        let action = Action::rhai_drop(Piece::rhai_make_knight("white".into()), BoardCoords::new_board_0(2, 2));
+        let action = Action::rhai_drop(
+            Piece::rhai_make_knight("white".into()),
+            BoardCoords::new_board_0(2, 2),
+        );
         assert_eq!(action.get_type(), "drop");
         assert!(action.get_from().is_unit());
     }

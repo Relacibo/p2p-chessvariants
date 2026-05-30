@@ -1,10 +1,7 @@
 use error::CvError;
 use game::{
     actions::Action,
-    board,
-    engine_builtins,
-    game_result,
-    moves,
+    board, engine_builtins, game_result, moves,
     piece::Piece,
     standard,
     state::ReservePileState,
@@ -47,10 +44,9 @@ fn player_ref_to_rhai_map(p: &PlayerRef) -> Dynamic {
 
 /// Convert a Rhai player map `#{board, color}` to JSON value.
 fn player_map_to_json_value(map: &rhai::Map) -> Result<serde_json::Value, CvError> {
-    let board = map.get("board")
-        .and_then(|v| v.as_int().ok())
-        .unwrap_or(0);
-    let color = map.get("color")
+    let board = map.get("board").and_then(|v| v.as_int().ok()).unwrap_or(0);
+    let color = map
+        .get("color")
         .and_then(|v| v.clone().into_string().ok())
         .unwrap_or_default();
     Ok(serde_json::json!({"board": board, "color": color}))
@@ -62,16 +58,19 @@ fn populate_teams(state_map: &mut rhai::Map) {
         .get("players")
         .and_then(|v| v.clone().try_cast::<rhai::Array>());
     if let Some(players) = players_arr {
-        let mut team_ids: Vec<u32> = players.iter()
+        let mut team_ids: Vec<u32> = players
+            .iter()
             .filter_map(|p| {
-                p.clone().try_cast::<rhai::Map>()
+                p.clone()
+                    .try_cast::<rhai::Map>()
                     .and_then(|m| m.get("team")?.as_int().ok())
                     .map(|t| t as u32)
             })
             .collect();
         team_ids.sort_unstable();
         team_ids.dedup();
-        let teams_arr: rhai::Array = team_ids.into_iter()
+        let teams_arr: rhai::Array = team_ids
+            .into_iter()
             .map(|t| Dynamic::from(t as i64))
             .collect();
         state_map.insert("teams".into(), Dynamic::from(teams_arr));
@@ -173,11 +172,14 @@ fn register_builtins(engine: &mut Engine) {
         m.insert("pieces".into(), Dynamic::from(pieces));
         m
     });
-    engine.register_fn("merge", |base: rhai::Map, updates: rhai::Map| -> rhai::Map {
-        let mut result = base;
-        result.extend(updates);
-        result
-    });
+    engine.register_fn(
+        "merge",
+        |base: rhai::Map, updates: rhai::Map| -> rhai::Map {
+            let mut result = base;
+            result.extend(updates);
+            result
+        },
+    );
 
     engine.register_static_module("log", Rc::new(logging::create_module()));
 }
@@ -225,10 +227,7 @@ fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
-    pub fn new(
-        script_content: String,
-        player_count: i32,
-    ) -> Result<ChessvariantEngine, CvError> {
+    pub fn new(script_content: String, player_count: i32) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
         let ast = engine.compile(&script_content)?;
         register_builtins(&mut engine);
@@ -238,7 +237,10 @@ impl ChessvariantEngine {
         let variant_config: VariantConfig = dynamic_config.try_into()?;
 
         // Validate player count against config
-        if !variant_config.allowed_player_count.validate(player_count as u32) {
+        if !variant_config
+            .allowed_player_count
+            .validate(player_count as u32)
+        {
             return Err(CvError::Internal(format!(
                 "player_count {} is not allowed by variant config",
                 player_count
@@ -247,11 +249,14 @@ impl ChessvariantEngine {
 
         register_engine_builtins(&mut engine, &variant_config);
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
-        
+
         // Auto-populate teams from state.players into state.teams
-        populate_teams(&mut game_state.read_lock::<rhai::Map>()
-            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
-            .clone());
+        populate_teams(
+            &mut game_state
+                .read_lock::<rhai::Map>()
+                .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
+                .clone(),
+        );
 
         Ok(ChessvariantEngine {
             engine,
@@ -322,7 +327,8 @@ impl ChessvariantEngine {
     /// Shape: `{ rows, cols, numberOfBoards, boards: (Piece|null)[][] }`
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = boardStateJson))]
     pub fn board_state_json(&self) -> Result<String, CvError> {
-        let board_dyn = self.game_state
+        let board_dyn = self
+            .game_state
             .read_lock::<rhai::Map>()
             .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
             .get("board")
@@ -347,7 +353,8 @@ impl ChessvariantEngine {
             return Ok(None);
         }
         let pile_dyn = {
-            let map = self.game_state
+            let map = self
+                .game_state
                 .read_lock::<rhai::Map>()
                 .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
             match map.get("reserve_pile") {
@@ -367,7 +374,8 @@ impl ChessvariantEngine {
     /// Returns the current turn as a player map `{board, color}`, or null if unavailable.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = currentTurn))]
     pub fn current_turn(&self) -> Result<Option<String>, CvError> {
-        let turn = self.game_state
+        let turn = self
+            .game_state
             .read_lock::<rhai::Map>()
             .and_then(|m| m.get("turn").cloned());
         match turn {
@@ -378,19 +386,25 @@ impl ChessvariantEngine {
                 } else if let Some(s) = v.clone().into_string().ok() {
                     // Legacy: turn is a string color
                     let board = {
-                        let state_map = self.game_state.read_lock::<rhai::Map>()
+                        let state_map = self
+                            .game_state
+                            .read_lock::<rhai::Map>()
                             .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
-                        let active_players = state_map.get("active_players").and_then(|ap| ap.clone().try_cast::<rhai::Array>());
+                        let active_players = state_map
+                            .get("active_players")
+                            .and_then(|ap| ap.clone().try_cast::<rhai::Array>());
                         if let Some(arr) = active_players {
-                            arr.iter().find_map(|p| {
-                                let pm = p.clone().try_cast::<rhai::Map>()?;
-                                let color = pm.get("color")?.clone().into_string().ok()?;
-                                if color == s {
-                                    Some(pm.get("board")?.as_int().unwrap_or(0))
-                                } else {
-                                    None
-                                }
-                            }).unwrap_or(0)
+                            arr.iter()
+                                .find_map(|p| {
+                                    let pm = p.clone().try_cast::<rhai::Map>()?;
+                                    let color = pm.get("color")?.clone().into_string().ok()?;
+                                    if color == s {
+                                        Some(pm.get("board")?.as_int().unwrap_or(0))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .unwrap_or(0)
                         } else {
                             0
                         }
@@ -408,15 +422,19 @@ impl ChessvariantEngine {
     /// Returns the list of active players as a JSON array of `{board, color}` objects.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = activePlayersJson))]
     pub fn active_players_json(&self) -> Result<String, CvError> {
-        let ap = self.game_state
+        let ap = self
+            .game_state
             .read_lock::<rhai::Map>()
             .and_then(|m| m.get("active_players").cloned())
             .and_then(|v| v.try_cast::<rhai::Array>());
         match ap {
             Some(arr) => {
-                let players: Vec<serde_json::Value> = arr.iter()
+                let players: Vec<serde_json::Value> = arr
+                    .iter()
                     .filter_map(|d| {
-                        d.clone().try_cast::<rhai::Map>().and_then(|m| player_map_to_json_value(&m).ok())
+                        d.clone()
+                            .try_cast::<rhai::Map>()
+                            .and_then(|m| player_map_to_json_value(&m).ok())
                     })
                     .collect();
                 Ok(serde_json::to_string(&players)?)
@@ -428,28 +446,35 @@ impl ChessvariantEngine {
     /// Returns the list of players (from state) as a JSON array of `{name, color, board, team}` objects.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playersJson))]
     pub fn players_json(&self) -> Result<String, CvError> {
-        let players_map = self.game_state
+        let players_map = self
+            .game_state
             .read_lock::<rhai::Map>()
             .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
         let players_arr = players_map
             .get("players")
             .and_then(|v| v.clone().try_cast::<rhai::Array>())
             .ok_or_else(|| CvError::Internal("game_state.players not found".into()))?;
-        
+
         let mut players: Vec<serde_json::Value> = Vec::new();
         for p in players_arr.iter() {
-            let player_map = p.clone().try_cast::<rhai::Map>()
+            let player_map = p
+                .clone()
+                .try_cast::<rhai::Map>()
                 .ok_or_else(|| CvError::Internal("player is not a map".into()))?;
-            let name = player_map.get("name")
+            let name = player_map
+                .get("name")
                 .and_then(|v| v.clone().into_string().ok())
                 .unwrap_or_default();
-            let color = player_map.get("color")
+            let color = player_map
+                .get("color")
                 .and_then(|v| v.clone().into_string().ok())
                 .unwrap_or_default();
-            let board = player_map.get("board")
+            let board = player_map
+                .get("board")
                 .and_then(|v| v.as_int().ok())
                 .unwrap_or(0) as i64;
-            let team = player_map.get("team")
+            let team = player_map
+                .get("team")
                 .and_then(|v| v.as_int().ok())
                 .unwrap_or(0) as i64;
             players.push(serde_json::json!({
@@ -516,7 +541,11 @@ impl ChessvariantEngine {
     /// Applies an action from a JSON string and returns the new board state JSON.
     /// `player_json`: `{"board":0,"color":"white"}`, `action_json`: serialized Action object.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = applyActionJson))]
-    pub fn apply_action_json(&mut self, player_json: String, action_json: String) -> Result<String, CvError> {
+    pub fn apply_action_json(
+        &mut self,
+        player_json: String,
+        action_json: String,
+    ) -> Result<String, CvError> {
         let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
         let action: Action = serde_json::from_str(&action_json)?;
         let action_dyn = action_to_rhai_dynamic(action);
@@ -559,7 +588,7 @@ impl ChessvariantEngine {
             map.insert("color".into(), Dynamic::from(player_ref.color));
             Dynamic::from_map(map)
         };
-        
+
         let mut scope = Scope::new();
         let new_state = self.engine.call_fn::<Dynamic>(
             &mut scope,

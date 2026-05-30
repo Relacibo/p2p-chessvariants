@@ -131,7 +131,7 @@ fn test_simple_chess_pawn_e2_e4() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     engine
         .apply(
-            serde_json::json!("white").to_string(),
+            serde_json::json!({"board": 0, "color": "white"}).to_string(),
             move_action(
                 BoardCoords::new_board_0(6, 4),
                 BoardCoords::new_board_0(4, 4),
@@ -159,7 +159,7 @@ fn test_simple_chess_turn_alternates() {
 
     engine
         .apply(
-            serde_json::json!("white").to_string(),
+            serde_json::json!({"board": 0, "color": "white"}).to_string(),
             move_action(
                 BoardCoords::new_board_0(6, 4),
                 BoardCoords::new_board_0(4, 4),
@@ -171,7 +171,7 @@ fn test_simple_chess_turn_alternates() {
 
     engine
         .apply(
-            serde_json::json!("black").to_string(),
+            serde_json::json!({"board": 0, "color": "black"}).to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(3, 4),
@@ -187,7 +187,7 @@ fn test_simple_chess_wrong_turn_rejected() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Player "black" tries to go when it's "white"'s turn
     let result = engine.apply(
-        serde_json::json!("black").to_string(),
+        serde_json::json!({"board": 0, "color": "black"}).to_string(),
         move_action(
             BoardCoords::new_board_0(1, 4),
             BoardCoords::new_board_0(3, 4),
@@ -201,7 +201,7 @@ fn test_simple_chess_cannot_move_opponents_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Player "white" tries to move a black pawn at row 1
     let result = engine.apply(
-        serde_json::json!("white").to_string(),
+        serde_json::json!({"board": 0, "color": "white"}).to_string(),
         move_action(
             BoardCoords::new_board_0(1, 4),
             BoardCoords::new_board_0(3, 4),
@@ -215,7 +215,7 @@ fn test_simple_chess_cannot_move_from_empty_square() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Row 4 is empty at start
     let result = engine.apply(
-        serde_json::json!("white").to_string(),
+        serde_json::json!({"board": 0, "color": "white"}).to_string(),
         move_action(
             BoardCoords::new_board_0(4, 4),
             BoardCoords::new_board_0(3, 4),
@@ -229,7 +229,7 @@ fn test_simple_chess_cannot_capture_own_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // White rook at (7,0), white knight at (7,1) — try to move rook onto knight
     let result = engine.apply(
-        serde_json::json!("white").to_string(),
+        serde_json::json!({"board": 0, "color": "white"}).to_string(),
         move_action(
             BoardCoords::new_board_0(7, 0),
             BoardCoords::new_board_0(7, 1),
@@ -247,7 +247,7 @@ fn test_king_capture_triggers_game_over() {
     // White queen at (1,4) captures black king at (0,4)
     engine
         .apply(
-            serde_json::json!("white").to_string(),
+            serde_json::json!({"board": 0, "color": "white"}).to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(0, 4),
@@ -278,7 +278,7 @@ fn test_king_capture_game_not_over_after_non_king_move() {
     // White queen at (1,4) moves to (2,4) — no capture
     engine
         .apply(
-            serde_json::json!("white").to_string(),
+            serde_json::json!({"board": 0, "color": "white"}).to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(2, 4),
