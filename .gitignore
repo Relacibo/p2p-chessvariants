@@ -30,3 +30,4 @@ target
 rust/pkg
 .playwright-cli/
 .aider*
+.junie*
