@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Circle,
   Group,
@@ -81,7 +81,15 @@ export function Chessboard({
   // Trigger re-render once piece images are loaded
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [selected, setSelected] = useState<WasmBoardCoords | null>(null);
+  const [dragging, setDragging] = useState<WasmBoardCoords | null>(null);
   const dragOrigin = useRef<WasmBoardCoords | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stageRef = useRef<any>(null);
+
+  const setCursor = (cursor: string) => {
+    stageRef.current?.container()?.style &&
+      (stageRef.current.container().style.cursor = cursor);
+  };
 
   // Player 0 (white) sees row 7 (their pieces) at the visual bottom.
   // row 0 = black backrank is at the top → default rendering is already correct for player 0.
@@ -103,9 +111,11 @@ export function Chessboard({
 
   const validTargets = useMemo(() => {
     const s = new Set<string>();
-    if (selected) {
+    // Show targets for whichever source is active (click-select or drag)
+    const src = selected ?? dragging;
+    if (src) {
       for (const a of validActions)
-        if (a.from && coordsEq(a.from, selected) && a.to)
+        if (a.from && coordsEq(a.from, src) && a.to)
           s.add(`${a.to.row},${a.to.col}`);
     }
     if (selectedDropPiece) {
@@ -119,7 +129,7 @@ export function Chessboard({
           s.add(`${a.to.row},${a.to.col}`);
     }
     return s;
-  }, [selected, selectedDropPiece, validActions]);
+  }, [selected, dragging, selectedDropPiece, validActions]);
 
   const findAction = useCallback(
     (from: WasmBoardCoords, to: WasmBoardCoords) =>
@@ -235,7 +245,11 @@ export function Chessboard({
   }
 
   // ── Pieces ───────────────────────────────────────────────────────────────
-  const pieces = [];
+  // Render order: ghost (transparent origin) → static pieces → dragged piece (on top)
+  const staticPieces: ReactNode[] = [];
+  let ghostEl: ReactNode = null;
+  let draggedEl: ReactNode = null;
+
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       if (disabledSet.has(`${row},${col}`)) continue;
@@ -247,28 +261,59 @@ export function Chessboard({
       const canDrag = piece.color === myColor;
       const imgUrl = getPieceImageUrl(piece.color, piece.pieceType);
       const imgEl = imagesLoaded && imgUrl ? getCachedImage(imgUrl) : undefined;
+      const isDragging = dragging != null && coordsEq(dragging, coords);
 
       if (imgEl) {
-        pieces.push(
+        // Ghost: semi-transparent copy stays on origin square while dragging
+        if (isDragging) {
+          ghostEl = (
+            <KonvaImage
+              key={`ghost-${row}-${col}`}
+              image={imgEl}
+              x={x} y={y}
+              width={tileSize} height={tileSize}
+              opacity={0.35}
+              listening={false}
+            />
+          );
+        }
+
+        const pieceNode = (
           <KonvaImage
             key={`p-${row}-${col}`}
             image={imgEl}
-            x={x}
-            y={y}
-            width={tileSize}
-            height={tileSize}
+            x={x} y={y}
+            width={tileSize} height={tileSize}
             draggable={canDrag}
+            onMouseEnter={() => { if (canDrag) setCursor("grab"); }}
+            onMouseLeave={() => { setCursor("default"); }}
             onClick={() => handleTileClick(row, col)}
-            onDragStart={() => {
+            onDragStart={(e: KonvaEventObject<DragEvent>) => {
               dragOrigin.current = coords;
-              setSelected(coords);
+              setSelected(null);
+              setDragging(coords);
+              setCursor("grabbing");
+              // Snap piece center to cursor immediately
+              const stage = e.target.getStage();
+              const pointer = stage?.getPointerPosition();
+              if (pointer) {
+                e.target.setAttrs({
+                  x: pointer.x - tileSize / 2,
+                  y: pointer.y - tileSize / 2,
+                });
+                // Override Konva's drag offset so center tracks cursor
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (e.target as any)._dragOffset = { x: tileSize / 2, y: tileSize / 2 };
+              }
             }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               const pos = e.target.position();
-              // Snap back — the parent will re-render with the new position
+              // Always snap back — React state drives position
               e.target.position({ x, y });
               const origin = dragOrigin.current;
               dragOrigin.current = null;
+              setDragging(null);
+              setCursor("default");
               if (origin) {
                 const target = fromPixel(
                   pos.x + tileSize / 2,
@@ -283,9 +328,15 @@ export function Chessboard({
             }}
           />
         );
+
+        if (isDragging) {
+          draggedEl = pieceNode;
+        } else {
+          staticPieces.push(pieceNode);
+        }
       } else {
         // Fallback for unknown/unsupported colors: colored circle with letter
-        pieces.push(
+        staticPieces.push(
           <Group key={`p-${row}-${col}`} onClick={() => handleTileClick(row, col)}>
             <Circle
               x={x + tileSize / 2}
@@ -312,7 +363,7 @@ export function Chessboard({
   }
 
   return (
-    <Stage width={sw} height={sh}>
+    <Stage ref={stageRef} width={sw} height={sh}>
       <Layer>
         {/* Transparent background to catch clicks outside the board (deselect) */}
         <Rect
@@ -321,7 +372,9 @@ export function Chessboard({
           onClick={() => { setSelected(null); onClearDropPiece?.(); }}
         />
         {tiles}
-        {pieces}
+        {ghostEl}
+        {staticPieces}
+        {draggedEl}
       </Layer>
     </Stage>
   );
