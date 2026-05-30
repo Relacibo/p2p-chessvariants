@@ -389,22 +389,24 @@ export function Chessboard({
   }, [tileSize]);
 
   return (
-    <div ref={containerRef} className={styles.container} style={{ width: sw, height: sh }}>
-      <Stage ref={stageRef} width={sw} height={sh}>
-        <Layer>
-          {/* Transparent background to catch clicks outside the board (deselect) */}
-          <Rect
-            x={0} y={0} width={sw} height={sh}
-            fill="transparent"
-            onClick={() => { setSelected(null); onClearDropPiece?.(); }}
-          />
-          {tiles}
-          {ghostEl}
-          {pieces}
-        </Layer>
-      </Stage>
+    <>
+      <div ref={containerRef} className={styles.container} style={{ width: sw, height: sh }}>
+        <Stage ref={stageRef} width={sw} height={sh}>
+          <Layer>
+            {/* Transparent background to catch clicks outside the board (deselect) */}
+            <Rect
+              x={0} y={0} width={sw} height={sh}
+              fill="transparent"
+              onClick={() => { setSelected(null); onClearDropPiece?.(); }}
+            />
+            {tiles}
+            {ghostEl}
+            {pieces}
+          </Layer>
+        </Stage>
+      </div>
       <div ref={dragSurfaceRef} className={styles.dragSurface} />
-    </div>
+    </>
   );
 }
 
