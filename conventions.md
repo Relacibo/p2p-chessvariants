@@ -1,0 +1,47 @@
+# Project Conventions
+
+## Overview
+- **Chessvariant** – A chess variant engine with a Rust backend and a TypeScript/React frontend.
+- Rust engine embeds the Rhai scripting language for game rules and configuration.
+- Frontend uses React (Mantine UI), Redux for state, and communicates with the engine via WebAssembly (Wasm).
+
+## Communication
+- Chat language follows the user's language (German, English, etc.).
+- All code comments, variable names, and documentation are in **English**.
+
+## Code Style
+
+### General
+- **Comments**: English, concise, explaining *why* not *what*.
+- **Naming**: snake_case for Rust, camelCase for TypeScript. Use descriptive names.
+- **Formatting**: `cargo fmt` for Rust, Prettier for TypeScript (2-space indentation).
+
+### Rust
+- Follow standard Rust conventions (clippy warnings resolved, `rustfmt`).
+- Use `Result<T, CvError>` for fallible operations; prefer `?` over `unwrap`/`expect` in library code.
+- Rhai integration: register functions via `Engine::register_fn`, not `Engine::register_custom_operator` unless needed.
+- Custom types exposed to Rhai via `#[derive(Clone)]` and `Engine::register_type::<T>()`. Provide getters/setters using the `#[rhai_type(...)]` attribute.
+
+### TypeScript / React
+- Use functional components and hooks.
+- Prefer typed interfaces over classes.
+- File organization: Feature-based (`src/features/<feature>/<Component>.tsx`).
+- API calls go through `src/api/` module.
+
+## Architect-Editor Workflow
+- The **Architect** (deepseek-v4-pro) analyzes requests and the current code, then provides precise change instructions.
+- The **Editor** (qwen3-coder-next) applies those changes to the files.
+- Do not ask the Architect to make the edits; the Architect only plans and instructs.
+- When requesting a change, give the goal and context; the Architect decides the implementation approach.
+
+## Key Directories
+- `rust/src/` – Rust engine source.
+  - `game/` – Game logic (actions, board, moves, pieces, state, variant_config).
+  - `lib.rs` – Wasm entry point and engine struct.
+- `src/features/` – React feature components.
+- `src/api/` – API definitions, WebRTC services.
+- `src/gamelogicOld/` – Legacy game logic (kept for reference only, not modified).
+
+## Dependencies
+- Rust: `rhai`, `serde`, `serde_json`, `wasm-bindgen`, `js-sys`.
+- Frontend: React, Redux Toolkit, Mantine, WebRTC.
