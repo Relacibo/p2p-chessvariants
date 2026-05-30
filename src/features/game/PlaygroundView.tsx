@@ -24,7 +24,7 @@ function PlaygroundView() {
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
   const [validActions, setValidActions] = useState<WasmAction[]>([]);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
-  const [playerIndex, setPlayerIndex] = useState(0);
+  const [player, setPlayer] = useState<string>("");
   const [engineError, setEngineError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
@@ -46,8 +46,9 @@ function PlaygroundView() {
         engineRef.current = engine;
         setVariantConfig(JSON.parse(engine.variantConfigJson()));
         setBoardState(JSON.parse(engine.boardStateJson()));
-        setValidActions(JSON.parse(engine.validActionsJson(0)));
-        setPlayerIndex(0);
+        const activePlayers: string[] = JSON.parse(engine.activePlayersJson());
+        setPlayer(activePlayers[0] ?? "");
+        setValidActions(JSON.parse(engine.validActionsJson(activePlayers[0] ?? "")));
       } catch (e: unknown) {
         if (!cancelled)
           setEngineError(e instanceof Error ? e.message : String(e));
@@ -64,22 +65,22 @@ function PlaygroundView() {
   const handleSubmitAction = useCallback(
     (action: WasmAction) => {
       const engine = engineRef.current;
-      if (!engine) return;
+      if (!engine || !player) return;
       try {
         const newBoardJson = engine.applyActionJson(
-          playerIndex,
+          player,
           JSON.stringify(action)
         );
-        const newTurn = engine.currentTurn();
         setBoardState(JSON.parse(newBoardJson));
-        setValidActions(JSON.parse(engine.validActionsJson(newTurn)));
+        const activePlayers: string[] = JSON.parse(engine.activePlayersJson());
+        setPlayer(activePlayers[0] ?? "");
+        setValidActions(JSON.parse(engine.validActionsJson(activePlayers[0] ?? "")));
         setLastAction(action);
-        setPlayerIndex(newTurn);
       } catch (e: unknown) {
         console.error("Failed to apply action:", e);
       }
     },
-    [playerIndex]
+    [player]
   );
 
   if (failed) return <Navigate to="/game" />;
@@ -123,7 +124,7 @@ function PlaygroundView() {
           variantConfig={variantConfig}
           boardState={boardState}
           validActions={validActions}
-          playerIndex={playerIndex}
+          player={player}
           onSubmitAction={handleSubmitAction}
           lastAction={lastAction}
           size={480}

@@ -7,7 +7,7 @@ const PLAYER_LABELS = ["White", "Black", "Red", "Blue"];
 
 interface ReservePileProps {
   reservePile: WasmReservePileState;
-  playerIndex: number;
+  player: string;
   selectedPiece?: WasmPiece | null;
   onSelectPiece?: (piece: WasmPiece | null) => void;
   /** Tile size in px; piece icons scale to 80% of this. Defaults to 40. */
@@ -16,7 +16,7 @@ interface ReservePileProps {
 
 export function ReservePile({
   reservePile,
-  playerIndex,
+  player,
   selectedPiece,
   onSelectPiece,
   tileSize = 40,
@@ -28,7 +28,7 @@ export function ReservePile({
       {reservePile.reserve_piles.map((pile, pIdx) => {
         const color = PLAYER_COLORS[pIdx] ?? "white";
         const label = PLAYER_LABELS[pIdx] ?? `Player ${pIdx}`;
-        const isMyPile = pIdx === playerIndex;
+        const isMyPile = PLAYER_COLORS[pIdx] === player;
         return (
           <Paper key={pIdx} withBorder p="xs" style={{ opacity: isMyPile ? 1 : 0.65 }}>
             <Text size="xs" fw={600} mb={4} c="dimmed">

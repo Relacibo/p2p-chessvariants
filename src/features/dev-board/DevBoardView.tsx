@@ -252,25 +252,25 @@ export function DevBoardView() {
                   top: "50%",
                   transform: "translateY(-50%)",
                   width: reservePileWidth,
-                }
-              : {
-                  position: "absolute",
-                  bottom: 56,
-                  right: 8,
-                  width: reservePileWidth,
-                  opacity: 0.92,
-                }
-          }
-        >
-          <ReservePile
-            reservePile={reservePile}
-            playerIndex={controllingPlayer}
-            selectedPiece={selectedDropPiece}
-            onSelectPiece={setSelectedDropPiece}
-            tileSize={44}
-          />
-        </Box>
-      )}
+                 }
+               : {
+                   position: "absolute",
+                   bottom: 56,
+                   right: 8,
+                   width: reservePileWidth,
+                   opacity: 0.92,
+                 }
+           }
+         >
+           <ReservePile
+             reservePile={reservePile}
+             player={controllingPlayer}
+             selectedPiece={selectedDropPiece}
+             onSelectPiece={setSelectedDropPiece}
+             tileSize={44}
+           />
+         </Box>
+       )}
 
       {/* ── Error: floating bottom-left ── */}
       {error && (
@@ -363,8 +363,8 @@ export function DevBoardView() {
               <Paper key={entry.id} withBorder p={6} mb={4}>
                 <Group gap="xs" mb={2}>
                   <Badge size="xs" variant="light" color="gray">{entry.timestamp}</Badge>
-                  <Badge size="xs" color={PLAYER_BADGE_COLORS[entry.playerIndex] ?? "gray"}>
-                    {PLAYER_COLORS_LABEL[entry.playerIndex] ?? `P${entry.playerIndex}`}
+                  <Badge size="xs" color={PLAYER_BADGE_COLORS.find(c => c === entry.player) ?? "gray"}>
+                    {PLAYER_COLORS_LABEL.find(c => c.toLowerCase() === entry.player) ?? entry.player}
                   </Badge>
                 </Group>
                 <Code block fz={11} style={{ wordBreak: "break-all" }}>
