@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "bebop": "cat src/api/bebop/schemas/protocols/schemas/*.bop | bebopc build --stdin -g 'ts:src/api/bebop/generated.ts'",
-    "dev": "yarn wasm && vite & while inotifywait -r -e modify,create,delete --exclude '\\.sw[px]$' ./rust/src; do yarn wasm; done",
+    "dev": "yarn wasm && vite & chokidar 'rust/src/**/*.rs' -c 'yarn wasm'",
     "wasm": "cd rust && RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' wasm-pack build",
     "build": "yarn wasm && tsc && vite build",
     "preview": "vite preview",
@@ -58,6 +58,7 @@
     "@types/react-redux": "^7.1.34",
     "@types/uuid": "^11.0.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "chokidar-cli": "^3.0.0",
     "dotenv-vault": "^1.27.0",
     "esbuild": "^0.28.0",
     "postcss": "^8.5.14",
