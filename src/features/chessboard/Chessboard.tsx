@@ -320,7 +320,7 @@ export function Chessboard({
                 const clientY = (e.evt as unknown as PointerEvent).clientY;
                 dragSurfaceRef.current.style.transform =
                   `translate(${clientX - tileSize / 2}px, ${clientY - tileSize / 2}px)`;
-                dragSurfaceRef.current.classList.add("visible");
+                dragSurfaceRef.current.style.display = "block";
               }
               window.addEventListener("pointermove", handleWindowPointerMove);
             }}
@@ -328,7 +328,7 @@ export function Chessboard({
               window.removeEventListener("pointermove", handleWindowPointerMove);
               // Hide DOM drag surface
               if (dragSurfaceRef.current) {
-                dragSurfaceRef.current.classList.remove("visible");
+                dragSurfaceRef.current.style.display = "none";
                 dragSurfaceRef.current.innerHTML = "";
               }
               // Restore Konva piece visibility and snap back to grid

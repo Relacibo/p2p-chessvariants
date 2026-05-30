@@ -15,10 +15,6 @@
   will-change: transform;
 }
 
-.dragSurface.visible {
-  display: block;
-}
-
 .dragSurface img {
   display: block;
   user-select: none;
