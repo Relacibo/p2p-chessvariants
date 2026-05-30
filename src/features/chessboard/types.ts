@@ -58,8 +58,12 @@ export interface WasmVariantConfig {
   name: string;
   version: string;
   api_version: number;
-  players: WasmPlayerConfig[];
+  colors: string[];
+  allowed_player_count: AllowedPlayerCount;
   reserve_pile: boolean;
   check_protection: boolean;
   board: WasmBoardScriptConfig;
 }
+
+/** Player count specification from the script config. */
+export type AllowedPlayerCount = number | number[] | { min: number; max: number; step?: number };

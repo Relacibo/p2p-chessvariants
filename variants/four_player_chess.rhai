@@ -20,7 +20,8 @@ fn config() {
     api_version:      1,
     name:             "Four-Player Chess",
     version:          "1.0.0",
-    players:          ["white", "red", "black", "blue"],
+    colors:           ["white", "red", "black", "blue"],
+    allowed_player_count: 4,
     board: #{
       type:  "rectangle",
       rows:  14,
@@ -34,6 +35,7 @@ fn config() {
       ],
     },
     check_protection: false,  // king is captured, not checkmated
+    promotion_pieces: ["queen","rook","bishop","knight"],
   }
 }
 
@@ -319,6 +321,12 @@ fn init(player_count) {
 
   #{
     board:              board,
+    players:            [
+      #{ name: "white", board: 0, color: "white", team: 0 },
+      #{ name: "red",   board: 0, color: "red",   team: 1 },
+      #{ name: "black", board: 0, color: "black", team: 2 },
+      #{ name: "blue",  board: 0, color: "blue",  team: 3 },
+    ],
     active_players:     ["white"],
     running_clocks:     ["white"],
     alive:              ["white", "red", "black", "blue"],

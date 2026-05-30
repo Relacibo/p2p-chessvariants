@@ -32,10 +32,17 @@ import {
   WasmVariantConfig,
 } from "../chessboard/types";
 
+const GITHUB_RAW_ORIGIN = "https://raw.githubusercontent.com";
+const OWNER = "reinhard";
+const REPO = "p2p-chessvariants";
+const SHA = "e6502636abbd30370a84b705fa7db7fe263c3e3d";
+
+const BASE_RAW_URL = `${GITHUB_RAW_ORIGIN}/${OWNER}/${REPO}/${SHA}`;
+
 const PRESETS = [
-  { label: "Seirawan Chess (2p)", value: "/dev-scripts/seirawan_chess.rhai", players: 2 },
-  { label: "Bughouse (4p)", value: "/dev-scripts/bughouse.rhai", players: 4 },
-  { label: "4-Player Chess (4p)", value: "/dev-scripts/four_player_chess.rhai", players: 4 },
+  { label: "Seirawan Chess (2p)", value: `${BASE_RAW_URL}/variants/seirawan_chess.rhai`, players: 2 },
+  { label: "Bughouse (4p)", value: `${BASE_RAW_URL}/variants/bughouse.rhai`, players: 4 },
+  { label: "4-Player Chess (4p)", value: `${BASE_RAW_URL}/variants/four_player_chess.rhai`, players: 4 },
 ];
 
 interface LogEntry {
@@ -78,6 +85,7 @@ export function DevBoardView() {
   const [playerCount, setPlayerCount] = useState<number | string>(2);
   const [controllingPlayer, setControllingPlayer] = useState<string>("");
   const [activePlayers, setActivePlayers] = useState<string[]>([]);
+  const [allPlayers, setAllPlayers] = useState<{name: string; color: string; board: number; team: number}[]>([]);
 
   const engineRef = useRef<ChessvariantEngine | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(null);
@@ -118,6 +126,9 @@ export function DevBoardView() {
     
     const ap: string[] = JSON.parse(engine.activePlayersJson());
     setActivePlayers(ap);
+    
+    const allP: {name: string; color: string; board: number; team: number}[] = JSON.parse(engine.playersJson());
+    setAllPlayers(allP);
     
     // Dev-mode: if no controllingPlayer set, use first active player
     if (!controllingPlayer || !ap.includes(controllingPlayer)) {
@@ -338,16 +349,16 @@ export function DevBoardView() {
             onClick={handleLoad}
             loading={loading}
             fullWidth
-          >
-            Load / Restart
-          </Button>
+           >
+             Load / Restart
+           </Button>
 
-          <Select
-            label="Controlling player (local)"
-            data={variantConfig?.players.map(p => ({ value: p.name, label: `${p.color} (${p.name})` })) ?? []}
-            value={controllingPlayer}
-            onChange={(v) => v != null && setControllingPlayer(v)}
-          />
+           <Select
+             label="Controlling player (local)"
+             data={allPlayers.map(p => ({ value: p.name, label: `${p.color} (${p.name})` })) ?? []}
+             value={controllingPlayer}
+             onChange={(v) => v != null && setControllingPlayer(v)}
+           />
 
           <Group justify="space-between" align="center">
             <Text size="sm" fw={600}>Action Log</Text>

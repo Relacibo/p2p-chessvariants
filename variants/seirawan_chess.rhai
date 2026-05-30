@@ -29,7 +29,8 @@ fn config() {
     api_version:      1,
     name:             "Seirawan Chess",
     version:          "1.0.0",
-    players:          ["white", "black"],
+    colors:           ["white", "black"],
+    allowed_player_count: 2,
     board:            #{ type: "rectangle", rows: 8, cols: 8 },
     check_protection: true,   // moves that leave own king in check are illegal
     pieces: #{
@@ -39,6 +40,7 @@ fn config() {
       "hawk":     combine("bishop", "knight"),
       "elephant": combine("rook",   "knight"),
     },
+    promotion_pieces: ["queen","rook","bishop","knight","hawk","elephant"],
   }
 }
 
@@ -77,22 +79,14 @@ fn is_gating_square(player, row, col) {
 
 fn has_hand_piece(state, player, piece_type) {
   for p in state.hand {
-    if p.player == player { return p.hand.contains(piece_type); }
+    if p.player == player { return p.held.contains(piece_type); }
   }
   false  // default fallback
 }
 
-// ── Movement helpers (standard pieces only — hawk/elephant handled by engine) ──
-
-fn ray_moves(board, from, dr, dc, player) {
-  let moves = [];
-  for sq in ray(board, from, [dr, dc]) {
-    if sq.piece == () {
-      moves.push(sq.coords);
-    } else {
-      if sq.piece.color != player_color(player) { moves.push(sq.coords); }
-      break;
-    }
+fn is_gating_square(player, row, col) {
+  row == back_rank(player) && col >= 0 && col <= 7
+}
   }
   moves
 }
@@ -287,8 +281,8 @@ fn remove_from_hand(hand, player, piece_type) {
   let h = hand;
   for p in h {
     if p.player == player {
-      let idx = p.hand.index_of(piece_type);
-      if idx >= 0 { p.hand.remove(idx); }
+      let idx = p.held.index_of(piece_type);
+      if idx >= 0 { p.held.remove(idx); }
     }
   }
   h
@@ -299,12 +293,16 @@ fn remove_from_hand(hand, player, piece_type) {
 fn init(player_count) {
   #{
     board:              standard_start_position(),
+    players:            [
+      #{ name: "white", board: 0, color: "white", team: 0 },
+      #{ name: "black", board: 0, color: "black", team: 1 },
+    ],
     active_players:     ["white"],
     running_clocks:     ["white"],
     // Each player holds one Hawk and one Elephant in hand
-    hand:               [{ player: "white", hand: ["hawk", "elephant"] }, { player: "black", hand: ["hawk", "elephant"] }],
+    hand:               [#{ player: "white", held: ["hawk", "elephant"] }, #{ player: "black", held: ["hawk", "elephant"] }],
     // Columns 0-7 are available for gating (all back-rank squares)
-    gating_available:   [{ player: "white", cols: [0,1,2,3,4,5,6,7] }, { player: "black", cols: [0,1,2,3,4,5,6,7] }],
+    gating_available:   [#{ player: "white", cols: [0,1,2,3,4,5,6,7] }, #{ player: "black", cols: [0,1,2,3,4,5,6,7] }],
     pending_gate:       (),
     pending_promotion:  (),
     game_over:          (),

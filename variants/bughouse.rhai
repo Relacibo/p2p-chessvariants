@@ -20,7 +20,8 @@ fn config() {
     api_version:      1,
     name:             "Bughouse",
     version:          "1.0.0",
-    players:          ["white-a", "black-a", "white-b", "black-b"],
+    colors:           ["white", "black"],
+    allowed_player_count: 4,
     board: #{
       type:  "rectangle",
       rows:  8,
@@ -29,6 +30,7 @@ fn config() {
     },
     reserve_pile:     true,
     check_protection: true,   // standard chess rules apply per board
+    promotion_pieces: ["queen","rook","bishop","knight"],
   }
 }
 
@@ -383,8 +385,12 @@ fn init(player_count) {
   let pos = standard_start_position();  // engine helper: returns 8x8 board
   #{
     board:              [pos, pos],   // two identical starting positions
-    reserve:            [{ player: "white-a", pieces: [] }, { player: "black-a", pieces: [] },
-                         { player: "white-b", pieces: [] }, { player: "black-b", pieces: [] }],
+    players:            [
+      #{ name: "white-a", board: 0, color: "white", team: 0 },
+      #{ name: "black-a", board: 0, color: "black", team: 0 },
+      #{ name: "white-b", board: 1, color: "white", team: 1 },
+      #{ name: "black-b", board: 1, color: "black", team: 1 },
+    ],
     active_players:     ["white-a", "white-b"],  // white on board 0 and white on board 1 start
     pending_promotion:  (),
     game_over:          (),

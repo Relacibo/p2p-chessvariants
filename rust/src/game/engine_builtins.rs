@@ -169,7 +169,7 @@ pub fn is_king_in_check(
 /// Generates all legal moves for the given player.
 pub fn engine_valid_actions_impl(
     state: Dynamic,
-    player: String,
+    player: rhai::Map,
     check_protection: bool,
     custom_pieces: &HashMap<String, Vec<String>>,
 ) -> Array {
@@ -187,8 +187,8 @@ pub fn engine_valid_actions_impl(
         None => return Array::new(),
     };
 
-    // Get player's color from state.players
-    let color = get_player_color(&map, &player).unwrap_or("white".to_string());
+    // Get player's color from player map
+    let color = player.get("color").and_then(|v| v.clone().into_string().ok()).unwrap_or("white".to_string());
 
     let mut actions = Array::new();
 
@@ -221,16 +221,4 @@ pub fn engine_valid_actions_impl(
     }
 
     actions
-}
-
-/// Helper to get a player's color from state.players
-fn get_player_color(map: &rhai::Map, player: &str) -> Option<String> {
-    let players_arr = map.get("players")?.clone().try_cast::<rhai::Array>()?;
-    for p in players_arr {
-        let pm = p.try_cast::<rhai::Map>()?;
-        if pm.get("name")?.clone().into_string().ok()? == player {
-            return pm.get("color")?.clone().into_string().ok();
-        }
-    }
-    None
 }

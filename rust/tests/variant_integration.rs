@@ -34,7 +34,7 @@ fn state_turn(state: &Dynamic) -> i32 {
         .cast::<i32>()
 }
 
-fn state_active_players(state: &Dynamic) -> Vec<String> {
+fn state_active_players(state: &Dynamic) -> Vec<Dynamic> {
     state
         .clone()
         .cast::<rhai::Map>()
@@ -42,8 +42,20 @@ fn state_active_players(state: &Dynamic) -> Vec<String> {
         .expect("state has no 'active_players' field")
         .clone()
         .cast::<rhai::Array>()
+}
+
+fn state_active_players_colors(state: &Dynamic) -> Vec<String> {
+    state_active_players(state)
         .iter()
-        .map(|v| v.clone().into_string().expect("player name is not a string"))
+        .map(|v| {
+            // Try to cast as map first, then as string
+            if let Some(map) = v.clone().try_cast::<rhai::Map>() {
+                map["color"].clone().into_string().ok()
+            } else {
+                v.clone().into_string().ok()
+            }
+        })
+        .flatten()
         .collect()
 }
 
@@ -104,7 +116,7 @@ fn test_simple_chess_init_board_has_standard_pieces() {
 #[test]
 fn test_simple_chess_initial_turn_is_white() {
     let engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    let active = state_active_players(&engine.state());
+    let active = state_active_players_colors(&engine.state());
     assert_eq!(active, vec!["white".to_string()]);
 }
 
@@ -119,7 +131,7 @@ fn test_simple_chess_pawn_e2_e4() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     engine
         .apply(
-            "white".to_string(),
+            serde_json::json!("white").to_string(),
             move_action(
                 BoardCoords::new_board_0(6, 4),
                 BoardCoords::new_board_0(4, 4),
@@ -147,26 +159,26 @@ fn test_simple_chess_turn_alternates() {
 
     engine
         .apply(
-            "white".to_string(),
+            serde_json::json!("white").to_string(),
             move_action(
                 BoardCoords::new_board_0(6, 4),
                 BoardCoords::new_board_0(4, 4),
             ),
         )
         .unwrap();
-    let active = state_active_players(&engine.state());
+    let active = state_active_players_colors(&engine.state());
     assert_eq!(active, vec!["black".to_string()]);
 
     engine
         .apply(
-            "black".to_string(),
+            serde_json::json!("black").to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(3, 4),
             ),
         )
         .unwrap();
-    let active = state_active_players(&engine.state());
+    let active = state_active_players_colors(&engine.state());
     assert_eq!(active, vec!["white".to_string()]);
 }
 
@@ -175,7 +187,7 @@ fn test_simple_chess_wrong_turn_rejected() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Player "black" tries to go when it's "white"'s turn
     let result = engine.apply(
-        "black".to_string(),
+        serde_json::json!("black").to_string(),
         move_action(
             BoardCoords::new_board_0(1, 4),
             BoardCoords::new_board_0(3, 4),
@@ -189,7 +201,7 @@ fn test_simple_chess_cannot_move_opponents_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Player "white" tries to move a black pawn at row 1
     let result = engine.apply(
-        "white".to_string(),
+        serde_json::json!("white").to_string(),
         move_action(
             BoardCoords::new_board_0(1, 4),
             BoardCoords::new_board_0(3, 4),
@@ -203,7 +215,7 @@ fn test_simple_chess_cannot_move_from_empty_square() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Row 4 is empty at start
     let result = engine.apply(
-        "white".to_string(),
+        serde_json::json!("white").to_string(),
         move_action(
             BoardCoords::new_board_0(4, 4),
             BoardCoords::new_board_0(3, 4),
@@ -217,7 +229,7 @@ fn test_simple_chess_cannot_capture_own_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // White rook at (7,0), white knight at (7,1) — try to move rook onto knight
     let result = engine.apply(
-        "white".to_string(),
+        serde_json::json!("white").to_string(),
         move_action(
             BoardCoords::new_board_0(7, 0),
             BoardCoords::new_board_0(7, 1),
@@ -235,7 +247,7 @@ fn test_king_capture_triggers_game_over() {
     // White queen at (1,4) captures black king at (0,4)
     engine
         .apply(
-            "white".to_string(),
+            serde_json::json!("white").to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(0, 4),
@@ -253,9 +265,9 @@ fn test_king_capture_triggers_game_over() {
         "result type should be 'winner'"
     );
     assert_eq!(
-        map["player"].clone().cast::<String>(),
-        "white",
-        "player white should win"
+        map["player"].clone().cast::<i32>(),
+        0,
+        "player index 0 (white) should win"
     );
 }
 
@@ -266,7 +278,7 @@ fn test_king_capture_game_not_over_after_non_king_move() {
     // White queen at (1,4) moves to (2,4) — no capture
     engine
         .apply(
-            "white".to_string(),
+            serde_json::json!("white").to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(2, 4),
@@ -286,15 +298,15 @@ fn test_king_capture_game_not_over_after_non_king_move() {
 
 #[test]
 fn test_smoke_bughouse_config_and_init() {
-    let _engine = make_engine("../docs/examples/bughouse.rhai", 4);
+    let _engine = make_engine("../variants/bughouse.rhai", 4);
 }
 
 #[test]
 fn test_smoke_four_player_chess_config_and_init() {
-    let _engine = make_engine("../docs/examples/four_player_chess.rhai", 4);
+    let _engine = make_engine("../variants/four_player_chess.rhai", 4);
 }
 
 #[test]
 fn test_smoke_seirawan_chess_config_and_init() {
-    let _engine = make_engine("../docs/examples/seirawan_chess.rhai", 2);
+    let _engine = make_engine("../variants/seirawan_chess.rhai", 2);
 }

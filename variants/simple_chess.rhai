@@ -8,14 +8,20 @@ fn config() {
         api_version: 1,
         name: "Simple Chess (test)",
         version: "1.0.0",
-        players: ["white", "black"],
+        colors: ["white", "black"],
+        allowed_player_count: 2,
         board: #{ type: "rectangle", rows: 8, cols: 8 },
+        promotion_pieces: ["queen","rook","bishop","knight"],
     }
 }
 
 fn init(player_count) {
     #{
         board: standard_start_position(),
+        players: [
+            #{ name: "white", board: 0, color: "white", team: 0 },
+            #{ name: "black", board: 0, color: "black", team: 1 },
+        ],
         active_players: ["white"],
         running_clocks: ["white"],
         game_over: (),

@@ -8,14 +8,20 @@ fn config() {
         api_version: 1,
         name: "Simple Chess (test)",
         version: "1.0.0",
-        players: ["white", "black"],
+        colors: ["white", "black"],
+        allowed_player_count: 2,
         board: #{ type: "rectangle", rows: 8, cols: 8 },
+        promotion_pieces: ["queen","rook","bishop","knight"],
     }
 }
 
 fn init(player_count) {
     #{
         board: standard_start_position(),
+        players: [
+            #{ name: "white", board: 0, color: "white", team: 0 },
+            #{ name: "black", board: 0, color: "black", team: 1 },
+        ],
         active_players: ["white"],
         running_clocks: ["white"],
         game_over: (),
@@ -37,8 +43,7 @@ fn apply(state, player, action) {
     // Get player's color from state.players
     let player_color = state.players
         .filter(|p| p.name == player)
-        .map(|p| p.color)
-        .head();
+        .map(|p| p.color)[0];
     if src_piece.color != player_color { throw "that piece does not belong to you"; }
 
     let dst_piece = board_get(state.board, action.to);
@@ -49,7 +54,11 @@ fn apply(state, player, action) {
     // Game ends if a king was captured
     let game_over = ();
     if dst_piece != () && dst_piece.type == "king" {
-        game_over = Winner(player);
+        // Find player index
+        let player_idx = state.players
+            .filter(|p| p.name == player)
+            .map(|p| p.board)[0];
+        game_over = Winner(player_idx);
     }
 
     // Switch turn

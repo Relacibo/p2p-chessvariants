@@ -1,4 +1,5 @@
 import { ChessvariantEngine } from "chessvariant-engine";
+import { WasmVariantConfig } from "../chessboard/types";
 
 const GITHUB_RAW_ORIGIN = "https://raw.githubusercontent.com";
 const GITHUB_BROWSE_ORIGIN = "https://github.com";
@@ -138,8 +139,8 @@ export async function fetchScriptText(url: string): Promise<string> {
 export async function validateAndGetName(url: string): Promise<string> {
   const script = await fetchScriptText(url);
   try {
-    const config = await ChessvariantEngine.parseConfig(script);
-    return (config as any).name as string;
+    const config = (await ChessvariantEngine.parseConfig(script)) as unknown as WasmVariantConfig;
+    return config.name;
   } catch (e: any) {
     throw new Error(`Engine error: ${e.message || e}`);
   }
@@ -151,11 +152,29 @@ export type ScriptConfig = {
   maxPlayers: number;
 };
 
+/**
+ * Extract min/max players from the allowed_player_count field.
+ */
+export function getPlayersRange(apc: WasmVariantConfig["allowed_player_count"]): { min: number; max: number } {
+  if (typeof apc === "number") {
+    return { min: apc, max: apc };
+  }
+  if (Array.isArray(apc)) {
+    return { min: Math.min(...apc), max: Math.max(...apc) };
+  }
+  return { min: apc.min, max: apc.max };
+}
+
 export async function parseScriptConfig(url: string): Promise<ScriptConfig> {
   const script = await fetchScriptText(url);
   try {
-    const config = await ChessvariantEngine.parseConfig(script);
-    return config as unknown as ScriptConfig;
+    const config = (await ChessvariantEngine.parseConfig(script)) as unknown as WasmVariantConfig;
+    const range = getPlayersRange(config.allowed_player_count);
+    return {
+      name: config.name,
+      minPlayers: range.min,
+      maxPlayers: range.max,
+    };
   } catch (e: any) {
     throw new Error(`Engine error: ${e.message || e}`);
   }

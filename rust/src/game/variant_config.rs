@@ -5,60 +5,69 @@ use tsify::Tsify;
 
 use crate::error;
 
-/// Player configuration as defined in the script's `config()` function.
-/// Can be a string (color only) or an object with name, board, color, team fields.
+/// Validation for player count. In Rhai config:
+///   - `2`              → Exact(2)
+///   - `[2, 4]`         → Discrete([2, 4])
+///   - `#{min:2,max:4,step:2}` → Range { min:2, max:4, step:2 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
-pub struct PlayerConfig {
-    pub name: String,
-    pub color: String,
-    pub board: usize,
-    pub team: String,
+pub enum AllowedPlayerCount {
+    Exact(u32),
+    Discrete(Vec<u32>),
+    Range {
+        min: u32,
+        max: u32,
+        step: u32,
+    },
 }
 
-impl PlayerConfig {
-    /// Build a PlayerConfig from a Rhai Dynamic (handles both string and object formats)
-    pub fn from_dynamic(value: Dynamic) -> Result<Self, error::CvError> {
-        // Case 1: string shorthand → { color: value, name: value, board: 0, team: value }
-        if let Ok(s) = value.clone().into_string() {
-            return Ok(PlayerConfig {
-                name: s.clone(),
-                color: s.clone(),
-                board: 0,
-                team: s,
-            });
+impl Default for AllowedPlayerCount {
+    fn default() -> Self {
+        AllowedPlayerCount::Exact(2)
+    }
+}
+
+impl AllowedPlayerCount {
+    pub fn validate(&self, n: u32) -> bool {
+        match self {
+            AllowedPlayerCount::Exact(v) => n == *v,
+            AllowedPlayerCount::Discrete(vals) => vals.contains(&n),
+            AllowedPlayerCount::Range { min, max, step } => {
+                n >= *min && n <= *max && (n - min) % step == 0
+            }
         }
-        
-        // Case 2: object → deserialize each field with defaults
-        let map = value.try_cast::<rhai::Map>()
-            .ok_or_else(|| error::CvError::Internal("player config must be string or object".into()))?;
-        
-        let color: String = map
-            .get("color")
-            .and_then(|v| v.clone().into_string().ok())
-            .ok_or_else(|| error::CvError::Internal("player config missing 'color' field".into()))?;
-        
-        let board: usize = map
-            .get("board")
-            .and_then(|v| v.as_int().ok())
-            .unwrap_or(0) as usize;
-        
-        let name: String = map
-            .get("name")
-            .and_then(|v| v.clone().into_string().ok())
-            .unwrap_or_else(|| {
-                // default: "{color}-{board}" when board > 0, otherwise just color
-                if board > 0 { format!("{color}-{board}") } else { color.clone() }
-            });
-        
-        let team: String = map
-            .get("team")
-            .and_then(|v| v.clone().into_string().ok())
-            .unwrap_or_else(|| name.clone());
-        
-        Ok(PlayerConfig { name, color, board, team })
+    }
+
+    /// Parse from a Rhai Dynamic value.
+    pub fn from_dynamic(value: Dynamic) -> Result<Self, error::CvError> {
+        // Case 1: simple integer → Exact
+        if let Ok(n) = value.as_int() {
+            return Ok(AllowedPlayerCount::Exact(n as u32));
+        }
+        // Case 2: array of integers → Discrete
+        if let Some(arr) = value.clone().try_cast::<rhai::Array>() {
+            let vals: Vec<u32> = arr.iter()
+                .filter_map(|v| v.as_int().ok().map(|n| n as u32))
+                .collect();
+            if vals.is_empty() {
+                return Err(error::CvError::Internal(
+                    "allowed_player_count array must not be empty".into()
+                ));
+            }
+            return Ok(AllowedPlayerCount::Discrete(vals));
+        }
+        // Case 3: map { min, max, step } → Range
+        if let Some(map) = value.clone().try_cast::<rhai::Map>() {
+            let min = map.get("min").and_then(|v| v.as_int().ok()).unwrap_or(2) as u32;
+            let max = map.get("max").and_then(|v| v.as_int().ok()).unwrap_or(2) as u32;
+            let step = map.get("step").and_then(|v| v.as_int().ok()).unwrap_or(1) as u32;
+            return Ok(AllowedPlayerCount::Range { min, max, step });
+        }
+        Err(error::CvError::Internal(
+            "allowed_player_count must be integer, array, or {min, max, step} map".into()
+        ))
     }
 }
 
@@ -69,15 +78,28 @@ pub struct VariantConfig {
     pub name: String,
     pub version: String,
     pub api_version: i32,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub players: Vec<PlayerConfig>,
+    #[serde(default)]
+    pub colors: Vec<String>,
+    #[serde(default)]
+    pub allowed_player_count: AllowedPlayerCount,
     #[serde(default)]
     pub reserve_pile: bool,
     #[serde(default)]
     pub check_protection: bool,
     #[serde(default)]
     pub pieces: Option<Dynamic>,
+    #[serde(default = "default_promotion_pieces")]
+    pub promotion_pieces: Vec<String>,
     pub board: BoardScriptConfig,
+}
+
+fn default_promotion_pieces() -> Vec<String> {
+    vec![
+        "queen".into(),
+        "rook".into(),
+        "bishop".into(),
+        "knight".into(),
+    ]
 }
 
 /// Flat board config as returned by scripts: `#{ type: "rectangle", rows: 8, cols: 8 }`.
@@ -141,65 +163,68 @@ impl TryFrom<Dynamic> for VariantConfig {
     fn try_from(value: Dynamic) -> Result<Self, Self::Error> {
         let map = value.try_cast::<rhai::Map>()
             .ok_or_else(|| error::CvError::Internal("config must be an object".into()))?;
-        
+
         let name: String = map
             .get("name")
             .and_then(|v| v.clone().into_string().ok())
             .ok_or_else(|| error::CvError::Internal("config missing 'name' field".into()))?;
-        
+
         let version: String = map
             .get("version")
             .and_then(|v| v.clone().into_string().ok())
             .ok_or_else(|| error::CvError::Internal("config missing 'version' field".into()))?;
-        
+
         let api_version: i32 = map
             .get("api_version")
             .and_then(|v| v.as_int().ok())
             .unwrap_or(1);
-        
-        let players: Vec<PlayerConfig> = map
-            .get("players")
+
+        let colors: Vec<String> = map
+            .get("colors")
             .and_then(|v| v.clone().try_cast::<rhai::Array>())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| PlayerConfig::from_dynamic(v.clone()).ok())
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.clone().into_string().ok()).collect())
             .unwrap_or_default();
-        
-        // Validate unique player names
-        let names: Vec<_> = players.iter().map(|p| &p.name).collect();
-        let unique_names: std::collections::HashSet<_> = names.iter().collect();
-        if names.len() != unique_names.len() {
-            return Err(error::CvError::Internal("duplicate player names in config".into()));
-        }
-        
+
+        let allowed_player_count = map
+            .get("allowed_player_count")
+            .cloned()
+            .map(AllowedPlayerCount::from_dynamic)
+            .unwrap_or(Ok(AllowedPlayerCount::Exact(2)))?;
+
         let reserve_pile = map
             .get("reserve_pile")
             .and_then(|v| v.as_bool().ok())
             .unwrap_or(false);
-        
+
         let check_protection = map
             .get("check_protection")
             .and_then(|v| v.as_bool().ok())
             .unwrap_or(false);
-        
+
         let pieces = map.get("pieces").cloned();
-        
+
+        let promotion_pieces: Vec<String> = map
+            .get("promotion_pieces")
+            .and_then(|v| v.clone().try_cast::<rhai::Array>())
+            .map(|arr: rhai::Array| arr.iter().filter_map(|v: &rhai::Dynamic| v.clone().into_string().ok()).collect())
+            .unwrap_or_else(default_promotion_pieces);
+
         let board: BoardScriptConfig = map
             .get("board")
             .ok_or_else(|| error::CvError::Internal("config missing 'board' field".into()))?
             .clone()
             .try_into()?;
-        
+
         Ok(VariantConfig {
             name,
             version,
             api_version,
-            players,
+            colors,
+            allowed_player_count,
             reserve_pile,
             check_protection,
             pieces,
+            promotion_pieces,
             board,
         })
     }
