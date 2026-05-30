@@ -16,6 +16,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod error;
 mod game;
+mod logging;
 mod modules;
 pub mod rhai_rust_error;
 
@@ -124,6 +125,8 @@ fn register_builtins(engine: &mut Engine) {
         result.extend(updates);
         result
     });
+
+    engine.register_global_module(logging::create_module());
 }
 
 fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
@@ -346,6 +349,12 @@ impl ChessvariantEngine {
         )?;
         self.game_state = new_state;
         self.board_state_json()
+    }
+
+    /// Set the logging level for the Rhai logging module.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = setLogLevel))]
+    pub fn set_log_level(level: String) {
+        logging::set_log_level(&level);
     }
 }
 
