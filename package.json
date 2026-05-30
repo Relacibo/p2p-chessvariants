@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "bebop": "cat src/api/bebop/schemas/protocols/schemas/*.bop | bebopc build --stdin -g 'ts:src/api/bebop/generated.ts'",
-    "dev": "yarn wasm && vite & sleep 20 && yarn watch 'yarn wasm' ./rust/src",
+    "dev": "yarn wasm && vite & while inotifywait -r -e modify,create,delete --exclude '\\.sw[px]$' ./rust/src; do yarn wasm; done",
     "wasm": "cd rust && RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' wasm-pack build",
     "build": "yarn wasm && tsc && vite build",
     "preview": "vite preview",
