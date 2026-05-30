@@ -104,10 +104,10 @@ export function DevBoardView() {
     return () => ro.disconnect();
   }, []);
 
-  const boardSize = Math.floor(Math.min(containerSize.h * 0.97, containerSize.w * 0.97));
-  // Space available to the right of the centered board
-  const sideSpace = Math.floor((containerSize.w - boardSize) / 2);
+  const boardSize = Math.floor(Math.min(containerSize.h, containerSize.w));
   const reservePileWidth = 148;
+  // Space left of the centered board for reserve pile
+  const sideSpace = Math.floor((containerSize.w - boardSize) / 2);
   const showReserveSide = sideSpace >= reservePileWidth + 8;
 
   // ── Engine helpers ────────────────────────────────────────────────────────
@@ -193,21 +193,21 @@ export function DevBoardView() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    // Container fills content area below the header; no scroll
     <Box
       ref={containerRef}
       style={{
         position: "fixed",
         inset: 0,
         paddingTop: "var(--app-shell-header-height, 70px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         overflow: "hidden",
       }}
     >
-      {/* ── Centered board ── */}
-      {loading && <Loader />}
+      {/* ── Fullscreen Stage — board is centered inside it ── */}
+      {loading && (
+        <Box style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+          <Loader />
+        </Box>
+      )}
       {!loading && boardState && variantConfig && (
         <Chessboard
           variantConfig={variantConfig}
@@ -219,6 +219,8 @@ export function DevBoardView() {
           selectedDropPiece={selectedDropPiece}
           onClearDropPiece={() => setSelectedDropPiece(null)}
           size={boardSize}
+          stageWidth={containerSize.w}
+          stageHeight={containerSize.h}
         />
       )}
 

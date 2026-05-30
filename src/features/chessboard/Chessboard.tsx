@@ -42,6 +42,12 @@ export type ChessboardProps = {
   onClearDropPiece?: () => void;
   /** Pixel width/height of the board square. Defaults to 480. */
   size?: number;
+  /**
+   * Total width/height of the Konva Stage. When provided the Stage fills this
+   * area and the board is centered inside it. Defaults to the board size.
+   */
+  stageWidth?: number;
+  stageHeight?: number;
 };
 
 function coordsEq(a: WasmBoardCoords, b: WasmBoardCoords): boolean {
@@ -59,11 +65,18 @@ export function Chessboard({
   selectedDropPiece = null,
   onClearDropPiece,
   size = 480,
+  stageWidth,
+  stageHeight,
 }: ChessboardProps) {
   const { rows, cols } = boardState;
   const tileSize = size / Math.max(rows, cols);
   const boardW = tileSize * cols;
   const boardH = tileSize * rows;
+
+  const sw = stageWidth ?? boardW;
+  const sh = stageHeight ?? boardH;
+  const offsetX = Math.floor((sw - boardW) / 2);
+  const offsetY = Math.floor((sh - boardH) / 2);
 
   // Trigger re-render once piece images are loaded
   const [imagesLoaded, setImagesLoaded] = useState(false);
@@ -118,14 +131,14 @@ export function Chessboard({
 
   /** Convert logical (row, col) → pixel top-left in the Stage. */
   const toPixel = (row: number, col: number) => ({
-    x: col * tileSize,
-    y: (flipped ? rows - 1 - row : row) * tileSize,
+    x: offsetX + col * tileSize,
+    y: offsetY + (flipped ? rows - 1 - row : row) * tileSize,
   });
 
   /** Convert a Stage pixel position → logical BoardCoords. */
   const fromPixel = (x: number, y: number): WasmBoardCoords => {
-    const rawRow = Math.floor(y / tileSize);
-    const col = Math.max(0, Math.min(cols - 1, Math.floor(x / tileSize)));
+    const rawRow = Math.floor((y - offsetY) / tileSize);
+    const col = Math.max(0, Math.min(cols - 1, Math.floor((x - offsetX) / tileSize)));
     const row = Math.max(
       0,
       Math.min(rows - 1, flipped ? rows - 1 - rawRow : rawRow)
@@ -299,8 +312,14 @@ export function Chessboard({
   }
 
   return (
-    <Stage width={boardW} height={boardH}>
+    <Stage width={sw} height={sh}>
       <Layer>
+        {/* Transparent background to catch clicks outside the board (deselect) */}
+        <Rect
+          x={0} y={0} width={sw} height={sh}
+          fill="transparent"
+          onClick={() => { setSelected(null); onClearDropPiece?.(); }}
+        />
         {tiles}
         {pieces}
       </Layer>
