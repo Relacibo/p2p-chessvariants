@@ -215,7 +215,7 @@ fn valid_actions(state) {
   if state.pending_promotion != () {
     let p = state.pending_promotion.player;
     return ["queen","rook","bishop","knight"]
-      .map(|v| #{ player: p, action: Choose("promote", v) });
+      .map(|v| Choose("promote", v));
   }
 
   let player  = state.turn;
@@ -227,7 +227,7 @@ fn valid_actions(state) {
       let sq   = board_get(state.board, from);
       if sq == () || !own_piece(sq, player) { continue; }
       for dest in piece_moves(state, from, player) {
-        actions.push(#{ player: player, action: Move(from, dest) });
+        actions.push(Move(from, dest));
       }
     }
   }

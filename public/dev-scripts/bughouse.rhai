@@ -209,7 +209,7 @@ fn valid_actions(state) {
         let p    = piece_at(state, b, r, c);
         if p == () || !own_piece(p, player) { continue; }
         for dest in piece_moves(state, b, Coords(r, c), player) {
-          actions.push(#{ player: player, action: Move(from, Coords(dest.row, dest.col, b)) });
+          actions.push(Move(from, Coords(dest.row, dest.col, b)));
         }
       }
     }
@@ -217,7 +217,7 @@ fn valid_actions(state) {
     // Drops from reserve
     for piece in state.reserve[player] {
       for dest in drop_destinations(state, b, piece.type) {
-        actions.push(#{ player: player, action: Drop(piece, dest) });
+        actions.push(Drop(piece, dest));
       }
     }
   }

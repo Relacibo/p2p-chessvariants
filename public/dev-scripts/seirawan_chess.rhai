@@ -125,7 +125,7 @@ fn valid_actions(state) {
   if state.pending_gate != () {
     let player = state.pending_gate.player;
     return gate_options(state, player)
-      .map(|v| #{ player: player, action: Choose("gate", v) });
+      .map(|v| Choose("gate", v));
   }
 
   // Waiting for promotion
@@ -135,7 +135,7 @@ fn valid_actions(state) {
     let opts = ["queen","rook","bishop","knight"];
     if has_hand_piece(state, player, "hawk")     { opts.push("hawk"); }
     if has_hand_piece(state, player, "elephant") { opts.push("elephant"); }
-    return opts.map(|v| #{ player: player, action: Choose("promote", v) });
+    return opts.map(|v| Choose("promote", v));
   }
 
   // Standard moves — engine handles hawk/elephant + check filtering automatically
