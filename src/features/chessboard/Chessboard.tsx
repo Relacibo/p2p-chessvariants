@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Circle,
   Group,
@@ -9,6 +9,7 @@ import {
   Text,
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
+import { DD } from "konva/lib/DragAndDrop";
 import {
   WasmAction,
   WasmBoardCoords,
@@ -85,6 +86,9 @@ export function Chessboard({
   const dragOrigin = useRef<WasmBoardCoords | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stageRef = useRef<any>(null);
+  // Keep a ref to validActions so onDragEnd always has fresh data
+  const validActionsRef = useRef(validActions);
+  validActionsRef.current = validActions;
 
   const setCursor = (cursor: string) => {
     stageRef.current?.container()?.style &&
@@ -95,6 +99,9 @@ export function Chessboard({
   // row 0 = black backrank is at the top → default rendering is already correct for player 0.
   // Player 1 (black) wants row 0 at the bottom → needs flip.
   const flipped = playerIndex % 2 !== 0;
+
+  // eslint-disable-next-line no-console
+  console.log("Chessboard render, validActions:", validActions.length);
 
   useEffect(() => {
     preloadAllPieceImages().then(() => setImagesLoaded(true));
@@ -133,10 +140,11 @@ export function Chessboard({
 
   const findAction = useCallback(
     (from: WasmBoardCoords, to: WasmBoardCoords) =>
-      validActions.find(
+      validActionsRef.current.find(
         (a) => a.from && coordsEq(a.from, from) && a.to && coordsEq(a.to, to)
       ),
-    [validActions]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   /** Convert logical (row, col) → pixel top-left in the Stage. */
@@ -244,11 +252,22 @@ export function Chessboard({
     }
   }
 
+  // ── Lift dragged piece to top after React re-render ──────────────────────
+  useLayoutEffect(() => {
+    if (dragging && stageRef.current) {
+      const node = stageRef.current.findOne(`#piece-${dragging.row}-${dragging.col}`);
+      if (node) {
+        node.moveToTop();
+        node.getLayer()?.batchDraw();
+      }
+    }
+  }, [dragging]);
+
   // ── Pieces ───────────────────────────────────────────────────────────────
-  // Render order: ghost (transparent origin) → static pieces → dragged piece (on top)
-  const staticPieces: ReactNode[] = [];
+  // All pieces stay in a fixed-order array — never reordered during drag.
+  // Z-ordering for the dragged piece is handled imperatively via moveToTop().
+  const pieces: ReactNode[] = [];
   let ghostEl: ReactNode = null;
-  let draggedEl: ReactNode = null;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
@@ -278,37 +297,43 @@ export function Chessboard({
           );
         }
 
-        const pieceNode = (
+        // Piece node stays in the same array position throughout drag
+        pieces.push(
           <KonvaImage
             key={`p-${row}-${col}`}
+            id={`piece-${row}-${col}`}
             image={imgEl}
             x={x} y={y}
             width={tileSize} height={tileSize}
             draggable={canDrag}
             onMouseEnter={() => { if (canDrag) setCursor("grab"); }}
-            onMouseLeave={() => { setCursor("default"); }}
-            onClick={() => handleTileClick(row, col)}
+            onMouseLeave={() => { if (!isDragging) setCursor("default"); }}
+            onClick={() => { if (!dragging) handleTileClick(row, col); }}
             onDragStart={(e: KonvaEventObject<DragEvent>) => {
               dragOrigin.current = coords;
               setSelected(null);
               setDragging(coords);
               setCursor("grabbing");
-              // Snap piece center to cursor immediately
+              // Center piece under cursor on pickup
               const stage = e.target.getStage();
               const pointer = stage?.getPointerPosition();
               if (pointer) {
-                e.target.setAttrs({
+                e.target.setAbsolutePosition({
                   x: pointer.x - tileSize / 2,
                   y: pointer.y - tileSize / 2,
                 });
-                // Override Konva's drag offset so center tracks cursor
+                // Adjust Konva's internal drag offset so subsequent mouse moves
+                // keep the piece center pinned to the cursor
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (e.target as any)._dragOffset = { x: tileSize / 2, y: tileSize / 2 };
+                const elem = DD._dragElements.get((e.target as any)._id);
+                if (elem) {
+                  elem.offset = { x: tileSize / 2, y: tileSize / 2 };
+                }
               }
             }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               const pos = e.target.position();
-              // Always snap back — React state drives position
+              // Snap back to grid — React state drives position
               e.target.position({ x, y });
               const origin = dragOrigin.current;
               dragOrigin.current = null;
@@ -319,7 +344,11 @@ export function Chessboard({
                   pos.x + tileSize / 2,
                   pos.y + tileSize / 2
                 );
+                // eslint-disable-next-line no-console
+                console.log("drag end", { pos, origin, target, tileSize, validActions: validActionsRef.current.length });
                 const action = findAction(origin, target);
+                // eslint-disable-next-line no-console
+                console.log("action", action, "from", origin, "to", target);
                 if (action) {
                   onSubmitAction(action);
                   setSelected(null);
@@ -328,16 +357,10 @@ export function Chessboard({
             }}
           />
         );
-
-        if (isDragging) {
-          draggedEl = pieceNode;
-        } else {
-          staticPieces.push(pieceNode);
-        }
       } else {
         // Fallback for unknown/unsupported colors: colored circle with letter
-        staticPieces.push(
-          <Group key={`p-${row}-${col}`} onClick={() => handleTileClick(row, col)}>
+        pieces.push(
+          <Group key={`p-${row}-${col}`} id={`piece-${row}-${col}`} onClick={() => { if (!dragging) handleTileClick(row, col); }}>
             <Circle
               x={x + tileSize / 2}
               y={y + tileSize / 2}
@@ -373,8 +396,7 @@ export function Chessboard({
         />
         {tiles}
         {ghostEl}
-        {staticPieces}
-        {draggedEl}
+        {pieces}
       </Layer>
     </Stage>
   );

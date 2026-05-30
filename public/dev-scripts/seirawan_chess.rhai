@@ -178,10 +178,11 @@ fn apply(state, player, action) {
   let piece = board_get(state.board, from);
 
   if piece == () || !own(piece, player) { throw "no own piece at source"; }
-  // Delegate legality check to engine (includes check_protection filtering)
+  // Delegate legality check to engine (includes check_protection filtering).
+  // engine_valid_actions returns Action[] directly (type, from, to fields).
   let legal = engine_valid_actions(state)
-    .filter(|a| a.player == player && a.action.type == "move" && a.action.from == from)
-    .map(|a| a.action.to);
+    .filter(|a| a.type == "move" && a.from == from)
+    .map(|a| a.to);
   if !legal.contains(to) { throw "illegal move"; }
 
   let board = board_move_piece(state.board, from, to);

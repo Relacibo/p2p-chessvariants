@@ -116,7 +116,16 @@ export function DevBoardView() {
   const syncState = useCallback((engine: ChessvariantEngine, turn: number) => {
     setBoardState(JSON.parse(engine.boardStateJson()));
     setCurrentTurn(turn);
-    setValidActions(JSON.parse(engine.validActionsJson(turn)));
+    let va: WasmAction[] = [];
+    try {
+      va = JSON.parse(engine.validActionsJson(turn));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("validActionsJson threw:", err);
+    }
+    // eslint-disable-next-line no-console
+    console.log("syncState: turn", turn, "validActions", va.length, "first:", JSON.stringify(va[0]));
+    setValidActions(va);
     const rpJson = engine.reservePileJson();
     setReservePile(rpJson ? JSON.parse(rpJson) : null);
   }, []);

@@ -2,6 +2,7 @@ use error::CvError;
 use game::{
     actions::Action,
     board,
+    engine_builtins,
     game_result,
     moves,
     piece::Piece,
@@ -34,6 +35,32 @@ pub struct ChessvariantEngine {
     pub(crate) variant_config: VariantConfig,
 }
 
+fn action_to_rhai_dynamic(action: Action) -> Dynamic {
+    let mut map = rhai::Map::new();
+    map.insert("type".into(), Dynamic::from(action.kind));
+    map.insert(
+        "from".into(),
+        action.from.map(Dynamic::from).unwrap_or(Dynamic::UNIT),
+    );
+    map.insert(
+        "to".into(),
+        action.to.map(Dynamic::from).unwrap_or(Dynamic::UNIT),
+    );
+    map.insert(
+        "piece".into(),
+        action.piece.map(Dynamic::from).unwrap_or(Dynamic::UNIT),
+    );
+    map.insert(
+        "tag".into(),
+        action.tag.map(Dynamic::from).unwrap_or(Dynamic::UNIT),
+    );
+    map.insert(
+        "value".into(),
+        action.value.map(Dynamic::from).unwrap_or(Dynamic::UNIT),
+    );
+    Dynamic::from_map(map)
+}
+
 fn register_builtins(engine: &mut Engine) {
     engine
         .build_type::<BoardState>()
@@ -42,6 +69,11 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<Piece>()
         .build_type::<BoardLayoutConfig>()
         .build_type::<Action>();
+
+    // Equality operators for custom types used in script comparisons
+    use game::state::BoardCoords as BC;
+    engine.register_fn("==", |a: BC, b: BC| -> bool { a == b });
+    engine.register_fn("!=", |a: BC, b: BC| -> bool { a != b });
 
     engine.register_fn("Coords", BoardCoords::new_board_0);
     engine.register_fn("Coords", BoardCoords::new);
@@ -94,6 +126,47 @@ fn register_builtins(engine: &mut Engine) {
     });
 }
 
+fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
+    use std::collections::HashMap;
+    use game::state::BoardCoords;
+
+    let check_protection = config.check_protection;
+    let custom_pieces = engine_builtins::parse_custom_pieces(config.pieces.clone());
+
+    // Clone for each closure that captures it
+    let cp_valid = custom_pieces.clone();
+    let cp_attacked = custom_pieces.clone();
+    let cp_pseudo = custom_pieces;
+
+    engine.register_fn(
+        "engine_valid_actions",
+        move |state: rhai::Dynamic| -> rhai::Array {
+            engine_builtins::engine_valid_actions_impl(state, check_protection, &cp_valid)
+        },
+    );
+
+    engine.register_fn(
+        "is_square_attacked",
+        move |board: game::state::BoardState, coords: BoardCoords, by_color: String| -> bool {
+            engine_builtins::is_square_attacked(&board, &coords, &by_color, &cp_attacked)
+        },
+    );
+
+    engine.register_fn(
+        "pseudo_moves",
+        move |board: game::state::BoardState,
+              from: BoardCoords,
+              piece_type: String,
+              color: String|
+              -> rhai::Array {
+            engine_builtins::get_pseudo_move_dests(&board, &from, &piece_type, &color, &cp_pseudo)
+                .into_iter()
+                .map(rhai::Dynamic::from)
+                .collect()
+        },
+    );
+}
+
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
@@ -108,6 +181,7 @@ impl ChessvariantEngine {
         let mut scope = Scope::new();
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
+        register_engine_builtins(&mut engine, &variant_config);
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
         Ok(ChessvariantEngine {
@@ -236,7 +310,20 @@ impl ChessvariantEngine {
             Err(e) => return Err(CvError::from(e)),
         };
         // Filter to only the given player's actions
-        let all: Vec<Action> = rhai::serde::from_dynamic(&actions_dyn)?;
+        // The array may contain native Rhai CustomType (Action) or serde-mapped objects.
+        let all: Vec<Action> = {
+            let arr = actions_dyn
+                .clone()
+                .try_cast::<rhai::Array>()
+                .ok_or_else(|| CvError::Internal("valid_actions did not return an array".into()))?;
+            arr.into_iter()
+                .filter_map(|item| {
+                    item.clone()
+                        .try_cast::<Action>()
+                        .or_else(|| rhai::serde::from_dynamic(&item).ok())
+                })
+                .collect()
+        };
         let _ = player_index; // currently valid_actions returns all; script may filter internally
         let json = serde_json::to_string(&all)?;
         Ok(json)
@@ -247,7 +334,9 @@ impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = applyActionJson))]
     pub fn apply_action_json(&mut self, player_index: i32, action_json: String) -> Result<String, CvError> {
         let action: Action = serde_json::from_str(&action_json)?;
-        let action_dyn = rhai::serde::to_dynamic(action)?;
+        // Convert to a Rhai map that contains native BoardCoords so scripts can use
+        // board_get(board, action.from) etc. without type errors.
+        let action_dyn = action_to_rhai_dynamic(action);
         let mut scope = Scope::new();
         let new_state = self.engine.call_fn::<Dynamic>(
             &mut scope,

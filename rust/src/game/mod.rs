@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod board;
+pub mod engine_builtins;
 pub mod game_result;
 pub mod moves;
 pub mod piece;
