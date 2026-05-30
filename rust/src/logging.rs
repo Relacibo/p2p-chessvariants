@@ -53,9 +53,9 @@ pub fn log_error(msg: &str) {
 
 pub fn create_module() -> Module {
     let mut module = Module::new();
-    module.set_native_fn("debug", log_debug);
-    module.set_native_fn("info", log_info);
-    module.set_native_fn("warn", log_warn);
-    module.set_native_fn("error", log_error);
+    module.register_fn("debug", log_debug);
+    module.register_fn("info", log_info);
+    module.register_fn("warn", log_warn);
+    module.register_fn("error", log_error);
     module
 }

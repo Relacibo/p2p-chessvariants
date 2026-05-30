@@ -10,7 +10,8 @@ use game::{
     state::ReservePileState,
     variant_config::{BoardLayoutConfig, VariantConfig},
 };
-use rhai::{AST, Dynamic, Engine, Rc, Scope};
+use rhai::{AST, Dynamic, Engine, Scope};
+use std::rc::Rc;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -130,7 +131,6 @@ fn register_builtins(engine: &mut Engine) {
 }
 
 fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
-    use std::collections::HashMap;
     use game::state::BoardCoords;
 
     let check_protection = config.check_protection;
