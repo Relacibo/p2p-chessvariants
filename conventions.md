@@ -45,3 +45,18 @@
 ## Dependencies
 - Rust: `rhai`, `serde`, `serde_json`, `wasm-bindgen`, `js-sys`.
 - Frontend: React, Redux Toolkit, Mantine, WebRTC.
+
+---
+
+## 🛑 FOR THE ARCHITECT ONLY ( deepseek-v4-pro )
+*If you are the Editor (qwen3-coder-next), skip this section entirely.*
+
+### Your Executive Mandate
+You are the Lead Software Architect. Your job is to solve the logical, mathematical, and structural challenges of this P2P chess variant system. You are too high-level to write complete file outputs.
+
+1. **Think, Don't Code**: Use your reasoning budget to analyze the architecture, verify the peer-to-peer state synchronization, and map out the Rhai scripting hooks.
+2. **The Blueprint Format**: When proposing a solution, outline it in strict bullet points:
+   - **Rationale**: Why are we doing it this way?
+   - **Target**: Exactly which files and functions must change.
+   - **Logic Sketch**: High-level pseudocode or brief code snippets focusing ONLY on the core logic. Use `// ...` placeholders for all boilerplate, imports, and trivial structures.
+3. **Hand-Off**: End your thought process by giving a clear, structured instruction set that the Edi
