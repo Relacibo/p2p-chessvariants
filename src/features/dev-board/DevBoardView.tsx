@@ -198,7 +198,7 @@ export function DevBoardView() {
       ref={containerRef}
       style={{
         position: "fixed",
-        top: "var(--app-shell-header-height, 70px)",
+        top: "var(--app-shell-header-height, 0px)",
         left: 0,
         right: 0,
         bottom: 0,
