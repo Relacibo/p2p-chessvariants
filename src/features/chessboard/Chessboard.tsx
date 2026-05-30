@@ -302,6 +302,8 @@ export function Chessboard({
               setSelected(null);
               setDragging(coords);
               setCursor("grabbing");
+              // Hide Konva piece — DOM drag surface shows the visual copy
+              e.target.opacity(0);
               // Spawn DOM drag surface (follows cursor with GPU compositing)
               const piece = getPiece(row, col);
               const pieceImgUrl = getPieceImageUrl(piece?.color ?? "white", piece?.pieceType ?? "pawn");
@@ -313,13 +315,11 @@ export function Chessboard({
                 img.style.width = `${tileSize}px`;
                 img.style.height = `${tileSize}px`;
                 dragSurfaceRef.current.appendChild(img);
-                const stage = e.target.getStage();
-                const pointer = stage?.getPointerPosition();
-                const rect = containerRef.current?.getBoundingClientRect();
-                if (pointer && rect) {
-                  dragSurfaceRef.current.style.transform =
-                    `translate(${rect.left + pointer.x - tileSize / 2}px, ${rect.top + pointer.y - tileSize / 2}px)`;
-                }
+                // Position centered under cursor (viewport coordinates)
+                const clientX = (e.evt as unknown as PointerEvent).clientX;
+                const clientY = (e.evt as unknown as PointerEvent).clientY;
+                dragSurfaceRef.current.style.transform =
+                  `translate(${clientX - tileSize / 2}px, ${clientY - tileSize / 2}px)`;
                 dragSurfaceRef.current.classList.add("visible");
               }
               window.addEventListener("pointermove", handleWindowPointerMove);
@@ -331,6 +331,9 @@ export function Chessboard({
                 dragSurfaceRef.current.classList.remove("visible");
                 dragSurfaceRef.current.innerHTML = "";
               }
+              // Restore Konva piece visibility and snap back to grid
+              e.target.opacity(1);
+              e.target.position({ x, y });
               const origin = dragOrigin.current;
               dragOrigin.current = null;
               setDragging(null);
