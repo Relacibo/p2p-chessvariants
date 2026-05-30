@@ -5,12 +5,12 @@
 // reserve and can be dropped instead of moving.
 //
 // Player layout:
-//   Board 0: player 0 (white) vs player 2 (black)
-//   Board 1: player 1 (white) vs player 3 (black)
+//   Board 0: white-a (white) vs black-a (black)
+//   Board 1: white-b (white) vs black-b (black)
 // Teams:
-//   Team A = players 0 + 3  (white on board 0, black on board 1)
-//   Team B = players 1 + 2  (white on board 1, black on board 0)
-// Partners: 0↔3, 1↔2
+//   Team A = white-a + black-a
+//   Team B = white-b + black-b
+// Partners: white-a↔black-a, white-b↔black-b
 //
 // NOTE: Move validation below is simplified (no check detection).
 // ============================================================
@@ -20,8 +20,7 @@ fn config() {
     api_version:      1,
     name:             "Bughouse",
     version:          "1.0.0",
-    min_players:      4,
-    max_players:      4,
+    players:          ["white-a", "black-a", "white-b", "black-b"],
     board: #{
       type:  "rectangle",
       rows:  8,
@@ -36,16 +35,26 @@ fn config() {
 // ── Helpers ─────────────────────────────────────────────────
 
 fn player_board(player) {
-  if player == 0 || player == 2 { 0 } else { 1 }
+  switch player {
+    "white-a" | "black-a" => 0,
+    "white-b" | "black-b" => 1
+  }
 }
 
 fn player_color(player) {
-  if player == 0 || player == 1 { "white" } else { "black" }
+  switch player {
+    "white-a" | "white-b" => "white",
+    _ => "black"
+  }
 }
 
 fn partner(player) {
-  // 0↔3, 1↔2
-  [3, 2, 1, 0][player]
+  switch player {
+    "white-a" => "black-a",
+    "black-a" => "white-a",
+    "white-b" => "black-b",
+    _ => "white-b"
+  }
 }
 
 fn pawn_dir(player) {
@@ -196,33 +205,37 @@ fn drop_destinations(state, board_index, piece_type) {
 
 // ── valid_actions ────────────────────────────────────────────
 
-fn valid_actions(state) {
+fn valid_actions(state, player) {
   let actions = [];
+  let b = player_board(player);
 
-  for player in state.active_players {
-    let b = player_board(player);
-
-    // Regular moves
-    for r in 0..8 {
-      for c in 0..8 {
-        let from = Coords(r, c, b);
-        let p    = piece_at(state, b, r, c);
-        if p == () || !own_piece(p, player) { continue; }
-        for dest in piece_moves(state, b, Coords(r, c), player) {
-          actions.push(#{ player: player, action: Move(from, Coords(dest.row, dest.col, b)) });
-        }
-      }
-    }
-
-    // Drops from reserve
-    for piece in state.reserve[player] {
-      for dest in drop_destinations(state, b, piece.type) {
-        actions.push(#{ player: player, action: Drop(piece, dest) });
+  // Regular moves
+  for r in 0..8 {
+    for c in 0..8 {
+      let from = Coords(r, c, b);
+      let p    = piece_at(state, b, r, c);
+      if p == () || !own_piece(p, player) { continue; }
+      for dest in piece_moves(state, b, from, player) {
+        actions.push(Move(from, Coords(dest.row, dest.col, b)));
       }
     }
   }
 
+  // Drops from reserve
+  for piece in reserve_for_player(state, player) {
+    for dest in drop_destinations(state, b, piece.type) {
+      actions.push(Drop(piece, dest));
+    }
+  }
+
   actions
+}
+
+fn reserve_for_player(state, player) {
+  for r in state.reserve {
+    if r.player == player { return r.pieces; }
+  }
+  []  // default fallback
 }
 
 // ── apply ────────────────────────────────────────────────────
@@ -293,7 +306,8 @@ fn apply_drop(state, player, b, action) {
   let piece = action.piece;
   let to    = action.to;
 
-  if !state.reserve[player].any(|p| p.type == piece.type) {
+  let player_reserve = reserve_for_player(state, player);
+  if !player_reserve.any(|p| p.type == piece.type) {
     throw "piece not in reserve";
   }
   let board = get_board(state, b);
@@ -326,9 +340,14 @@ fn finish_turn(state, player, new_board, board_index, new_reserve) {
   check_game_over(new_state)
 }
 
-// Board 0 opponent pairs: (0,2), Board 1: (1,3)
+// Board 0 opponent pairs: (white-a,black-a), Board 1: (white-b,black-b)
 fn board_opponent(player) {
-  switch player { 0 => 2, 2 => 0, 1 => 3, _ => 1 }
+  switch player {
+    "white-a" => "black-a",
+    "black-a" => "white-a",
+    "white-b" => "black-b",
+    _ => "white-b"
+  }
 }
 
 fn update_board(state, board_index, new_board) {
@@ -346,9 +365,9 @@ fn check_game_over(state) {
       if kings.len() == 0 {
         // Find which team wins
         let loser_player  = if color == "white" {
-          if board_index == 0 { 0 } else { 1 }
+          if board_index == 0 { "white-a" } else { "white-b" }
         } else {
-          if board_index == 0 { 2 } else { 3 }
+          if board_index == 0 { "black-a" } else { "black-b" }
         };
         let winning_team  = [partner(loser_player), board_opponent(partner(loser_player))];
         return merge(state, #{ game_over: Winners(winning_team) });
@@ -364,8 +383,9 @@ fn init(player_count) {
   let pos = standard_start_position();  // engine helper: returns 8x8 board
   #{
     board:              [pos, pos],   // two identical starting positions
-    reserve:            [[], [], [], []],
-    active_players:     [0, 1],       // white on board 0 and white on board 1 start
+    reserve:            [{ player: "white-a", pieces: [] }, { player: "black-a", pieces: [] },
+                         { player: "white-b", pieces: [] }, { player: "black-b", pieces: [] }],
+    active_players:     ["white-a", "white-b"],  // white on board 0 and white on board 1 start
     pending_promotion:  (),
     game_over:          (),
   }

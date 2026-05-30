@@ -45,7 +45,10 @@ fn config() {
 // ── Player / color helpers ───────────────────────────────────
 
 fn player_color(player) {
-  state.players.filter(|p| p.name == player).map(|p| p.color).head()
+  for p in state.players {
+    if p.name == player { return p.color; }
+  }
+  "white"  // default fallback
 }
 
 fn opponent(player) {
@@ -73,7 +76,10 @@ fn is_gating_square(player, row, col) {
 }
 
 fn has_hand_piece(state, player, piece_type) {
-  state.hand.filter(|p| p.player == player).map(|p| p.hand).head().contains(piece_type)
+  for p in state.hand {
+    if p.player == player { return p.hand.contains(piece_type); }
+  }
+  false  // default fallback
 }
 
 // ── Movement helpers (standard pieces only — hawk/elephant handled by engine) ──
@@ -119,7 +125,14 @@ fn pawn_dests(board, from, player) {
 // Did this piece move off a back-rank square for the first time?
 fn triggers_gating(state, player, from) {
   is_gating_square(player, from.row, from.col) &&
-  state.gating_available.filter(|p| p.player == player).map(|p| p.cols).head().contains(from.col)
+  gating_available_for_player(state, player).contains(from.col)
+}
+
+fn gating_available_for_player(state, player) {
+  for p in state.gating_available {
+    if p.player == player { return p.cols; }
+  }
+  [0,1,2,3,4,5,6,7]  // default fallback
 }
 
 fn gate_options(state, player) {
@@ -248,10 +261,10 @@ fn end_turn(state) {
 }
 
 fn check_game_over(state) {
-  for player in state.players.map(|p| p.name) {
-    let kings = board_find(state.board, Piece(player_color(player), "king"));
+  for p in state.players {
+    let kings = board_find(state.board, Piece(p.color, "king"));
     if kings.len() == 0 {
-      let winner = opponent(player);
+      let winner = opponent(p.name);
       return merge(state, #{ game_over: Winner(winner) });
     }
   }
@@ -262,16 +275,22 @@ fn check_game_over(state) {
 
 fn remove_col(gating_available, player, col) {
   let ga = gating_available;
-  let player_ga = ga.filter(|p| p.player == player).head();
-  player_ga.cols = player_ga.cols.filter(|c| c != col);
+  for p in ga {
+    if p.player == player {
+      p.cols = p.cols.filter(|c| c != col);
+    }
+  }
   ga
 }
 
 fn remove_from_hand(hand, player, piece_type) {
   let h = hand;
-  let player_hand = h.filter(|p| p.player == player).head();
-  let idx = player_hand.hand.index_of(piece_type);
-  if idx >= 0 { player_hand.hand.remove(idx); }
+  for p in h {
+    if p.player == player {
+      let idx = p.hand.index_of(piece_type);
+      if idx >= 0 { p.hand.remove(idx); }
+    }
+  }
   h
 }
 

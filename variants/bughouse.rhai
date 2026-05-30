@@ -222,13 +222,20 @@ fn valid_actions(state, player) {
   }
 
   // Drops from reserve
-  for piece in state.reserve.filter(|r| r.player == player).map(|r| r.pieces).head() {
+  for piece in reserve_for_player(state, player) {
     for dest in drop_destinations(state, b, piece.type) {
       actions.push(Drop(piece, dest));
     }
   }
 
   actions
+}
+
+fn reserve_for_player(state, player) {
+  for r in state.reserve {
+    if r.player == player { return r.pieces; }
+  }
+  []  // default fallback
 }
 
 // ── apply ────────────────────────────────────────────────────
@@ -299,7 +306,7 @@ fn apply_drop(state, player, b, action) {
   let piece = action.piece;
   let to    = action.to;
 
-  let player_reserve = state.reserve.filter(|r| r.player == player).map(|r| r.pieces).head();
+  let player_reserve = reserve_for_player(state, player);
   if !player_reserve.any(|p| p.type == piece.type) {
     throw "piece not in reserve";
   }

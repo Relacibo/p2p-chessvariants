@@ -262,7 +262,7 @@ fn apply(state, player, action) {
   // Eliminate player whose king was captured
   let alive = state.alive;
   if captured != () && captured.type == "king" {
-    let loser = state.players.filter(|p| p.color == captured.color).map(|p| p.name).head();
+    let loser = player_name_for_color(state, captured.color);
     alive = state.alive.filter(|p| p != loser);
   }
 
@@ -274,6 +274,13 @@ fn apply(state, player, action) {
 
   let new_state = merge(state, #{ board: board, alive: alive, pending_promotion: () });
   check_winner(advance_turn(new_state))
+}
+
+fn player_name_for_color(state, color) {
+  for p in state.players {
+    if p.color == color { return p.name; }
+  }
+  "white"  // default fallback
 }
 
 fn advance_turn(state) {

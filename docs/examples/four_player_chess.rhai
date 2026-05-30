@@ -3,11 +3,11 @@
 //
 // 14×14 board with 3×3 corners removed.
 // Players:
-//   0 = White  (bottom,  rows 10-13)
-//   1 = Red    (left,    cols  0-3)   [rotated perspective]
-//   2 = Black  (top,     rows  0-3)
-//   3 = Blue   (right,   cols 10-13)
-// Turn order: 0 → 1 → 2 → 3 → 0 …
+//   white  (bottom,  rows 10-13)
+//   red    (left,    cols  0-3)   [rotated perspective]
+//   black  (top,     rows  0-3)
+//   blue   (right,   cols 10-13)
+// Turn order: white → red → black → blue → white …
 //
 // A player is eliminated when their king is captured.
 // Pawns promote on the opposite back rank.
@@ -20,8 +20,7 @@ fn config() {
     api_version:      1,
     name:             "Four-Player Chess",
     version:          "1.0.0",
-    min_players:      4,
-    max_players:      4,
+    players:          ["white", "red", "black", "blue"],
     board: #{
       type:  "rectangle",
       rows:  14,
@@ -41,25 +40,30 @@ fn config() {
 // ── Player helpers ───────────────────────────────────────────
 
 fn player_color(player) {
-  switch player { 0 => "white", 1 => "red", 2 => "black", _ => "blue" }
+  switch player {
+    "white" => "white",
+    "red"   => "red",
+    "black" => "black",
+    _       => "blue"
+  }
 }
 
 // Direction a pawn moves (dr, dc)
 fn pawn_dir(player) {
   switch player {
-    0 => [-1,  0],   // white: up
-    1 => [ 0,  1],   // red:   right
-    2 => [ 1,  0],   // black: down
-    _ => [ 0, -1],   // blue:  left
+    "white" => [-1,  0],   // white: up
+    "red"   => [ 0,  1],   // red:   right
+    "black" => [ 1,  0],   // black: down
+    _       => [ 0, -1],   // blue:  left
   }
 }
 
 fn pawn_start_row_col(player) {
   switch player {
-    0 => #{ row: 11, col: () },   // white pawns on row 11
-    1 => #{ row: (), col:  2 },   // red   pawns on col  2
-    2 => #{ row:  2, col: () },   // black pawns on row  2
-    _ => #{ row: (), col: 11 },   // blue  pawns on col 11
+    "white" => #{ row: 11, col: () },   // white pawns on row 11
+    "red"   => #{ row: (), col:  2 },   // red   pawns on col  2
+    "black" => #{ row:  2, col: () },   // black pawns on row  2
+    _       => #{ row: (), col: 11 },   // blue  pawns on col 11
   }
 }
 
@@ -71,10 +75,10 @@ fn is_pawn_start(player, row, col) {
 fn promo_row_col(player) {
   // Pawn promotes when it reaches the opponent's back rank region
   switch player {
-    0 => #{ row:  2, col: () },
-    1 => #{ row: (), col: 11 },
-    2 => #{ row: 11, col: () },
-    _ => #{ row: (), col:  2 },
+    "white" => #{ row:  2, col: () },
+    "red"   => #{ row: (), col: 11 },
+    "black" => #{ row: 11, col: () },
+    _       => #{ row: (), col:  2 },
   }
 }
 
@@ -93,9 +97,9 @@ fn valid_square(row, col) {
   !(in_tl || in_tr || in_bl || in_br)
 }
 
-fn next_active_player(state) {
+fn next_active_player(state, player) {
   let n    = state.alive.len();
-  let cur  = state.alive.index_of(state.turn);
+  let cur  = state.alive.index_of(player);
   state.alive[(cur + 1) % n]
 }
 
@@ -179,14 +183,9 @@ fn pawn_moves(state, from, player) {
     }
   }
 
-  // Diagonal captures (perpendicular to movement direction)
-  let cap_offsets = if dr != 0 {
-    [[dr, -1], [dr, 1]]
-  } else {
-    [[-1, dc], [1, dc]]
-  };
-  for co in cap_offsets {
-    let cap = Coords(r + co[0], c + co[1]);
+  // Capture
+  for dc in [-1, 1] {
+    let cap = Coords(r + dr, c + dc);
     if valid_square(cap.row, cap.col) {
       let sq = board_get(state.board, cap);
       if sq != () && enemy_piece(sq, player) { moves.push(cap); }
@@ -211,14 +210,14 @@ fn piece_moves(state, from, player) {
 
 // ── valid_actions ─────────────────────────────────────────────
 
-fn valid_actions(state) {
+fn valid_actions(state, player) {
   if state.pending_promotion != () {
-    let p = state.pending_promotion.player;
+    let pp = state.pending_promotion;
+    if player != pp.player { return []; }
     return ["queen","rook","bishop","knight"]
-      .map(|v| #{ player: p, action: Choose("promote", v) });
+      .map(|v| Choose("promote", v));
   }
 
-  let player  = state.turn;
   let actions = [];
   for r in 0..14 {
     for c in 0..14 {
@@ -227,7 +226,7 @@ fn valid_actions(state) {
       let sq   = board_get(state.board, from);
       if sq == () || !own_piece(sq, player) { continue; }
       for dest in piece_moves(state, from, player) {
-        actions.push(#{ player: player, action: Move(from, dest) });
+        actions.push(Move(from, dest));
       }
     }
   }
@@ -237,14 +236,14 @@ fn valid_actions(state) {
 // ── apply ─────────────────────────────────────────────────────
 
 fn apply(state, player, action) {
-  if player != state.turn { throw "not your turn"; }
-  if !state.alive.contains(player) { throw "player is eliminated"; }
+  if !state.active_players.contains(player) { throw `${player} is not active`; }
 
   // Promotion choice
   if state.pending_promotion != () {
+    let pp = state.pending_promotion;
+    if player != pp.player { throw "waiting for promotion player"; }
     if action.type != "choose" || action.tag != "promote" { throw "promotion choice required"; }
     if !["queen","rook","bishop","knight"].contains(action.value) { throw "invalid piece"; }
-    let pp    = state.pending_promotion;
     let board = board_set(state.board, pp.to, Piece(player_color(player), action.value));
     return advance_turn(merge(state, #{ board: board, pending_promotion: () }));
   }
@@ -263,8 +262,8 @@ fn apply(state, player, action) {
   // Eliminate player whose king was captured
   let alive = state.alive;
   if captured != () && captured.type == "king" {
-    let loser = alive.find(|p| player_color(p) == captured.color);
-    alive = alive.filter(|p| p != loser);
+    let loser = player_name_for_color(state, captured.color);
+    alive = state.alive.filter(|p| p != loser);
   }
 
   // Promotion
@@ -277,9 +276,17 @@ fn apply(state, player, action) {
   check_winner(advance_turn(new_state))
 }
 
+fn player_name_for_color(state, color) {
+  for p in state.players {
+    if p.color == color { return p.name; }
+  }
+  "white"  // default fallback
+}
+
 fn advance_turn(state) {
   if state.alive.len() <= 1 { return state; }
-  merge(state, #{ turn: next_active_player(state) })
+  let next = next_active_player(state, state.active_players[0]);
+  merge(state, #{ active_players: [next], running_clocks: [next] })
 }
 
 fn check_winner(state) {
@@ -312,8 +319,9 @@ fn init(player_count) {
 
   #{
     board:              board,
-    turn:               0,
-    alive:              [0, 1, 2, 3],
+    active_players:     ["white"],
+    running_clocks:     ["white"],
+    alive:              ["white", "red", "black", "blue"],
     pending_promotion:  (),
     game_over:          (),
   }

@@ -34,6 +34,19 @@ fn state_turn(state: &Dynamic) -> i32 {
         .cast::<i32>()
 }
 
+fn state_active_players(state: &Dynamic) -> Vec<String> {
+    state
+        .clone()
+        .cast::<rhai::Map>()
+        .get("active_players")
+        .expect("state has no 'active_players' field")
+        .clone()
+        .cast::<rhai::Array>()
+        .iter()
+        .map(|v| v.clone().into_string().expect("player name is not a string"))
+        .collect()
+}
+
 fn state_game_over(state: &Dynamic) -> Dynamic {
     state
         .clone()
@@ -89,9 +102,10 @@ fn test_simple_chess_init_board_has_standard_pieces() {
 }
 
 #[test]
-fn test_simple_chess_initial_turn_is_zero() {
+fn test_simple_chess_initial_turn_is_white() {
     let engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    assert_eq!(state_turn(&engine.state()), 0);
+    let active = state_active_players(&engine.state());
+    assert_eq!(active, vec!["white".to_string()]);
 }
 
 #[test]
@@ -105,7 +119,7 @@ fn test_simple_chess_pawn_e2_e4() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     engine
         .apply(
-            0,
+            "white".to_string(),
             move_action(
                 BoardCoords::new_board_0(6, 4),
                 BoardCoords::new_board_0(4, 4),
@@ -133,33 +147,35 @@ fn test_simple_chess_turn_alternates() {
 
     engine
         .apply(
-            0,
+            "white".to_string(),
             move_action(
                 BoardCoords::new_board_0(6, 4),
                 BoardCoords::new_board_0(4, 4),
             ),
         )
         .unwrap();
-    assert_eq!(state_turn(&engine.state()), 1);
+    let active = state_active_players(&engine.state());
+    assert_eq!(active, vec!["black".to_string()]);
 
     engine
         .apply(
-            1,
+            "black".to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(3, 4),
             ),
         )
         .unwrap();
-    assert_eq!(state_turn(&engine.state()), 0);
+    let active = state_active_players(&engine.state());
+    assert_eq!(active, vec!["white".to_string()]);
 }
 
 #[test]
 fn test_simple_chess_wrong_turn_rejected() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    // Player 1 tries to go when it's player 0's turn
+    // Player "black" tries to go when it's "white"'s turn
     let result = engine.apply(
-        1,
+        "black".to_string(),
         move_action(
             BoardCoords::new_board_0(1, 4),
             BoardCoords::new_board_0(3, 4),
@@ -171,9 +187,9 @@ fn test_simple_chess_wrong_turn_rejected() {
 #[test]
 fn test_simple_chess_cannot_move_opponents_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    // Player 0 (white) tries to move a black pawn at row 1
+    // Player "white" tries to move a black pawn at row 1
     let result = engine.apply(
-        0,
+        "white".to_string(),
         move_action(
             BoardCoords::new_board_0(1, 4),
             BoardCoords::new_board_0(3, 4),
@@ -187,7 +203,7 @@ fn test_simple_chess_cannot_move_from_empty_square() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // Row 4 is empty at start
     let result = engine.apply(
-        0,
+        "white".to_string(),
         move_action(
             BoardCoords::new_board_0(4, 4),
             BoardCoords::new_board_0(3, 4),
@@ -201,7 +217,7 @@ fn test_simple_chess_cannot_capture_own_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     // White rook at (7,0), white knight at (7,1) — try to move rook onto knight
     let result = engine.apply(
-        0,
+        "white".to_string(),
         move_action(
             BoardCoords::new_board_0(7, 0),
             BoardCoords::new_board_0(7, 1),
@@ -219,7 +235,7 @@ fn test_king_capture_triggers_game_over() {
     // White queen at (1,4) captures black king at (0,4)
     engine
         .apply(
-            0,
+            "white".to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(0, 4),
@@ -237,9 +253,9 @@ fn test_king_capture_triggers_game_over() {
         "result type should be 'winner'"
     );
     assert_eq!(
-        map["player"].clone().cast::<i32>(),
-        0,
-        "player 0 (white) should win"
+        map["player"].clone().cast::<String>(),
+        "white",
+        "player white should win"
     );
 }
 
@@ -250,7 +266,7 @@ fn test_king_capture_game_not_over_after_non_king_move() {
     // White queen at (1,4) moves to (2,4) — no capture
     engine
         .apply(
-            0,
+            "white".to_string(),
             move_action(
                 BoardCoords::new_board_0(1, 4),
                 BoardCoords::new_board_0(2, 4),
