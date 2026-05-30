@@ -10,7 +10,7 @@ use game::{
     state::ReservePileState,
     variant_config::{BoardLayoutConfig, VariantConfig},
 };
-use rhai::{AST, Dynamic, Engine, Scope};
+use rhai::{AST, Dynamic, Engine, Rc, Scope};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -126,7 +126,7 @@ fn register_builtins(engine: &mut Engine) {
         result
     });
 
-    engine.register_global_module(logging::create_module());
+    engine.register_global_module(Rc::new(logging::create_module()));
 }
 
 fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
@@ -213,7 +213,7 @@ impl ChessvariantEngine {
     /// Parse only the `config()` section of a script (no game init).
     /// Returns `{ name, minPlayers, maxPlayers }` as a JS object.
     #[cfg(target_arch = "wasm32")]
-    #[wasm_bindgen(js_name = parseConfig, static_method_of = ChessvariantEngine)]
+    #[wasm_bindgen(js_name = parseConfig)]
     pub fn parse_config(script_content: String) -> Result<JsValue, CvError> {
         let mut engine = Engine::new();
         register_builtins(&mut engine);

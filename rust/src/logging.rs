@@ -36,11 +36,26 @@ fn log(level: LogLevel, msg: &str) {
     }
 }
 
+// Separate standalone functions because Rhai's set_native_fn expects a function pointer,
+// not a closure.
+pub fn log_debug(msg: &str) {
+    log(LogLevel::Debug, msg);
+}
+pub fn log_info(msg: &str) {
+    log(LogLevel::Info, msg);
+}
+pub fn log_warn(msg: &str) {
+    log(LogLevel::Warn, msg);
+}
+pub fn log_error(msg: &str) {
+    log(LogLevel::Error, msg);
+}
+
 pub fn create_module() -> Module {
     let mut module = Module::new();
-    module.set_native_fn("debug", |msg: &str| log(LogLevel::Debug, msg));
-    module.set_native_fn("info", |msg: &str| log(LogLevel::Info, msg));
-    module.set_native_fn("warn", |msg: &str| log(LogLevel::Warn, msg));
-    module.set_native_fn("error", |msg: &str| log(LogLevel::Error, msg));
+    module.set_native_fn("debug", log_debug);
+    module.set_native_fn("info", log_info);
+    module.set_native_fn("warn", log_warn);
+    module.set_native_fn("error", log_error);
     module
 }
