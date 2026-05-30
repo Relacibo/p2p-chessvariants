@@ -69,6 +69,7 @@ pub struct VariantConfig {
     pub name: String,
     pub version: String,
     pub api_version: i32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub players: Vec<PlayerConfig>,
     #[serde(default)]
     pub reserve_pile: bool,
@@ -164,7 +165,7 @@ impl TryFrom<Dynamic> for VariantConfig {
                     .filter_map(|v| PlayerConfig::from_dynamic(v.clone()).ok())
                     .collect()
             })
-            .ok_or_else(|| error::CvError::Internal("config missing 'players' field".into()))?;
+            .unwrap_or_default();
         
         // Validate unique player names
         let names: Vec<_> = players.iter().map(|p| &p.name).collect();

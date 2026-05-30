@@ -244,21 +244,20 @@ impl ChessvariantEngine {
         self.variant_config.players.len() as i32
     }
 
-    /// Parse only the `config()` section of a script (no game init).
-    /// Returns `{ name, playerCount }` as a JS object.
-    #[cfg(target_arch = "wasm32")]
-    #[wasm_bindgen(js_name = parseConfig)]
-    pub fn parse_config(script_content: String) -> Result<JsValue, CvError> {
+    /// Parse and return the config block from a script without initializing the game.
+    /// Returns the config as a JSON string.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
+    pub fn parse_config(script_content: String) -> Result<String, CvError> {
         let mut engine = Engine::new();
-        register_builtins(&mut engine);
         let ast = engine.compile(&script_content)?;
+        register_builtins(&mut engine);
+
         let mut scope = Scope::new();
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
-        let obj = js_sys::Object::new();
-        js_sys::Reflect::set(&obj, &"name".into(), &variant_config.name.into()).unwrap();
-        js_sys::Reflect::set(&obj, &"playerCount".into(), &(variant_config.players.len() as f64).into()).unwrap();
-        Ok(obj.into())
+
+        let json = serde_json::to_string(&variant_config)?;
+        Ok(json)
     }
 
     /// Returns the variant config as a JSON string.
