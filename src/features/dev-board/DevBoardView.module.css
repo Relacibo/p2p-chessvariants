@@ -1,0 +1,16 @@
+.container {
+  position: fixed;
+  /* On mobile the header is rendered, offset by its height */
+  top: var(--app-shell-header-height, 50px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+/* On sm+ the AppShell.Header is not rendered, so start at top:0 */
+@media (min-width: 48em) {
+  .container {
+    top: 0;
+  }
+}

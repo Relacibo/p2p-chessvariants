@@ -16,14 +16,14 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure, useMediaQuery } from "@mantine/hooks";
+import { useDisclosure } from "@mantine/hooks";
 import { IconPlayerSkipBack, IconSettings, IconTrash, IconX } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
 import { ReservePile } from "../chessboard/ReservePile";
 import useConfigureLayout from "../layout/hooks";
-import { useMantineTheme } from "@mantine/core";
+import style from "./DevBoardView.module.css";
 import {
   WasmAction,
   WasmBoardState,
@@ -70,11 +70,6 @@ const PLAYER_BADGE_COLORS = ["gray", "dark", "red", "blue"] as const;
 
 export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
-  const theme = useMantineTheme();
-  const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`);
-  // On desktop the AppShell.Header is not rendered (only on mobile), so top:0.
-  // On mobile the header is 50px tall, so we offset by the CSS variable.
-  const containerTop = isMobile ? "var(--app-shell-header-height, 50px)" : "0px";
 
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
 
@@ -202,14 +197,7 @@ export function DevBoardView() {
   return (
     <Box
       ref={containerRef}
-      style={{
-        position: "fixed",
-        top: containerTop,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        overflow: "hidden",
-      }}
+      className={style.container}
     >
       {/* ── Fullscreen Stage — board is centered inside it ── */}
       {loading && (
