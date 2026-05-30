@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Circle,
   Group,
-  Image as KonvaImage,
   Layer,
   Rect,
   Stage,
-  Text,
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { DD } from "konva/lib/DragAndDrop";
 import {
   WasmAction,
   WasmBoardCoords,
@@ -18,6 +15,7 @@ import {
   WasmVariantConfig,
 } from "./types";
 import { getCachedImage, getPieceImageUrl, preloadAllPieceImages } from "./pieceImages";
+import styles from "./Chessboard.module.css";
 
 // Lichess board palette
 const LIGHT = "#F0D9B5";
@@ -84,11 +82,12 @@ export function Chessboard({
   const [selected, setSelected] = useState<WasmBoardCoords | null>(null);
   const [dragging, setDragging] = useState<WasmBoardCoords | null>(null);
   const dragOrigin = useRef<WasmBoardCoords | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stageRef = useRef<any>(null);
-  // Keep a ref to validActions so onDragEnd always has fresh data
+  // Keep a ref to validActions so onDrop always has fresh data
   const validActionsRef = useRef(validActions);
   validActionsRef.current = validActions;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stageRef = useRef<any>(null);
 
   const setCursor = (cursor: string) => {
     stageRef.current?.container()?.style &&
@@ -100,9 +99,7 @@ export function Chessboard({
   // Player 1 (black) wants row 0 at the bottom → needs flip.
   const flipped = playerIndex % 2 !== 0;
 
-  // eslint-disable-next-line no-console
-  console.log("Chessboard render, validActions:", validActions.length);
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     preloadAllPieceImages().then(() => setImagesLoaded(true));
   }, []);
@@ -169,45 +166,92 @@ export function Chessboard({
 
   const myColor = PLAYER_COLORS[playerIndex] ?? "white";
 
-  const handleTileClick = (row: number, col: number) => {
-    const clicked: WasmBoardCoords = { row, col, boardIndex };
+  // ── Dragging state ───────────────────────────────────────────────────────
+  const dragSurfaceRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draggedPieceRef = useRef<{ coords: WasmBoardCoords; origin: WasmBoardCoords } | null>(null);
 
-    // Drop from reserve pile
-    if (selectedDropPiece) {
-      const action = validActions.find(
-        (a) =>
-          a.type === "drop" &&
-          a.piece?.pieceType === selectedDropPiece.pieceType &&
-          a.piece?.color === selectedDropPiece.color &&
-          a.to &&
-          coordsEq(a.to, clicked)
-      );
-      if (action) {
-        onSubmitAction(action);
-        onClearDropPiece?.();
-      } else {
-        onClearDropPiece?.();
+  const handleDragStart = useCallback((row: number, col: number, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setCursor("grabbing");
+
+    const coords: WasmBoardCoords = { row, col, boardIndex };
+    dragOrigin.current = coords;
+    setDragging(coords);
+    setSelected(null);
+
+    // Show ghost at origin (reduced opacity)
+    const pieceEl = e.currentTarget as HTMLElement;
+    pieceEl.classList.add("ghost");
+
+    // Create drag surface (follows cursor)
+    const imgUrl = getPieceImageUrl(getPiece(row, col)?.color ?? "white", getPiece(row, col)?.pieceType ?? "pawn");
+    const imgEl = imgUrl ? getCachedImage(imgUrl) : undefined;
+
+    if (dragSurfaceRef.current && imgEl) {
+      dragSurfaceRef.current.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = imgEl.src;
+      img.style.width = `${tileSize}px`;
+      img.style.height = `${tileSize}px`;
+      dragSurfaceRef.current.appendChild(img);
+
+      // Position under cursor
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = e.clientX - rect.left - tileSize / 2;
+        const y = e.clientY - rect.top - tileSize / 2;
+        dragSurfaceRef.current.style.transform = `translate(${x}px, ${y}px)`;
       }
-      setSelected(null);
-      return;
+      dragSurfaceRef.current.classList.add("visible");
     }
 
-    if (selected) {
-      const action = findAction(selected, clicked);
-      if (action) {
-        onSubmitAction(action);
-        setSelected(null);
-        return;
+    draggedPieceRef.current = { coords, origin: coords };
+  }, [boardIndex, tileSize, getPiece]);
+
+  const handleDragMove = useCallback((e: React.PointerEvent) => {
+    if (!dragSurfaceRef.current || !draggedPieceRef.current) return;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const x = e.clientX - rect.left - tileSize / 2;
+      const y = e.clientY - rect.top - tileSize / 2;
+      dragSurfaceRef.current.style.transform = `translate(${x}px, ${y}px)`;
+    }
+  }, [tileSize]);
+
+  const handleDragEnd = useCallback((e: React.PointerEvent) => {
+    if (!dragSurfaceRef.current || !draggedPieceRef.current) return;
+
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
+    const origin = dragOrigin.current;
+    dragOrigin.current = null;
+    setDragging(null);
+    setCursor("default");
+
+    // Hide drag surface
+    dragSurfaceRef.current.classList.remove("visible");
+    dragSurfaceRef.current.innerHTML = "";
+
+    // Remove ghost class from origin piece
+    const pieceEl = e.currentTarget as HTMLElement;
+    pieceEl.classList.remove("ghost");
+
+    if (origin) {
+      // Compute target from pointer position
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const target = fromPixel(e.clientX - rect.left, e.clientY - rect.top);
+        const action = findAction(origin, target);
+        if (action) {
+          onSubmitAction(action);
+          setSelected(null);
+        }
       }
     }
-
-    const piece = getPiece(row, col);
-    if (piece?.color === myColor) {
-      setSelected(clicked);
-    } else {
-      setSelected(null);
-    }
-  };
+  }, [boardIndex, tileSize, fromPixel, findAction, onSubmitAction]);
 
   // ── Tiles ────────────────────────────────────────────────────────────────
   const tiles = [];
@@ -252,23 +296,48 @@ export function Chessboard({
     }
   }
 
-  // ── Lift dragged piece to top after React re-render ──────────────────────
-  useLayoutEffect(() => {
-    if (dragging && stageRef.current) {
-      const node = stageRef.current.findOne(`#piece-${dragging.row}-${dragging.col}`);
-      if (node) {
-        node.moveToTop();
-        node.getLayer()?.batchDraw();
+  const handleTileClick = (row: number, col: number) => {
+    const clicked: WasmBoardCoords = { row, col, boardIndex };
+
+    // Drop from reserve pile
+    if (selectedDropPiece) {
+      const action = validActions.find(
+        (a) =>
+          a.type === "drop" &&
+          a.piece?.pieceType === selectedDropPiece.pieceType &&
+          a.piece?.color === selectedDropPiece.color &&
+          a.to &&
+          coordsEq(a.to, clicked)
+      );
+      if (action) {
+        onSubmitAction(action);
+        onClearDropPiece?.();
+      } else {
+        onClearDropPiece?.();
+      }
+      setSelected(null);
+      return;
+    }
+
+    if (selected) {
+      const action = findAction(selected, clicked);
+      if (action) {
+        onSubmitAction(action);
+        setSelected(null);
+        return;
       }
     }
-  }, [dragging]);
 
-  // ── Pieces ───────────────────────────────────────────────────────────────
-  // All pieces stay in a fixed-order array — never reordered during drag.
-  // Z-ordering for the dragged piece is handled imperatively via moveToTop().
+    const piece = getPiece(row, col);
+    if (piece?.color === myColor) {
+      setSelected(clicked);
+    } else {
+      setSelected(null);
+    }
+  };
+
+  // ── Pieces (DOM overlay) ─────────────────────────────────────────────────
   const pieces: ReactNode[] = [];
-  let ghostEl: ReactNode = null;
-
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       if (disabledSet.has(`${row},${col}`)) continue;
@@ -283,124 +352,95 @@ export function Chessboard({
       const isDragging = dragging != null && coordsEq(dragging, coords);
 
       if (imgEl) {
-        // Ghost: semi-transparent copy stays on origin square while dragging
-        if (isDragging) {
-          ghostEl = (
-            <KonvaImage
-              key={`ghost-${row}-${col}`}
-              image={imgEl}
-              x={x} y={y}
-              width={tileSize} height={tileSize}
-              opacity={0.35}
-              listening={false}
-            />
-          );
-        }
-
-        // Piece node stays in the same array position throughout drag
         pieces.push(
-          <KonvaImage
+          <div
             key={`p-${row}-${col}`}
-            id={`piece-${row}-${col}`}
-            image={imgEl}
-            x={x} y={y}
-            width={tileSize} height={tileSize}
-            draggable={canDrag}
-            onMouseEnter={() => { if (canDrag) setCursor("grab"); }}
-            onMouseLeave={() => { if (!isDragging) setCursor("default"); }}
-            onClick={() => { if (!dragging) handleTileClick(row, col); }}
-            onDragStart={(e: KonvaEventObject<DragEvent>) => {
-              dragOrigin.current = coords;
-              setSelected(null);
-              setDragging(coords);
-              setCursor("grabbing");
-              // Center piece under cursor on pickup
-              const stage = e.target.getStage();
-              const pointer = stage?.getPointerPosition();
-              if (pointer) {
-                e.target.setAbsolutePosition({
-                  x: pointer.x - tileSize / 2,
-                  y: pointer.y - tileSize / 2,
-                });
-                // Adjust Konva's internal drag offset so subsequent mouse moves
-                // keep the piece center pinned to the cursor
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const elem = DD._dragElements.get((e.target as any)._id);
-                if (elem) {
-                  elem.offset = { x: tileSize / 2, y: tileSize / 2 };
-                }
-              }
+            className={`${styles.piece}${isDragging ? " " + styles.ghost : ""}`}
+            style={{
+              left: x,
+              top: y,
+              opacity: isDragging ? 0.35 : 1,
             }}
-            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
-              const pos = e.target.position();
-              // Snap back to grid — React state drives position
-              e.target.position({ x, y });
-              const origin = dragOrigin.current;
-              dragOrigin.current = null;
-              setDragging(null);
-              setCursor("default");
-              if (origin) {
-                const target = fromPixel(
-                  pos.x + tileSize / 2,
-                  pos.y + tileSize / 2
-                );
-                // eslint-disable-next-line no-console
-                console.log("drag end", { pos, origin, target, tileSize, validActions: validActionsRef.current.length });
-                const action = findAction(origin, target);
-                // eslint-disable-next-line no-console
-                console.log("action", action, "from", origin, "to", target);
-                if (action) {
-                  onSubmitAction(action);
-                  setSelected(null);
-                }
-              }
+            onPointerDown={(e) => {
+              if (canDrag) handleDragStart(row, col, e);
             }}
-          />
+          >
+            <img src={imgEl.src} alt="" draggable={false} />
+          </div>
         );
       } else {
         // Fallback for unknown/unsupported colors: colored circle with letter
         pieces.push(
-          <Group key={`p-${row}-${col}`} id={`piece-${row}-${col}`} onClick={() => { if (!dragging) handleTileClick(row, col); }}>
-            <Circle
-              x={x + tileSize / 2}
-              y={y + tileSize / 2}
-              radius={tileSize * 0.38}
-              fill={piece.color}
-              stroke="white"
-              strokeWidth={1}
-            />
-            <Text
-              x={x}
-              y={y + tileSize / 2 - tileSize * 0.2}
-              width={tileSize}
-              align="center"
-              text={piece.pieceType[0]?.toUpperCase() ?? "?"}
-              fontSize={tileSize * 0.35}
-              fill="white"
-              listening={false}
-            />
-          </Group>
+          <div
+            key={`p-${row}-${col}`}
+            className={styles.piece}
+            style={{
+              left: x,
+              top: y,
+              pointerEvents: "none",
+            }}
+            onClick={() => { if (!dragging) handleTileClick(row, col); }}
+          >
+            <div
+              style={{
+                width: tileSize,
+                height: tileSize,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: tileSize * 0.76,
+                  height: tileSize * 0.76,
+                  borderRadius: "50%",
+                  backgroundColor: piece.color,
+                  border: "2px solid white",
+                }}
+              />
+              <span
+                style={{
+                  position: "absolute",
+                  fontSize: tileSize * 0.35,
+                  fontWeight: "bold",
+                  color: "white",
+                  textShadow: "0 0 2px black",
+                }}
+              >
+                {piece.pieceType[0]?.toUpperCase() ?? "?"}
+              </span>
+            </div>
+          </div>
         );
       }
     }
   }
 
   return (
-    <Stage ref={stageRef} width={sw} height={sh}>
-      <Layer>
-        {/* Transparent background to catch clicks outside the board (deselect) */}
-        <Rect
-          x={0} y={0} width={sw} height={sh}
-          fill="transparent"
-          onClick={() => { setSelected(null); onClearDropPiece?.(); }}
-        />
-        {tiles}
-        {ghostEl}
+    <div ref={containerRef} className={styles.container} style={{ width: sw, height: sh }}>
+      <Stage width={sw} height={sh}>
+        <Layer>
+          {/* Transparent background to catch clicks outside the board (deselect) */}
+          <Rect
+            x={0} y={0} width={sw} height={sh}
+            fill="transparent"
+            onClick={() => { setSelected(null); onClearDropPiece?.(); }}
+          />
+          {tiles}
+        </Layer>
+      </Stage>
+      <div className={styles.overlay}>
         {pieces}
-      </Layer>
-    </Stage>
+      </div>
+      <div
+        ref={dragSurfaceRef}
+        className={styles.dragSurface}
+        onPointerMove={handleDragMove}
+        onPointerUp={handleDragEnd}
+      />
+    </div>
   );
 }
 
 export default Chessboard;
-

@@ -1,0 +1,42 @@
+/* Chessboard container wrapper */
+.container {
+  position: relative;
+}
+
+/* DOM overlay for pieces - sits on top of Konva canvas */
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Individual piece element */
+.piece {
+  position: absolute;
+  width: var(--tile-size);
+  height: var(--tile-size);
+  pointer-events: auto;
+  cursor: grab;
+  will-change: transform;
+}
+
+/* Ghost piece during drag - semi-transparent at origin */
+.piece.ghost {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
+/* Drag surface - follows the cursor during drag */
+.dragSurface {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  display: none;
+}
+
+.dragSurface.visible {
+  display: block;
+}
