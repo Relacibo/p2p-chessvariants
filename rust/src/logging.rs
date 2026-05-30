@@ -1,4 +1,4 @@
-use rhai::Module;
+use rhai::{FuncRegistration, Module};
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
@@ -53,9 +53,9 @@ pub fn log_error(msg: &str) {
 
 pub fn create_module() -> Module {
     let mut module = Module::new();
-    module.register_fn("debug", log_debug);
-    module.register_fn("info", log_info);
-    module.register_fn("warn", log_warn);
-    module.register_fn("error", log_error);
+    FuncRegistration::new("debug").set_into_module(&mut module, log_debug);
+    FuncRegistration::new("info").set_into_module(&mut module, log_info);
+    FuncRegistration::new("warn").set_into_module(&mut module, log_warn);
+    FuncRegistration::new("error").set_into_module(&mut module, log_error);
     module
 }

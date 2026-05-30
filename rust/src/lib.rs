@@ -127,7 +127,7 @@ fn register_builtins(engine: &mut Engine) {
         result
     });
 
-    engine.register_global_module(Rc::new(logging::create_module()));
+    engine.register_static_module("log", Rc::new(logging::create_module()));
 }
 
 fn register_engine_builtins(engine: &mut Engine, config: &VariantConfig) {
