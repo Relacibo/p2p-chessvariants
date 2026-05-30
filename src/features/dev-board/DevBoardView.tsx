@@ -89,7 +89,8 @@ export function DevBoardView() {
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
 
-  // ── Measure container for accurate board sizing ───────────────────────────
+  // ── Measure container for accurate board sizing ─────────────────────────
+  // Container uses top: header-height (not paddingTop) so contentRect = exact usable area.
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: window.innerWidth, h: window.innerHeight - 70 });
 
@@ -197,8 +198,10 @@ export function DevBoardView() {
       ref={containerRef}
       style={{
         position: "fixed",
-        inset: 0,
-        paddingTop: "var(--app-shell-header-height, 70px)",
+        top: "var(--app-shell-header-height, 70px)",
+        left: 0,
+        right: 0,
+        bottom: 0,
         overflow: "hidden",
       }}
     >
