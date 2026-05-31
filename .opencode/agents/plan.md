@@ -21,8 +21,21 @@ You are the Lead Software Architect for this chess variant engine project. Your 
 - The engine embeds Rhai scripting language for game rules and configuration
 - Frontend uses React (Mantine UI), Redux for state, WebAssembly (Wasm) for engine communication
 
+## Scripting API Specification
+
+The Rhai scripting API is defined in `specs/scripting-api.md`. This document is the
+**single source of truth** for the engine-script interface. Always consult it before
+designing or modifying any engine/script feature. Key constraints from the spec:
+
+- **`on_move(state, player, from, to, piece)`** — mandatory, typed move handler. No `handle_event`.
+- **`get_ui(state, player)`** — returns UI elements as a map keyed by stable string IDs
+  (`Button`, `PieceSelection`, `Banner`). Handlers are inline closures on elements.
+- **Scoped events only** — no global event bus, no `on("name", handler)` registration.
+- **No `on_drop`** — reserve placements use the same `on_move` (from.type == "reserve").
+- **No JSON parsing in scripts** — every value crossing Rust↔Rhai is a native type.
+
 ## Architectural Focus Areas
 - Analyze code structure and architecture
 - Verify state synchronization in peer-to-peer setup
-- Map Rhai scripting hooks for game rules
+- Consult `specs/scripting-api.md` for Rhai scripting interfaces
 - Provide precise, executable change instructions

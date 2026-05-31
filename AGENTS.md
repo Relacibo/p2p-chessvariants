@@ -19,6 +19,8 @@ Run `yarn lint:ts` after TypeScript changes, `yarn lint:rust` after Rust changes
 - `src/features/` — React feature components (feature-based organization)
 - `src/api/` — API definitions, WebRTC services, Bebop schemas
 - `src/gamelogicOld/` — Legacy game logic (reference only, do not modify)
+- `specs/` — API specifications (single source of truth for interfaces)
+  - `scripting-api.md` — Rhai scripting API v2 (`on_move`, `get_ui`, UI elements, handler model)
 
 ## Code Style
 
