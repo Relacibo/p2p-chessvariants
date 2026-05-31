@@ -106,7 +106,10 @@ stores them in an internal registry, and serializes the rest to JSON.
 
 - Called after every state change (after `on_move`, after any UI interaction).
 - Also callable anytime (page refresh, UI poll) — must be a pure function.
-- The engine **discards all previously stored handlers** before each call.
+- The engine updates its handler registry from the returned map: existing
+  entries are replaced, element IDs not present in the new return value lose
+  their handlers. This guarantees that only the UI elements currently returned
+  by `get_ui` can receive interactions.
 - Returns `#{}` if there is nothing to show.
 - **Element ID uniqueness**: The engine detects duplicate keys in the returned
   map and throws an error. Scripts should use descriptive, namespaced IDs (e.g.
@@ -214,34 +217,30 @@ No handler closure — banners are non-interactive.
 
 ---
 
-## 3. Handler Lifecycle
+## 3. Handler Model
+
+UI handlers are plain Rhai closures stored in a registry keyed by element ID.
+They receive the current `state` (and optionally a `Piece`) as parameters —
+they never capture stale state through scoping.
 
 ```
 State change (on_move returns, or UI handler returns)
     │
     ▼
-Engine discards ALL stored handlers
-    │
-    ▼
 Engine calls get_ui(state, player)
     │
     ▼
-Engine validates: no duplicate element IDs → throw if found
-    │
-    ▼
-For each element: extract closures → store in handler_registry[element_id]
-    Strip closures → serialize rest → JSON to frontend
+Handler closures extracted → stored in handler_registry (replaces old entries)
+Serializable data     → JSON → frontend
     │
     ▼
 Frontend renders UI (no closures, only data)
     │
     ▼
-Player clicks button "draw_offer_btn" → frontend calls engine::uiInteraction(player, "draw_offer_btn")
-    or
-Player selects piece → frontend calls engine::uiInteraction(player, "promo_pick", Piece)
+Player interaction → engine.uiInteraction(player, elementId, value?)
     │
     ▼
-Engine looks up handler_registry[element_id]
+Engine looks up handler_registry[elementId]
     Button:          handler(state) → new state
     PieceSelection:  handler(state, piece) → new state
     │
@@ -249,8 +248,21 @@ Engine looks up handler_registry[element_id]
 Loop back to top
 ```
 
-The handler registry is a `HashMap<String, StoredHandler>` completely replaced
-after every `get_ui` call. No handlers persist across state changes.
+### Registry Update Rules
+
+| Rule | Rationale |
+|------|-----------|
+| New element IDs are added | `get_ui` returned them |
+| Existing element IDs are replaced | UI layout or closure may have changed |
+| Element IDs no longer in the return value lose their handlers | They are no longer visible — the frontend cannot trigger them |
+| Unknown element IDs → error on `uiInteraction` | Prevents stale or forged interactions |
+
+The handler closures are **pure functions** of the state they receive as argument.
+They are not tied to the state snapshot at the time `get_ui` was called. The registry
+update is a simple replacement — not a purge-and-rebuild lifecycle.
+
+The handler registry is an opaque, engine-internal data structure. Scripts don't
+interact with it directly.
 
 ---
 
@@ -278,7 +290,7 @@ engine.handleMove(player_json, from_json, to_json, piece_json?) → result_json
 2. **Validates**: if `valid_actions` is implemented, the submitted move must be in the returned set. If not → error. If `valid_actions` is not implemented by the script, this step is skipped.
 3. If piece not provided: reads it via board
 4. Calls `on_move(state, player, from, to, piece)` → new state
-5. Calls `get_ui(new_state, player)` → stores handlers, serializes UI
+5. Calls `get_ui(new_state, player)` → updates handler registry, serializes UI data
 6. Calls `check_game_over(new_state)`
 7. Returns `{ "ui": {...}, "game_over": null | {...} }`
 
@@ -301,7 +313,7 @@ engine.uiInteraction(player_json, element_id, value?) → result_json
 engine.getUiJson(player_json) → ui_json
 ```
 
-1. Calls `get_ui(state, player)` → stores handlers, serializes UI
+1. Calls `get_ui(state, player)` → updates handler registry, serializes UI data
 2. Returns `{ "ui": {...} }`
 
 Does not modify state. Does not call `check_game_over`.
