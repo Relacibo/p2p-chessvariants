@@ -35,7 +35,6 @@
     "chessvariant-engine": "link:./rust/pkg",
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
-    "idb": "^8.0.3",
     "jwt-decode": "^4.0.0",
     "konva": "^10.3.0",
     "qrcode.react": "^4.2.0",
@@ -46,7 +45,6 @@
     "react-router-dom": "^7.15.1",
     "redux": "^5.0.1",
     "styled-components": "^6.4.1",
-    "threads": "^1.7.0",
     "typed-css-modules": "^0.9.1",
     "typescript-plugin-css-modules": "^5.2.0",
     "uuid": "^14.0.0"

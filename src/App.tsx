@@ -9,7 +9,6 @@ import LoginSession from "./features/auth/LoginSession";
 import LichessLinkHandler from "./features/auth/providers/lichess/LichessLinkHandler";
 import { SseManager } from "./features/auth/SseManager";
 import { useTokenRefresh } from "./features/auth/useTokenRefresh";
-import initializeReduxState from "./features/init/initializeReduxState";
 import Layout from "./features/layout/Layout";
 import AppRoutes from "./AppRoutes";
 
@@ -34,9 +33,6 @@ const theme = createTheme({
 
 function App() {
   const dispatch = useDispatch();
-  useEffect(() => {
-    dispatch(initializeReduxState());
-  }, [dispatch]);
   useTokenRefresh();
   return (
     <MantineProvider theme={theme}>

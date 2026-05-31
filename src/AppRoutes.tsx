@@ -17,7 +17,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="auth/login/*" element={<LoginView/>}/>
       <Route path="auth/link/*" element={<div />} />
-      <Route path="view/:id" element={<PlaygroundView />} />
+
       <Route path="user-profile/*" element={isGuest ? <Navigate to="/" replace /> : <UserProfileView />} />
       <Route path="community/*" element={<CommunityView />} />
       <Route path="settings" element={isGuest ? <Navigate to="/" replace /> : <SettingsView />} />

@@ -12,14 +12,10 @@ import auth from "../features/auth/authSlice";
 import darkmode from "../features/darkmode/darkmodeSlice";
 import lobby from "../features/lobby/lobbySlice";
 import lobbyVariants from "../features/lobby/variantsSlice";
-import variantEnvironment from "../features/variant-environment/variantsSlice";
-import worker from "../features/worker/workerSlice";
 import { loadState, persistenceMiddleware } from "./persistence";
 
 const rootReducer = combineReducers({
-  variantEnvironment,
   darkmode,
-  worker,
   auth,
   lobby,
   lobbyVariants,

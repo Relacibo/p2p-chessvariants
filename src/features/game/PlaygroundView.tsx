@@ -1,23 +1,19 @@
 import { Alert, Box, Group, Loader, Title, Button } from "@mantine/core";
 import { IconBrandGithub } from "@tabler/icons-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Navigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ChessvariantEngine } from "chessvariant-engine";
-import { handleError } from "../../util/notification";
 import { Chessboard } from "../chessboard/Chessboard";
 import { WasmAction, WasmBoardState, WasmVariantConfig } from "../chessboard/types";
 import useConfigureLayout from "../layout/hooks";
 import { fetchScriptText, getGithubBrowseUrl } from "../lobby/scriptUrl";
 import { selectAllVariants } from "../lobby/variantsSlice";
-import { selectGame } from "../variant-environment/variantsSlice";
 
 function PlaygroundView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const { id } = useParams();
-  const gameInfo = useSelector(selectGame(id!));
   const variants = useSelector(selectAllVariants);
-  const failed = gameInfo == null;
 
   const engineRef = useRef<ChessvariantEngine | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(null);
@@ -27,17 +23,13 @@ function PlaygroundView() {
   const [player, setPlayer] = useState<string>("");
   const [engineError, setEngineError] = useState<string | null>(null);
 
-  useLayoutEffect(() => {
-    if (failed) handleError("Could not open the game!");
-  });
-
   useEffect(() => {
-    if (!gameInfo) return;
+    if (!id) return;
     let cancelled = false;
 
     (async () => {
       try {
-        const scriptText = await fetchScriptText(gameInfo.variant);
+        const scriptText = await fetchScriptText(id);
         const engine = new ChessvariantEngine(scriptText, 2);
         if (cancelled) {
           engine.free();
@@ -60,7 +52,7 @@ function PlaygroundView() {
       engineRef.current?.free();
       engineRef.current = null;
     };
-  }, [gameInfo?.variant]);
+  }, [id]);
 
   const handleSubmitAction = useCallback(
     (action: WasmAction) => {
@@ -81,9 +73,7 @@ function PlaygroundView() {
     [player]
   );
 
-  if (failed) return <Navigate to="/game" />;
-
-  const scriptUrl = gameInfo.variant;
+  const scriptUrl = id!;
   const variantName =
     variants.find((v) => v.url === scriptUrl)?.name ||
     variantConfig?.name ||
@@ -133,4 +123,3 @@ function PlaygroundView() {
 }
 
 export default PlaygroundView;
-
