@@ -1,5 +1,4 @@
 import { Route, Routes, Navigate } from "react-router-dom";
-import PlaygroundView from "./features/game/PlaygroundView";
 import UserProfileView from "./features/users/UserProfileView";
 import MatchFail from "./MatchFail";
 import LoginView from "./features/auth/LoginView";
@@ -24,7 +23,7 @@ const AppRoutes = () => {
       <Route path="settings/:tab" element={isGuest ? <Navigate to="/" replace /> : <SettingsView />} />
       <Route path="lobby/:lobbyId" element={<LobbyView />} />
       <Route path="lobby/by-peer-id/:peerId" element={<LobbyView />} />
-      <Route path="dev" element={<DevBoardView />} />
+      <Route path="dev/:scriptUrl?" element={<DevBoardView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>
