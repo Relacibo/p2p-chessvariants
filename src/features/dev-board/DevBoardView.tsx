@@ -9,7 +9,6 @@ import {
   InputBase,
   Loader,
   NumberInput,
-  Paper,
   ScrollArea,
   Select,
   Stack,
@@ -23,8 +22,8 @@ import {
   IconPlayerSkipBack,
   IconSettings,
   IconTrash,
-  IconX,
 } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChessvariantEngine } from "chessvariant-engine";
@@ -70,22 +69,9 @@ let logSeq = 0;
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
-  if (e && typeof e === "object") {
-    const obj = e as Record<string, unknown>;
-    // CvJsError format: { name: "rhai-eval-alt", message: "Script error: ..." }
-    if ("message" in obj) {
-      const msg = String(obj.message);
-      if ("name" in obj && typeof obj.name === "string" && obj.name) {
-        return `[${obj.name}] ${msg}`;
-      }
-      return msg;
-    }
-  }
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
+  if (e && typeof e === "object" && "message" in e)
+    return String((e as { message: unknown }).message);
+  try { return JSON.stringify(e); } catch { return String(e); }
 }
 
 function coordsLabel(c: WasmAction & { from?: unknown; to?: unknown }): string {
@@ -158,7 +144,6 @@ export function DevBoardView() {
     null
   );
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -261,7 +246,7 @@ export function DevBoardView() {
     async (url: string, numPlayers: number) => {
       engineRef.current?.free();
       engineRef.current = null;
-      setError(null);
+      notifications.clean();
       setLoading(true);
       setLog([]);
       setLastAction(undefined);
@@ -293,7 +278,13 @@ export function DevBoardView() {
         setActivePlayers(initPlayers);
         syncState(engine, firstPlayerJson);
       } catch (e: unknown) {
-        setError(extractErrorMessage(e));
+        notifications.show({
+          title: "Load failed",
+          message: extractErrorMessage(e),
+          color: "red",
+          autoClose: 8000,
+          withBorder: true,
+        });
       } finally {
         setLoading(false);
       }
@@ -397,7 +388,13 @@ export function DevBoardView() {
         setBoardState(JSON.parse(engine.boardStateJson()));
         setAllPlayers(JSON.parse(engine.playersJson()));
       } catch (e: unknown) {
-        setError(extractErrorMessage(e));
+        notifications.show({
+          title: "Action failed",
+          message: extractErrorMessage(e),
+          color: "red",
+          autoClose: 6000,
+          withBorder: true,
+        });
       }
     },
     [controllingPlayer, addLogEntry, deriveActivePlayers]
@@ -470,50 +467,6 @@ export function DevBoardView() {
             tileSize={44}
           />
         </Box>
-      )}
-
-      {/* ── Error: floating bottom-left ── */}
-      {error && (
-        <Paper
-          withBorder
-          shadow="md"
-          p="sm"
-          style={{
-            position: "absolute",
-            bottom: 16,
-            left: 16,
-            maxWidth: 420,
-            zIndex: 100,
-            borderLeft: "3px solid var(--mantine-color-red-6)",
-            background:
-              "color-mix(in srgb, var(--mantine-color-red-6) 12%, transparent)",
-          }}
-        >
-          <Group justify="space-between" mb={4} gap="xs">
-            <Text size="xs" fw={700} c="red">
-              Error
-            </Text>
-            <ActionIcon
-              size="xs"
-              variant="subtle"
-              color="red"
-              onClick={() => setError(null)}
-            >
-              <IconX size="0.7rem" />
-            </ActionIcon>
-          </Group>
-          <Text
-            size="xs"
-            style={{
-              fontFamily: "var(--mantine-font-family-monospace)",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              lineHeight: 1.5,
-            }}
-          >
-            {error}
-          </Text>
-        </Paper>
       )}
 
       {/* ── Dev gear button ── */}
