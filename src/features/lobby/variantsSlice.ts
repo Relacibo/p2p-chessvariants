@@ -8,16 +8,20 @@ export interface VariantEntry {
 
 export const OFFICIAL_VARIANTS: VariantEntry[] = [
   {
+    name: "Simple Chess",
+    url: "/variants/simple_chess.rhai",
+  },
+  {
     name: "Bughouse",
-    url: "https://raw.githubusercontent.com/Relacibo/p2p-chessvariants/be9983ee0604a3c6f15bae6e050ec8cd9d845775/variants/bughouse.rhai",
+    url: "/variants/bughouse.rhai",
   },
   {
     name: "4 Player Chess",
-    url: "https://raw.githubusercontent.com/Relacibo/p2p-chessvariants/be9983ee0604a3c6f15bae6e050ec8cd9d845775/variants/four_player_chess.rhai",
+    url: "/variants/four_player_chess.rhai",
   },
   {
     name: "Seirawan Chess",
-    url: "https://raw.githubusercontent.com/Relacibo/p2p-chessvariants/be9983ee0604a3c6f15bae6e050ec8cd9d845775/variants/seirawan_chess.rhai",
+    url: "/variants/seirawan_chess.rhai",
   },
 ];
 

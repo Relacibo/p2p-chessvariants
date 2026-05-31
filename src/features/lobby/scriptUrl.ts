@@ -237,6 +237,10 @@ export function getGithubBrowseUrl(urlStr: string): string {
 
 /** @deprecated use parseVariantSource */
 export function parseScriptUrl(raw: string): { ok: boolean; error?: string } {
+  // Local/relative URLs are valid (served from frontend host)
+  if (raw.startsWith("/") || raw.startsWith("./") || raw.startsWith("../")) {
+    return { ok: true };
+  }
   const source = parseVariantSource(raw);
   if (!source) {
     return {
