@@ -29,7 +29,7 @@ These are the functions the script MUST or MAY implement. The engine calls them.
 | `allowed_player_count` | i32 | YES | Exact player count (simplest form: a single number). Also accepts `[i32]` for discrete values or `#{ min, max, step }` for a range. |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 | `check_protection` | bool | NO (default: false) | Enable check filtering in `engine::valid_actions` |
-| `pieces` | #{} | NO | Custom piece definitions via `engine::combine(type, type)` |
+| `pieces` | #{} | NO | Custom piece definitions via `engine::combine(type, type)`. Each key is a new piece type name (e.g. `"hawk"`). After registration, `Piece("white", "hawk")` is valid and `.type` returns `"hawk"`. The engine uses the `combine` definition to generate moves for that type. |
 | `reserve_pile` | bool | NO (default: false) | Enable reserve pile |
 
 ### `init(player_count)`
@@ -275,7 +275,7 @@ engine.handleMove(player_json, from_json, to_json, piece_json?) → result_json
 ```
 
 1. Parses player, from, to, optional piece
-2. **Validates**: submitted move must be in `valid_actions(state, player)`. If not → error.
+2. **Validates**: if `valid_actions` is implemented, the submitted move must be in the returned set. If not → error. If `valid_actions` is not implemented by the script, this step is skipped.
 3. If piece not provided: reads it via board
 4. Calls `on_move(state, player, from, to, piece)` → new state
 5. Calls `get_ui(new_state, player)` → stores handlers, serializes UI
@@ -351,22 +351,25 @@ after each mutation; the engine internally reuses shared state for performance.
 
 ### `engine::moves` — Pseudo-Legal Move Generators
 
+The third parameter is always the **moving piece's color** (e.g. `"white"`, `"black"`),
+not the piece type.
+
 | Function | Signature | Purpose |
 |----------|-----------|---------|
-| `pawn` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal pawn moves. |
-| `rook` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal rook moves. |
-| `knight` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal knight moves. |
-| `bishop` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal bishop moves. |
-| `queen` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal queen moves. |
-| `king` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal king moves. |
+| `pawn` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal pawn moves. |
+| `rook` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal rook moves. |
+| `knight` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal knight moves. |
+| `bishop` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal bishop moves. |
+| `queen` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal queen moves. |
+| `king` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal king moves. |
 
 ### `engine` — Engine Helpers
 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `valid_actions` | `(state, player) -> [Action]` | Legal moves (check-filtered if `check_protection: true`). |
-| `is_square_attacked` | `(Board, Coords, string) -> bool` | Is a square attacked by a color? |
-| `pseudo_moves` | `(Board, Coords, string, string) -> [Coords]` | Pseudo-moves for piece type+color. |
+| `is_square_attacked` | `(Board, Coords, attacker_color: string) -> bool` | Is the square attacked by any piece of the given color? |
+| `pseudo_moves` | `(Board, Coords, piece_type: string, color: string) -> [Coords]` | Pseudo-moves for a given piece type and color. |
 | `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge two maps. |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess starting position. |
 
