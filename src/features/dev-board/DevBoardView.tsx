@@ -342,58 +342,59 @@ export function DevBoardView() {
     (action: WasmAction) => {
       const engine = engineRef.current;
       if (!engine || !controllingPlayer) return;
-      try {
-        const resultJson = engine.submitAction(
-          controllingPlayer,
-          JSON.stringify(action)
-        );
-        const result: WasmSubmitActionResult = JSON.parse(resultJson);
-        setUiElements(result.ui);
-        setLastAction(action);
-        setSelectedDropPiece(null);
-        if (action.type === "move") {
-          addLogEntry(controllingPlayer, { kind: "move", action });
-        } else if (action.type === "interact") {
-          addLogEntry(controllingPlayer, {
-            kind: "ui",
-            elementId: action.elementId,
-          });
-        } else if (action.type === "select_piece") {
-          addLogEntry(controllingPlayer, {
-            kind: "ui",
-            elementId: "select_piece",
-            piece: action.piece,
-          });
-        } else if (action.type === "cancel") {
-          addLogEntry(controllingPlayer, {
-            kind: "ui",
-            elementId: "cancel",
-          });
-        }
-        // Update valid actions and active players from result
-        setValidActionsAll(result.valid_actions);
-        const ap = deriveActivePlayers(result.valid_actions);
-        setActivePlayers(ap);
-        // Check for reserve pile in UI
-        if (result.ui) {
-          for (const el of Object.values(result.ui)) {
-            if (el.type === "reserve_pile") {
-              setReservePile(el as WasmUiReservePile);
-              break;
-            }
-          }
-        }
-        // Refresh board state
-        setBoardState(JSON.parse(engine.boardStateJson()));
-        setAllPlayers(JSON.parse(engine.playersJson()));
-      } catch (e: unknown) {
+      const resultJson = engine.submitAction(
+        controllingPlayer,
+        JSON.stringify(action)
+      );
+      const result: WasmSubmitActionResult & { error?: string } =
+        JSON.parse(resultJson);
+      if (result.error) {
         notifications.show({
           title: "Action failed",
-          message: extractErrorMessage(e),
+          message: result.error,
           color: "red",
           withBorder: true,
         });
+        return;
       }
+      setUiElements(result.ui);
+      setLastAction(action);
+      setSelectedDropPiece(null);
+      if (action.type === "move") {
+        addLogEntry(controllingPlayer, { kind: "move", action });
+      } else if (action.type === "interact") {
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId: action.elementId,
+        });
+      } else if (action.type === "select_piece") {
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId: "select_piece",
+          piece: action.piece,
+        });
+      } else if (action.type === "cancel") {
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId: "cancel",
+        });
+      }
+      // Update valid actions and active players from result
+      setValidActionsAll(result.valid_actions);
+      const ap = deriveActivePlayers(result.valid_actions);
+      setActivePlayers(ap);
+      // Check for reserve pile in UI
+      if (result.ui) {
+        for (const el of Object.values(result.ui)) {
+          if (el.type === "reserve_pile") {
+            setReservePile(el as WasmUiReservePile);
+            break;
+          }
+        }
+      }
+      // Refresh board state
+      setBoardState(JSON.parse(engine.boardStateJson()));
+      setAllPlayers(JSON.parse(engine.playersJson()));
     },
     [controllingPlayer, addLogEntry, deriveActivePlayers]
   );

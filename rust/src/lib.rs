@@ -394,18 +394,25 @@ impl ChessvariantEngine {
     }
 
     /// Submit an action. Replaces old `handleMove` + `uiInteraction`.
-    /// Returns `{ "valid_actions": [...], "ui": {...}, "game_over": null | {...} }`.
+    /// Always returns a JSON string. On error, the result contains `"error"`.
+    /// Success: `{ "valid_actions": [...], "ui": {...}, "game_over": null | {...} }`
+    /// Error:   `{ "error": "message", "valid_actions": null, "ui": null, "game_over": null }`
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = submitAction))]
     pub fn submit_action_js(
         &mut self,
         player_json: String,
         action_json: String,
-    ) -> Result<String, CvError> {
-        let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
-        let player = player_ref_to_player_id(&self.game_state, &player_ref);
-        let action: Action = serde_json::from_str(&action_json)?;
-        let result = self.submit_action_core(&player, &action)?;
-        Ok(serde_json::to_string(&result)?)
+    ) -> String {
+        match self.submit_action_js_impl(player_json, action_json) {
+            Ok(json) => json,
+            Err(e) => serde_json::json!({
+                "error": e.to_string(),
+                "valid_actions": null,
+                "ui": null,
+                "game_over": null,
+            })
+            .to_string(),
+        }
     }
 
     /// Fetch the UI for a player without changing state (poll / page refresh).
@@ -426,6 +433,19 @@ impl ChessvariantEngine {
 // ─── Core engine logic ───────────────────────────────────────────────────────
 
 impl ChessvariantEngine {
+    /// Internal impl for `submit_action_js` — returns `Result` so `?` works.
+    fn submit_action_js_impl(
+        &mut self,
+        player_json: String,
+        action_json: String,
+    ) -> Result<String, CvError> {
+        let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
+        let player = player_ref_to_player_id(&self.game_state, &player_ref);
+        let action: Action = serde_json::from_str(&action_json)?;
+        let result = self.submit_action_core(&player, &action)?;
+        Ok(serde_json::to_string(&result)?)
+    }
+
     /// Core action submission. Used both by WASM `submitAction` and native tests.
     pub fn submit_action_core(
         &mut self,
