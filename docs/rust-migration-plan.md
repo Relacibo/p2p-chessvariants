@@ -180,7 +180,27 @@ In `modules/builtins.rs`:
 
 Scripts use `engine::is_square_attacked` and `engine::pseudo_moves` directly inside their own `valid_actions(state)`.
 
-### 4.2 Remove `combine` from global constructors
+### 4.2 Add `engine::is_legal` helper (replaces `check_protection` config flag)
+
+In `modules/builtins.rs` `register_engine_helpers`:
+- Add `engine::is_legal(board, from, to, color)` function
+- Logic: apply move to a temp board, check if king of `color` is attacked by opponent
+  - Reuse existing `is_king_in_check` and `apply_move_to_board` from `engine_builtins.rs`
+
+```rust
+FuncRegistration::new("is_legal")
+    .set_into_module(&mut m,
+        move |board: BoardState, from: Coords, to: Coords, color: String| -> bool {
+            let Some(from_bc) = from.as_board_coords() else { return false; };
+            let Some(to_bc) = to.as_board_coords() else { return false; };
+            let mut temp = board.clone();
+            engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
+            !engine_builtins::is_king_in_check(&temp, &color, &custom_pieces)
+        },
+    );
+```
+
+### 4.3 Remove `combine` from global constructors
 
 In `lib.rs` `register_builtins`:
 - Remove `engine.register_fn("combine", |p1, p2| ...)`

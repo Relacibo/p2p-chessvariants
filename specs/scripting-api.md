@@ -457,11 +457,33 @@ not the piece type.
 |----------|-----------|---------|
 | `is_square_attacked` | `(Board, Coords, attacker_color: string) -> bool` | Is the square attacked by any piece of the given color? |
 | `pseudo_moves` | `(Board, Coords, piece_type: string, color: string) -> [Coords]` | Pseudo-moves for a given piece type and color. |
+| `is_legal` | `(Board, Coords, Coords, color: string) -> bool` | Would moving piece from→to leave the player's own king in check? `false` = illegal, `true` = legal. |
 | `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge two maps. |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess starting position. |
 
-Check-filtering (king safety) must be implemented by the script inside
-`valid_actions(state)`, using `is_square_attacked` as a helper.
+Check-filtering for king safety is typically done with `is_legal` inside the
+script's `valid_actions(state)`:
+
+```rhai
+fn valid_actions(state) {
+    let result = [];
+    for p in state.players {
+        let mut actions = [];
+        let all_squares = engine::board::find(state.board, Piece(p.color, ""))
+            .filter(|c| board_get(state.board, c).color == p.color);
+        for from in all_squares {
+            let piece = engine::board::get(state.board, from);
+            let dests = engine::moves::pawn(state.board, from, p.color)  // ... etc per type
+                .filter(|to| engine::is_legal(state.board, from, to, p.color));
+            for to in dests {
+                actions.push(engine::Move(from, to));
+            }
+        }
+        result.push(#{ player: p, actions: actions });
+    }
+    result
+}
+```
 
 ### `engine` — Constructors
 
