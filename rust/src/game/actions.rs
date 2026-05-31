@@ -3,10 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use super::{piece::Piece, state::Coords};
 
-/// A game action. Three kinds:
+/// A game action. Four kinds:
 ///   - `move`:          from/to are Coords (board or reserve squares)
 ///   - `select_piece`:  piece is the selected piece
 ///   - `interact`:      element_id is the UI element being activated
+///   - `cancel`:        abort a multi-step pending action
 #[derive(Clone, Debug, Default, Deserialize, Serialize, CustomType, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
@@ -56,6 +57,17 @@ impl Action {
             to: None,
             piece: None,
             element_id: Some(element_id),
+        }
+    }
+
+    /// Construct a `cancel` action. Rhai: `Cancel()` — no payload.
+    pub fn rhai_cancel() -> Self {
+        Self {
+            kind: "cancel".into(),
+            from: None,
+            to: None,
+            piece: None,
+            element_id: None,
         }
     }
 
@@ -135,5 +147,15 @@ mod tests {
         assert_eq!(action.get_type(), "interact");
         let id = action.get_element_id().cast::<String>();
         assert_eq!(id, "draw_offer_btn");
+    }
+
+    #[test]
+    fn test_cancel_action() {
+        let action = Action::rhai_cancel();
+        assert_eq!(action.get_type(), "cancel");
+        assert!(action.get_from().is_unit());
+        assert!(action.get_to().is_unit());
+        assert!(action.get_piece().is_unit());
+        assert!(action.get_element_id().is_unit());
     }
 }

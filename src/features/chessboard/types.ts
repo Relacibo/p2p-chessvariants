@@ -38,7 +38,8 @@ export function isBoardCoords(c: WasmCoords): c is WasmBoardCoords {
 export type WasmAction =
   | { type: "move"; from: WasmCoords; to: WasmCoords }
   | { type: "select_piece"; piece: WasmPiece }
-  | { type: "interact"; elementId: string };
+  | { type: "interact"; elementId: string }
+  | { type: "cancel" };
 
 export interface WasmDisabledRect {
   r1: number;

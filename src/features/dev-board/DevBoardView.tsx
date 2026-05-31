@@ -365,6 +365,11 @@ export function DevBoardView() {
             elementId: "select_piece",
             piece: action.piece,
           });
+        } else if (action.type === "cancel") {
+          addLogEntry(controllingPlayer, {
+            kind: "ui",
+            elementId: "cancel",
+          });
         }
         // Update valid actions and active players from result
         setValidActionsAll(result.valid_actions);

@@ -113,6 +113,8 @@ fn handle_action(state, player, action) {
         // action.piece : Piece
     } else if action.type == "interact" {
         // action.element_id : string
+    } else if action.type == "cancel" {
+        // no payload — abort pending action
     }
 
     // Signal game over by setting state.outcome before returning.
@@ -204,7 +206,8 @@ engine::SelectPiece(piece)
 | `piece` | `Piece` | The piece chosen by the player |
 
 Used for promotion, gating, or any scenario where the player must choose a piece
-type. Include a sentinel `Piece("color", "none")` if the player may decline.
+type. If the player may abort, include `Cancel()` in `valid_actions` alongside the
+`SelectPiece` actions.
 
 ### `Interact`
 
@@ -221,6 +224,21 @@ engine::Interact(element_id)
 A button is interactive if and only if the
 corresponding `engine::Interact(element_id)` is present in the player's
 `valid_actions` list.
+
+### `Cancel`
+
+```rhai
+engine::Cancel()
+// no arguments
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `"cancel"` | Discriminator |
+
+Used to abort a multi-step action sequence (e.g. promotion, gating) without
+committing any state change. Only valid when returned by `valid_actions`.
+See Section 4 for the pending-action pattern.
 
 ---
 
@@ -265,7 +283,8 @@ the corresponding `Interact` action is present in the player's `valid_actions`.
 
 Selecting a piece sends a `SelectPiece(piece)` action. The dialog is shown when
 `valid_actions` contains at least one `SelectPiece` action for the player.
-Include `Piece("color", "none")` if declining the selection is allowed.
+To allow the player to abort, include `Cancel()` in `valid_actions`. The frontend
+renders a cancel button automatically when a `piece_selection` element is active.
 
 ### `Banner`
 
@@ -329,6 +348,61 @@ can move. After step 2, it is black's turn.
 **Replay**: submit each `(player, action)` pair in the recorded order. Because
 `handle_action` is a pure function of `(state, player, action)`, replay is
 deterministic.
+
+### Pending-Action Pattern (no rollback needed)
+
+Multi-step turns (promotion, gating, etc.) use a **pending** pattern. The first
+action does NOT commit to the board — it merely records the intent in custom
+state keys. Subsequent actions commit or cancel:
+
+```rhai
+fn handle_action(state, player, action) {
+    if action.type == "move" && needs_promotion(state, action) {
+        // DO NOT apply the move yet — store it as pending
+        return merge(state, #{
+            pending_move: action,
+            pending: "promotion",
+        });
+    }
+    if action.type == "select_piece" && state.pending == "promotion" {
+        // Now commit: apply the stored move AND the chosen piece
+        let b = engine::board::move_piece(state.board,
+            state.pending_move.from, state.pending_move.to);
+        b = engine::board::set(b, state.pending_move.to, action.piece);
+        return merge(state, #{ board: b, pending: (), pending_move: () });
+    }
+    if action.type == "cancel" {
+        // Abort: forget the pending move, return to stable state
+        // Nothing was committed — no rollback needed
+        return merge(state, #{ pending: (), pending_move: () });
+    }
+    // ...
+}
+```
+
+```rhai
+fn valid_actions(state) {
+    if state.pending == "promotion" {
+        // Only the current player may select or cancel
+        return [
+            #{ player: current, actions: [
+                SelectPiece(Piece("white", "queen")),
+                SelectPiece(Piece("white", "rook")),
+                SelectPiece(Piece("white", "bishop")),
+                SelectPiece(Piece("white", "knight")),
+                Cancel(),                               // ← universal abort
+            ] },
+            #{ player: opponent, actions: [] },
+        ];
+    }
+    // normal turn: only the player whose turn it is gets moves
+    // ...
+}
+```
+
+**Key property**: No board mutation occurs until the player commits. Cancel resets
+the pending flags without needing a backup board or undo logic. The turn switch
+happens automatically when `valid_actions` gives the next player non-empty actions.
 
 ### Engine Flow per Action
 
@@ -498,6 +572,7 @@ fn valid_actions(state) {
 | `Move(from, to)` | `Action` | Move action. |
 | `SelectPiece(piece)` | `Action` | SelectPiece action. |
 | `Interact(element_id)` | `Action` | Interact action (button activation). |
+| `Cancel()` | `Action` | Abort multi-step sequence (no payload). |
 | `Winner(idx)` | `Dynamic` | Game-over: single winner by player index. |
 | `Winners(arr)` | `Dynamic` | Game-over: multiple winners by color strings. |
 | `Draw()` | `Dynamic` | Game-over: draw. |
@@ -520,11 +595,11 @@ fn valid_actions(state) {
 | `Coords` | — | `.type` (`"board"` or `"reserve"`), `.row`, `.col`, `.board_index`, `.index` |
 | `Player` | — | `.board`, `.color`, `.team` |
 | `Piece` | — | `.color`, `.type` |
-| `Action` | — | `.type`, `.from`\*, `.to`\*, `.piece`\*, `.element_id`\* |
-| `Board` | `engine::board` | Opaque — use `engine::board::*` functions |
+| `Action` | — | `.type`, `.from`\*, `.to`\*, `.piece`\*, `.element_id`\*, `.cancel`† |
 
 \* Field presence depends on action type: `Move` has `.from`/`.to`; `SelectPiece`
 has `.piece`; `Interact` has `.element_id`.
+† `Cancel` has no payload fields — all fields are `()`.
 
 ---
 

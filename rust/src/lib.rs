@@ -92,6 +92,7 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Move", Action::rhai_move);
     engine.register_fn("SelectPiece", Action::rhai_select_piece);
     engine.register_fn("Interact", Action::rhai_interact);
+    engine.register_fn("Cancel", Action::rhai_cancel);
     engine.register_fn("Piece", Piece::rhai_new);
     engine.register_fn("Winner", game_result::rhai_winner);
     engine.register_fn("Winners", game_result::rhai_winners);
@@ -458,6 +459,7 @@ impl ChessvariantEngine {
                         "move" => true, // any move validates (script validates specifics)
                         "select_piece" => a.piece == action.piece,
                         "interact" => a.element_id == action.element_id,
+                        "cancel" => true, // cancel has no payload to validate
                         _ => true,
                     }
             });
