@@ -30,7 +30,24 @@ fn valid_actions(state) {
         if "outcome" in state {
             actions.push(#{ player: p, actions: [] });
         } else if p.color == state.turn {
-            actions.push(#{ player: p, actions: [Move(Coords(0,0), Coords(0,0))] });
+            let player_actions = [];
+            // Generate moves from every piece of this player to every other square.
+            // The engine handles detailed validation in handle_action.
+            for r in 0..8 {
+                for c in 0..8 {
+                    let piece = engine::board::get(state.board, Coords(r, c));
+                    if piece != () && piece.color == p.color {
+                        for tr in 0..8 {
+                            for tc in 0..8 {
+                                if r != tr || c != tc {
+                                    player_actions.push(Move(Coords(r, c), Coords(tr, tc)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            actions.push(#{ player: p, actions: player_actions });
         } else {
             actions.push(#{ player: p, actions: [] });
         }
