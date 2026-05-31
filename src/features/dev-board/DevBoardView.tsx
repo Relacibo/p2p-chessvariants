@@ -4,11 +4,11 @@ import {
   Box,
   Button,
   Combobox,
-  Drawer,
   Group,
   InputBase,
   Loader,
   NumberInput,
+  Paper,
   ScrollArea,
   Select,
   Stack,
@@ -22,6 +22,7 @@ import {
   IconPlayerSkipBack,
   IconSettings,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -470,31 +471,52 @@ export function DevBoardView() {
         </Box>
       )}
 
-      {/* ── Dev gear button ── */}
-      <Tooltip label="Dev controls" position="left" withArrow>
+      {/* ── Dev gear / close button ── */}
+      <Tooltip label={drawerOpen ? "Close" : "Dev controls"} position="left" withArrow>
         <ActionIcon
           variant="filled"
           color="dark"
           size="lg"
           radius="xl"
-          style={{ position: "absolute", top: 8, right: 8, zIndex: 200 }}
-          onClick={openDrawer}
+          style={{
+            position: "absolute",
+            top: 8,
+            right: drawerOpen ? 338 : 8,
+            zIndex: 200,
+            transition: "right 0.25s ease",
+          }}
+          onClick={drawerOpen ? closeDrawer : openDrawer}
         >
-          <IconSettings size="1.1rem" />
+          {drawerOpen ? <IconX size="1.1rem" /> : <IconSettings size="1.1rem" />}
         </ActionIcon>
       </Tooltip>
 
-      {/* ── Dev Drawer ── */}
-      <Drawer
-        opened={drawerOpen}
-        onClose={closeDrawer}
-        title="Dev controls"
-        position="right"
-        size="sm"
-        overlayProps={{ opacity: 0.3 }}
+      {/* ── Dev sidebar panel ── */}
+      <Box
+        style={{
+          position: "absolute",
+          top: 0,
+          right: drawerOpen ? 0 : -350,
+          width: 330,
+          height: "100%",
+          zIndex: 150,
+          transition: "right 0.25s ease",
+        }}
       >
-        <Stack gap="md">
-          {/* Variant combobox — like the lobby */}
+        <Paper
+          shadow="lg"
+          withBorder
+          style={{ height: "100%", borderRadius: 0, overflow: "hidden" }}
+        >
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
+            <Stack gap="md" p="md">
+              <Group justify="space-between" align="center">
+                <Text fw={600}>Dev controls</Text>
+                <ActionIcon variant="subtle" size="sm" onClick={closeDrawer}>
+                  <IconX size="0.9rem" />
+                </ActionIcon>
+              </Group>
+              {/* Variant combobox — like the lobby */}
           <Combobox
             store={combobox}
             withinPortal={false}
@@ -635,8 +657,10 @@ export function DevBoardView() {
               </Group>
             ))}
           </ScrollArea>
-        </Stack>
-      </Drawer>
+            </Stack>
+          </ScrollArea>
+        </Paper>
+      </Box>
     </Box>
   );
 }
