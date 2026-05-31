@@ -154,13 +154,17 @@ fn player_id_to_json(p: &PlayerId) -> serde_json::Value {
 }
 
 /// Normalize an active_players entry to JSON.
-fn normalize_active_player(d: &Dynamic) -> Option<serde_json::Value> {
+/// Handles v2 (Player map/struct) and v1 (integer index → config color).
+fn normalize_active_player(d: &Dynamic, config: &VariantConfig) -> Option<serde_json::Value> {
+    // v2: plain color string → board 0
     if let Ok(color) = d.clone().into_string() {
         return Some(serde_json::json!({"board": 0, "color": color, "team": 0}));
     }
+    // v2: PlayerId struct
     if let Some(p) = d.clone().try_cast::<PlayerId>() {
         return Some(player_id_to_json(&p));
     }
+    // v2: player map { board, color, team }
     if let Some(m) = d.clone().try_cast::<rhai::Map>() {
         let board = m.get("board").and_then(|v| v.as_int().ok()).unwrap_or(0);
         let color = m
@@ -169,6 +173,13 @@ fn normalize_active_player(d: &Dynamic) -> Option<serde_json::Value> {
             .unwrap_or_default();
         let team = m.get("team").and_then(|v| v.as_int().ok()).unwrap_or(0);
         return Some(serde_json::json!({"board": board, "color": color, "team": team}));
+    }
+    // v1 compat: integer player index → look up in config colors
+    if let Ok(idx) = d.as_int() {
+        let idx = idx as usize;
+        if let Some(color) = config.colors.get(idx) {
+            return Some(serde_json::json!({"board": 0, "color": color, "team": 0}));
+        }
     }
     None
 }
@@ -298,18 +309,7 @@ impl ChessvariantEngine {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = boardStateJson))]
     pub fn board_state_json(&self) -> Result<String, CvError> {
-        let board_dyn = self
-            .game_state
-            .read_lock::<rhai::Map>()
-            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
-            .get("board")
-            .ok_or_else(|| CvError::Internal("game_state has no 'board' key".into()))?
-            .clone();
-        let board = if let Some(b) = board_dyn.clone().try_cast::<BoardState>() {
-            b
-        } else {
-            rhai::serde::from_dynamic(&board_dyn)?
-        };
+        let board = self.get_normalized_board()?;
         let json = serde_json::to_string(&board)?;
         Ok(json)
     }
@@ -324,19 +324,37 @@ impl ChessvariantEngine {
                 .game_state
                 .read_lock::<rhai::Map>()
                 .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
-            match map.get("reserve_pile") {
+            // v2 key "reserve_pile" takes priority; fall back to v1 "reserve"
+            match map.get("reserve_pile").or_else(|| map.get("reserve")) {
                 Some(v) => v.clone(),
                 None => return Ok(None),
             }
         };
-        let pile = if let Some(p) = pile_dyn
-            .clone()
-            .try_cast::<game::state::ReservePileState>()
-        {
-            p
-        } else {
-            rhai::serde::from_dynamic(&pile_dyn)?
-        };
+        // v2 format: ReservePileState struct
+        if let Some(p) = pile_dyn.clone().try_cast::<game::state::ReservePileState>() {
+            let json = serde_json::to_string(&p)?;
+            return Ok(Some(json));
+        }
+        // v1 format: array of arrays of Piece → convert to ReservePileState
+        if let Some(arr) = pile_dyn.clone().try_cast::<rhai::Array>() {
+            let mut reserve_piles: Vec<Vec<Piece>> = Vec::new();
+            for elem in arr {
+                if let Some(inner) = elem.clone().try_cast::<rhai::Array>() {
+                    let pieces: Vec<Piece> = inner
+                        .into_iter()
+                        .filter_map(|d| d.try_cast::<Piece>())
+                        .collect();
+                    reserve_piles.push(pieces);
+                } else {
+                    reserve_piles.push(Vec::new());
+                }
+            }
+            let pile = game::state::ReservePileState { reserve_piles };
+            let json = serde_json::to_string(&pile)?;
+            return Ok(Some(json));
+        }
+        // Fallback: try rhai serde
+        let pile: game::state::ReservePileState = rhai::serde::from_dynamic(&pile_dyn)?;
         let json = serde_json::to_string(&pile)?;
         Ok(Some(json))
     }
@@ -352,7 +370,7 @@ impl ChessvariantEngine {
             Some(arr) => {
                 let players: Vec<serde_json::Value> = arr
                     .iter()
-                    .filter_map(|d| normalize_active_player(d))
+                    .filter_map(|d| normalize_active_player(d, &self.variant_config))
                     .collect();
                 Ok(serde_json::to_string(&players)?)
             }
@@ -366,35 +384,52 @@ impl ChessvariantEngine {
             .game_state
             .read_lock::<rhai::Map>()
             .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
-        let players_arr = players_map
-            .get("players")
-            .and_then(|v| v.clone().try_cast::<rhai::Array>())
-            .ok_or_else(|| CvError::Internal("game_state.players not found".into()))?;
 
-        let mut players: Vec<serde_json::Value> = Vec::new();
-        for p in players_arr.iter() {
-            let player_map = p
-                .clone()
-                .try_cast::<rhai::Map>()
-                .ok_or_else(|| CvError::Internal("player is not a map".into()))?;
-            let color = player_map
-                .get("color")
-                .and_then(|v| v.clone().into_string().ok())
-                .unwrap_or_default();
-            let board = player_map
-                .get("board")
-                .and_then(|v| v.as_int().ok())
-                .unwrap_or(0);
-            let team = player_map
-                .get("team")
-                .and_then(|v| v.as_int().ok())
-                .unwrap_or(0);
-            players.push(serde_json::json!({
-                "color": color,
-                "board": board,
-                "team": team
-            }));
-        }
+        // If state has no "players" key, synthesize from variant config colors
+        let players_arr = match players_map.get("players") {
+            Some(v) => v.clone().try_cast::<rhai::Array>(),
+            None => None,
+        };
+
+        let players: Vec<serde_json::Value> = if let Some(arr) = players_arr {
+            arr.iter()
+                .filter_map(|p| {
+                    let player_map = p.clone().try_cast::<rhai::Map>()?;
+                    let color = player_map
+                        .get("color")
+                        .and_then(|v| v.clone().into_string().ok())
+                        .unwrap_or_default();
+                    let board = player_map
+                        .get("board")
+                        .and_then(|v| v.as_int().ok())
+                        .unwrap_or(0);
+                    let team = player_map
+                        .get("team")
+                        .and_then(|v| v.as_int().ok())
+                        .unwrap_or(0);
+                    Some(serde_json::json!({
+                        "color": color,
+                        "board": board,
+                        "team": team
+                    }))
+                })
+                .collect()
+        } else {
+            // v1 compat: synthesize from variant config colors
+            self.variant_config
+                .colors
+                .iter()
+                .enumerate()
+                .map(|(_i, color)| {
+                    serde_json::json!({
+                        "color": color,
+                        "board": 0,
+                        "team": 0
+                    })
+                })
+                .collect()
+        };
+
         Ok(serde_json::to_string(&players)?)
     }
 
@@ -480,20 +515,7 @@ impl ChessvariantEngine {
 impl ChessvariantEngine {
     /// Read a piece from the board at the given coordinates.
     fn read_piece_from_board(&self, coords: &Coords) -> Result<Piece, CvError> {
-        let board = {
-            let map = self
-                .game_state
-                .read_lock::<rhai::Map>()
-                .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
-            map.get("board")
-                .cloned()
-                .ok_or_else(|| CvError::Internal("game_state has no 'board' key".into()))?
-        };
-        let board: BoardState = if let Some(b) = board.clone().try_cast::<BoardState>() {
-            b
-        } else {
-            rhai::serde::from_dynamic(&board)?
-        };
+        let board = self.get_normalized_board()?;
         let bc = coords
             .as_board_coords()
             .ok_or_else(|| CvError::Internal("cannot read piece from non-board coords".into()))?;
@@ -501,6 +523,56 @@ impl ChessvariantEngine {
             .get_piece(&bc)
             .cloned()
             .ok_or_else(|| CvError::Internal("no piece at source square".into()))
+    }
+
+    /// Normalize the board from either v1 (array of `BoardState`) or
+    /// v2 (single `BoardState`) format into a unified `BoardState`.
+    fn get_normalized_board(&self) -> Result<BoardState, CvError> {
+        let board_dyn = self
+            .game_state
+            .read_lock::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?
+            .get("board")
+            .ok_or_else(|| CvError::Internal("game_state has no 'board' key".into()))?
+            .clone();
+
+        // v2 format: single BoardState
+        if let Some(b) = board_dyn.clone().try_cast::<BoardState>() {
+            return Ok(b);
+        }
+
+        // v1 format: array of BoardState — merge into one
+        if let Some(arr) = board_dyn.clone().try_cast::<rhai::Array>() {
+            let mut boards: Vec<Vec<Option<Piece>>> = Vec::new();
+            let mut rows = 8u32;
+            let mut cols = 8u32;
+            for (i, elem) in arr.iter().enumerate() {
+                if let Some(b) = elem.clone().try_cast::<BoardState>() {
+                    if i == 0 {
+                        rows = b.rows;
+                        cols = b.cols;
+                    }
+                    boards.extend(b.boards);
+                } else {
+                    return Err(CvError::Internal(
+                        "board array element is not a BoardState".into(),
+                    ));
+                }
+            }
+            if boards.is_empty() {
+                return Err(CvError::Internal("board array is empty".into()));
+            }
+            let number_of_boards = boards.len() as u32;
+            return Ok(BoardState {
+                rows,
+                cols,
+                number_of_boards,
+                boards,
+            });
+        }
+
+        // Fallback: try rhai serde (handles maps, etc.)
+        Ok(rhai::serde::from_dynamic(&board_dyn)?)
     }
 
     /// Core move execution.
