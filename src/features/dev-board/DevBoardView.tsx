@@ -70,8 +70,17 @@ let logSeq = 0;
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
-  if (e && typeof e === "object" && "message" in e)
-    return String((e as { message: unknown }).message);
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    // CvJsError format: { name: "rhai-eval-alt", message: "Script error: ..." }
+    if ("message" in obj) {
+      const msg = String(obj.message);
+      if ("name" in obj && typeof obj.name === "string" && obj.name) {
+        return `[${obj.name}] ${msg}`;
+      }
+      return msg;
+    }
+  }
   try {
     return JSON.stringify(e);
   } catch {
@@ -467,14 +476,16 @@ export function DevBoardView() {
       {error && (
         <Paper
           withBorder
-          shadow="sm"
+          shadow="md"
           p="sm"
           style={{
             position: "absolute",
             bottom: 16,
             left: 16,
-            maxWidth: 320,
+            maxWidth: 420,
             zIndex: 100,
+            borderLeft: "3px solid var(--mantine-color-red-6)",
+            background: "var(--mantine-color-red-0)",
           }}
         >
           <Group justify="space-between" mb={4} gap="xs">
@@ -484,12 +495,23 @@ export function DevBoardView() {
             <ActionIcon
               size="xs"
               variant="subtle"
+              color="red"
               onClick={() => setError(null)}
             >
               <IconX size="0.7rem" />
             </ActionIcon>
           </Group>
-          <Text size="xs">{error}</Text>
+          <Text
+            size="xs"
+            style={{
+              fontFamily: "var(--mantine-font-family-monospace)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              lineHeight: 1.5,
+            }}
+          >
+            {error}
+          </Text>
         </Paper>
       )}
 

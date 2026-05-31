@@ -7,9 +7,13 @@ use crate::rhai_rust_error::RhaiRustError;
 
 #[derive(Debug, Error)]
 pub enum CvError {
-    #[error("Error in script: {0:?}")]
+    /// Rhai runtime error with position info. Uses Display (not Debug) for readable messages:
+    /// "Runtime error: no piece at source square (line 64, position 24)"
+    #[error("Script error: {0}")]
     RhaiEvalAlt(#[from] Box<EvalAltResult>),
-    #[error("Error in script: {0:?}")]
+
+    /// Rhai parse error (script syntax error).
+    #[error("Script parse error: {0}")]
     RhaiParse(#[from] ParseError),
     #[error("Error in script: Function name {function_name:?}")]
     RhaiFunctionReturnObject {
