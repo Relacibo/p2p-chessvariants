@@ -5,13 +5,12 @@
 
 fn config() {
     #{
-        api_version: 1,
+        api_version: 2,
         name: "Simple Chess (test)",
         version: "1.0.0",
         colors: ["white", "black"],
         allowed_player_count: 2,
         board: #{ type: "rectangle", rows: 8, cols: 8 },
-        promotion_pieces: ["queen","rook","bishop","knight"],
     }
 }
 
@@ -29,44 +28,35 @@ fn init(player_count) {
 
 fn valid_actions(state, player) {
     // Simple chess doesn't validate moves — any piece can go anywhere.
-    // During a pending state (e.g. promotion) the script returns [] here.
     []
 }
 
-fn handle_event(state, player, event) {
+fn on_move(state, player, from, to, piece) {
     let player_color = player.color;
 
-    if event.type == "move" {
-        if !state.active_players.contains(player) {
-            throw `${player_color} is not active`;
-        }
-
-        let src = board_get(state.board, event.from);
-        if src == () { throw "no piece at source square"; }
-        if src.color != player_color { throw "that piece does not belong to you"; }
-
-        let dst = board_get(state.board, event.to);
-        if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
-
-        let new_board = board_move_piece(state.board, event.from, event.to);
-
-        let next = Player(if player_color == "white" { "black" } else { "white" });
-        return #{
-            state: merge(state, #{
-                board: new_board,
-                active_players: [next],
-            }),
-            ui: [],
-        };
+    if !state.active_players.contains(player) {
+        throw `${player_color} is not active`;
     }
 
-    throw `unknown event type: ${event.type}`;
+    let src = engine::board::get(state.board, from);
+    if src == () { throw "no piece at source square"; }
+    if src.color != player_color { throw "that piece does not belong to you"; }
+
+    let dst = engine::board::get(state.board, to);
+    if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
+
+    let new_board = engine::board::move_piece(state.board, from, to);
+
+    let next = Player(if player_color == "white" { "black" } else { "white" });
+    merge(state, #{
+        board: new_board,
+        active_players: [next],
+    })
 }
 
-// Called automatically by the engine after every event.
 fn check_game_over(state) {
     for p in state.players {
-        let kings = board_find(state.board, Piece(p.color, "king"));
+        let kings = engine::board::find(state.board, Piece(p.color, "king"));
         if kings.len() == 0 {
             let opponent_color = if p.color == "white" { "black" } else { "white" };
             let winner_idx = state.players

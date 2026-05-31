@@ -1,4 +1,4 @@
-use rhai::{CustomType, TypeBuilder};
+use rhai::CustomType;
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
@@ -185,13 +185,15 @@ impl BoardCoords {
     }
 }
 
-/// Canonical player identifier: `{board, color}`.
+/// Canonical player identifier: `{board, color, team}`.
 ///
 /// Scripts use:
-///   `Player("white")`        → board 0, color "white" (shorthand)
-///   `Player(1, "white")`     → board 1, color "white"
+///   `Player("white")`        → board 0, color "white", team 0
+///   `Player(1, "white")`     → board 1, color "white", team 0
 ///
-/// Equality is registered so `.contains()` works on arrays of PlayerId.
+/// The `team` field is populated automatically from `state.players` after
+/// `init()` returns. Equality is registered so `.contains()` works on
+/// arrays of PlayerId.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerId {
@@ -199,17 +201,37 @@ pub struct PlayerId {
     pub board: i32,
     #[rhai_type(readonly)]
     pub color: String,
+    /// Team index — populated from state.players after init(). Defaults to 0.
+    #[rhai_type(readonly)]
+    pub team: i32,
 }
 
 impl PlayerId {
-    /// Short constructor: board defaults to 0.
+    /// Short constructor: board defaults to 0, team to 0.
     pub fn new_short(color: String) -> Self {
-        Self { board: 0, color }
+        Self {
+            board: 0,
+            color,
+            team: 0,
+        }
     }
 
-    /// Full constructor: board and color explicitly.
+    /// Full constructor: board and color explicitly. Team defaults to 0.
     pub fn new_full(board: i32, color: String) -> Self {
-        Self { board, color }
+        Self {
+            board,
+            color,
+            team: 0,
+        }
+    }
+
+    /// Create a PlayerId with a known team value.
+    pub fn with_team(board: i32, color: String, team: i32) -> Self {
+        Self {
+            board,
+            color,
+            team,
+        }
     }
 }
 

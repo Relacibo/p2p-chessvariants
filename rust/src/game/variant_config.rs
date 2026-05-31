@@ -1,4 +1,4 @@
-use rhai::{CustomType, Dynamic, TypeBuilder, serde::from_dynamic};
+use rhai::{CustomType, Dynamic, serde::from_dynamic};
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
@@ -140,6 +140,7 @@ pub struct BoardLayoutConfig {
 }
 
 impl BoardLayoutConfig {
+    #[allow(dead_code)]
     pub fn rhai_rectangle(rows: i32, cols: i32) -> Self {
         BoardLayoutConfig { rows, cols }
     }

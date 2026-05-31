@@ -370,5 +370,5 @@ fn place_pawns_col(board, col, color) {
 }
 
 fn empty_board_14x14() {
-  board_empty(14, 14)   // engine helper
+    engine::board::empty(14, 14)   // engine helper
 }

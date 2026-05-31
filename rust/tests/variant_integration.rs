@@ -38,12 +38,10 @@ fn state_active_players_colors(state: &Dynamic) -> Vec<String> {
     state_active_players(state)
         .iter()
         .filter_map(|v| {
-            // Active players are now PlayerId structs
             v.clone()
                 .try_cast::<PlayerId>()
                 .map(|p| p.color.clone())
                 .or_else(|| {
-                    // Fallback: legacy Rhai map
                     v.clone()
                         .try_cast::<rhai::Map>()
                         .and_then(|m| m["color"].clone().into_string().ok())
@@ -60,15 +58,6 @@ fn state_game_over(state: &Dynamic) -> Dynamic {
         .get("game_over")
         .expect("state has no 'game_over' field")
         .clone()
-}
-
-/// Build a Dynamic map representing a `move` event.
-fn move_event(from: Coords, to: Coords) -> Dynamic {
-    let mut map = rhai::Map::new();
-    map.insert("type".into(), Dynamic::from("move".to_string()));
-    map.insert("from".into(), Dynamic::from(from));
-    map.insert("to".into(), Dynamic::from(to));
-    Dynamic::from_map(map)
 }
 
 fn coords(row: i32, col: i32) -> Coords {
@@ -133,9 +122,11 @@ fn test_simple_chess_initial_game_not_over() {
 fn test_simple_chess_pawn_e2_e4() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     engine
-        .handle_event(
+        .handle_move(
             player("white"),
-            move_event(coords(6, 4), coords(4, 4)),
+            coords(6, 4),
+            coords(4, 4),
+            None,
         )
         .expect("white pawn e2→e4 should succeed");
 
@@ -156,13 +147,13 @@ fn test_simple_chess_turn_alternates() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
 
     engine
-        .handle_event(player("white"), move_event(coords(6, 4), coords(4, 4)))
+        .handle_move(player("white"), coords(6, 4), coords(4, 4), None)
         .unwrap();
     let active = state_active_players_colors(&engine.state());
     assert_eq!(active, vec!["black".to_string()]);
 
     engine
-        .handle_event(player("black"), move_event(coords(1, 4), coords(3, 4)))
+        .handle_move(player("black"), coords(1, 4), coords(3, 4), None)
         .unwrap();
     let active = state_active_players_colors(&engine.state());
     assert_eq!(active, vec!["white".to_string()]);
@@ -171,9 +162,11 @@ fn test_simple_chess_turn_alternates() {
 #[test]
 fn test_simple_chess_wrong_turn_rejected() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    let result = engine.handle_event(
+    let result = engine.handle_move(
         player("black"),
-        move_event(coords(1, 4), coords(3, 4)),
+        coords(1, 4),
+        coords(3, 4),
+        None,
     );
     assert!(result.is_err(), "should reject wrong-turn move");
 }
@@ -181,9 +174,11 @@ fn test_simple_chess_wrong_turn_rejected() {
 #[test]
 fn test_simple_chess_cannot_move_opponents_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    let result = engine.handle_event(
+    let result = engine.handle_move(
         player("white"),
-        move_event(coords(1, 4), coords(3, 4)),
+        coords(1, 4),
+        coords(3, 4),
+        None,
     );
     assert!(result.is_err(), "should reject moving opponent's piece");
 }
@@ -191,9 +186,11 @@ fn test_simple_chess_cannot_move_opponents_piece() {
 #[test]
 fn test_simple_chess_cannot_move_from_empty_square() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    let result = engine.handle_event(
+    let result = engine.handle_move(
         player("white"),
-        move_event(coords(4, 4), coords(3, 4)),
+        coords(4, 4),
+        coords(3, 4),
+        None,
     );
     assert!(result.is_err(), "should reject move from empty square");
 }
@@ -201,9 +198,11 @@ fn test_simple_chess_cannot_move_from_empty_square() {
 #[test]
 fn test_simple_chess_cannot_capture_own_piece() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    let result = engine.handle_event(
+    let result = engine.handle_move(
         player("white"),
-        move_event(coords(7, 0), coords(7, 1)),
+        coords(7, 0),
+        coords(7, 1),
+        None,
     );
     assert!(result.is_err(), "should reject capturing own piece");
 }
@@ -215,9 +214,11 @@ fn test_king_capture_triggers_game_over() {
     let mut engine = make_engine("tests/scripts/king_capture.rhai", 2);
 
     engine
-        .handle_event(
+        .handle_move(
             player("white"),
-            move_event(coords(1, 4), coords(0, 4)),
+            coords(1, 4),
+            coords(0, 4),
+            None,
         )
         .expect("king capture should succeed");
 
@@ -242,9 +243,11 @@ fn test_king_capture_game_not_over_after_non_king_move() {
     let mut engine = make_engine("tests/scripts/king_capture.rhai", 2);
 
     engine
-        .handle_event(
+        .handle_move(
             player("white"),
-            move_event(coords(1, 4), coords(2, 4)),
+            coords(1, 4),
+            coords(2, 4),
+            None,
         )
         .unwrap();
 

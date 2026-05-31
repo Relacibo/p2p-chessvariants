@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
+use rhai::{CustomType, Dynamic, TypeBuilder};
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -60,9 +60,12 @@ impl Display for PieceType {
     }
 }
 
+/// Standard color enum, useful for WASM consumers and logic helpers.
+/// The Piece struct uses String-based colors for Rhai flexibility.
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[repr(u8)]
 #[derive(Clone, Copy, Hash, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[allow(dead_code)]
 pub enum PieceColor {
     #[default]
     Unknown,
@@ -70,6 +73,7 @@ pub enum PieceColor {
     Black,
 }
 
+#[allow(dead_code)]
 impl PieceColor {
     pub fn as_str(&self) -> &'static str {
         match self {
