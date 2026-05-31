@@ -485,7 +485,8 @@ export function DevBoardView() {
             maxWidth: 420,
             zIndex: 100,
             borderLeft: "3px solid var(--mantine-color-red-6)",
-            background: "var(--mantine-color-red-0)",
+            background:
+              "color-mix(in srgb, var(--mantine-color-red-6) 12%, transparent)",
           }}
         >
           <Group justify="space-between" mb={4} gap="xs">
