@@ -508,25 +508,26 @@ export function DevBoardView() {
         </Box>
       )}
 
-      {/* ── Dev gear / close button ── */}
-      <Tooltip label={drawerOpen ? "Close" : "Dev controls"} position="left" withArrow>
-        <ActionIcon
-          variant="filled"
-          color="dark"
-          size="lg"
-          radius="xl"
-          style={{
-            position: "absolute",
-            top: 8,
-            right: drawerOpen ? 338 : 8,
-            zIndex: 200,
-            transition: "right 0.25s ease",
-          }}
-          onClick={drawerOpen ? closeDrawer : openDrawer}
-        >
-          {drawerOpen ? <IconX size="1.1rem" /> : <IconSettings size="1.1rem" />}
-        </ActionIcon>
-      </Tooltip>
+      {/* ── Dev gear button — only shown when drawer is closed (drawer has its own close X) ── */}
+      {!drawerOpen && (
+        <Tooltip label="Dev controls" position="left" withArrow>
+          <ActionIcon
+            variant="filled"
+            color="dark"
+            size="lg"
+            radius="xl"
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              zIndex: 200,
+            }}
+            onClick={openDrawer}
+          >
+            <IconSettings size="1.1rem" />
+          </ActionIcon>
+        </Tooltip>
+      )}
 
       {/* ── Dev sidebar panel ── */}
       <Box
