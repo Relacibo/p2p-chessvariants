@@ -28,8 +28,8 @@ These are the functions the script MUST or MAY implement. The engine calls them.
 | `colors` | [string] | YES | Player color identifiers (e.g. `["white","black"]`) |
 | `allowed_player_count` | i32 | YES | Exact player count (simplest form: a single number). Also accepts `[i32]` for discrete values or `#{ min, max, step }` for a range. |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
-| `check_protection` | bool | NO (default: false) | Enable check filtering in `engine_valid_actions` |
-| `pieces` | #{} | NO | Custom piece definitions via `combine(type, type)` |
+| `check_protection` | bool | NO (default: false) | Enable check filtering in `engine::valid_actions` |
+| `pieces` | #{} | NO | Custom piece definitions via `engine::combine(type, type)` |
 | `reserve_pile` | bool | NO (default: false) | Enable reserve pile |
 
 ### `init(player_count)`
@@ -44,12 +44,12 @@ The returned map must contain at least:
 
 ```rhai
 #{
-    board: BoardState,           // native — one board or array of boards
+    board: Board,               // native — one board or array of boards
     players: [                   // one entry per player
         #{ board: i32, color: string, team: i32 },
         // ...
     ],
-    active_players: [PlayerId],  // ordered turn queue
+    active_players: [Player],   // ordered turn queue
     game_over: (),               // () = not over
 }
 ```
@@ -59,7 +59,7 @@ Variants may add any additional keys. The engine never modifies state keys excep
 ### `on_move(state, player, from, to, piece)`
 
 ```
-(#{}, PlayerId, Coords, Coords, Piece) -> #{}
+(#{}, Player, Coords, Coords, Piece) -> #{}
 ```
 
 **Mandatory.** Called when a player makes a move. Receives typed parameters — no
@@ -68,7 +68,7 @@ JSON parsing, no dynamic map access for move data.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `state` | Rhai Map `#{}` | Current game state |
-| `player` | `PlayerId` | Player making the move (`.board`, `.color`, `.team`) |
+| `player` | `Player` | Player making the move (`.board`, `.color`, `.team`) |
 | `from` | `Coords` | Source square (`.type` is `"board"` or `"reserve"`) |
 | `to` | `Coords` | Destination square (always board) |
 | `piece` | `Piece` | Moving piece (`.color`, `.type`) |
@@ -76,8 +76,13 @@ JSON parsing, no dynamic map access for move data.
 Returns the new game state map.
 
 The engine reads the piece automatically:
-- Board move: `board_get(state.board, from)`
+- Board move: `engine::board::get(state.board, from)`
 - Reserve drop: `piece` from the frontend call
+
+**Safety guarantee**: The engine validates that the submitted move exists in
+`valid_actions(state, player)` **before** calling `on_move`. If the move is not
+in the valid actions set, the engine rejects it with an error — the script does
+not need to re-validate legality.
 
 There is **no** `on_drop`. Reserve placements use the same `on_move` — the `from.type`
 field distinguishes `"board"` from `"reserve"`.
@@ -85,7 +90,7 @@ field distinguishes `"board"` from `"reserve"`.
 ### `get_ui(state, player)`
 
 ```
-(#{}, PlayerId) -> #{}
+(#{}, Player) -> #{}
 ```
 
 **Optional** (returns `#{}` if absent). Returns UI elements the player should see.
@@ -93,16 +98,20 @@ field distinguishes `"board"` from `"reserve"`.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `state` | Rhai Map `#{}` | Current game state |
-| `player` | `PlayerId` | Player asking for their UI |
+| `player` | `Player` | Player asking for their UI |
 
-Returns a **map keyed by stable string element IDs**. Each value is a UI element
-map (see Section 2). The engine extracts handler closures from the elements,
+Returns a **map keyed by stable, unique string element IDs**. Each value is a UI
+element map (see Section 2). The engine extracts handler closures from the elements,
 stores them in an internal registry, and serializes the rest to JSON.
 
 - Called after every state change (after `on_move`, after any UI interaction).
 - Also callable anytime (page refresh, UI poll) — must be a pure function.
 - The engine **discards all previously stored handlers** before each call.
 - Returns `#{}` if there is nothing to show.
+- **Element ID uniqueness**: The engine detects duplicate keys in the returned
+  map and throws an error. Scripts should use descriptive, namespaced IDs (e.g.
+  `"promo_pick"`, `"gate_pick"`, `"draw_offer_btn"`), never generic names like
+  `"btn"` or `"action"`.
 
 ### `check_game_over(state)`
 
@@ -114,9 +123,9 @@ stores them in an internal registry, and serializes the rest to JSON.
 May attach `game_over` to the state:
 
 ```rhai
-state.game_over = Winner(player_index)     // single winner by player index
-state.game_over = Winners(["white","red"]) // multiple winners by color
-state.game_over = Draw()                   // draw
+state.game_over = engine::Winner(player_index)       // single winner by player index
+state.game_over = engine::Winners(["white","red"])   // multiple winners by color
+state.game_over = engine::Draw()                      // draw
 ```
 
 Returns the (possibly modified) state. If not defined, engine skips it.
@@ -124,11 +133,11 @@ Returns the (possibly modified) state. If not defined, engine skips it.
 ### `valid_actions(state, player)`
 
 ```
-(#{}, PlayerId) -> [Action]
+(#{}, Player) -> [Action]
 ```
 
 **Optional** (returns `[]` if absent). Returns legal moves for the given player.
-Each action is built via `Move(from, to)`:
+Each action is built via `engine::Move(from, to)`:
 
 ```
 Action {
@@ -217,6 +226,9 @@ Engine discards ALL stored handlers
 Engine calls get_ui(state, player)
     │
     ▼
+Engine validates: no duplicate element IDs → throw if found
+    │
+    ▼
 For each element: extract closures → store in handler_registry[element_id]
     Strip closures → serialize rest → JSON to frontend
     │
@@ -224,14 +236,14 @@ For each element: extract closures → store in handler_registry[element_id]
 Frontend renders UI (no closures, only data)
     │
     ▼
-Player clicks button "draw_btn" → frontend calls engine.uiInteraction(player, "draw_btn")
+Player clicks button "draw_offer_btn" → frontend calls engine::uiInteraction(player, "draw_offer_btn")
     or
-Player selects piece → frontend calls engine.uiInteraction(player, "promo", Piece)
+Player selects piece → frontend calls engine::uiInteraction(player, "promo_pick", Piece)
     │
     ▼
 Engine looks up handler_registry[element_id]
-    Button:     handler(state) → new state
-    PieceSelection: handler(state, piece) → new state
+    Button:          handler(state) → new state
+    PieceSelection:  handler(state, piece) → new state
     │
     ▼
 Loop back to top
@@ -243,6 +255,10 @@ after every `get_ui` call. No handlers persist across state changes.
 ---
 
 ## 4. Engine WASM Endpoints
+
+All game logic runs in the Rust engine (WASM). The frontend is a thin
+presentation layer. Clock management and game-over detection live in the engine,
+not in TypeScript.
 
 ### Constructor
 
@@ -259,11 +275,12 @@ engine.handleMove(player_json, from_json, to_json, piece_json?) → result_json
 ```
 
 1. Parses player, from, to, optional piece
-2. If piece not provided: `board_get(state.board, from)`
-3. Calls `on_move(state, player, from, to, piece)` → new state
-4. Calls `get_ui(new_state, player)` → stores handlers, serializes UI
-5. Calls `check_game_over(new_state)`
-6. Returns `{ "ui": {...}, "game_over": null | {...} }`
+2. **Validates**: submitted move must be in `valid_actions(state, player)`. If not → error.
+3. If piece not provided: reads it via board
+4. Calls `on_move(state, player, from, to, piece)` → new state
+5. Calls `get_ui(new_state, player)` → stores handlers, serializes UI
+6. Calls `check_game_over(new_state)`
+7. Returns `{ "ui": {...}, "game_over": null | {...} }`
 
 ### UI Interaction
 
@@ -271,14 +288,12 @@ engine.handleMove(player_json, from_json, to_json, piece_json?) → result_json
 engine.uiInteraction(player_json, element_id, value?) → result_json
 ```
 
-1. Looks up stored handler by `element_id`
+1. **Validates**: `element_id` must exist in handler registry. If not → error.
 2. `Button`: calls `handler(state)` → new state
 3. `PieceSelection`: deserializes value as `Piece`, calls `handler(state, piece)` → new state
 4. Calls `get_ui(new_state, player)` → stores handlers, serializes UI
 5. Calls `check_game_over(new_state)`
 6. Returns `{ "ui": {...}, "game_over": null | {...} }`
-
-Throws if `element_id` not in registry (stale interaction — frontend should re-poll).
 
 ### UI Poll / Refresh
 
@@ -306,43 +321,64 @@ engine.setLogLevel(level) → void
 
 ---
 
-## 5. Built-in Functions (Rhai)
+## 5. Built-in Modules (Rhai)
 
-### Primitives
+All built-in functions and types are organized into Rhai modules.
+Scripts access them via module paths (e.g. `engine::board::get(...)`).
+
+### `engine::board` — Board Operations
+
+Board functions use copy-on-write semantics. Scripts receive a new `Board` value
+after each mutation; the engine internally reuses shared state for performance.
 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
-| `board_get` | `(BoardState, Coords) -> Piece` | Read piece at coords. Returns `()` if empty. |
-| `board_set` | `(BoardState, Coords, Piece) -> BoardState` | Place piece (returns new board, immutable). |
-| `board_move_piece` | `(BoardState, Coords, Coords) -> BoardState` | Move piece from→to (returns new board). |
-| `board_find` | `(BoardState, Piece) -> [Coords]` | Find all coords with matching piece. |
-| `board_rows` | `(BoardState) -> i32` | Board height. |
-| `board_cols` | `(BoardState) -> i32` | Board width. |
-| `board_count` | `(BoardState) -> i32` | Total pieces on board. |
-| `ray` | `(BoardState, Coords, [i32,i32]) -> [{coords, piece}]` | Ray trace in direction. |
-| `xray` | `(BoardState, Coords, [i32,i32]) -> [{coords, piece}]` | X-ray (through pieces). |
-| `jump` | `(BoardState, Coords, [[i32,i32]]) -> [{coords, piece}]` | Knight-style jump moves. |
-| `pawn_moves` | `(BoardState, Coords, String) -> [Coords]` | Pseudo-legal pawn moves. |
-| `rook_moves` | `(BoardState, Coords, String) -> [Coords]` | Pseudo-legal rook moves. |
-| `knight_moves` | `(BoardState, Coords, String) -> [Coords]` | Pseudo-legal knight moves. |
-| `bishop_moves` | `(BoardState, Coords, String) -> [Coords]` | Pseudo-legal bishop moves. |
-| `queen_moves` | `(BoardState, Coords, String) -> [Coords]` | Pseudo-legal queen moves. |
-| `king_moves` | `(BoardState, Coords, String) -> [Coords]` | Pseudo-legal king moves. |
-| `engine_valid_actions` | `(state, player) -> [Action]` | Legal moves (check-filtered if check_protection: true). |
-| `is_square_attacked` | `(BoardState, Coords, String) -> bool` | Is a square attacked by a color? |
-| `pseudo_moves` | `(BoardState, Coords, String, String) -> [Coords]` | Pseudo-moves for piece type+color. |
-| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge two maps. |
-| `standard_start_position` | `() -> BoardState` | 8×8 standard chess starting position. |
+| `get` | `(Board, Coords) -> Piece` | Read piece at coords. Returns `()` if empty. |
+| `set` | `(Board, Coords, Piece) -> Board` | Place piece (returns new board). |
+| `move_piece` | `(Board, Coords, Coords) -> Board` | Move piece from→to (returns new board). |
+| `find` | `(Board, Piece) -> [Coords]` | Find all coords with matching piece. |
+| `rows` | `(Board) -> i32` | Board height. |
+| `cols` | `(Board) -> i32` | Board width. |
+| `count` | `(Board) -> i32` | Total pieces on board. |
 
-### Constructors
+### `engine::board` — Movement Primitives
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `ray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` | Ray trace in direction. |
+| `xray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` | X-ray (through pieces). |
+| `jump` | `(Board, Coords, [[i32,i32]]) -> [{coords, piece}]` | Knight-style jump moves. |
+
+### `engine::moves` — Pseudo-Legal Move Generators
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `pawn` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal pawn moves. |
+| `rook` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal rook moves. |
+| `knight` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal knight moves. |
+| `bishop` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal bishop moves. |
+| `queen` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal queen moves. |
+| `king` | `(Board, Coords, string) -> [Coords]` | Pseudo-legal king moves. |
+
+### `engine` — Engine Helpers
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `valid_actions` | `(state, player) -> [Action]` | Legal moves (check-filtered if `check_protection: true`). |
+| `is_square_attacked` | `(Board, Coords, string) -> bool` | Is a square attacked by a color? |
+| `pseudo_moves` | `(Board, Coords, string, string) -> [Coords]` | Pseudo-moves for piece type+color. |
+| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge two maps. |
+| `standard_start_position` | `() -> Board` | 8×8 standard chess starting position. |
+
+### `engine` — Constructors
 
 | Function | Returns | Usage |
 |----------|---------|-------|
 | `Coords(r, c)` | `Coords` | Board square (board_index 0). |
 | `Coords(r, c, b)` | `Coords` | Board square on board `b`. |
 | `ReserveCoords(i)` | `Coords` | Reserve slot `i` (`.type == "reserve"`). |
-| `Player("color")` | `PlayerId` | Player by color string. |
-| `Player(board, "color")` | `PlayerId` | Player by board index and color. |
+| `Player("color")` | `Player` | Player by color string. |
+| `Player(board, "color")` | `Player` | Player by board index and color. |
 | `Piece("color", "type")` | `Piece` | Piece with color and type. |
 | `Move(from, to)` | `Action` | Move action (for `valid_actions`). |
 | `Winner(idx)` | `Dynamic` | Game-over: single winner by player index. |
@@ -352,7 +388,7 @@ engine.setLogLevel(level) → void
 | `Rectangle(r,c)` | `#{}` | Board layout: rectangle. |
 | `Rect(r1,c1,r2,c2)` | `#{}` | Rectangular region descriptor. |
 
-### Logging
+### `log` — Logging
 
 | Function | Purpose |
 |----------|---------|
@@ -363,10 +399,26 @@ engine.setLogLevel(level) → void
 
 ### Native Types
 
-| Type | Fields |
-|------|--------|
-| `Coords` | `.type` (`"board"` or `"reserve"`), `.row`, `.col`, `.board_index`, `.index` |
-| `PlayerId` | `.board`, `.color`, `.team` |
-| `Piece` | `.color`, `.type` (via `.piece_type` getter) |
-| `Action` | `.type`, `.from`, `.to` |
-| `BoardState` | opaque — use `board_*` functions |
+| Type | Module | Fields |
+|------|--------|--------|
+| `Coords` | — | `.type` (`"board"` or `"reserve"`), `.row`, `.col`, `.board_index`, `.index` |
+| `Player` | — | `.board`, `.color`, `.team` |
+| `Piece` | — | `.color`, `.type` |
+| `Action` | — | `.type`, `.from`, `.to` |
+| `Board` | `engine::board` | Opaque — use `engine::board::*` functions |
+
+---
+
+## 6. Safety Guarantees
+
+The Rust engine enforces these guarantees. Scripts can rely on them — they do
+not need to duplicate these checks.
+
+| Guarantee | Enforcement |
+|-----------|-------------|
+| Submitted move is legal | Engine validates `Move(from, to)` is in `valid_actions(state, player)` **before** calling `on_move`. |
+| UI element IDs are unique | Engine detects duplicate keys in `get_ui` return value and throws. |
+| UI handler ID is valid | Engine validates `element_id` exists in registry before dispatching `uiInteraction`. |
+| State ownership | Engine never modifies state fields except `game_over`. Script owns all state. |
+| Turn order is engine-driven | The engine tracks whose turn it is; clock management will be in Rust, not Rhai. |
+| Game-over check is automatic | `check_game_over(state)` is called after every state change. Script only needs to implement the detection logic. |
