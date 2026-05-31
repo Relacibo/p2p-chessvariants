@@ -26,11 +26,10 @@ These are the functions the script MUST or MAY implement. The engine calls them.
 | `name` | string | YES | Variant display name |
 | `version` | string | YES | Variant script version |
 | `colors` | [string] | YES | Player color identifiers (e.g. `["white","black"]`) |
-| `allowed_player_count` | i32 \| [i32] \| #{min,max,step} | YES | Exact count, discrete values, or range |
+| `allowed_player_count` | i32 | YES | Exact player count (simplest form: a single number). Also accepts `[i32]` for discrete values or `#{ min, max, step }` for a range. |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 | `check_protection` | bool | NO (default: false) | Enable check filtering in `engine_valid_actions` |
 | `pieces` | #{} | NO | Custom piece definitions via `combine(type, type)` |
-| `promotion_pieces` | [string] | NO (default: standard 4) | Allowed promotion piece types |
 | `reserve_pile` | bool | NO (default: false) | Enable reserve pile |
 
 ### `init(player_count)`
