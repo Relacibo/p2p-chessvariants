@@ -78,7 +78,7 @@ fn enemy_piece(piece, color) {
 
 fn ray_moves(board, from, dr, dc, color) {
   let moves = [];
-  for sq in ray(board, from, [dr, dc]) {
+  for sq in engine::board::ray(board, from, [dr, dc]) {
     if sq.piece == () {
       moves.push(sq.coords);
     } else {
@@ -105,7 +105,7 @@ fn bishop_moves(board, from, color) {
 
 fn knight_moves(board, from, color) {
   let offsets = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
-  jump(board, from, offsets)
+  engine::board::jump(board, from, offsets)
     .filter(|sq| sq.piece == () || enemy_piece(sq.piece, color))
     .map(|sq| sq.coords)
 }
@@ -116,7 +116,7 @@ fn queen_moves(board, from, color) {
 
 fn king_moves(board, from, color) {
   let offsets = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-  jump(board, from, offsets)
+  engine::board::jump(board, from, offsets)
     .filter(|sq| sq.piece == () || enemy_piece(sq.piece, color))
     .map(|sq| sq.coords)
 }
