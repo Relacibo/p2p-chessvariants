@@ -101,15 +101,14 @@ field distinguishes `"board"` from `"reserve"`.
 | `player` | `Player` | Player asking for their UI |
 
 Returns a **map keyed by stable, unique string element IDs**. Each value is a UI
-element map (see Section 2). The engine extracts handler closures from the elements,
-stores them in an internal registry, and serializes the rest to JSON.
+element map (see Section 2). The engine caches this map and serializes the data
+fields (stripping handler closures) to JSON for the frontend.
 
 - Called after every state change (after `on_move`, after any UI interaction).
 - Also callable anytime (page refresh, UI poll) — must be a pure function.
-- The engine updates its handler registry from the returned map: existing
-  entries are replaced, element IDs not present in the new return value lose
-  their handlers. This guarantees that only the UI elements currently returned
-  by `get_ui` can receive interactions.
+- The engine replaces its cached map with the new return value. Element IDs not
+  present in the new map can no longer receive interactions. This guarantees
+  that only the UI elements currently returned by `get_ui` are interactive.
 - Returns `#{}` if there is nothing to show.
 - **Element ID uniqueness**: The engine detects duplicate keys in the returned
   map and throws an error. Scripts should use descriptive, namespaced IDs (e.g.
@@ -219,9 +218,10 @@ No handler closure — banners are non-interactive.
 
 ## 3. Handler Model
 
-UI handlers are plain Rhai closures stored in a registry keyed by element ID.
+UI handlers are plain Rhai closures embedded inside the `get_ui` return map.
 They receive the current `state` (and optionally a `Piece`) as parameters —
-they never capture stale state through scoping.
+they never capture stale state through scoping. The engine does not extract
+them into a separate data structure; it simply caches the map as-is.
 
 ```
 State change (on_move returns, or UI handler returns)
@@ -230,8 +230,8 @@ State change (on_move returns, or UI handler returns)
 Engine calls get_ui(state, player)
     │
     ▼
-Handler closures extracted → stored in handler_registry (replaces old entries)
-Serializable data     → JSON → frontend
+Result cached as-is    → closures stay in the map for uiInteraction lookup
+Data fields serialized → JSON → frontend
     │
     ▼
 Frontend renders UI (no closures, only data)
@@ -240,29 +240,26 @@ Frontend renders UI (no closures, only data)
 Player interaction → engine.uiInteraction(player, elementId, value?)
     │
     ▼
-Engine looks up handler_registry[elementId]
-    Button:          handler(state) → new state
-    PieceSelection:  handler(state, piece) → new state
+Engine looks up elementId in the cached map
+    Button:          element.on_click(state) → new state
+    PieceSelection:  element.on_select(state, piece) → new state
     │
     ▼
 Loop back to top
 ```
 
-### Registry Update Rules
+### Caching Rules
 
 | Rule | Rationale |
 |------|-----------|
-| New element IDs are added | `get_ui` returned them |
-| Existing element IDs are replaced | UI layout or closure may have changed |
-| Element IDs no longer in the return value lose their handlers | They are no longer visible — the frontend cannot trigger them |
+| New element IDs appear | `get_ui` returned them |
+| Existing IDs get new data and closure | UI layout or closure may have changed |
+| IDs absent from the new map stop working | They are no longer visible — the frontend cannot trigger them |
 | Unknown element IDs → error on `uiInteraction` | Prevents stale or forged interactions |
 
 The handler closures are **pure functions** of the state they receive as argument.
-They are not tied to the state snapshot at the time `get_ui` was called. The registry
-update is a simple replacement — not a purge-and-rebuild lifecycle.
-
-The handler registry is an opaque, engine-internal data structure. Scripts don't
-interact with it directly.
+They are not tied to the state snapshot at the time `get_ui` was called. Caching
+the map is a simple replacement — no separate registry, no extraction step.
 
 ---
 
@@ -290,7 +287,7 @@ engine.handleMove(player_json, from_json, to_json, piece_json?) → result_json
 2. **Validates**: if `valid_actions` is implemented, the submitted move must be in the returned set. If not → error. If `valid_actions` is not implemented by the script, this step is skipped.
 3. If piece not provided: reads it via board
 4. Calls `on_move(state, player, from, to, piece)` → new state
-5. Calls `get_ui(new_state, player)` → updates handler registry, serializes UI data
+5. Calls `get_ui(new_state, player)` → caches the map, serializes UI data
 6. Calls `check_game_over(new_state)`
 7. Returns `{ "ui": {...}, "game_over": null | {...} }`
 
@@ -300,10 +297,10 @@ engine.handleMove(player_json, from_json, to_json, piece_json?) → result_json
 engine.uiInteraction(player_json, element_id, value?) → result_json
 ```
 
-1. **Validates**: `element_id` must exist in handler registry. If not → error.
+1. **Validates**: `element_id` must exist in the cached UI map. If not → error.
 2. `Button`: calls `handler(state)` → new state
 3. `PieceSelection`: deserializes value as `Piece`, calls `handler(state, piece)` → new state
-4. Calls `get_ui(new_state, player)` → stores handlers, serializes UI
+4. Calls `get_ui(new_state, player)` → caches the map, serializes UI
 5. Calls `check_game_over(new_state)`
 6. Returns `{ "ui": {...}, "game_over": null | {...} }`
 
@@ -313,7 +310,7 @@ engine.uiInteraction(player_json, element_id, value?) → result_json
 engine.getUiJson(player_json) → ui_json
 ```
 
-1. Calls `get_ui(state, player)` → updates handler registry, serializes UI data
+1. Calls `get_ui(state, player)` → caches the map, serializes UI data
 2. Returns `{ "ui": {...} }`
 
 Does not modify state. Does not call `check_game_over`.
@@ -433,7 +430,7 @@ not need to duplicate these checks.
 |-----------|-------------|
 | Submitted move is legal | Engine validates `Move(from, to)` is in `valid_actions(state, player)` **before** calling `on_move`. |
 | UI element IDs are unique | Engine detects duplicate keys in `get_ui` return value and throws. |
-| UI handler ID is valid | Engine validates `element_id` exists in registry before dispatching `uiInteraction`. |
+| UI handler ID is valid | Engine validates `element_id` exists in the cached UI map before dispatching `uiInteraction`. |
 | State ownership | Engine never modifies state fields except `game_over`. Script owns all state. |
 | Turn order is engine-driven | The engine tracks whose turn it is; clock management will be in Rust, not Rhai. |
 | Game-over check is automatic | `check_game_over(state)` is called after every state change. Script only needs to implement the detection logic. |
