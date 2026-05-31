@@ -283,6 +283,7 @@ export function DevBoardView() {
           message: extractErrorMessage(e),
           color: "red",
           withBorder: true,
+          autoClose: false,
         });
       } finally {
         setLoading(false);
@@ -354,6 +355,7 @@ export function DevBoardView() {
           message: result.error,
           color: "red",
           withBorder: true,
+          autoClose: false,
         });
         return;
       }
