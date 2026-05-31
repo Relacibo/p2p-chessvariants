@@ -3,7 +3,6 @@ use game::{
     actions::Action,
     board,
     game_result,
-    handler_registry::{HandlerRegistry, StoredHandler},
     piece::Piece,
     standard,
     state::Coords,
@@ -41,7 +40,9 @@ pub struct ChessvariantEngine {
     pub(crate) game_state: Dynamic,
     pub(crate) variant_config: VariantConfig,
     pub(crate) cached_valid_actions: Option<(String, Vec<Action>)>,
-    handler_registry: HandlerRegistry,
+    /// Cached result of the last `get_ui(state, player)` call.
+    /// Map keyed by element ID, values are Rhai maps with closures intact.
+    cached_ui: rhai::Map,
 }
 
 // ─── Builtin Registration ────────────────────────────────────────────────────
@@ -237,7 +238,7 @@ impl ChessvariantEngine {
             game_state,
             variant_config,
             cached_valid_actions: None,
-            handler_registry: HandlerRegistry::new(),
+            cached_ui: rhai::Map::new(),
         })
     }
 
@@ -565,37 +566,61 @@ impl ChessvariantEngine {
         Ok(MoveResult { ui, game_over })
     }
 
-    /// Core UI interaction execution.
+    /// Core UI interaction: look up element in cached get_ui map, call its closure.
+    /// After the handler returns new state, refreshes the UI cache via get_ui.
     pub(crate) fn run_ui_interaction(
         &mut self,
         player_ref: &PlayerRef,
         element_id: &str,
         value: Option<&Piece>,
     ) -> Result<MoveResult, CvError> {
-        // Validate element_id exists in registry
-        let handler = self
-            .handler_registry
-            .get_clone(element_id)
+        // Look up element in cached get_ui map
+        let element_dyn = self
+            .cached_ui
+            .get(element_id)
+            .cloned()
             .ok_or_else(|| CvError::Internal(format!("no handler for element '{element_id}'")))?;
 
-        // Dispatch handler
-        let new_state = match handler {
-            StoredHandler::Button { ref closure } => {
-                closure.call::<Dynamic>(
-                    &self.engine,
-                    &self.ast,
-                    (self.game_state.clone(),),
-                )?
-            }
-            StoredHandler::PieceSelection { ref closure } => {
-                let piece = value
+        let elem_map = element_dyn
+            .try_cast::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal(format!("UI element '{element_id}' is not a map")))?;
+
+        let typ = elem_map
+            .get("type")
+            .and_then(|v| v.clone().into_string().ok())
+            .unwrap_or_default();
+
+        // Dispatch: extract FnPtr from the element map and call it
+        let new_state = match typ.as_str() {
+            "button" => {
+                let on_click: FnPtr = elem_map
+                    .get("on_click")
                     .cloned()
-                    .ok_or_else(|| CvError::Internal("piece value required for piece_selection".into()))?;
-                closure.call::<Dynamic>(
+                    .ok_or_else(|| CvError::Internal(format!("button '{element_id}' missing on_click")))?
+                    .cast();
+                on_click.call::<Dynamic>(&self.engine, &self.ast, (self.game_state.clone(),))?
+            }
+            "piece_selection" => {
+                let on_select: FnPtr = elem_map
+                    .get("on_select")
+                    .cloned()
+                    .ok_or_else(|| {
+                        CvError::Internal(format!("piece_selection '{element_id}' missing on_select"))
+                    })?
+                    .cast();
+                let piece = value.cloned().ok_or_else(|| {
+                    CvError::Internal("piece value required for piece_selection".into())
+                })?;
+                on_select.call::<Dynamic>(
                     &self.engine,
                     &self.ast,
                     (self.game_state.clone(), Dynamic::from(piece)),
                 )?
+            }
+            _ => {
+                return Err(CvError::Internal(format!(
+                    "unknown UI element type '{typ}' for '{element_id}'"
+                )));
             }
         };
 
@@ -606,19 +631,18 @@ impl ChessvariantEngine {
         self.call_check_game_over()?;
         let game_over = self.extract_game_over_dyn();
 
-        // Fetch UI
+        // Refresh UI via get_ui (updates cached_ui)
         let ui = self.run_get_ui(player_ref)?;
 
         Ok(MoveResult { ui, game_over })
     }
 
-    /// Call get_ui(state, player), extract closures, build JSON from the rest.
+/// Call get_ui(state, player), cache the raw map (closures intact),
+    /// and serialize the data fields to JSON for the frontend.
     pub(crate) fn run_get_ui(
         &mut self,
         player_ref: &PlayerRef,
     ) -> Result<serde_json::Value, CvError> {
-        self.handler_registry.clear();
-
         let player = player_ref_to_player_id(&self.game_state, player_ref);
 
         // Call get_ui(state, player) — optional, returns #{} if missing
@@ -634,124 +658,17 @@ impl ChessvariantEngine {
                 .try_cast::<rhai::Map>()
                 .unwrap_or_else(rhai::Map::new),
             Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(..)) => {
+                self.cached_ui = rhai::Map::new();
                 return Ok(serde_json::Value::Object(serde_json::Map::new()));
             }
             Err(e) => return Err(CvError::from(e)),
         };
 
-        let mut json_map = serde_json::Map::new();
+        // Cache the raw map — closures stay in it for later uiInteraction lookup
+        self.cached_ui = ui_map.clone();
 
-for (id_immutable, element_dyn) in &ui_map {
-            let id = id_immutable.to_string();
-            // Duplicate check
-            if json_map.contains_key(&id) {
-                return Err(CvError::Internal(format!(
-                    "duplicate UI element ID '{}' in get_ui return value",
-                    id
-                )));
-            }
-
-            let elem_map = element_dyn
-                .clone()
-                .try_cast::<rhai::Map>()
-                .ok_or_else(|| {
-                    CvError::Internal(format!("UI element '{}' is not a map", id))
-                })?;
-
-            let typ = elem_map
-                .get("type")
-                .and_then(|v| v.clone().into_string().ok())
-                .unwrap_or_default();
-
-            let json_element = match typ.as_str() {
-                "button" => {
-                    let label = elem_map
-                        .get("label")
-                        .and_then(|v| v.clone().into_string().ok())
-                        .unwrap_or_default();
-                    let on_click: FnPtr = elem_map
-                        .get("on_click")
-                        .cloned()
-                        .ok_or_else(|| {
-                            CvError::Internal(format!(
-                                "button '{}' missing on_click handler",
-                                id
-                            ))
-                        })?
-                        .cast();
-                    self.handler_registry
-                        .insert(id.clone(), StoredHandler::Button {
-                            closure: on_click,
-                        });
-                    serde_json::json!({ "type": "button", "label": label })
-                }
-                "piece_selection" => {
-                    let title = elem_map
-                        .get("title")
-                        .and_then(|v| v.clone().into_string().ok())
-                        .unwrap_or_default();
-                    let pieces_dyn = elem_map
-                        .get("pieces")
-                        .cloned()
-                        .ok_or_else(|| {
-                            CvError::Internal(format!(
-                                "piece_selection '{}' missing pieces array",
-                                id
-                            ))
-                        })?;
-                    let pieces_arr = pieces_dyn
-                        .try_cast::<rhai::Array>()
-                        .unwrap_or_default();
-                    let pieces_json: Vec<serde_json::Value> = pieces_arr
-                        .iter()
-                        .filter_map(|d| {
-                            let piece: Piece = d.clone().try_cast::<Piece>()?;
-                            Some(serde_json::json!({
-                                "color": piece.color_name(),
-                                "type": piece.piece_type_name(),
-                            }))
-                        })
-                        .collect();
-                    let on_select: FnPtr = elem_map
-                        .get("on_select")
-                        .cloned()
-                        .ok_or_else(|| {
-                            CvError::Internal(format!(
-                                "piece_selection '{}' missing on_select handler",
-                                id
-                            ))
-                        })?
-                        .cast();
-                    self.handler_registry
-                        .insert(id.clone(), StoredHandler::PieceSelection {
-                            closure: on_select,
-                        });
-                    serde_json::json!({
-                        "type": "piece_selection",
-                        "title": title,
-                        "pieces": pieces_json,
-                    })
-                }
-                "banner" => {
-                    let text = elem_map
-                        .get("text")
-                        .and_then(|v| v.clone().into_string().ok())
-                        .unwrap_or_default();
-                    let style = elem_map
-                        .get("style")
-                        .and_then(|v| v.clone().into_string().ok())
-                        .unwrap_or_else(|| "info".to_string());
-                    serde_json::json!({ "type": "banner", "text": text, "style": style })
-                }
-                _ => {
-                    continue;
-                }
-            };
-
-            json_map.insert(id, json_element);
-        }
-
-        Ok(serde_json::Value::Object(json_map))
+        // Serialize to JSON, stripping closures
+        serialize_ui_to_json(&ui_map)
     }
 
     /// Validate a move exists in valid_actions (called before on_move)
@@ -882,4 +799,84 @@ for (id_immutable, element_dyn) in &ui_map {
     pub fn state(&self) -> Dynamic {
         self.game_state.clone()
     }
+}
+
+// ─── UI Serialization helper ──────────────────────────────────────────────────
+
+/// Serialize a Rhai UI element map to JSON, stripping handler closures.
+/// Also validates: no duplicate element IDs.
+fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError> {
+    let mut json_map = serde_json::Map::new();
+
+    for (id_immutable, element_dyn) in ui_map {
+        let id = id_immutable.to_string();
+        if json_map.contains_key(&id) {
+            return Err(CvError::Internal(format!(
+                "duplicate UI element ID '{}' in get_ui return value",
+                id
+            )));
+        }
+
+        let elem_map = element_dyn
+            .clone()
+            .try_cast::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal(format!("UI element '{}' is not a map", id)))?;
+
+        let typ = elem_map
+            .get("type")
+            .and_then(|v| v.clone().into_string().ok())
+            .unwrap_or_default();
+
+        let json_element = match typ.as_str() {
+            "button" => {
+                let label = elem_map
+                    .get("label")
+                    .and_then(|v| v.clone().into_string().ok())
+                    .unwrap_or_default();
+                serde_json::json!({ "type": "button", "label": label })
+            }
+            "piece_selection" => {
+                let title = elem_map
+                    .get("title")
+                    .and_then(|v| v.clone().into_string().ok())
+                    .unwrap_or_default();
+                let pieces_arr = elem_map
+                    .get("pieces")
+                    .cloned()
+                    .and_then(|d| d.try_cast::<rhai::Array>())
+                    .unwrap_or_default();
+                let pieces_json: Vec<serde_json::Value> = pieces_arr
+                    .iter()
+                    .filter_map(|d| {
+                        let piece: Piece = d.clone().try_cast::<Piece>()?;
+                        Some(serde_json::json!({
+                            "color": piece.color_name(),
+                            "type": piece.piece_type_name(),
+                        }))
+                    })
+                    .collect();
+                serde_json::json!({
+                    "type": "piece_selection",
+                    "title": title,
+                    "pieces": pieces_json,
+                })
+            }
+            "banner" => {
+                let text = elem_map
+                    .get("text")
+                    .and_then(|v| v.clone().into_string().ok())
+                    .unwrap_or_default();
+                let style = elem_map
+                    .get("style")
+                    .and_then(|v| v.clone().into_string().ok())
+                    .unwrap_or_else(|| "info".to_string());
+                serde_json::json!({ "type": "banner", "text": text, "style": style })
+            }
+            _ => continue,
+        };
+
+        json_map.insert(id, json_element);
+    }
+
+    Ok(serde_json::Value::Object(json_map))
 }
