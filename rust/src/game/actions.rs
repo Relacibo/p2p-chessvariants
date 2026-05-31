@@ -1,4 +1,4 @@
-use rhai::{CustomType, Dynamic, TypeBuilder};
+use rhai::{CustomType, Dynamic};
 use serde::{Deserialize, Serialize};
 
 use super::{piece::Piece, state::Coords};
