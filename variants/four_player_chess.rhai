@@ -40,18 +40,9 @@ fn config() {
 
 // ── Player helpers ───────────────────────────────────────────
 
-fn player_color(player) {
-  switch player {
-    "white" => "white",
-    "red"   => "red",
-    "black" => "black",
-    _       => "blue"
-  }
-}
-
 // Direction a pawn moves (dr, dc)
-fn pawn_dir(player) {
-  switch player {
+fn pawn_dir(color) {
+  switch color {
     "white" => [-1,  0],   // white: up
     "red"   => [ 0,  1],   // red:   right
     "black" => [ 1,  0],   // black: down
@@ -59,8 +50,8 @@ fn pawn_dir(player) {
   }
 }
 
-fn pawn_start_row_col(player) {
-  switch player {
+fn pawn_start_row_col(color) {
+  switch color {
     "white" => #{ row: 11, col: () },   // white pawns on row 11
     "red"   => #{ row: (), col:  2 },   // red   pawns on col  2
     "black" => #{ row:  2, col: () },   // black pawns on row  2
@@ -68,14 +59,14 @@ fn pawn_start_row_col(player) {
   }
 }
 
-fn is_pawn_start(player, row, col) {
-  let s = pawn_start_row_col(player);
+fn is_pawn_start(color, row, col) {
+  let s = pawn_start_row_col(color);
   if s.row != () { row == s.row } else { col == s.col }
 }
 
-fn promo_row_col(player) {
+fn promo_row_col(color) {
   // Pawn promotes when it reaches the opponent's back rank region
-  switch player {
+  switch color {
     "white" => #{ row:  2, col: () },
     "red"   => #{ row: (), col: 11 },
     "black" => #{ row: 11, col: () },
@@ -83,8 +74,8 @@ fn promo_row_col(player) {
   }
 }
 
-fn is_promo_square(player, row, col) {
-  let p = promo_row_col(player);
+fn is_promo_square(color, row, col) {
+  let p = promo_row_col(color);
   if p.row != () { row == p.row } else { col == p.col }
 }
 
@@ -98,18 +89,18 @@ fn valid_square(row, col) {
   !(in_tl || in_tr || in_bl || in_br)
 }
 
-fn next_active_player(state, player) {
+fn next_active_player(state, current) {
   let n    = state.alive.len();
-  let cur  = state.alive.index_of(player);
-  state.alive[(cur + 1) % n]
+  let cur  = state.alive.index_of(current.color);
+  Player(state.alive[(cur + 1) % n])
 }
 
 // ── Movement helpers ─────────────────────────────────────────
 
-fn own_piece(p, player) { p != () && p.color == player_color(player) }
-fn enemy_piece(p, player) { p != () && p.color != player_color(player) }
+fn own_piece(p, color) { p != () && p.color == color }
+fn enemy_piece(p, color) { p != () && p.color != color }
 
-fn ray_moves(state, from, dr, dc, player) {
+fn ray_moves(state, from, dr, dc, color) {
   let moves = [];
   let r = from.row + dr;
   let c = from.col + dc;
@@ -119,7 +110,7 @@ fn ray_moves(state, from, dr, dc, player) {
     if sq == () {
       moves.push(Coords(r, c));
     } else {
-      if enemy_piece(sq, player) { moves.push(Coords(r, c)); }
+      if enemy_piece(sq, color) { moves.push(Coords(r, c)); }
       break;
     }
     r += dr;
@@ -128,44 +119,44 @@ fn ray_moves(state, from, dr, dc, player) {
   moves
 }
 
-fn rook_moves(state, from, player) {
-  ray_moves(state, from, -1, 0, player) + ray_moves(state, from, 1, 0, player) +
-  ray_moves(state, from, 0, -1, player) + ray_moves(state, from, 0, 1, player)
+fn rook_moves(state, from, color) {
+  ray_moves(state, from, -1, 0, color) + ray_moves(state, from, 1, 0, color) +
+  ray_moves(state, from, 0, -1, color) + ray_moves(state, from, 0, 1, color)
 }
 
-fn bishop_moves(state, from, player) {
-  ray_moves(state, from, -1,-1, player) + ray_moves(state, from, -1, 1, player) +
-  ray_moves(state, from,  1,-1, player) + ray_moves(state, from,  1, 1, player)
+fn bishop_moves(state, from, color) {
+  ray_moves(state, from, -1,-1, color) + ray_moves(state, from, -1, 1, color) +
+  ray_moves(state, from,  1,-1, color) + ray_moves(state, from,  1, 1, color)
 }
 
-fn queen_moves(state, from, player) {
-  rook_moves(state, from, player) + bishop_moves(state, from, player)
+fn queen_moves(state, from, color) {
+  rook_moves(state, from, color) + bishop_moves(state, from, color)
 }
 
-fn knight_moves(state, from, player) {
+fn knight_moves(state, from, color) {
   let offsets = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
   offsets
     .map(|o| Coords(from.row + o[0], from.col + o[1]))
     .filter(|c| valid_square(c.row, c.col))
     .filter(|c| {
       let sq = board_get(state.board, c);
-      sq == () || enemy_piece(sq, player)
+      sq == () || enemy_piece(sq, color)
     })
 }
 
-fn king_moves(state, from, player) {
+fn king_moves(state, from, color) {
   let offsets = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
   offsets
     .map(|o| Coords(from.row + o[0], from.col + o[1]))
     .filter(|c| valid_square(c.row, c.col))
     .filter(|c| {
       let sq = board_get(state.board, c);
-      sq == () || enemy_piece(sq, player)
+      sq == () || enemy_piece(sq, color)
     })
 }
 
-fn pawn_moves(state, from, player) {
-  let d     = pawn_dir(player);
+fn pawn_moves(state, from, color) {
+  let d     = pawn_dir(color);
   let dr    = d[0];
   let dc    = d[1];
   let moves = [];
@@ -176,7 +167,7 @@ fn pawn_moves(state, from, player) {
   let fwd = Coords(r + dr, c + dc);
   if valid_square(fwd.row, fwd.col) && board_get(state.board, fwd) == () {
     moves.push(fwd);
-    if is_pawn_start(player, r, c) {
+    if is_pawn_start(color, r, c) {
       let fwd2 = Coords(r + 2*dr, c + 2*dc);
       if valid_square(fwd2.row, fwd2.col) && board_get(state.board, fwd2) == () {
         moves.push(fwd2);
@@ -189,22 +180,23 @@ fn pawn_moves(state, from, player) {
     let cap = Coords(r + dr, c + dc);
     if valid_square(cap.row, cap.col) {
       let sq = board_get(state.board, cap);
-      if sq != () && enemy_piece(sq, player) { moves.push(cap); }
+      if sq != () && enemy_piece(sq, color) { moves.push(cap); }
     }
   }
   moves
 }
 
 fn piece_moves(state, from, player) {
+  let color = player.color;
   let p = board_get(state.board, from);
-  if p == () || !own_piece(p, player) { return []; }
+  if p == () || !own_piece(p, color) { return []; }
   switch p.type {
-    "pawn"   => pawn_moves(state, from, player),
-    "rook"   => rook_moves(state, from, player),
-    "knight" => knight_moves(state, from, player),
-    "bishop" => bishop_moves(state, from, player),
-    "queen"  => queen_moves(state, from, player),
-    "king"   => king_moves(state, from, player),
+    "pawn"   => pawn_moves(state, from, color),
+    "rook"   => rook_moves(state, from, color),
+    "knight" => knight_moves(state, from, color),
+    "bishop" => bishop_moves(state, from, color),
+    "queen"  => queen_moves(state, from, color),
+    "king"   => king_moves(state, from, color),
     _        => [],
   }
 }
@@ -212,12 +204,11 @@ fn piece_moves(state, from, player) {
 // ── valid_actions ─────────────────────────────────────────────
 
 fn valid_actions(state, player) {
-  // player is #{ board, color }
-  let player_name = player.color;  // name == color in four-player
+  let player_color = player.color;
 
   if state.pending_promotion != () {
     let pp = state.pending_promotion;
-    if player_name != pp.player { return []; }
+    if player_color != pp.player { return []; }
     return [];  // UI modal handles the promotion choice
   }
 
@@ -227,8 +218,8 @@ fn valid_actions(state, player) {
       if !valid_square(r, c) { continue; }
       let from = Coords(r, c);
       let sq   = board_get(state.board, from);
-      if sq == () || !own_piece(sq, player_name) { continue; }
-      for dest in piece_moves(state, from, player_name) {
+      if sq == () || !own_piece(sq, player_color) { continue; }
+      for dest in piece_moves(state, from, player) {
         actions.push(Move(from, dest));
       }
     }
@@ -239,19 +230,18 @@ fn valid_actions(state, player) {
 // ── handle_event ──────────────────────────────────────────────
 
 fn handle_event(state, player, event) {
-  // player is #{ board, color }; name == color in four-player
-  let player_name = player.color;
+  let player_color = player.color;
 
-  if !state.active_players.contains(player_name) {
-    throw `${player_name} is not active`;
+  if !state.active_players.contains(player) {
+    throw `${player_color} is not active`;
   }
 
   // Promotion choice
   if event.type == "promote" {
     let pp = state.pending_promotion;
-    if pp == () || pp.player != player_name { throw "no pending promotion"; }
+    if pp == () || pp.player != player_color { throw "no pending promotion"; }
     if !["queen","rook","bishop","knight"].contains(event.value) { throw "invalid piece"; }
-    let board = board_set(state.board, pp.to, Piece(player_color(player_name), event.value));
+    let board = board_set(state.board, pp.to, Piece(player_color, event.value));
     let new_state = advance_turn(merge(state, #{ board: board, pending_promotion: () }));
     return #{ state: new_state, ui: [] };
   }
@@ -262,24 +252,23 @@ fn handle_event(state, player, event) {
   let to    = event.to;
   let piece = board_get(state.board, from);
 
-  if piece == () || !own_piece(piece, player_name) { throw "no own piece at source"; }
-  if !piece_moves(state, from, player_name).contains(to) { throw "illegal move"; }
+  if piece == () || !own_piece(piece, player_color) { throw "no own piece at source"; }
+  if !piece_moves(state, from, player).contains(to) { throw "illegal move"; }
 
   let captured = board_get(state.board, to);
   let board    = board_move_piece(state.board, from, to);
 
   let alive = state.alive;
   if captured != () && captured.type == "king" {
-    let loser = player_name_for_color(state, captured.color);
-    alive = state.alive.filter(|p| p != loser);
+    alive = state.alive.filter(|p| p != captured.color);
   }
 
   // Promotion
-  if piece.type == "pawn" && is_promo_square(player_name, to.row, to.col) {
+  if piece.type == "pawn" && is_promo_square(player_color, to.row, to.col) {
     let new_state = advance_turn(merge(state, #{
       board: board,
       alive: alive,
-      pending_promotion: #{ player: player_name, to: to }
+      pending_promotion: #{ player: player_color, to: to }
     }));
     return #{
       state: new_state,
@@ -288,31 +277,29 @@ fn handle_event(state, player, event) {
         action: "promote",
         title: "Promote pawn",
         options: ["queen","rook","bishop","knight"],
-        players: [player_name],
+        players: [player_color],
       }],
     };
   }
 
   let new_state = merge(state, #{ board: board, alive: alive, pending_promotion: () });
-  return #{ state: check_winner(advance_turn(new_state)), ui: [] };
-}
-
-fn player_name_for_color(state, color) {
-  for p in state.players {
-    if p.color == color { return p.name; }
-  }
-  "white"  // default fallback
+  return #{ state: advance_turn(new_state), ui: [] };
 }
 
 fn advance_turn(state) {
   if state.alive.len() <= 1 { return state; }
   let next = next_active_player(state, state.active_players[0]);
-  merge(state, #{ active_players: [next], running_clocks: [next] })
+  merge(state, #{ active_players: [next] })
 }
 
-fn check_winner(state) {
+// Called automatically by the engine after every event.
+fn check_game_over(state) {
   if state.alive.len() == 1 {
-    return merge(state, #{ game_over: Winner(state.alive[0]) });
+    let winner_color = state.alive[0];
+    let winner_idx = state.players
+      .map(|p| p.color)
+      .index_of(winner_color);
+    return merge(state, #{ game_over: Winner(winner_idx) });
   }
   state
 }
@@ -341,13 +328,12 @@ fn init(player_count) {
   #{
     board:              board,
     players:            [
-      #{ name: "white", board: 0, color: "white", team: 0 },
-      #{ name: "red",   board: 0, color: "red",   team: 1 },
-      #{ name: "black", board: 0, color: "black", team: 2 },
-      #{ name: "blue",  board: 0, color: "blue",  team: 3 },
+      #{ board: 0, color: "white", team: 0 },
+      #{ board: 0, color: "red",   team: 1 },
+      #{ board: 0, color: "black", team: 2 },
+      #{ board: 0, color: "blue",  team: 3 },
     ],
-    active_players:     ["white"],
-    running_clocks:     ["white"],
+    active_players:     [Player("white")],
     alive:              ["white", "red", "black", "blue"],
     pending_promotion:  (),
     game_over:          (),

@@ -5,12 +5,12 @@
 // reserve and can be dropped instead of moving.
 //
 // Player layout:
-//   Board 0: white-a (white) vs black-a (black)
-//   Board 1: white-b (white) vs black-b (black)
+//   Board 0: white (team 0) vs black (team 1)
+//   Board 1: white (team 1) vs black (team 0)
 // Teams:
-//   Team A = white-a + black-a
-//   Team B = white-b + black-b
-// Partners: white-a↔black-a, white-b↔black-b
+//   Team 0 = white(board 0) + black(board 1)
+//   Team 1 = black(board 0) + white(board 1)
+// Partners: same team, opposite board/color.
 //
 // NOTE: Move validation below is simplified (no check detection).
 // ============================================================
@@ -34,116 +34,96 @@ fn config() {
   }
 }
 
-// ── Helpers ─────────────────────────────────────────────────
+// ── Player helpers ───────────────────────────────────────────
 
-fn player_board(player) {
-  switch player {
-    "white-a" | "black-a" => 0,
-    "white-b" | "black-b" => 1
-  }
+fn player_board(p) { p.board }
+
+fn opponent_color(color) { if color == "white" { "black" } else { "white" } }
+
+// Partner: same team, opposite board + opposite color.
+// Team 0: white(board0) ↔ black(board1)
+// Team 1: black(board0) ↔ white(board1)
+fn partner(p) {
+  let other_board = if p.board == 0 { 1 } else { 0 };
+  Player(other_board, opponent_color(p.color))
 }
 
-fn player_color(player) {
-  switch player {
-    "white-a" | "white-b" => "white",
-    _ => "black"
-  }
+// Board opponent: same board, opposite color.
+fn board_opponent(p) {
+  Player(p.board, opponent_color(p.color))
 }
 
-fn partner(player) {
-  switch player {
-    "white-a" => "black-a",
-    "black-a" => "white-a",
-    "white-b" => "black-b",
-    _ => "white-b"
-  }
-}
-
-fn pawn_dir(player) {
+fn pawn_dir(color) {
   // white moves "up" (decreasing row), black moves "down" (increasing row)
-  if player_color(player) == "white" { -1 } else { 1 }
+  if color == "white" { -1 } else { 1 }
 }
 
-fn pawn_start_row(player) {
-  if player_color(player) == "white" { 6 } else { 1 }
+fn pawn_start_row(color) {
+  if color == "white" { 6 } else { 1 }
 }
 
-fn pawn_promo_row(player) {
-  if player_color(player) == "white" { 0 } else { 7 }
+fn pawn_promo_row(color) {
+  if color == "white" { 0 } else { 7 }
 }
 
-fn back_rank_row(player) {
-  if player_color(player) == "white" { 7 } else { 0 }
+fn own_piece(piece, color) {
+  piece != () && piece.color == color
 }
 
-// Returns the board sub-array for board_index
-fn get_board(state, board_index) {
-  state.board[board_index]
-}
-
-fn piece_at(state, board_index, row, col) {
-  board_get(get_board(state, board_index), Coords(row, col))
-}
-
-fn own_piece(piece, player) {
-  piece != () && piece.color == player_color(player)
-}
-
-fn enemy_piece(piece, player) {
-  piece != () && piece.color != player_color(player)
+fn enemy_piece(piece, color) {
+  piece != () && piece.color != color
 }
 
 // ── Movement helpers ─────────────────────────────────────────
 
-fn ray_moves(state, board_index, from, dr, dc, player) {
+fn ray_moves(board, from, dr, dc, color) {
   let moves = [];
-  for sq in ray(get_board(state, board_index), from, [dr, dc]) {
+  for sq in ray(board, from, [dr, dc]) {
     if sq.piece == () {
       moves.push(sq.coords);
     } else {
-      if enemy_piece(sq.piece, player) { moves.push(sq.coords); }
+      if enemy_piece(sq.piece, color) { moves.push(sq.coords); }
       break;
     }
   }
   moves
 }
 
-fn rook_moves(state, board_index, from, player) {
-  ray_moves(state, board_index, from, -1,  0, player) +
-  ray_moves(state, board_index, from,  1,  0, player) +
-  ray_moves(state, board_index, from,  0, -1, player) +
-  ray_moves(state, board_index, from,  0,  1, player)
+fn rook_moves(board, from, color) {
+  ray_moves(board, from, -1,  0, color) +
+  ray_moves(board, from,  1,  0, color) +
+  ray_moves(board, from,  0, -1, color) +
+  ray_moves(board, from,  0,  1, color)
 }
 
-fn bishop_moves(state, board_index, from, player) {
-  ray_moves(state, board_index, from, -1, -1, player) +
-  ray_moves(state, board_index, from, -1,  1, player) +
-  ray_moves(state, board_index, from,  1, -1, player) +
-  ray_moves(state, board_index, from,  1,  1, player)
+fn bishop_moves(board, from, color) {
+  ray_moves(board, from, -1, -1, color) +
+  ray_moves(board, from, -1,  1, color) +
+  ray_moves(board, from,  1, -1, color) +
+  ray_moves(board, from,  1,  1, color)
 }
 
-fn knight_moves(state, board_index, from, player) {
+fn knight_moves(board, from, color) {
   let offsets = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
-  jump(get_board(state, board_index), from, offsets)
-    .filter(|sq| sq.piece == () || enemy_piece(sq.piece, player))
+  jump(board, from, offsets)
+    .filter(|sq| sq.piece == () || enemy_piece(sq.piece, color))
     .map(|sq| sq.coords)
 }
 
-fn queen_moves(state, board_index, from, player) {
-  rook_moves(state, board_index, from, player) +
-  bishop_moves(state, board_index, from, player)
+fn queen_moves(board, from, color) {
+  rook_moves(board, from, color) + bishop_moves(board, from, color)
 }
 
-fn king_moves(state, board_index, from, player) {
+fn king_moves(board, from, color) {
   let offsets = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-  jump(get_board(state, board_index), from, offsets)
-    .filter(|sq| sq.piece == () || enemy_piece(sq.piece, player))
+  jump(board, from, offsets)
+    .filter(|sq| sq.piece == () || enemy_piece(sq.piece, color))
     .map(|sq| sq.coords)
 }
 
-fn pawn_moves(state, board_index, from, player) {
-  let board  = get_board(state, board_index);
-  let dir    = pawn_dir(player);
+fn pawn_moves(state, board_index, from, color) {
+  let board  = state.board[board_index];
+  let dir    = pawn_dir(color);
   let moves  = [];
   let r      = from.row;
   let c      = from.col;
@@ -153,7 +133,7 @@ fn pawn_moves(state, board_index, from, player) {
   if board_get(board, fwd) == () {
     moves.push(fwd);
     // Double push from start row
-    if r == pawn_start_row(player) {
+    if r == pawn_start_row(color) {
       let fwd2 = Coords(r + 2 * dir, c);
       if board_get(board, fwd2) == () {
         moves.push(fwd2);
@@ -165,33 +145,32 @@ fn pawn_moves(state, board_index, from, player) {
   for dc in [-1, 1] {
     let cap = Coords(r + dir, c + dc);
     let sq  = board_get(board, cap);
-    if sq != () && enemy_piece(sq, player) {
+    if sq != () && enemy_piece(sq, color) {
       moves.push(cap);
     }
   }
 
-  // Dropped pawns cannot be placed on the back rank and cannot promote in Bughouse.
-  // Standard en-passant omitted for brevity (TODO).
   moves
 }
 
-fn piece_moves(state, board_index, from, player) {
-  let p = piece_at(state, board_index, from.row, from.col);
-  if p == () || !own_piece(p, player) { return []; }
+fn piece_moves(state, board_index, from, color) {
+  let p = board_get(state.board[board_index], from);
+  if p == () || !own_piece(p, color) { return []; }
+  let board = state.board[board_index];
   switch p.type {
-    "pawn"   => pawn_moves(state, board_index, from, player),
-    "rook"   => rook_moves(state, board_index, from, player),
-    "knight" => knight_moves(state, board_index, from, player),
-    "bishop" => bishop_moves(state, board_index, from, player),
-    "queen"  => queen_moves(state, board_index, from, player),
-    "king"   => king_moves(state, board_index, from, player),
+    "pawn"   => pawn_moves(state, board_index, from, color),
+    "rook"   => rook_moves(board, from, color),
+    "knight" => knight_moves(board, from, color),
+    "bishop" => bishop_moves(board, from, color),
+    "queen"  => queen_moves(board, from, color),
+    "king"   => king_moves(board, from, color),
     _        => [],
   }
 }
 
 // Drop destinations: any empty square (except pawn on first/last rank)
 fn drop_destinations(state, board_index, piece_type) {
-  let board = get_board(state, board_index);
+  let board = state.board[board_index];
   let dests = [];
   for r in 0..8 {
     for c in 0..8 {
@@ -208,30 +187,31 @@ fn drop_destinations(state, board_index, piece_type) {
 // ── valid_actions ────────────────────────────────────────────
 
 fn valid_actions(state, player) {
-  // player is a map #{ board, color }
-  let player_name = player_name_from_player(state, player);
+  let color = player.color;
+  let b = player.board;
 
-  if state.pending_promotion != () && state.pending_promotion.player == player_name {
+  if state.pending_promotion != () {
+    let pp = state.pending_promotion;
+    if player != pp.player { return []; }
     return [];  // UI modal handles the choice
   }
 
   let actions = [];
-  let b = player_board(player_name);
 
   // Regular moves
   for r in 0..8 {
     for c in 0..8 {
       let from = Coords(r, c, b);
-      let p    = piece_at(state, b, r, c);
-      if p == () || !own_piece(p, player_name) { continue; }
-      for dest in piece_moves(state, b, from, player_name) {
+      let p    = board_get(state.board[b], from);
+      if p == () || !own_piece(p, color) { continue; }
+      for dest in piece_moves(state, b, from, color) {
         actions.push(Move(from, Coords(dest.row, dest.col, b)));
       }
     }
   }
 
   // Drops from reserve — use ReserveCoords(i) as the "from"
-  let reserve = reserve_for_player(state, player_name);
+  let reserve = reserve_for_player(state, player);
   for i in 0..reserve.len() {
     let piece = reserve[i];
     for dest in drop_destinations(state, b, piece.type) {
@@ -242,17 +222,6 @@ fn valid_actions(state, player) {
   actions
 }
 
-// Derive the player's identifying name (e.g. "white-a") from the #{board,color} map.
-fn player_name_from_player(state, player) {
-  let pc = player.color;
-  let pb = player.board;
-  for p in state.players {
-    if p.color == pc && p.board == pb { return p.name; }
-  }
-  // Fallback: synthesise name from color and board
-  if pb == 0 { pc + "-a" } else { pc + "-b" }
-}
-
 fn reserve_for_player(state, player) {
   for r in state.reserve {
     if r.player == player { return r.pieces; }
@@ -260,25 +229,52 @@ fn reserve_for_player(state, player) {
   []  // default fallback
 }
 
+// Remove one piece of the given type from a player's reserve. Returns updated reserve.
+fn remove_from_reserve(reserve, player, piece_type) {
+  for r in reserve {
+    if r.player == player {
+      let idx = r.pieces
+        .map(|p| p.type)   // get type of each piece
+        .index_of(piece_type);  // find first occurrence
+      if idx >= 0 { r.pieces.remove(idx); }
+    }
+  }
+  reserve
+}
+
+// Add a piece to a player's reserve. Returns updated reserve.
+fn add_to_reserve(reserve, player, piece) {
+  let found = false;
+  for r in reserve {
+    if r.player == player {
+      r.pieces.push(piece);
+      found = true;
+    }
+  }
+  if !found {
+    reserve.push(#{ player: player, pieces: [piece] });
+  }
+  reserve
+}
+
 // ── handle_event ─────────────────────────────────────────────
 
 fn handle_event(state, player, event) {
-  // player is #{ board, color }
-  let player_name = player_name_from_player(state, player);
+  let color = player.color;
+  let b = player.board;
 
-  if !state.active_players.contains(player_name) {
-    throw `Player ${player_name} is not active`;
+  if !state.active_players.contains(player) {
+    throw `Player ${color} on board ${b} is not active`;
   }
-  let b = player_board(player_name);
 
   // Promotion choice
   if event.type == "promote" {
     let pp = state.pending_promotion;
-    if pp == () || pp.player != player_name { throw "no pending promotion"; }
+    if pp == () || pp.player != player { throw "no pending promotion"; }
     let valid = ["queen", "rook", "bishop", "knight"];
     if !valid.contains(event.value) { throw "invalid promotion piece"; }
-    let board = board_set(get_board(state, pp.board), pp.to, Piece(player_color(player_name), event.value));
-    return #{ state: finish_turn(state, player_name, board, pp.board, ()), ui: [] };
+    let board = board_set(state.board[pp.board], pp.to, Piece(color, event.value));
+    return #{ state: finish_turn(state, player, board, pp.board, ()), ui: [] };
   }
 
   if event.type != "move" { throw `unknown event type: ${event.type}`; }
@@ -288,45 +284,45 @@ fn handle_event(state, player, event) {
 
   // Reserve drop: from is ReserveCoords
   if from.type == "reserve" {
-    let reserve = reserve_for_player(state, player_name);
+    let reserve = reserve_for_player(state, player);
     let piece   = reserve[from.index];
     if piece == () { throw "invalid reserve index"; }
 
-    let board = get_board(state, b);
+    let board = state.board[b];
     if board_get(board, to) != () { throw "target square occupied"; }
     if piece.type == "pawn" && (to.row == 0 || to.row == 7) {
       throw "cannot drop pawn on back rank";
     }
     let new_board   = board_set(board, to, piece);
-    let new_reserve = reserve_remove(state.reserve, player_name, piece.type);
-    return #{ state: finish_turn(state, player_name, new_board, b, new_reserve), ui: [] };
+    let new_reserve = remove_from_reserve(state.reserve, player, piece.type);
+    return #{ state: finish_turn(state, player, new_board, b, new_reserve), ui: [] };
   }
 
   // Board move
-  let board = get_board(state, b);
+  let board = state.board[b];
   let piece = board_get(board, from);
 
-  if piece == () || !own_piece(piece, player_name) { throw "no own piece at source"; }
+  if piece == () || !own_piece(piece, color) { throw "no own piece at source"; }
 
-  let legal = piece_moves(state, b, from, player_name);
+  let legal = piece_moves(state, b, from, color);
   if !legal.contains(to) { throw "illegal move"; }
 
   let captured    = board_get(board, to);
   let new_reserve = state.reserve;
   if captured != () {
-    let flipped = Piece(player_color(partner(player_name)), captured.type);
-    new_reserve = reserve_add(new_reserve, partner(player_name), flipped);
+    let flipped = Piece(partner(player).color, captured.type);
+    new_reserve = add_to_reserve(new_reserve, partner(player), flipped);
   }
 
   let new_board = board_move_piece(board, from, to);
 
   // Promotion
-  let promo_row = pawn_promo_row(player_name);
+  let promo_row = pawn_promo_row(color);
   if piece.type == "pawn" && to.row == promo_row {
     let new_state = merge(state, #{
       board:             update_board(state, b, board_set(new_board, to, ())),
       reserve:           new_reserve,
-      pending_promotion: #{ player: player_name, to: to, board: b },
+      pending_promotion: #{ player: player, to: to, board: b },
     });
     return #{
       state: new_state,
@@ -335,20 +331,20 @@ fn handle_event(state, player, event) {
         action: "promote",
         title: "Promote pawn",
         options: ["queen","rook","bishop","knight"],
-        players: [player.color],
+        players: [color],
       }],
     };
   }
 
-  return #{ state: finish_turn(state, player_name, new_board, b, new_reserve), ui: [] };
+  return #{ state: finish_turn(state, player, new_board, b, new_reserve), ui: [] };
 }
 
 fn finish_turn(state, player, new_board, board_index, new_reserve) {
   let boards = update_board(state, board_index, new_board);
 
   // Determine next active players: replace this player with their opponent on same board
-  let opp     = board_opponent(player);
-  let active  = state.active_players.filter(|p| p != player);
+  let opp    = board_opponent(player);
+  let active = state.active_players.filter(|p| p != player);
   active.push(opp);
 
   let new_state = merge(state, #{
@@ -358,18 +354,7 @@ fn finish_turn(state, player, new_board, board_index, new_reserve) {
     pending_promotion:  (),
   });
 
-  // Check if any king is missing (simplified game-over detection)
-  check_game_over(new_state)
-}
-
-// Board 0 opponent pairs: (white-a,black-a), Board 1: (white-b,black-b)
-fn board_opponent(player) {
-  switch player {
-    "white-a" => "black-a",
-    "black-a" => "white-a",
-    "white-b" => "black-b",
-    _ => "white-b"
-  }
+  new_state
 }
 
 fn update_board(state, board_index, new_board) {
@@ -381,18 +366,24 @@ fn update_board(state, board_index, new_board) {
 fn check_game_over(state) {
   // If a king is missing on either board → losing team loses
   for board_index in [0, 1] {
-    let board = get_board(state, board_index);
+    let board = state.board[board_index];
     for color in ["white", "black"] {
       let kings = board_find(board, Piece(color, "king"));
       if kings.len() == 0 {
-        // Find which team wins
-        let loser_player  = if color == "white" {
-          if board_index == 0 { "white-a" } else { "white-b" }
+        // Determine the losing team from board+color:
+        // Board 0: white=team0, black=team1
+        // Board 1: white=team1, black=team0
+        let losing_team = if board_index == 0 {
+          if color == "white" { 0 } else { 1 }
         } else {
-          if board_index == 0 { "black-a" } else { "black-b" }
+          if color == "white" { 1 } else { 0 }
         };
-        let winning_team  = [partner(loser_player), board_opponent(partner(loser_player))];
-        return merge(state, #{ game_over: Winners(winning_team) });
+        let winning_team = if losing_team == 0 { 1 } else { 0 };
+        // Winners: all player color strings on the winning team
+        let winners = state.players
+          .filter(|p| p.team == winning_team)
+          .map(|p| p.color);
+        return merge(state, #{ game_over: Winners(winners) });
       }
     }
   }
@@ -406,12 +397,12 @@ fn init(player_count) {
   #{
     board:              [pos, pos],   // two identical starting positions
     players:            [
-      #{ name: "white-a", board: 0, color: "white", team: 0 },
-      #{ name: "black-a", board: 0, color: "black", team: 0 },
-      #{ name: "white-b", board: 1, color: "white", team: 1 },
-      #{ name: "black-b", board: 1, color: "black", team: 1 },
+      #{ board: 0, color: "white", team: 0 },
+      #{ board: 0, color: "black", team: 1 },
+      #{ board: 1, color: "white", team: 1 },
+      #{ board: 1, color: "black", team: 0 },
     ],
-    active_players:     ["white-a", "white-b"],  // white on board 0 and white on board 1 start
+    active_players:     [Player(0, "white"), Player(1, "white")],
     pending_promotion:  (),
     game_over:          (),
   }

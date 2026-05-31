@@ -185,6 +185,34 @@ impl BoardCoords {
     }
 }
 
+/// Canonical player identifier: `{board, color}`.
+///
+/// Scripts use:
+///   `Player("white")`        → board 0, color "white" (shorthand)
+///   `Player(1, "white")`     → board 1, color "white"
+///
+/// Equality is registered so `.contains()` works on arrays of PlayerId.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerId {
+    #[rhai_type(readonly)]
+    pub board: i32,
+    #[rhai_type(readonly)]
+    pub color: String,
+}
+
+impl PlayerId {
+    /// Short constructor: board defaults to 0.
+    pub fn new_short(color: String) -> Self {
+        Self { board: 0, color }
+    }
+
+    /// Full constructor: board and color explicitly.
+    pub fn new_full(board: i32, color: String) -> Self {
+        Self { board, color }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{BoardCoords, BoardState};

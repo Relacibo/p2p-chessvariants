@@ -35,13 +35,6 @@ fn config() {
 
 // ── Player / color helpers ───────────────────────────────────
 
-fn player_color(player) {
-  for p in state.players {
-    if p.name == player { return p.color; }
-  }
-  "white"
-}
-
 fn opponent_color(color) {
   if color == "white" { "black" } else { "white" }
 }
@@ -179,7 +172,7 @@ fn handle_event(state, player, event) {
 
   // ── Normal move ──
   if event.type == "move" {
-    if !state.active_players.contains(player_color) {
+    if !state.active_players.contains(player) {
       throw `${player_color} is not active`;
     }
 
@@ -253,12 +246,12 @@ fn handle_event(state, player, event) {
 }
 
 fn end_turn(state) {
-  let state = check_game_over(state);
-  if state.game_over != () { return state; }
-  let next = opponent_color(state.active_players[0]);
-  merge(state, #{ active_players: [next], running_clocks: [next] })
+  let current = state.active_players[0];
+  let next = Player(if current.color == "white" { "black" } else { "white" });
+  merge(state, #{ active_players: [next] })
 }
 
+// Called automatically by the engine after every event.
 fn check_game_over(state) {
   for p in state.players {
     let kings = board_find(state.board, Piece(p.color, "king"));
@@ -279,11 +272,10 @@ fn init(player_count) {
   #{
     board:              standard_start_position(),
     players:            [
-      #{ name: "white", board: 0, color: "white", team: 0 },
-      #{ name: "black", board: 0, color: "black", team: 1 },
+      #{ board: 0, color: "white", team: 0 },
+      #{ board: 0, color: "black", team: 1 },
     ],
-    active_players:     ["white"],
-    running_clocks:     ["white"],
+    active_players:     [Player("white")],
     hand:               [#{ player: "white", held: ["hawk", "elephant"] }, #{ player: "black", held: ["hawk", "elephant"] }],
     gating_available:   [#{ player: "white", cols: [0,1,2,3,4,5,6,7] }, #{ player: "black", cols: [0,1,2,3,4,5,6,7] }],
     pending_gate:       (),

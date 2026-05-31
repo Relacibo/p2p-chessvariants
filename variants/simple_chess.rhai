@@ -1,6 +1,6 @@
 // A minimal chess variant for the dev board.
 // Enforces turn order and basic piece ownership.
-// Game ends when a king is captured.
+// Game ends when a king is captured (checked by check_game_over).
 
 fn config() {
     #{
@@ -18,11 +18,10 @@ fn init(player_count) {
     #{
         board: standard_start_position(),
         players: [
-            #{ name: "white", board: 0, color: "white", team: 0 },
-            #{ name: "black", board: 0, color: "black", team: 1 },
+            #{ board: 0, color: "white", team: 0 },
+            #{ board: 0, color: "black", team: 1 },
         ],
-        active_players: ["white"],
-        running_clocks: ["white"],
+        active_players: [Player("white")],
         game_over: (),
     }
 }
@@ -35,7 +34,7 @@ fn handle_event(state, player, event) {
     let player_color = player.color;
 
     if event.type == "move" {
-        if !state.active_players.contains(player_color) {
+        if !state.active_players.contains(player) {
             throw `${player_color} is not active`;
         }
 
@@ -48,25 +47,30 @@ fn handle_event(state, player, event) {
 
         let new_board = board_move_piece(state.board, event.from, event.to);
 
-        let game_over = ();
-        if dst != () && dst.type == "king" {
-            let player_idx = state.players
-                .filter(|p| p.color == player_color)
-                .map(|p| p.board)[0];
-            game_over = Winner(player_idx);
-        }
-
-        let next = if player_color == "white" { "black" } else { "white" };
+        let next = Player(if player_color == "white" { "black" } else { "white" });
         return #{
             state: merge(state, #{
                 board: new_board,
                 active_players: [next],
-                running_clocks: [next],
-                game_over: game_over,
             }),
             ui: [],
         };
     }
 
     throw `unknown event type: ${event.type}`;
+}
+
+// Called automatically by the engine after every event.
+fn check_game_over(state) {
+    for p in state.players {
+        let kings = board_find(state.board, Piece(p.color, "king"));
+        if kings.len() == 0 {
+            let opponent_color = if p.color == "white" { "black" } else { "white" };
+            let winner_idx = state.players
+                .filter(|q| q.color == opponent_color)
+                .map(|q| q.board)[0];
+            return merge(state, #{ game_over: Winner(winner_idx) });
+        }
+    }
+    state
 }

@@ -93,7 +93,7 @@ export function DevBoardView() {
   // controllingPlayer is stored as a JSON string: '{"board":0,"color":"white"}'
   const [controllingPlayer, setControllingPlayer] = useState<string>("");
   const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
-  const [allPlayers, setAllPlayers] = useState<{name: string; color: string; board: number; team: number}[]>([]);
+  const [allPlayers, setAllPlayers] = useState<{color: string; board: number; team: number}[]>([]);
 
   const engineRef = useRef<ChessvariantEngine | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(null);
@@ -392,7 +392,7 @@ export function DevBoardView() {
              label="Controlling player (local)"
              data={allPlayers.map(p => ({
                value: JSON.stringify({ board: p.board, color: p.color }),
-               label: `${p.color} (${p.name})`,
+               label: `${p.color} ${p.board > 0 ? `(board ${p.board})` : ""}`,
              }))}
              value={controllingPlayer}
              onChange={(v) => v != null && setControllingPlayer(v)}

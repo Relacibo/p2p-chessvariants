@@ -26,7 +26,7 @@ pub mod rhai_rust_error;
 pub use game::actions::Action as ChessAction;
 pub use game::board as board_helpers;
 pub use game::piece::Piece as ChessPiece;
-pub use game::state::{BoardCoords, BoardState, Coords as GameCoords};
+pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, PlayerId};
 pub use game::ui::{HandleEventResult as EngineEventResult, UiElement as EngineUiElement};
 
 /// Player reference across WASM boundary. JSON: `{"board":0,"color":"white"}`
@@ -36,22 +36,38 @@ struct PlayerRef {
     color: String,
 }
 
-/// Convert a PlayerRef to a Rhai Map `#{board: i64, color: String}`
-fn player_ref_to_rhai_map(p: &PlayerRef) -> Dynamic {
-    let mut map = rhai::Map::new();
-    map.insert("board".into(), Dynamic::from(p.board));
-    map.insert("color".into(), Dynamic::from(p.color.clone()));
-    Dynamic::from_map(map)
+/// Convert a PlayerRef to a native PlayerId (for passing to Rhai scripts).
+fn player_ref_to_player_id(p: &PlayerRef) -> PlayerId {
+    PlayerId::new_full(p.board as i32, p.color.clone())
 }
 
-/// Convert a Rhai player map `#{board, color}` to JSON value.
-fn player_map_to_json_value(map: &rhai::Map) -> Result<serde_json::Value, CvError> {
-    let board = map.get("board").and_then(|v| v.as_int().ok()).unwrap_or(0);
-    let color = map
-        .get("color")
-        .and_then(|v| v.clone().into_string().ok())
-        .unwrap_or_default();
-    Ok(serde_json::json!({"board": board, "color": color}))
+/// Convert a PlayerId to JSON value.
+fn player_id_to_json_value(p: &PlayerId) -> serde_json::Value {
+    serde_json::json!({"board": p.board, "color": p.color})
+}
+
+/// Normalize an active_players entry to JSON.
+/// Accepts String shorthand `"white"` → `{board:0, color:"white"}`
+/// or native `PlayerId` struct.
+fn normalize_active_player(d: &Dynamic) -> Option<serde_json::Value> {
+    // String shorthand: "white" → {board: 0, color: "white"}
+    if let Ok(color) = d.clone().into_string() {
+        return Some(serde_json::json!({"board": 0, "color": color}));
+    }
+    // Native PlayerId struct
+    if let Some(p) = d.clone().try_cast::<PlayerId>() {
+        return Some(player_id_to_json_value(&p));
+    }
+    // Legacy: Rhai map #{board, color} — still supported for migration
+    if let Some(m) = d.clone().try_cast::<rhai::Map>() {
+        let board = m.get("board").and_then(|v| v.as_int().ok()).unwrap_or(0);
+        let color = m
+            .get("color")
+            .and_then(|v| v.clone().into_string().ok())
+            .unwrap_or_default();
+        return Some(serde_json::json!({"board": board, "color": color}));
+    }
+    None
 }
 
 /// Extract team IDs from state.players into state.teams (deduplicated, sorted).
@@ -99,7 +115,8 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<Coords>()
         .build_type::<Piece>()
         .build_type::<BoardLayoutConfig>()
-        .build_type::<Action>();
+        .build_type::<Action>()
+        .build_type::<PlayerId>();
 
     // Equality for Coords (scripts compare coords with ==)
     engine.register_fn("==", |a: Coords, b: Coords| -> bool { a == b });
@@ -107,11 +124,18 @@ fn register_builtins(engine: &mut Engine) {
     // Keep BoardCoords equality for internal use
     engine.register_fn("==", |a: BoardCoords, b: BoardCoords| -> bool { a == b });
     engine.register_fn("!=", |a: BoardCoords, b: BoardCoords| -> bool { a != b });
+    // Equality for PlayerId (scripts compare players with ==, .contains() uses it)
+    engine.register_fn("==", |a: PlayerId, b: PlayerId| -> bool { a == b });
+    engine.register_fn("!=", |a: PlayerId, b: PlayerId| -> bool { a != b });
 
     // Coords constructors — replace old BoardCoords-based ones
     engine.register_fn("Coords", Coords::new_board_0);  // Coords(r, c)
     engine.register_fn("Coords", Coords::new_board);    // Coords(r, c, b)
     engine.register_fn("ReserveCoords", Coords::new_reserve); // ReserveCoords(i)
+
+    // PlayerId constructors
+    engine.register_fn("Player", PlayerId::new_short);  // Player("white")
+    engine.register_fn("Player", PlayerId::new_full);   // Player(1, "white")
 
     engine.register_fn("board_empty", game::state::BoardState::board_empty);
     engine.register_fn("board_get", board::rhai_board_get);
@@ -351,11 +375,7 @@ impl ChessvariantEngine {
             Some(arr) => {
                 let players: Vec<serde_json::Value> = arr
                     .iter()
-                    .filter_map(|d| {
-                        d.clone()
-                            .try_cast::<rhai::Map>()
-                            .and_then(|m| player_map_to_json_value(&m).ok())
-                    })
+                    .filter_map(|d| normalize_active_player(d))
                     .collect();
                 Ok(serde_json::to_string(&players)?)
             }
@@ -380,10 +400,6 @@ impl ChessvariantEngine {
                 .clone()
                 .try_cast::<rhai::Map>()
                 .ok_or_else(|| CvError::Internal("player is not a map".into()))?;
-            let name = player_map
-                .get("name")
-                .and_then(|v| v.clone().into_string().ok())
-                .unwrap_or_default();
             let color = player_map
                 .get("color")
                 .and_then(|v| v.clone().into_string().ok())
@@ -397,7 +413,6 @@ impl ChessvariantEngine {
                 .and_then(|v| v.as_int().ok())
                 .unwrap_or(0) as i64;
             players.push(serde_json::json!({
-                "name": name,
                 "color": color,
                 "board": board,
                 "team": team
@@ -419,14 +434,19 @@ impl ChessvariantEngine {
     }
 
     fn compute_valid_actions(&self, player_json: &str) -> Result<Vec<Action>, CvError> {
+        // When the game is over, no moves are allowed.
+        if self.is_game_over() {
+            return Ok(vec![]);
+        }
+
         let player_ref: PlayerRef = serde_json::from_str(player_json)?;
+        let player = Dynamic::from(player_ref_to_player_id(&player_ref));
         let mut scope = Scope::new();
-        let player_map = player_ref_to_rhai_map(&player_ref);
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
             "valid_actions",
-            (self.game_state.clone(), player_map),
+            (self.game_state.clone(), player),
         );
         let actions_dyn = match result {
             Ok(v) => v,
@@ -463,11 +483,15 @@ impl ChessvariantEngine {
         event_json: String,
     ) -> Result<String, CvError> {
         let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
-        let player_map = player_ref_to_rhai_map(&player_ref);
+        let player = player_ref_to_player_id(&player_ref);
         let event_dyn = build_event_dynamic(&event_json)?;
 
-        let ui = self.run_handle_event(player_map, event_dyn)?;
-        let result = HandleEventResult { ui };
+        let ui = self.run_handle_event(player, event_dyn)?;
+
+        // Extract game_over info from the current state for the frontend.
+        let game_over = self.extract_game_over_dyn();
+
+        let result = HandleEventResult { ui, game_over };
         Ok(serde_json::to_string(&result)?)
     }
 
@@ -519,14 +543,14 @@ impl ChessvariantEngine {
         event: Dynamic,
     ) -> Result<Vec<UiElement>, CvError> {
         let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
-        let player_map = player_ref_to_rhai_map(&player_ref);
-        self.run_handle_event(player_map, event)
+        let player = player_ref_to_player_id(&player_ref);
+        self.run_handle_event(player, event)
     }
 
     /// Core: call the Rhai `handle_event(state, player, event)` and parse the result.
     fn run_handle_event(
         &mut self,
-        player_map: Dynamic,
+        player: PlayerId,
         event: Dynamic,
     ) -> Result<Vec<UiElement>, CvError> {
         let mut scope = Scope::new();
@@ -534,7 +558,7 @@ impl ChessvariantEngine {
             &mut scope,
             &self.ast,
             "handle_event",
-            (self.game_state.clone(), player_map, event),
+            (self.game_state.clone(), Dynamic::from(player), event),
         )?;
 
         // Expect result to be #{ state: ..., ui: [...] }
@@ -557,7 +581,69 @@ impl ChessvariantEngine {
         self.game_state = new_state;
         self.cached_valid_actions = None;
 
+        // Automatically invoke the script's check_game_over, if defined.
+        self.call_check_game_over()?;
+
         Ok(ui)
+    }
+
+    /// Call the Rhai `check_game_over(state)` function, if it exists.
+    /// If it does not exist, this is a no-op (graceful fallback).
+    fn call_check_game_over(&mut self) -> Result<(), CvError> {
+        let mut scope = Scope::new();
+        match self.engine.call_fn::<Dynamic>(
+            &mut scope,
+            &self.ast,
+            "check_game_over",
+            (self.game_state.clone(),),
+        ) {
+            Ok(state) => {
+                self.game_state = state;
+                Ok(())
+            }
+            Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(..)) => Ok(()),
+            Err(e) => Err(CvError::from(e)),
+        }
+    }
+
+    /// Returns true if `state.game_over` is set (not nil).
+    fn is_game_over(&self) -> bool {
+        self.game_state
+            .read_lock::<rhai::Map>()
+            .and_then(|m| m.get("game_over").cloned())
+            .map(|v| !v.is_unit())
+            .unwrap_or(false)
+    }
+
+    /// Extract the game_over payload from the current state for the frontend.
+    fn extract_game_over_dyn(&self) -> Option<serde_json::Value> {
+        let map = self.game_state.read_lock::<rhai::Map>()?;
+        let go = map.get("game_over")?.clone();
+        if go.is_unit() {
+            return None;
+        }
+        // Try to cast to a Rhai map first, then convert to JSON manually.
+        if let Some(go_map) = go.clone().try_cast::<rhai::Map>() {
+            let mut json = serde_json::Map::new();
+            for (k, v) in go_map.iter() {
+                let val: serde_json::Value = if let Some(s) = v.clone().into_string().ok() {
+                    serde_json::Value::String(s)
+                } else if let Ok(n) = v.as_int() {
+                    serde_json::json!(n)
+                } else if let Some(arr) = v.clone().try_cast::<rhai::Array>() {
+                    let items: Vec<serde_json::Value> = arr
+                        .iter()
+                        .filter_map(|d| d.as_int().ok().map(|n| serde_json::json!(n)))
+                        .collect();
+                    serde_json::Value::Array(items)
+                } else {
+                    continue;
+                };
+                json.insert(k.to_string(), val);
+            }
+            return Some(serde_json::Value::Object(json));
+        }
+        None
     }
 
     /// Returns a clone of the current game state (for integration tests).

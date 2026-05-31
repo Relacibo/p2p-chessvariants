@@ -5,7 +5,7 @@ import { useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
-import { WasmAction, WasmBoardState, WasmVariantConfig } from "../chessboard/types";
+import { PlayerRef, WasmAction, WasmBoardState, WasmVariantConfig } from "../chessboard/types";
 import useConfigureLayout from "../layout/hooks";
 import { fetchScriptText, getGithubBrowseUrl } from "../lobby/scriptUrl";
 import { selectAllVariants } from "../lobby/variantsSlice";
@@ -38,9 +38,12 @@ function PlaygroundView() {
         engineRef.current = engine;
         setVariantConfig(JSON.parse(engine.variantConfigJson()));
         setBoardState(JSON.parse(engine.boardStateJson()));
-        const activePlayers: string[] = JSON.parse(engine.activePlayersJson());
-        setPlayer(activePlayers[0] ?? "");
-        setValidActions(JSON.parse(engine.validActionsJson(activePlayers[0] ?? "")));
+        const activePlayers: PlayerRef[] = JSON.parse(engine.activePlayersJson());
+        const firstPlayerJson = activePlayers[0] ? JSON.stringify(activePlayers[0]) : "";
+        setPlayer(firstPlayerJson);
+        if (firstPlayerJson) {
+          setValidActions(JSON.parse(engine.validActionsJson(firstPlayerJson)));
+        }
       } catch (e: unknown) {
         if (!cancelled)
           setEngineError(e instanceof Error ? e.message : String(e));

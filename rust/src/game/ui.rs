@@ -61,6 +61,9 @@ pub enum UiPlayerFilter {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct HandleEventResult {
     pub ui: Vec<UiElement>,
+    /// If set, the game is over. Contains the Winner/Winners/Draw payload from the script.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub game_over: Option<serde_json::Value>,
 }
 
 /// Parse the `ui` field from the value returned by a Rhai `handle_event` call.

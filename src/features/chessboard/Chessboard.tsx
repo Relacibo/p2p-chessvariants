@@ -10,6 +10,7 @@ import {
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import {
+  PlayerRef,
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
@@ -108,10 +109,20 @@ export function Chessboard({
       (stageRef.current.container().style.cursor = cursor);
   };
 
-  // Player color determines board orientation
+  // Player identity determines board orientation
+  // player is a JSON string: {"board":0,"color":"white"}
   // white sees row 7 at bottom, black sees row 0 at bottom
-  // For 4+ players, use player name to determine color
-  const flipped = variantConfig.players.find(p => p.name === player)?.color === "black";
+  const playerColor = useMemo(() => {
+    if (!player) return "white";
+    try {
+      const p = JSON.parse(player) as PlayerRef;
+      return p.color ?? "white";
+    } catch {
+      // Legacy: player might be a plain color string
+      return player;
+    }
+  }, [player]);
+  const flipped = playerColor === "black";
 
   useEffect(() => {
     preloadAllPieceImages().then(() => setImagesLoaded(true));
@@ -180,7 +191,7 @@ export function Chessboard({
   const getPiece = (row: number, col: number) =>
     boardState.boards[boardIndex]?.[row * cols + col] ?? null;
 
-  const myColor = variantConfig.players.find(p => p.name === player)?.color ?? "white";
+  const myColor = playerColor;
 
   const handleTileClick = (row: number, col: number) => {
     const clicked = mkBoardCoords(row, col, boardIndex);

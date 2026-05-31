@@ -1,5 +1,5 @@
 #![allow(unused_must_use)]
-use chessvariant_engine::{BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords};
+use chessvariant_engine::{BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords, PlayerId};
 use rhai::Dynamic;
 
 fn load_script(relative_path: &str) -> String {
@@ -37,14 +37,19 @@ fn state_active_players(state: &Dynamic) -> Vec<Dynamic> {
 fn state_active_players_colors(state: &Dynamic) -> Vec<String> {
     state_active_players(state)
         .iter()
-        .map(|v| {
-            if let Some(map) = v.clone().try_cast::<rhai::Map>() {
-                map["color"].clone().into_string().ok()
-            } else {
-                v.clone().into_string().ok()
-            }
+        .filter_map(|v| {
+            // Active players are now PlayerId structs
+            v.clone()
+                .try_cast::<PlayerId>()
+                .map(|p| p.color.clone())
+                .or_else(|| {
+                    // Fallback: legacy Rhai map
+                    v.clone()
+                        .try_cast::<rhai::Map>()
+                        .and_then(|m| m["color"].clone().into_string().ok())
+                })
+                .or_else(|| v.clone().into_string().ok())
         })
-        .flatten()
         .collect()
 }
 

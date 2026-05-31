@@ -63,7 +63,6 @@ export interface WasmBoardScriptConfig {
 }
 
 export interface WasmPlayerConfig {
-  name: string;
   color: string;
   board: number;
   team: number;
@@ -128,6 +127,11 @@ export type WasmUiElement = WasmUiChoice | WasmUiBanner | WasmUiButton;
 /** Result of `handleEventJson()`. */
 export interface WasmHandleEventResult {
   ui: WasmUiElement[];
+  game_over?: {
+    type: "winner" | "winners" | "draw";
+    player?: number;
+    players?: number[];
+  };
 }
 
 /** A player reference: `{ board, color }`. */
