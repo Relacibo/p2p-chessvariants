@@ -26,7 +26,7 @@ import {
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
 import { ReservePile } from "../chessboard/ReservePile";
@@ -108,20 +108,25 @@ export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const navigate = useNavigate();
   const { scriptUrl: encodedParam } = useParams<{ scriptUrl?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const variants = useSelector(selectAllVariants);
   const combobox = useCombobox();
 
   const [search, setSearch] = useState("");
 
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
-    useDisclosure(false);
+    useDisclosure(searchParams.get("panel") === "1");
 
   const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(
     null
   );
-  const [playerCount, setPlayerCount] = useState<number | string>(2);
+  const [playerCount, setPlayerCount] = useState<number | string>(
+    () => parseInt(searchParams.get("players") || "2", 10) || 2
+  );
   // controllingPlayer is stored as a JSON string: '{"board":0,"color":"white"}'
-  const [controllingPlayer, setControllingPlayer] = useState<string>("");
+  const [controllingPlayer, setControllingPlayer] = useState<string>(
+    () => searchParams.get("player") || ""
+  );
   const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
   const [allPlayers, setAllPlayers] = useState<
     { color: string; board: number; team: number }[]
@@ -170,6 +175,18 @@ export function DevBoardView() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // ── Sync state to URL search params ──
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (playerCount) next.set("players", String(playerCount));
+    if (controllingPlayer) next.set("player", controllingPlayer);
+    else next.delete("player");
+    next.set("panel", drawerOpen ? "1" : "0");
+    setSearchParams(next, { replace: true });
+    // Don't run on mount — only when values change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerCount, controllingPlayer, drawerOpen]);
 
   // Derive active players from valid_actions all (entries with non-empty actions)
   const deriveActivePlayers = useCallback(
@@ -300,8 +317,7 @@ export function DevBoardView() {
       const variant = variants.find((v) => v.url === url);
       if (variant) {
         setSelectedVariant(variant);
-        const n = 2;
-        setPlayerCount(n);
+        const n = typeof playerCount === "number" ? playerCount : 2;
         loadScript(url, n);
         return;
       }
@@ -310,8 +326,7 @@ export function DevBoardView() {
     const first = variants[0];
     if (first) {
       setSelectedVariant(first);
-      const n = 2;
-      setPlayerCount(n);
+      const n = typeof playerCount === "number" ? playerCount : 2;
       loadScript(first.url, n);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
