@@ -34,16 +34,13 @@ export function isBoardCoords(c: WasmCoords): c is WasmBoardCoords {
   return c.type === "board";
 }
 
-/** An action produced by `validActionsJson()` or an event sent to `handleEventJson()`.
- *  For `move` events: `from` and `to` are set.
- *  For UI events like `promote`: only `type` and `value` are set. */
+/** A move action produced by `validActionsJson()`.
+ *  `piece` is set for reserve drops; for board moves the engine reads it from the board. */
 export interface WasmAction {
-  type: string;
-  from?: WasmCoords;
-  to?: WasmCoords;
+  type: "move";
+  from: WasmCoords;
+  to: WasmCoords;
   piece?: WasmPiece;
-  /** For UI events (promotion choice, button press, etc.) */
-  value?: string;
 }
 
 export interface WasmDisabledRect {
@@ -86,56 +83,60 @@ export interface WasmVariantConfig {
 }
 
 /** Player count specification from the script config. */
-export type AllowedPlayerCount = number | number[] | { min: number; max: number; step?: number };
+export type AllowedPlayerCount =
+  | number
+  | number[]
+  | { min: number; max: number; step?: number };
 
-// ─── UI Element types (from handleEventJson result) ─────────────────────────
+// ─── v2 UI Element types (from getUiJson / handleMove / uiInteraction result) ──
 
-/** A player visibility filter: string = player name, object = team. */
-export type WasmUiPlayerFilter = string | { team: number };
-
-/** A multiple-choice modal (promotion, gating…).
- *  Fires an event `{ type: action, value: selectedOption }`. */
-export interface WasmUiChoice {
-  type: "choice";
-  /** The event type fired when the user selects an option. */
-  action: string;
-  title: string;
-  options: string[];
-  players?: WasmUiPlayerFilter[];
-}
-
-/** A non-interactive info/warning banner. */
-export interface WasmUiBanner {
-  type: "banner";
-  id: string;
-  text: string;
-  style: "info" | "warning" | "error";
-  players?: WasmUiPlayerFilter[];
-}
-
-/** A clickable button. Fires `{ type: action }`. */
+/** A clickable button. Handler closure stripped by engine. */
 export interface WasmUiButton {
   type: "button";
-  /** The event type fired on click. */
-  action: string;
   label: string;
-  players?: WasmUiPlayerFilter[];
 }
 
-export type WasmUiElement = WasmUiChoice | WasmUiBanner | WasmUiButton;
+/** A piece selection dialog (promotion, gating…). Handler closure stripped by engine. */
+export interface WasmUiPieceSelection {
+  type: "piece_selection";
+  title: string;
+  pieces: WasmPiece[];
+}
 
-/** Result of `handleEventJson()`. */
-export interface WasmHandleEventResult {
-  ui: WasmUiElement[];
-  game_over?: {
+/** A non-interactive info/warning/error banner. */
+export interface WasmUiBanner {
+  type: "banner";
+  text: string;
+  style: "info" | "warning" | "error";
+}
+
+export type WasmUiElementNode = WasmUiButton | WasmUiPieceSelection | WasmUiBanner;
+
+/** UI map returned by engine: { [elementId: string]: WasmUiElementNode }.
+ *  Element IDs are stable, unique strings (e.g. "promo_pick", "draw_btn"). */
+export type WasmUiMap = Record<string, WasmUiElementNode>;
+
+/** Result of `handleMove()` or `uiInteraction()`. */
+export interface WasmMoveResult {
+  ui: WasmUiMap;
+  game_over: {
     type: "winner" | "winners" | "draw";
     player?: number;
     players?: number[];
-  };
+  } | null;
 }
 
 /** A player reference: `{ board, color }`. */
 export interface PlayerRef {
   board: number;
   color: string;
+}
+
+/** Helper: extract a valid default player count from the variant config. */
+export function getDefaultPlayerCount(
+  allowed: AllowedPlayerCount
+): number {
+  if (typeof allowed === "number") return allowed;
+  if (Array.isArray(allowed)) return allowed[0] ?? 2;
+  return allowed.min ?? 2;
 }

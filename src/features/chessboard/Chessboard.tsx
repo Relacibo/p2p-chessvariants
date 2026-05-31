@@ -16,7 +16,6 @@ import {
   WasmBoardState,
   WasmCoords,
   WasmPiece,
-  WasmUiElement,
   WasmVariantConfig,
   isBoardCoords,
 } from "./types";
@@ -149,11 +148,11 @@ export function Chessboard({
     }
     if (selectedDropPiece) {
       // Drops: from is a ReserveCoords. Show all valid destinations.
+      // (valid_actions don't include piece info for reserve moves;
+      //  we filter only by the coordinate type, not piece identity.)
       for (const a of validActions) {
         if (
           a.from?.type === "reserve" &&
-          a.piece?.pieceType === selectedDropPiece.pieceType &&
-          a.piece?.color === selectedDropPiece.color &&
           a.to && isBoardCoords(a.to)
         )
           s.add(`${a.to.row},${a.to.col}`);
@@ -201,13 +200,12 @@ export function Chessboard({
       const action = validActions.find(
         (a) =>
           a.from?.type === "reserve" &&
-          a.piece?.pieceType === selectedDropPiece.pieceType &&
-          a.piece?.color === selectedDropPiece.color &&
           a.to &&
           coordsEq(a.to, clicked)
       );
       if (action) {
-        onSubmitAction(action);
+        // Enrich with piece info — engine's valid_actions don't carry it for reserve moves
+        onSubmitAction({ ...action, piece: selectedDropPiece });
         onClearDropPiece?.();
       } else {
         onClearDropPiece?.();

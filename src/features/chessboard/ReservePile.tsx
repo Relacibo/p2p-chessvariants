@@ -1,12 +1,23 @@
 import { Box, Group, Paper, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import { WasmPiece, WasmReservePileState } from "./types";
+import { PlayerRef, WasmPiece, WasmReservePileState } from "./types";
 import { getPieceImageUrl } from "./pieceImages";
 
 const PLAYER_COLORS = ["white", "black", "red", "blue"];
 const PLAYER_LABELS = ["White", "Black", "Red", "Blue"];
 
+/** Parse a player JSON string `{"board":0,"color":"white"}` to extract the color. */
+function parsePlayerColor(player: string): string {
+  try {
+    const p = JSON.parse(player) as PlayerRef;
+    return p.color;
+  } catch {
+    return player; // legacy: plain color string
+  }
+}
+
 interface ReservePileProps {
   reservePile: WasmReservePileState;
+  /** JSON-stringified PlayerRef: `{"board":0,"color":"white"}` */
   player: string;
   selectedPiece?: WasmPiece | null;
   onSelectPiece?: (piece: WasmPiece | null) => void;
@@ -22,13 +33,14 @@ export function ReservePile({
   tileSize = 40,
 }: ReservePileProps) {
   const pieceSize = Math.round(tileSize * 0.85);
+  const playerColor = parsePlayerColor(player);
 
   return (
     <Stack gap="xs">
       {reservePile.reserve_piles.map((pile, pIdx) => {
         const color = PLAYER_COLORS[pIdx] ?? "white";
         const label = PLAYER_LABELS[pIdx] ?? `Player ${pIdx}`;
-        const isMyPile = PLAYER_COLORS[pIdx] === player;
+        const isMyPile = PLAYER_COLORS[pIdx] === playerColor;
         return (
           <Paper key={pIdx} withBorder p="xs" style={{ opacity: isMyPile ? 1 : 0.65 }}>
             <Text size="xs" fw={600} mb={4} c="dimmed">

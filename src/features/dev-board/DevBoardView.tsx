@@ -3,7 +3,6 @@ import {
   Badge,
   Box,
   Button,
-  Code,
   Combobox,
   Drawer,
   Group,
@@ -37,10 +36,10 @@ import {
   PlayerRef,
   WasmAction,
   WasmBoardState,
-  WasmHandleEventResult,
+  WasmMoveResult,
   WasmPiece,
   WasmReservePileState,
-  WasmUiElement,
+  WasmUiMap,
   WasmVariantConfig,
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
@@ -52,11 +51,17 @@ import {
   getGithubBrowseUrl,
 } from "../lobby/scriptUrl";
 
+// ─── Log entry ───────────────────────────────────────────────────────────────
+
+type LogAction =
+  | { kind: "move"; action: WasmAction }
+  | { kind: "ui"; elementId: string; piece?: WasmPiece };
+
 interface LogEntry {
   id: number;
   timestamp: string;
   player: string;
-  action: WasmAction;
+  action: LogAction;
 }
 
 let logSeq = 0;
@@ -79,27 +84,37 @@ function coordsLabel(c: WasmAction["from"]): string {
   return `reserve[${c.index}]`;
 }
 
-function actionLabel(a: WasmAction): string {
-  if (a.type === "move" && a.from && a.to)
-    return `move ${coordsLabel(a.from)}→${coordsLabel(a.to)}`;
-  if (a.value !== undefined) return `${a.type}: ${a.value}`;
-  return `${a.type}`;
+function actionLabel(a: LogAction): string {
+  if (a.kind === "move" && a.action.from && a.action.to)
+    return `move ${coordsLabel(a.action.from)}→${coordsLabel(a.action.to)}`;
+  if (a.kind === "ui") {
+    const pieceStr = a.piece
+      ? ` (${a.piece.color} ${a.piece.pieceType})`
+      : "";
+    return `ui:${a.elementId}${pieceStr}`;
+  }
+  return "?";
 }
 
 const PLAYER_BADGE_COLORS = ["gray", "dark", "red", "blue"] as const;
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const navigate = useNavigate();
   const { scriptUrl: encodedParam } = useParams<{ scriptUrl?: string }>();
-const variants = useSelector(selectAllVariants);
+  const variants = useSelector(selectAllVariants);
   const combobox = useCombobox();
 
   const [search, setSearch] = useState("");
 
-  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
+  const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
+    useDisclosure(false);
 
-  const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(
+    null
+  );
   const [playerCount, setPlayerCount] = useState<number | string>(2);
   // controllingPlayer is stored as a JSON string: '{"board":0,"color":"white"}'
   const [controllingPlayer, setControllingPlayer] = useState<string>("");
@@ -109,22 +124,28 @@ const variants = useSelector(selectAllVariants);
   >([]);
 
   const engineRef = useRef<ChessvariantEngine | null>(null);
-  const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(null);
+  const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(
+    null
+  );
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
-  const [reservePile, setReservePile] = useState<WasmReservePileState | null>(null);
+  const [reservePile, setReservePile] =
+    useState<WasmReservePileState | null>(null);
   const [validActions, setValidActions] = useState<WasmAction[]>([]);
-  const [uiElements, setUiElements] = useState<WasmUiElement[]>([]);
+  const [uiElements, setUiElements] = useState<WasmUiMap | null>(null);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
-  const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(null);
+  const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(
+    null
+  );
   const [log, setLog] = useState<LogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
-  const boardSize = containerSize.w > 0 && containerSize.h > 0
-    ? Math.min(containerSize.w, containerSize.h)
-    : 0;
+  const boardSize =
+    containerSize.w > 0 && containerSize.h > 0
+      ? Math.min(containerSize.w, containerSize.h)
+      : 0;
   const reservePileWidth = Math.max(72, Math.round(boardSize * 0.22));
   const sideSpace = containerSize.w - boardSize;
   const showReserveSide = sideSpace >= reservePileWidth + 48;
@@ -156,11 +177,30 @@ const variants = useSelector(selectAllVariants);
       setAllPlayers(allP);
       if (p) {
         setValidActions(JSON.parse(engine.validActionsJson(p)));
+        // Fetch UI for the current controlling player
+        const uiResult: WasmMoveResult = JSON.parse(engine.getUiJson(p));
+        setUiElements(uiResult.ui ?? null);
       } else {
         setValidActions([]);
+        setUiElements(null);
       }
     },
     [controllingPlayer]
+  );
+
+  const addLogEntry = useCallback(
+    (player: string, action: LogAction) => {
+      setLog((prev) => [
+        ...prev,
+        {
+          id: ++logSeq,
+          timestamp: new Date().toLocaleTimeString(),
+          player,
+          action,
+        },
+      ]);
+    },
+    []
   );
 
   const loadScript = useCallback(
@@ -172,18 +212,27 @@ const variants = useSelector(selectAllVariants);
       setLog([]);
       setLastAction(undefined);
       setSelectedDropPiece(null);
+      setVariantConfig(null);
+      setBoardState(null);
+      setReservePile(null);
+      setValidActions([]);
+      setUiElements(null);
       try {
         const script = await fetchScriptText(url);
         const engine = new ChessvariantEngine(script, numPlayers);
         engineRef.current = engine;
-        setVariantConfig(JSON.parse(engine.variantConfigJson()));
-        const initPlayers: PlayerRef[] = JSON.parse(engine.activePlayersJson());
+        const config: WasmVariantConfig = JSON.parse(
+          engine.variantConfigJson()
+        );
+        setVariantConfig(config);
+        const initPlayers: PlayerRef[] = JSON.parse(
+          engine.activePlayersJson()
+        );
         const firstPlayerJson = initPlayers[0]
           ? JSON.stringify(initPlayers[0])
           : "";
         setControllingPlayer(firstPlayerJson);
         setActivePlayers(initPlayers);
-        setUiElements([]);
         syncState(engine, firstPlayerJson);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
@@ -201,7 +250,6 @@ const variants = useSelector(selectAllVariants);
       const variant = variants.find((v) => v.url === url);
       if (variant) {
         setSelectedVariant(variant);
-        // Default to 2 players; user can adjust in drawer
         const n = 2;
         setPlayerCount(n);
         loadScript(url, n);
@@ -226,7 +274,6 @@ const variants = useSelector(selectAllVariants);
       const n = typeof playerCount === "number" ? playerCount : 2;
       loadScript(url, n);
       combobox.closeDropdown();
-      // Update the URL to reflect the loaded variant
       navigate(`/dev/${encodeScriptUrl(url)}`, { replace: true });
     }
   };
@@ -242,66 +289,55 @@ const variants = useSelector(selectAllVariants);
     closeDrawer();
   };
 
+  // ── v2: Submit a move via handleMove ──
   const handleSubmitAction = useCallback(
     (action: WasmAction) => {
       const engine = engineRef.current;
       if (!engine || !controllingPlayer) return;
       try {
-        const resultJson = engine.handleEventJson(
+        const resultJson = engine.handleMove(
           controllingPlayer,
-          JSON.stringify(action)
+          JSON.stringify(action.from),
+          JSON.stringify(action.to),
+          action.piece ? JSON.stringify(action.piece) : undefined
         );
-        const result: WasmHandleEventResult = JSON.parse(resultJson);
-        setUiElements(result.ui ?? []);
+        const result: WasmMoveResult = JSON.parse(resultJson);
+        setUiElements(result.ui);
         setLastAction(action);
         setSelectedDropPiece(null);
-        setLog((prev) => [
-          ...prev,
-          {
-            id: ++logSeq,
-            timestamp: new Date().toLocaleTimeString(),
-            player: controllingPlayer,
-            action,
-          },
-        ]);
+        addLogEntry(controllingPlayer, { kind: "move", action });
         syncState(engine);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
       }
     },
-    [controllingPlayer, syncState]
+    [controllingPlayer, syncState, addLogEntry]
   );
 
+  // ── v2: Handle a UI interaction (button click, piece selection) ──
   const handleUiAction = useCallback(
-    (eventType: string, value?: string) => {
+    (elementId: string, value?: WasmPiece) => {
       const engine = engineRef.current;
       if (!engine || !controllingPlayer) return;
-      const event: WasmAction = {
-        type: eventType,
-        ...(value !== undefined && { value }),
-      };
       try {
-        const resultJson = engine.handleEventJson(
+        const resultJson = engine.uiInteraction(
           controllingPlayer,
-          JSON.stringify(event)
+          elementId,
+          value ? JSON.stringify(value) : undefined
         );
-        const result: WasmHandleEventResult = JSON.parse(resultJson);
-        setUiElements(result.ui ?? []);
-        setLog((prev) => [
-          ...prev,
-          {
-            id: ++logSeq,
-            timestamp: new Date().toLocaleTimeString(),
-            player: controllingPlayer,
-            action: event,
-          },
-        ]);
+        const result: WasmMoveResult = JSON.parse(resultJson);
+        setUiElements(result.ui);
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId,
+          piece: value,
+        });
         syncState(engine);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
       }
     },
-    [controllingPlayer, syncState]
+    [controllingPlayer, syncState, addLogEntry]
   );
 
   const filteredVariants = variants.filter((v) =>
@@ -389,7 +425,11 @@ const variants = useSelector(selectAllVariants);
             <Text size="xs" fw={700} c="red">
               Error
             </Text>
-            <ActionIcon size="xs" variant="subtle" onClick={() => setError(null)}>
+            <ActionIcon
+              size="xs"
+              variant="subtle"
+              onClick={() => setError(null)}
+            >
               <IconX size="0.7rem" />
             </ActionIcon>
           </Group>
@@ -548,7 +588,9 @@ const variants = useSelector(selectAllVariants);
                         `{"board":${a.board},"color":"${a.color}"}` ===
                         entry.player
                     );
-                    return ap ? `${ap.color}${ap.board > 0 ? ` b${ap.board}` : ""}` : "?";
+                    return ap
+                      ? `${ap.color}${ap.board > 0 ? ` b${ap.board}` : ""}`
+                      : "?";
                   })()}
                 </Badge>
                 <Text size="xs" style={{ flex: 1 }}>
