@@ -79,24 +79,7 @@ pub struct VariantConfig {
     pub colors: Vec<String>,
     #[serde(default)]
     pub allowed_player_count: AllowedPlayerCount,
-    #[serde(default)]
-    pub reserve_pile: bool,
-    #[serde(default)]
-    pub check_protection: bool,
-    #[serde(default)]
-    pub pieces: Option<Dynamic>,
-    #[serde(default = "default_promotion_pieces")]
-    pub promotion_pieces: Vec<String>,
     pub board: BoardScriptConfig,
-}
-
-fn default_promotion_pieces() -> Vec<String> {
-    vec![
-        "queen".into(),
-        "rook".into(),
-        "bishop".into(),
-        "knight".into(),
-    ]
 }
 
 /// Flat board config as returned by scripts: `#{ type: "rectangle", rows: 8, cols: 8 }`.
@@ -194,28 +177,6 @@ impl TryFrom<Dynamic> for VariantConfig {
             .map(AllowedPlayerCount::from_dynamic)
             .unwrap_or(Ok(AllowedPlayerCount::Exact(2)))?;
 
-        let reserve_pile = map
-            .get("reserve_pile")
-            .and_then(|v| v.as_bool().ok())
-            .unwrap_or(false);
-
-        let check_protection = map
-            .get("check_protection")
-            .and_then(|v| v.as_bool().ok())
-            .unwrap_or(false);
-
-        let pieces = map.get("pieces").cloned();
-
-        let promotion_pieces: Vec<String> = map
-            .get("promotion_pieces")
-            .and_then(|v| v.clone().try_cast::<rhai::Array>())
-            .map(|arr: rhai::Array| {
-                arr.iter()
-                    .filter_map(|v: &rhai::Dynamic| v.clone().into_string().ok())
-                    .collect()
-            })
-            .unwrap_or_else(default_promotion_pieces);
-
         let board: BoardScriptConfig = map
             .get("board")
             .ok_or_else(|| error::CvError::Internal("config missing 'board' field".into()))?
@@ -228,10 +189,6 @@ impl TryFrom<Dynamic> for VariantConfig {
             api_version,
             colors,
             allowed_player_count,
-            reserve_pile,
-            check_protection,
-            pieces,
-            promotion_pieces,
             board,
         })
     }

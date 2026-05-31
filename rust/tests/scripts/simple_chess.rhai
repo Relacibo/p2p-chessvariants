@@ -1,7 +1,7 @@
-// A minimal chess variant for integration tests.
+// Simple Chess test variant (API v2).
 // Enforces turn order and basic piece ownership,
 // but does NOT validate chess rules (any piece may move anywhere).
-// Game ends when a king is captured (checked by check_game_over).
+// Game ends when a king is captured (set via handle_action).
 
 fn config() {
     #{
@@ -21,49 +21,61 @@ fn init(player_count) {
             #{ board: 0, color: "white", team: 0 },
             #{ board: 0, color: "black", team: 1 },
         ],
-        active_players: [Player("white")],
-        game_over: (),
+        turn: "white",
     }
 }
 
-fn valid_actions(state, player) {
-    // Simple chess doesn't validate moves — any piece can go anywhere.
-    []
-}
-
-fn on_move(state, player, from, to, piece) {
-    let player_color = player.color;
-
-    if !state.active_players.contains(player) {
-        throw `${player_color} is not active`;
-    }
-
-    let src = engine::board::get(state.board, from);
-    if src == () { throw "no piece at source square"; }
-    if src.color != player_color { throw "that piece does not belong to you"; }
-
-    let dst = engine::board::get(state.board, to);
-    if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
-
-    let new_board = engine::board::move_piece(state.board, from, to);
-
-    let next = Player(if player_color == "white" { "black" } else { "white" });
-    merge(state, #{
-        board: new_board,
-        active_players: [next],
-    })
-}
-
-fn check_game_over(state) {
+fn valid_actions(state) {
+    let actions = [];
     for p in state.players {
-        let kings = engine::board::find(state.board, Piece(p.color, "king"));
-        if kings.len() == 0 {
-            let opponent_color = if p.color == "white" { "black" } else { "white" };
-            let winner_idx = state.players
-                .filter(|q| q.color == opponent_color)
-                .map(|q| q.board)[0];
-            return merge(state, #{ game_over: Winner(winner_idx) });
+        if p.color == state.turn {
+            actions.push(#{
+                player: p,
+                actions: [Move(Coords(0,0), Coords(0,0))],  // any move validates
+            });
+        } else {
+            actions.push(#{ player: p, actions: [] });
         }
     }
+    actions
+}
+
+fn handle_action(state, player, action) {
+    let player_color = player.color;
+
+    // Validate turn
+    if state.turn != player_color {
+        throw `${player_color} is not active — it's ${state.turn}'s turn`;
+    }
+
+    if action.type == "move" {
+        let src = engine::board::get(state.board, action.from);
+        if src == () { throw "no piece at source square"; }
+        if src.color != player_color { throw "that piece does not belong to you"; }
+
+        let dst = engine::board::get(state.board, action.to);
+        if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
+
+        let new_board = engine::board::move_piece(state.board, action.from, action.to);
+
+        // Check for king capture → game over
+        for p in state.players {
+            let kings = engine::board::find(new_board, Piece(p.color, "king"));
+            if kings.len() == 0 {
+                let opponent_color = if p.color == "white" { "black" } else { "white" };
+                let winner_idx = state.players
+                    .filter(|q| q.color == opponent_color)
+                    .map(|q| q.board)[0];
+                return merge(state, #{
+                    board: new_board,
+                    outcome: Winner(winner_idx),
+                });
+            }
+        }
+
+        let next = if player_color == "white" { "black" } else { "white" };
+        return merge(state, #{ board: new_board, turn: next });
+    }
+
     state
 }

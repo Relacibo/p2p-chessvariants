@@ -34,14 +34,11 @@ export function isBoardCoords(c: WasmCoords): c is WasmBoardCoords {
   return c.type === "board";
 }
 
-/** A move action produced by `validActionsJson()`.
- *  `piece` is set for reserve drops; for board moves the engine reads it from the board. */
-export interface WasmAction {
-  type: "move";
-  from: WasmCoords;
-  to: WasmCoords;
-  piece?: WasmPiece;
-}
+/** Action types produced by `validActionsJson()`. */
+export type WasmAction =
+  | { type: "move"; from: WasmCoords; to: WasmCoords }
+  | { type: "select_piece"; piece: WasmPiece }
+  | { type: "interact"; elementId: string };
 
 export interface WasmDisabledRect {
   r1: number;
@@ -65,20 +62,12 @@ export interface WasmPlayerConfig {
   team: number;
 }
 
-export interface WasmReservePileState {
-  reserve_piles: WasmPiece[][];
-}
-
 export interface WasmVariantConfig {
   name: string;
   version: string;
   api_version: number;
   colors: string[];
-  players: WasmPlayerConfig[];
   allowed_player_count: AllowedPlayerCount;
-  reserve_pile: boolean;
-  check_protection: boolean;
-  promotion_pieces: string[];
   board: WasmBoardScriptConfig;
 }
 
@@ -88,15 +77,15 @@ export type AllowedPlayerCount =
   | number[]
   | { min: number; max: number; step?: number };
 
-// ─── v2 UI Element types (from getUiJson / handleMove / uiInteraction result) ──
+// ─── v2 UI Element types (from getUiJson / submitAction result) ──
 
-/** A clickable button. Handler closure stripped by engine. */
+/** A clickable button. */
 export interface WasmUiButton {
   type: "button";
   label: string;
 }
 
-/** A piece selection dialog (promotion, gating…). Handler closure stripped by engine. */
+/** A piece selection dialog (promotion, gating…). */
 export interface WasmUiPieceSelection {
   type: "piece_selection";
   title: string;
@@ -110,14 +99,30 @@ export interface WasmUiBanner {
   style: "info" | "warning" | "error";
 }
 
-export type WasmUiElementNode = WasmUiButton | WasmUiPieceSelection | WasmUiBanner;
+/** A reserve pile display. */
+export interface WasmUiReservePile {
+  type: "reserve_pile";
+  pieces: WasmPiece[];
+}
 
-/** UI map returned by engine: { [elementId: string]: WasmUiElementNode }.
- *  Element IDs are stable, unique strings (e.g. "promo_pick", "draw_btn"). */
+export type WasmUiElementNode =
+  | WasmUiButton
+  | WasmUiPieceSelection
+  | WasmUiBanner
+  | WasmUiReservePile;
+
+/** UI map returned by engine: { [elementId: string]: WasmUiElementNode }. */
 export type WasmUiMap = Record<string, WasmUiElementNode>;
 
-/** Result of `handleMove()` or `uiInteraction()`. */
-export interface WasmMoveResult {
+/** A player's valid actions entry from `validActionsJson()`. */
+export interface WasmPlayerActions {
+  player: { board: number; color: string; team: number };
+  actions: WasmAction[];
+}
+
+/** Result of `submitAction()`. */
+export interface WasmSubmitActionResult {
+  valid_actions: WasmPlayerActions[];
   ui: WasmUiMap;
   game_over: {
     type: "winner" | "winners" | "draw";

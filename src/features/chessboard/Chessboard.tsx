@@ -142,18 +142,17 @@ export function Chessboard({
     const src = selected ?? dragging;
     if (src) {
       for (const a of validActions) {
-        if (a.from && coordsEq(a.from, src) && a.to && isBoardCoords(a.to))
+        if (a.type === "move" && coordsEq(a.from, src) && isBoardCoords(a.to))
           s.add(`${a.to.row},${a.to.col}`);
       }
     }
     if (selectedDropPiece) {
       // Drops: from is a ReserveCoords. Show all valid destinations.
-      // (valid_actions don't include piece info for reserve moves;
-      //  we filter only by the coordinate type, not piece identity.)
       for (const a of validActions) {
         if (
-          a.from?.type === "reserve" &&
-          a.to && isBoardCoords(a.to)
+          a.type === "move" &&
+          a.from.type === "reserve" &&
+          isBoardCoords(a.to)
         )
           s.add(`${a.to.row},${a.to.col}`);
       }
@@ -164,8 +163,9 @@ export function Chessboard({
   const findAction = useCallback(
     (from: WasmBoardCoords, to: WasmBoardCoords) =>
       validActionsRef.current.find(
-        (a) => a.from && coordsEq(a.from, from) && a.to && coordsEq(a.to, to)
-      ),
+        (a) =>
+          a.type === "move" && coordsEq(a.from, from) && coordsEq(a.to, to)
+      ) as Extract<WasmAction, { type: "move" }> | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
@@ -198,14 +198,13 @@ export function Chessboard({
     // Drop from reserve pile: find the matching Move action with ReserveCoords from
     if (selectedDropPiece) {
       const action = validActions.find(
-        (a) =>
-          a.from?.type === "reserve" &&
-          a.to &&
+        (a): a is Extract<WasmAction, { type: "move" }> =>
+          a.type === "move" &&
+          a.from.type === "reserve" &&
           coordsEq(a.to, clicked)
       );
       if (action) {
-        // Enrich with piece info — engine's valid_actions don't carry it for reserve moves
-        onSubmitAction({ ...action, piece: selectedDropPiece });
+        onSubmitAction(action);
         onClearDropPiece?.();
       } else {
         onClearDropPiece?.();
@@ -244,8 +243,9 @@ export function Chessboard({
       const isTarget = validTargets.has(`${row},${col}`);
       const isLastMove =
         lastAction &&
-        ((lastAction.from && coordsEq(lastAction.from, tileCoords)) ||
-          (lastAction.to && coordsEq(lastAction.to, tileCoords)));
+        lastAction.type === "move" &&
+        (coordsEq(lastAction.from, tileCoords) ||
+          coordsEq(lastAction.to, tileCoords));
       const hasPiece = getPiece(row, col) != null;
 
       tiles.push(

@@ -1,14 +1,11 @@
 import { Box, Group, Paper, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import { PlayerRef, WasmPiece, WasmReservePileState } from "./types";
+import { WasmPiece } from "./types";
 import { getPieceImageUrl } from "./pieceImages";
-
-const PLAYER_COLORS = ["white", "black", "red", "blue"];
-const PLAYER_LABELS = ["White", "Black", "Red", "Blue"];
 
 /** Parse a player JSON string `{"board":0,"color":"white"}` to extract the color. */
 function parsePlayerColor(player: string): string {
   try {
-    const p = JSON.parse(player) as PlayerRef;
+    const p = JSON.parse(player) as { board: number; color: string };
     return p.color;
   } catch {
     return player; // legacy: plain color string
@@ -16,13 +13,22 @@ function parsePlayerColor(player: string): string {
 }
 
 interface ReservePileProps {
-  reservePile: WasmReservePileState;
+  /** Accepts either the old WasmReservePileState or a simple pieces array */
+  reservePile: { reserve_piles: WasmPiece[][] } | { pieces: WasmPiece[] };
   /** JSON-stringified PlayerRef: `{"board":0,"color":"white"}` */
   player: string;
   selectedPiece?: WasmPiece | null;
   onSelectPiece?: (piece: WasmPiece | null) => void;
   /** Tile size in px; piece icons scale to 80% of this. Defaults to 40. */
   tileSize?: number;
+}
+
+function getPiles(
+  rp: ReservePileProps["reservePile"]
+): WasmPiece[][] {
+  if ("reserve_piles" in rp) return rp.reserve_piles;
+  if ("pieces" in rp) return [rp.pieces];
+  return [];
 }
 
 export function ReservePile({
@@ -34,13 +40,14 @@ export function ReservePile({
 }: ReservePileProps) {
   const pieceSize = Math.round(tileSize * 0.85);
   const playerColor = parsePlayerColor(player);
+  const piles = getPiles(reservePile);
 
   return (
     <Stack gap="xs">
-      {reservePile.reserve_piles.map((pile, pIdx) => {
-        const color = PLAYER_COLORS[pIdx] ?? "white";
-        const label = PLAYER_LABELS[pIdx] ?? `Player ${pIdx}`;
-        const isMyPile = PLAYER_COLORS[pIdx] === playerColor;
+      {piles.map((pile: WasmPiece[], pIdx: number) => {
+        const color = ["white", "black", "red", "blue"][pIdx] ?? "white";
+        const label = ["White", "Black", "Red", "Blue"][pIdx] ?? `Player ${pIdx}`;
+        const isMyPile = ["white", "black", "red", "blue"][pIdx] === playerColor;
         return (
           <Paper key={pIdx} withBorder p="xs" style={{ opacity: isMyPile ? 1 : 0.65 }}>
             <Text size="xs" fw={600} mb={4} c="dimmed">
@@ -50,7 +57,7 @@ export function ReservePile({
               {pile.length === 0 && (
                 <Text size="xs" c="dimmed" fs="italic">empty</Text>
               )}
-              {pile.map((piece, i) => {
+              {pile.map((piece: WasmPiece, i: number) => {
                 const imgUrl = getPieceImageUrl(piece.color, piece.pieceType);
                 const isSelected =
                   selectedPiece?.color === piece.color &&

@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use super::{piece::Piece, state::Coords};
 
-/// A game action.  After Phase 2 the only kind produced by scripts is `move`
-/// (from/to are `Coords` and can be board or reserve squares).
-/// `drop` and `choose` constructors are removed; those are replaced by events.
+/// A game action. Three kinds:
+///   - `move`:          from/to are Coords (board or reserve squares)
+///   - `select_piece`:  piece is the selected piece
+///   - `interact`:      element_id is the UI element being activated
 #[derive(Clone, Debug, Default, Deserialize, Serialize, CustomType, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
@@ -16,9 +17,12 @@ pub struct Action {
     pub from: Option<Coords>,
     #[rhai_type(get = Self::get_to, readonly)]
     pub to: Option<Coords>,
-    /// Piece involved (e.g. for drops — kept for deserialization compat)
+    /// Piece involved (select_piece actions, drops)
     #[rhai_type(get = Self::get_piece, readonly)]
     pub piece: Option<Piece>,
+    /// UI element ID for interact actions
+    #[rhai_type(get = Self::get_element_id, readonly)]
+    pub element_id: Option<String>,
 }
 
 impl Action {
@@ -29,6 +33,29 @@ impl Action {
             from: Some(from),
             to: Some(to),
             piece: None,
+            element_id: None,
+        }
+    }
+
+    /// Construct a `select_piece` action. Rhai: `SelectPiece(piece)`.
+    pub fn rhai_select_piece(piece: Piece) -> Self {
+        Self {
+            kind: "select_piece".into(),
+            from: None,
+            to: None,
+            piece: Some(piece),
+            element_id: None,
+        }
+    }
+
+    /// Construct an `interact` action. Rhai: `Interact(element_id)`.
+    pub fn rhai_interact(element_id: String) -> Self {
+        Self {
+            kind: "interact".into(),
+            from: None,
+            to: None,
+            piece: None,
+            element_id: Some(element_id),
         }
     }
 
@@ -53,11 +80,19 @@ impl Action {
             .map(Dynamic::from)
             .unwrap_or(Dynamic::UNIT)
     }
+
+    pub fn get_element_id(&self) -> Dynamic {
+        self.element_id
+            .clone()
+            .map(Dynamic::from)
+            .unwrap_or(Dynamic::UNIT)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Action;
+    use crate::game::piece::Piece;
     use crate::game::state::Coords;
 
     #[test]
@@ -82,5 +117,23 @@ mod tests {
         let from = action.get_from().cast::<Coords>();
         assert_eq!(from.coord_type, "reserve");
         assert_eq!(from.index, 0);
+    }
+
+    #[test]
+    fn test_select_piece_action() {
+        let piece = Piece::rhai_new("white".into(), "queen".into());
+        let action = Action::rhai_select_piece(piece.clone());
+        assert_eq!(action.get_type(), "select_piece");
+        let action_piece = action.get_piece().cast::<Piece>();
+        assert_eq!(action_piece.color_name(), "white");
+        assert_eq!(action_piece.piece_type_name(), "queen");
+    }
+
+    #[test]
+    fn test_interact_action() {
+        let action = Action::rhai_interact("draw_offer_btn".into());
+        assert_eq!(action.get_type(), "interact");
+        let id = action.get_element_id().cast::<String>();
+        assert_eq!(id, "draw_offer_btn");
     }
 }

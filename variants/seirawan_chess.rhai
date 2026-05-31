@@ -18,18 +18,12 @@
 
 fn config() {
   #{
-    api_version:      1,
+    api_version:      2,
     name:             "Seirawan Chess",
     version:          "1.0.0",
     colors:           ["white", "black"],
     allowed_player_count: 2,
     board:            #{ type: "rectangle", rows: 8, cols: 8 },
-    check_protection: true,
-    pieces: #{
-      "hawk":     combine("bishop", "knight"),
-      "elephant": combine("rook",   "knight"),
-    },
-    promotion_pieces: ["queen","rook","bishop","knight","hawk","elephant"],
   }
 }
 

@@ -3,18 +3,19 @@
 //! Provides:
 //!   - `engine::board::*` — board operations and movement primitives (static)
 //!   - `engine::moves::*` — pseudo-legal move generators (static)
-//!   - Config-dependent helpers registered directly to `engine::` namespace
 //!   - `log::*` — logging module
 //!
-//! Constructors (Coords, Player, Piece, Move, etc.) remain global.
+//! Config-dependent helpers (`is_square_attacked`, `pseudo_moves`, `is_legal`)
+//! are registered directly in `lib.rs::register_engine_helpers`.
+//!
+//! Constructors (Coords, Player, Piece, Move, SelectPiece, Interact, etc.)
+//! remain global.
 
 use rhai::{FuncRegistration, Module};
 
 use crate::game::board;
-use crate::game::engine_builtins::{self, engine_valid_actions_impl};
 use crate::game::moves as move_gen;
 use crate::game::state::BoardState;
-use crate::game::variant_config::VariantConfig;
 use crate::logging;
 
 // ─── engine::board ────────────────────────────────────────────────────────────
@@ -89,56 +90,6 @@ pub fn create_moves_submodule() -> Module {
         .set_into_module(&mut m, move_gen::rhai_king_moves);
 
     m
-}
-
-// ─── Config-dependent helpers (registered to engine:: namespace) ──────────────
-
-pub fn register_engine_helpers(config: &VariantConfig, engine: &mut rhai::Engine) {
-    let check_protection = config.check_protection;
-    let custom_pieces = engine_builtins::parse_custom_pieces(config.pieces.clone());
-
-    let cp_valid = custom_pieces.clone();
-    let cp_attacked = custom_pieces.clone();
-    let cp_pseudo = custom_pieces;
-
-    engine.register_fn(
-        "engine::valid_actions",
-        move |state: rhai::Dynamic, player: rhai::Map| -> rhai::Array {
-            engine_valid_actions_impl(state, player, check_protection, &cp_valid)
-        },
-    );
-
-    engine.register_fn(
-        "engine::is_square_attacked",
-        move |board: BoardState,
-              coords: crate::game::state::Coords,
-              by_color: String|
-              -> bool {
-            let Some(bc) = coords.as_board_coords() else {
-                return false;
-            };
-            engine_builtins::is_square_attacked(&board, &bc, &by_color, &cp_attacked)
-        },
-    );
-
-    engine.register_fn(
-        "engine::pseudo_moves",
-        move |board: BoardState,
-              from: crate::game::state::Coords,
-              piece_type: String,
-              color: String|
-              -> Vec<crate::game::state::Coords> {
-            let Some(bc) = from.as_board_coords() else {
-                return vec![];
-            };
-            engine_builtins::get_pseudo_move_dests(
-                &board, &bc, &piece_type, &color, &cp_pseudo,
-            )
-            .into_iter()
-            .map(crate::game::state::Coords::from)
-            .collect()
-        },
-    );
 }
 
 // ─── log ──────────────────────────────────────────────────────────────────────

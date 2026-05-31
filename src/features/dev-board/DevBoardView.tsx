@@ -36,10 +36,11 @@ import {
   PlayerRef,
   WasmAction,
   WasmBoardState,
-  WasmMoveResult,
   WasmPiece,
-  WasmReservePileState,
+  WasmPlayerActions,
+  WasmSubmitActionResult,
   WasmUiMap,
+  WasmUiReservePile,
   WasmVariantConfig,
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
@@ -54,7 +55,7 @@ import {
 // ─── Log entry ───────────────────────────────────────────────────────────────
 
 type LogAction =
-  | { kind: "move"; action: WasmAction }
+  | { kind: "move"; action: WasmAction & { type: "move" } }
   | { kind: "ui"; elementId: string; piece?: WasmPiece };
 
 interface LogEntry {
@@ -78,15 +79,22 @@ function extractErrorMessage(e: unknown): string {
   }
 }
 
-function coordsLabel(c: WasmAction["from"]): string {
-  if (!c) return "?";
-  if (c.type === "board") return `(${c.row},${c.col})`;
-  return `reserve[${c.index}]`;
+function coordsLabel(c: WasmAction & { from?: unknown; to?: unknown }): string {
+  if ("from" in c && c.from && typeof c.from === "object") {
+    const f = c.from as { type?: string; row?: number; col?: number; index?: number };
+    if (f.type === "board") return `(${f.row},${f.col})`;
+    return `reserve[${f.index}]`;
+  }
+  return "?";
 }
 
 function actionLabel(a: LogAction): string {
-  if (a.kind === "move" && a.action.from && a.action.to)
-    return `move ${coordsLabel(a.action.from)}→${coordsLabel(a.action.to)}`;
+  if (a.kind === "move" && a.action.type === "move" && a.action.from && a.action.to)
+    return `move ${coordsLabel(a.action as unknown as WasmAction & { from: unknown; to: unknown })}→${(() => {
+      const t = a.action.to as { type?: string; row?: number; col?: number };
+      if (t.type === "board") return `(${t.row},${t.col})`;
+      return `?`;
+    })()}`;
   if (a.kind === "ui") {
     const pieceStr = a.piece
       ? ` (${a.piece.color} ${a.piece.pieceType})`
@@ -128,9 +136,13 @@ export function DevBoardView() {
     null
   );
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
-  const [reservePile, setReservePile] =
-    useState<WasmReservePileState | null>(null);
+  const [reservePile, setReservePile] = useState<WasmUiReservePile | null>(
+    null
+  );
   const [validActions, setValidActions] = useState<WasmAction[]>([]);
+  const [validActionsAll, setValidActionsAll] = useState<WasmPlayerActions[]>(
+    []
+  );
   const [uiElements, setUiElements] = useState<WasmUiMap | null>(null);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
   const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(
@@ -164,28 +176,61 @@ export function DevBoardView() {
     return () => ro.disconnect();
   }, []);
 
+  // Derive active players from valid_actions all (entries with non-empty actions)
+  const deriveActivePlayers = useCallback(
+    (allActions: WasmPlayerActions[]): PlayerRef[] => {
+      return allActions
+        .filter((pa) => pa.actions.length > 0)
+        .map((pa) => ({
+          board: pa.player.board,
+          color: pa.player.color,
+        }));
+    },
+    []
+  );
+
   const syncState = useCallback(
     (engine: ChessvariantEngine, player?: string) => {
       const p = player ?? controllingPlayer;
       setBoardState(JSON.parse(engine.boardStateJson()));
-      const rpJson = engine.reservePileJson();
-      setReservePile(rpJson ? JSON.parse(rpJson) : null);
-      const ap: PlayerRef[] = JSON.parse(engine.activePlayersJson());
+      // Reserve pile comes from getUi as a ReservePile element now
+      const allValid: WasmPlayerActions[] = JSON.parse(
+        engine.validActionsJson()
+      );
+      setValidActionsAll(allValid);
+      const ap = deriveActivePlayers(allValid);
       setActivePlayers(ap);
       const allP: { color: string; board: number; team: number }[] =
         JSON.parse(engine.playersJson());
       setAllPlayers(allP);
       if (p) {
-        setValidActions(JSON.parse(engine.validActionsJson(p)));
+        // Extract actions for the controlling player
+        const playerRef: PlayerRef = JSON.parse(p);
+        const playerEntry = allValid.find(
+          (pa) =>
+            pa.player.board === playerRef.board &&
+            pa.player.color === playerRef.color
+        );
+        setValidActions(playerEntry?.actions ?? []);
         // Fetch UI for the current controlling player
-        const uiResult: WasmMoveResult = JSON.parse(engine.getUiJson(p));
-        setUiElements(uiResult.ui ?? null);
+        const uiResult = JSON.parse(engine.getUiJson(p));
+        const ui = (uiResult.ui ?? null) as WasmUiMap | null;
+        setUiElements(ui);
+        // Check for reserve pile in UI
+        if (ui) {
+          for (const el of Object.values(ui)) {
+            if (el.type === "reserve_pile") {
+              setReservePile(el as WasmUiReservePile);
+              break;
+            }
+          }
+        }
       } else {
         setValidActions([]);
         setUiElements(null);
       }
     },
-    [controllingPlayer]
+    [controllingPlayer, deriveActivePlayers]
   );
 
   const addLogEntry = useCallback(
@@ -216,6 +261,7 @@ export function DevBoardView() {
       setBoardState(null);
       setReservePile(null);
       setValidActions([]);
+      setValidActionsAll([]);
       setUiElements(null);
       try {
         const script = await fetchScriptText(url);
@@ -225,9 +271,12 @@ export function DevBoardView() {
           engine.variantConfigJson()
         );
         setVariantConfig(config);
-        const initPlayers: PlayerRef[] = JSON.parse(
-          engine.activePlayersJson()
+        // Get initial valid actions to determine active players
+        const initialValid: WasmPlayerActions[] = JSON.parse(
+          engine.validActionsJson()
         );
+        setValidActionsAll(initialValid);
+        const initPlayers = deriveActivePlayers(initialValid);
         const firstPlayerJson = initPlayers[0]
           ? JSON.stringify(initPlayers[0])
           : "";
@@ -240,7 +289,7 @@ export function DevBoardView() {
         setLoading(false);
       }
     },
-    [syncState]
+    [syncState, deriveActivePlayers]
   );
 
   // ── Mount: load from URL param, or default to first variant ──
@@ -289,55 +338,55 @@ export function DevBoardView() {
     closeDrawer();
   };
 
-  // ── v2: Submit a move via handleMove ──
+  // ── Submit an action via submitAction ──
   const handleSubmitAction = useCallback(
     (action: WasmAction) => {
       const engine = engineRef.current;
       if (!engine || !controllingPlayer) return;
       try {
-        const resultJson = engine.handleMove(
+        const resultJson = engine.submitAction(
           controllingPlayer,
-          JSON.stringify(action.from),
-          JSON.stringify(action.to),
-          action.piece ? JSON.stringify(action.piece) : undefined
+          JSON.stringify(action)
         );
-        const result: WasmMoveResult = JSON.parse(resultJson);
+        const result: WasmSubmitActionResult = JSON.parse(resultJson);
         setUiElements(result.ui);
         setLastAction(action);
         setSelectedDropPiece(null);
-        addLogEntry(controllingPlayer, { kind: "move", action });
-        syncState(engine);
+        if (action.type === "move") {
+          addLogEntry(controllingPlayer, { kind: "move", action });
+        } else if (action.type === "interact") {
+          addLogEntry(controllingPlayer, {
+            kind: "ui",
+            elementId: action.elementId,
+          });
+        } else if (action.type === "select_piece") {
+          addLogEntry(controllingPlayer, {
+            kind: "ui",
+            elementId: "select_piece",
+            piece: action.piece,
+          });
+        }
+        // Update valid actions and active players from result
+        setValidActionsAll(result.valid_actions);
+        const ap = deriveActivePlayers(result.valid_actions);
+        setActivePlayers(ap);
+        // Check for reserve pile in UI
+        if (result.ui) {
+          for (const el of Object.values(result.ui)) {
+            if (el.type === "reserve_pile") {
+              setReservePile(el as WasmUiReservePile);
+              break;
+            }
+          }
+        }
+        // Refresh board state
+        setBoardState(JSON.parse(engine.boardStateJson()));
+        setAllPlayers(JSON.parse(engine.playersJson()));
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
       }
     },
-    [controllingPlayer, syncState, addLogEntry]
-  );
-
-  // ── v2: Handle a UI interaction (button click, piece selection) ──
-  const handleUiAction = useCallback(
-    (elementId: string, value?: WasmPiece) => {
-      const engine = engineRef.current;
-      if (!engine || !controllingPlayer) return;
-      try {
-        const resultJson = engine.uiInteraction(
-          controllingPlayer,
-          elementId,
-          value ? JSON.stringify(value) : undefined
-        );
-        const result: WasmMoveResult = JSON.parse(resultJson);
-        setUiElements(result.ui);
-        addLogEntry(controllingPlayer, {
-          kind: "ui",
-          elementId,
-          piece: value,
-        });
-        syncState(engine);
-      } catch (e: unknown) {
-        setError(extractErrorMessage(e));
-      }
-    },
-    [controllingPlayer, syncState, addLogEntry]
+    [controllingPlayer, addLogEntry, deriveActivePlayers]
   );
 
   const filteredVariants = variants.filter((v) =>
@@ -398,7 +447,9 @@ export function DevBoardView() {
           }
         >
           <ReservePile
-            reservePile={reservePile}
+            reservePile={{
+              reserve_piles: [reservePile.pieces],
+            }}
             player={controllingPlayer}
             selectedPiece={selectedDropPiece}
             onSelectPiece={setSelectedDropPiece}
