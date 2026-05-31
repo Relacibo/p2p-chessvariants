@@ -282,7 +282,6 @@ export function DevBoardView() {
           title: "Load failed",
           message: extractErrorMessage(e),
           color: "red",
-          autoClose: 8000,
           withBorder: true,
         });
       } finally {
@@ -392,7 +391,6 @@ export function DevBoardView() {
           title: "Action failed",
           message: extractErrorMessage(e),
           color: "red",
-          autoClose: 6000,
           withBorder: true,
         });
       }
