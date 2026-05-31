@@ -38,7 +38,11 @@ const Sidebar = ({ isMobile, collapsable, collapse }: Props) => {
           </MainLink>
           <MainLink to={"community"} icon={<IconUsers size="1.2rem" stroke={1.5} />}>
             Community
-          </MainLink>          {user && !isGuest && (
+          </MainLink>
+          <MainLink to={"dev"} icon={<IconUsers size="1.2rem" stroke={1.5} />}>
+            Variant editor
+          </MainLink>
+          {user && !isGuest && (
             <MainLink to={"settings"} icon={<IconSettings size="1.2rem" stroke={1.5} />}>
               Settings
             </MainLink>

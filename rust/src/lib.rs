@@ -877,7 +877,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
                         Some(serde_json::json!({
                             "color": piece.color_name(),
-                            "type": piece.piece_type_name(),
+                            "pieceType": piece.piece_type_name(),
                         }))
                     })
                     .collect();
@@ -910,7 +910,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
                         Some(serde_json::json!({
                             "color": piece.color_name(),
-                            "type": piece.piece_type_name(),
+                            "pieceType": piece.piece_type_name(),
                         }))
                     })
                     .collect();

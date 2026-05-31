@@ -229,14 +229,17 @@ export function DevBoardView() {
         const ui = (uiResult.ui ?? null) as WasmUiMap | null;
         setUiElements(ui);
         // Check for reserve pile in UI
+        let foundReserve = false;
         if (ui) {
           for (const el of Object.values(ui)) {
             if (el.type === "reserve_pile") {
               setReservePile(el as WasmUiReservePile);
+              foundReserve = true;
               break;
             }
           }
         }
+        if (!foundReserve) setReservePile(null);
       } else {
         setValidActions([]);
         setUiElements(null);
@@ -309,6 +312,14 @@ export function DevBoardView() {
     },
     [syncState, deriveActivePlayers]
   );
+
+  // ── Sync when controlling player changes ──
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !controllingPlayer) return;
+    syncState(engine, controllingPlayer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controllingPlayer]);
 
   // ── Mount: load from URL param, or default to first variant ──
   useEffect(() => {
@@ -401,15 +412,26 @@ export function DevBoardView() {
       setValidActionsAll(result.valid_actions);
       const ap = deriveActivePlayers(result.valid_actions);
       setActivePlayers(ap);
+      // Extract valid actions for the controlling player
+      const cpRef: PlayerRef = JSON.parse(controllingPlayer);
+      const cpEntry = result.valid_actions.find(
+        (pa) =>
+          pa.player.board === cpRef.board &&
+          pa.player.color === cpRef.color
+      );
+      setValidActions(cpEntry?.actions ?? []);
       // Check for reserve pile in UI
+      let foundReserve = false;
       if (result.ui) {
         for (const el of Object.values(result.ui)) {
           if (el.type === "reserve_pile") {
             setReservePile(el as WasmUiReservePile);
+            foundReserve = true;
             break;
           }
         }
       }
+      if (!foundReserve) setReservePile(null);
       // Refresh board state
       setBoardState(JSON.parse(engine.boardStateJson()));
       setAllPlayers(JSON.parse(engine.playersJson()));
