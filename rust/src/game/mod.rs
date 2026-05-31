@@ -6,4 +6,5 @@ pub mod moves;
 pub mod piece;
 pub mod standard;
 pub mod state;
+pub mod ui;
 pub mod variant_config;

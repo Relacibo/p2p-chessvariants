@@ -29,7 +29,7 @@ fn config() {
       count: 2,
     },
     reserve_pile:     true,
-    check_protection: true,   // standard chess rules apply per board
+    check_protection: false,  // custom move validation per board
     promotion_pieces: ["queen","rook","bishop","knight"],
   }
 }
@@ -208,29 +208,49 @@ fn drop_destinations(state, board_index, piece_type) {
 // ── valid_actions ────────────────────────────────────────────
 
 fn valid_actions(state, player) {
+  // player is a map #{ board, color }
+  let player_name = player_name_from_player(state, player);
+
+  if state.pending_promotion != () && state.pending_promotion.player == player_name {
+    return [];  // UI modal handles the choice
+  }
+
   let actions = [];
-  let b = player_board(player);
+  let b = player_board(player_name);
 
   // Regular moves
   for r in 0..8 {
     for c in 0..8 {
       let from = Coords(r, c, b);
       let p    = piece_at(state, b, r, c);
-      if p == () || !own_piece(p, player) { continue; }
-      for dest in piece_moves(state, b, from, player) {
+      if p == () || !own_piece(p, player_name) { continue; }
+      for dest in piece_moves(state, b, from, player_name) {
         actions.push(Move(from, Coords(dest.row, dest.col, b)));
       }
     }
   }
 
-  // Drops from reserve
-  for piece in reserve_for_player(state, player) {
+  // Drops from reserve — use ReserveCoords(i) as the "from"
+  let reserve = reserve_for_player(state, player_name);
+  for i in 0..reserve.len() {
+    let piece = reserve[i];
     for dest in drop_destinations(state, b, piece.type) {
-      actions.push(Drop(piece, dest));
+      actions.push(Move(ReserveCoords(i), dest));
     }
   }
 
   actions
+}
+
+// Derive the player's identifying name (e.g. "white-a") from the #{board,color} map.
+fn player_name_from_player(state, player) {
+  let pc = player.color;
+  let pb = player.board;
+  for p in state.players {
+    if p.color == pc && p.board == pb { return p.name; }
+  }
+  // Fallback: synthesise name from color and board
+  if pb == 0 { pc + "-a" } else { pc + "-b" }
 }
 
 fn reserve_for_player(state, player) {
@@ -240,87 +260,87 @@ fn reserve_for_player(state, player) {
   []  // default fallback
 }
 
-// ── apply ────────────────────────────────────────────────────
+// ── handle_event ─────────────────────────────────────────────
 
-fn apply(state, player, action) {
-  if !state.active_players.contains(player) {
-    throw `Player ${player} is not active`;
+fn handle_event(state, player, event) {
+  // player is #{ board, color }
+  let player_name = player_name_from_player(state, player);
+
+  if !state.active_players.contains(player_name) {
+    throw `Player ${player_name} is not active`;
   }
-  let b = player_board(player);
+  let b = player_board(player_name);
 
-  // Handle pending promotion choice
-  if state.pending_promotion != () && state.pending_promotion.player == player {
-    if action.type != "choose" || action.tag != "promote" {
-      throw "promotion choice required";
-    }
+  // Promotion choice
+  if event.type == "promote" {
+    let pp = state.pending_promotion;
+    if pp == () || pp.player != player_name { throw "no pending promotion"; }
     let valid = ["queen", "rook", "bishop", "knight"];
-    if !valid.contains(action.value) { throw "invalid promotion piece"; }
-    let pp    = state.pending_promotion;
-    let board = board_set(get_board(state, b), pp.to, Piece(player_color(player), action.value));
-    return finish_turn(state, player, board, b, ());
+    if !valid.contains(event.value) { throw "invalid promotion piece"; }
+    let board = board_set(get_board(state, pp.board), pp.to, Piece(player_color(player_name), event.value));
+    return #{ state: finish_turn(state, player_name, board, pp.board, ()), ui: [] };
   }
 
-  switch action.type {
-    "move" => apply_move(state, player, b, action),
-    "drop" => apply_drop(state, player, b, action),
-    _      => throw `unknown action type: ${action.type}`,
-  }
-}
+  if event.type != "move" { throw `unknown event type: ${event.type}`; }
 
-fn apply_move(state, player, b, action) {
-  let from  = action.from;
-  let to    = action.to;
+  let from = event.from;
+  let to   = event.to;
+
+  // Reserve drop: from is ReserveCoords
+  if from.type == "reserve" {
+    let reserve = reserve_for_player(state, player_name);
+    let piece   = reserve[from.index];
+    if piece == () { throw "invalid reserve index"; }
+
+    let board = get_board(state, b);
+    if board_get(board, to) != () { throw "target square occupied"; }
+    if piece.type == "pawn" && (to.row == 0 || to.row == 7) {
+      throw "cannot drop pawn on back rank";
+    }
+    let new_board   = board_set(board, to, piece);
+    let new_reserve = reserve_remove(state.reserve, player_name, piece.type);
+    return #{ state: finish_turn(state, player_name, new_board, b, new_reserve), ui: [] };
+  }
+
+  // Board move
   let board = get_board(state, b);
   let piece = board_get(board, from);
 
-  if piece == () || !own_piece(piece, player) { throw "no own piece at source"; }
+  if piece == () || !own_piece(piece, player_name) { throw "no own piece at source"; }
 
-  let legal = piece_moves(state, b, from, player);
+  let legal = piece_moves(state, b, from, player_name);
   if !legal.contains(to) { throw "illegal move"; }
 
-  // Capture: add captured piece to partner's reserve
   let captured    = board_get(board, to);
   let new_reserve = state.reserve;
   if captured != () {
-    // Captured piece changes hands: use opponent color
-    let flipped = Piece(player_color(partner(player)), captured.type);
-    new_reserve  = reserve_add(new_reserve, partner(player), flipped);
+    let flipped = Piece(player_color(partner(player_name)), captured.type);
+    new_reserve = reserve_add(new_reserve, partner(player_name), flipped);
   }
 
   let new_board = board_move_piece(board, from, to);
 
   // Promotion
-  let promo_row = pawn_promo_row(player);
+  let promo_row = pawn_promo_row(player_name);
   if piece.type == "pawn" && to.row == promo_row {
-    // Await choice
     let new_state = merge(state, #{
-      board:              update_board(state, b, board_set(new_board, to, ())),
-      reserve:            new_reserve,
-      pending_promotion:  #{ player: player, to: to, board: b },
+      board:             update_board(state, b, board_set(new_board, to, ())),
+      reserve:           new_reserve,
+      pending_promotion: #{ player: player_name, to: to, board: b },
     });
-    return new_state;
+    return #{
+      state: new_state,
+      ui: [#{
+        type: "choice",
+        action: "promote",
+        title: "Promote pawn",
+        options: ["queen","rook","bishop","knight"],
+        players: [player.color],
+      }],
+    };
   }
 
-  finish_turn(state, player, new_board, b, new_reserve)
-}
-
-fn apply_drop(state, player, b, action) {
-  let piece = action.piece;
-  let to    = action.to;
-
-  let player_reserve = reserve_for_player(state, player);
-  if !player_reserve.any(|p| p.type == piece.type) {
-    throw "piece not in reserve";
-  }
-  let board = get_board(state, b);
-  if board_get(board, to) != () { throw "target square occupied"; }
-  if piece.type == "pawn" && (to.row == 0 || to.row == 7) {
-    throw "cannot drop pawn on back rank";
-  }
-
-  let new_board   = board_set(board, to, piece);
-  let new_reserve = reserve_remove(state.reserve, player, piece.type);
-  finish_turn(state, player, new_board, b, new_reserve)
+  return #{ state: finish_turn(state, player_name, new_board, b, new_reserve), ui: [] };
 }
 
 fn finish_turn(state, player, new_board, board_index, new_reserve) {

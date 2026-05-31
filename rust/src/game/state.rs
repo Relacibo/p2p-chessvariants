@@ -7,6 +7,76 @@ use wasm_bindgen::prelude::*;
 
 use super::piece::Piece;
 
+/// A coordinate that can refer to a board square OR a reserve slot.
+///
+/// Scripts use:
+///   `Coords(r, c)`       → board square, board_index 0
+///   `Coords(r, c, b)`    → board square on board `b`
+///   `ReserveCoords(i)`   → slot `i` in the player's reserve
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
+#[serde(rename_all = "camelCase")]
+pub struct Coords {
+    /// "board" or "reserve"
+    #[serde(rename = "type")]
+    #[rhai_type(name = "type", get = Self::get_coord_type, readonly)]
+    pub coord_type: String,
+    #[rhai_type(readonly)]
+    pub row: i32,
+    #[rhai_type(readonly)]
+    pub col: i32,
+    #[rhai_type(readonly)]
+    pub board_index: i32,
+    /// Reserve index — only valid when coord_type == "reserve"
+    #[rhai_type(readonly)]
+    pub index: i32,
+}
+
+impl Coords {
+    pub fn new_board(row: i32, col: i32, board_index: i32) -> Self {
+        Self {
+            coord_type: "board".into(),
+            row,
+            col,
+            board_index,
+            index: 0,
+        }
+    }
+
+    pub fn new_board_0(row: i32, col: i32) -> Self {
+        Self::new_board(row, col, 0)
+    }
+
+    pub fn new_reserve(index: i32) -> Self {
+        Self {
+            coord_type: "reserve".into(),
+            row: 0,
+            col: 0,
+            board_index: 0,
+            index,
+        }
+    }
+
+    /// Returns the underlying `BoardCoords` if this is a board coordinate, else `None`.
+    pub fn as_board_coords(&self) -> Option<BoardCoords> {
+        if self.coord_type == "board" {
+            Some(BoardCoords::new(self.row, self.col, self.board_index))
+        } else {
+            None
+        }
+    }
+
+    /// Getter exposed to Rhai as `.type` (cannot use field name directly — it's a Rust keyword).
+    pub fn get_coord_type(&self) -> String {
+        self.coord_type.clone()
+    }
+}
+
+impl From<BoardCoords> for Coords {
+    fn from(bc: BoardCoords) -> Self {
+        Coords::new_board(bc.row, bc.col, bc.board_index)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]

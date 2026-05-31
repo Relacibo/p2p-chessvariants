@@ -9,19 +9,11 @@
 //   When a piece moves off its starting back-rank square for the
 //   FIRST TIME, the owning player MAY place one of their remaining
 //   hand pieces (Hawk or Elephant) on the vacated square.
-//   Doing so consumes that hand piece.
 //   The player can also decline ("none").
 //
-// After a back-rank move the state enters phase "gating" and waits
-// for a Choose("gate", "hawk"|"elephant"|"none") action from the
-// same player before the turn advances.
-//
 // Hawk and Elephant are declared via combine() in config, so the
-// engine auto-generates pseudo_moves for them — no manual move
-// functions needed.  check_protection: true gives us is_square_attacked
-// and engine_valid_actions for free.
-//
-// NOTE: En passant and castling omitted for brevity.
+// engine auto-generates pseudo_moves for them.
+// check_protection: true gives us engine_valid_actions for free.
 // ============================================================
 
 fn config() {
@@ -32,11 +24,8 @@ fn config() {
     colors:           ["white", "black"],
     allowed_player_count: 2,
     board:            #{ type: "rectangle", rows: 8, cols: 8 },
-    check_protection: true,   // moves that leave own king in check are illegal
+    check_protection: true,
     pieces: #{
-      // combine() tells the engine how these pieces move.
-      // pseudo_moves, is_square_attacked and engine_valid_actions
-      // will handle them automatically — no extra code needed.
       "hawk":     combine("bishop", "knight"),
       "elephant": combine("rook",   "knight"),
     },
@@ -50,177 +39,223 @@ fn player_color(player) {
   for p in state.players {
     if p.name == player { return p.color; }
   }
-  "white"  // default fallback
+  "white"
 }
 
-fn opponent(player) {
-  if player == "white" { "black" } else { "white" }
+fn opponent_color(color) {
+  if color == "white" { "black" } else { "white" }
 }
 
-fn back_rank(player) {
-  if player_color(player) == "white" { 7 } else { 0 }
+fn back_rank(color) {
+  if color == "white" { 7 } else { 0 }
 }
 
-fn pawn_row(player) {
-  if player_color(player) == "white" { 6 } else { 1 }
+fn promo_row(color) {
+  if color == "white" { 0 } else { 7 }
 }
 
-fn promo_row(player) {
-  if player_color(player) == "white" { 0 } else { 7 }
+fn own(p, color) {
+  p != () && p.color == color
 }
 
-fn own(p, player) {
-  p != () && p.color == player_color(player)
+fn is_gating_square(color, row, col) {
+  row == back_rank(color) && col >= 0 && col <= 7
 }
 
-fn is_gating_square(player, row, col) {
-  row == back_rank(player) && col >= 0 && col <= 7
-}
-
-fn has_hand_piece(state, player, piece_type) {
+fn has_hand_piece(state, player_name, piece_type) {
   for p in state.hand {
-    if p.player == player { return p.held.contains(piece_type); }
+    if p.player == player_name { return p.held.contains(piece_type); }
   }
-  false  // default fallback
+  false
 }
 
 // ── Gating helpers ───────────────────────────────────────────
 
-// Did this piece move off a back-rank square for the first time?
-fn triggers_gating(state, player, from) {
-  is_gating_square(player, from.row, from.col) &&
-  gating_available_for_player(state, player).contains(from.col)
+fn triggers_gating(state, player_name, color, from) {
+  is_gating_square(color, from.row, from.col) &&
+  gating_available_for_player(state, player_name).contains(from.col)
 }
 
-fn gating_available_for_player(state, player) {
+fn gating_available_for_player(state, player_name) {
   for p in state.gating_available {
-    if p.player == player { return p.cols; }
+    if p.player == player_name { return p.cols; }
   }
-  [0,1,2,3,4,5,6,7]  // default fallback
+  [0,1,2,3,4,5,6,7]
 }
 
-fn gate_options(state, player) {
+fn gate_options(state, player_name) {
   let opts = ["none"];
-  if has_hand_piece(state, player, "hawk")     { opts.push("hawk"); }
-  if has_hand_piece(state, player, "elephant") { opts.push("elephant"); }
+  if has_hand_piece(state, player_name, "hawk")     { opts.push("hawk"); }
+  if has_hand_piece(state, player_name, "elephant") { opts.push("elephant"); }
   opts
 }
 
+fn remove_col(gating_available, player_name, col) {
+  let ga = gating_available;
+  for p in ga {
+    if p.player == player_name {
+      p.cols = p.cols.filter(|c| c != col);
+    }
+  }
+  ga
+}
+
+fn remove_from_hand(hand, player_name, piece_type) {
+  let h = hand;
+  for p in h {
+    if p.player == player_name {
+      let idx = p.held.index_of(piece_type);
+      if idx >= 0 { p.held.remove(idx); }
+    }
+  }
+  h
+}
+
 // ── valid_actions ─────────────────────────────────────────────
-//
-// engine_valid_actions already handles all pieces including hawk and elephant
-// (via combine() in config) and filters check (via check_protection: true).
-// We only need to add the gating and promotion choices on top.
 
 fn valid_actions(state, player) {
-  // Waiting for gating decision
-  if state.pending_gate != () {
-    let pg = state.pending_gate;
-    if player != pg.player { return []; }
-    return gate_options(state, player)
-      .map(|v| Choose("gate", v));
+  let player_name = player.color;  // name == color in Seirawan
+
+  // During pending gate or promotion — no board moves possible;
+  // the UI modal handles the choice.
+  if state.pending_gate != () || state.pending_promotion != () {
+    return [];
   }
 
-  // Waiting for promotion
-  if state.pending_promotion != () {
-    let pp = state.pending_promotion;
-    if player != pp.player { return []; }
-    // S-Chess: can promote to hawk/elephant if still in hand
-    let opts = ["queen","rook","bishop","knight"];
-    if has_hand_piece(state, player, "hawk")     { opts.push("hawk"); }
-    if has_hand_piece(state, player, "elephant") { opts.push("elephant"); }
-    return opts.map(|v| Choose("promote", v));
-  }
-
-  // Standard moves — engine handles hawk/elephant + check filtering automatically
   engine_valid_actions(state, player)
 }
 
-// ── apply ─────────────────────────────────────────────────────
+// ── handle_event ──────────────────────────────────────────────
 
-fn apply(state, player, action) {
+fn handle_event(state, player, event) {
+  let player_color = player.color;
+  let player_name  = player_color;   // name == color in 2-player Seirawan
+
   // ── Gating choice ──
-  if state.pending_gate != () {
+  if event.type == "gate" {
     let pg = state.pending_gate;
-    if player != pg.player { throw "waiting for gating player"; }
-    if action.type != "choose" || action.tag != "gate" { throw "gating choice required"; }
-    return apply_gate(state, player, pg, action.value);
+    if pg == () { throw "no pending gate"; }
+    if player_name != pg.player { throw "waiting for gating player"; }
+
+    let choice = event.value;
+    let valid_choices = gate_options(state, player_name);
+    if !valid_choices.contains(choice) { throw `invalid gate choice: ${choice}`; }
+
+    let board = state.board;
+    let hand  = state.hand;
+
+    if choice != "none" {
+      board = board_set(board, pg.vacated, Piece(player_color, choice));
+      hand  = remove_from_hand(hand, player_name, choice);
+    }
+
+    let new_state = end_turn(merge(state, #{
+      board: board, hand: hand, pending_gate: ()
+    }));
+    return #{ state: new_state, ui: [] };
   }
 
   // ── Promotion choice ──
-  if state.pending_promotion != () {
+  if event.type == "promote" {
     let pp = state.pending_promotion;
-    if player != pp.player { throw "waiting for promotion player"; }
-    if action.type != "choose" || action.tag != "promote" { throw "promotion choice required"; }
-    let valid = ["queen","rook","bishop","knight","hawk","elephant"];
-    if !valid.contains(action.value) { throw "invalid promotion piece"; }
-    // Consuming hawk/elephant from hand when promoting to them
+    if pp == () { throw "no pending promotion"; }
+    if player_name != pp.player { throw "waiting for promotion player"; }
+
+    let choice = event.value;
+    let valid = state.config_promotion_pieces ?? ["queen","rook","bishop","knight","hawk","elephant"];
+    if !valid.contains(choice) { throw "invalid promotion piece"; }
+
     let hand = state.hand;
-    if action.value == "hawk" || action.value == "elephant" {
-      hand = remove_from_hand(hand, player, action.value);
+    if choice == "hawk" || choice == "elephant" {
+      if !has_hand_piece(state, player_name, choice) { throw "piece not in hand"; }
+      hand = remove_from_hand(hand, player_name, choice);
     }
-    let board = board_set(state.board, pp.to, Piece(player_color(player), action.value));
-    return end_turn(merge(state, #{ board: board, hand: hand, pending_promotion: () }));
+    let board = board_set(state.board, pp.to, Piece(player_color, choice));
+    let new_state = end_turn(merge(state, #{
+      board: board, hand: hand, pending_promotion: ()
+    }));
+    return #{ state: new_state, ui: [] };
   }
 
   // ── Normal move ──
-  if !state.active_players.contains(player) { throw `${player} is not active`; }
-  if action.type != "move" { throw "only moves supported"; }
+  if event.type == "move" {
+    if !state.active_players.contains(player_color) {
+      throw `${player_color} is not active`;
+    }
 
-  let from  = action.from;
-  let to    = action.to;
-  let piece = board_get(state.board, from);
+    let from  = event.from;
+    let to    = event.to;
+    let piece = board_get(state.board, from);
 
-  if piece == () || !own(piece, player) { throw "no own piece at source"; }
-  // Delegate legality check to engine (includes check_protection filtering)
-  let legal = engine_valid_actions(state, player)
-    .filter(|a| a.type == "move" && a.from == from)
-    .map(|a| a.to);
-  if !legal.contains(to) { throw "illegal move"; }
+    if piece == () || !own(piece, player_color) { throw "no own piece at source"; }
 
-  let board = board_move_piece(state.board, from, to);
-  let state = merge(state, #{ board: board });
+    // Delegate legality to engine (includes check filtering)
+    let legal = engine_valid_actions(state, player)
+      .filter(|a| a.type == "move" && a.from == from)
+      .map(|a| a.to);
+    if !legal.contains(to) { throw "illegal move"; }
 
-  // Promotion?
-  if piece.type == "pawn" && to.row == promo_row(player) {
-    return merge(state, #{ pending_promotion: #{ player: player, to: to } });
+    let board = board_move_piece(state.board, from, to);
+    let state = merge(state, #{ board: board });
+
+    // Promotion?
+    if piece.type == "pawn" && to.row == promo_row(player_color) {
+      let promotion_pieces = ["queen","rook","bishop","knight"];
+      if has_hand_piece(state, player_name, "hawk")     { promotion_pieces.push("hawk"); }
+      if has_hand_piece(state, player_name, "elephant") { promotion_pieces.push("elephant"); }
+
+      let new_state = merge(state, #{
+        pending_promotion: #{ player: player_name, to: to }
+      });
+      return #{
+        state: new_state,
+        ui: [#{
+          type: "choice",
+          action: "promote",
+          title: "Promote pawn",
+          options: promotion_pieces,
+          players: [player_color],
+        }],
+      };
+    }
+
+    // Gating?
+    if triggers_gating(state, player_name, player_color, from) {
+      let opts = gate_options(state, player_name);
+      if opts.len() > 1 {
+        let new_state = merge(state, #{
+          pending_gate: #{ player: player_name, vacated: from },
+          gating_available: remove_col(state.gating_available, player_name, from.col),
+        });
+        return #{
+          state: new_state,
+          ui: [#{
+            type: "choice",
+            action: "gate",
+            title: "Gate a piece?",
+            options: opts,
+            players: [player_color],
+          }],
+        };
+      }
+    }
+
+    let ga = if is_gating_square(player_color, from.row, from.col) {
+      remove_col(state.gating_available, player_name, from.col)
+    } else {
+      state.gating_available
+    };
+
+    return #{ state: end_turn(merge(state, #{ gating_available: ga })), ui: [] };
   }
 
-  // Gating?
-  if triggers_gating(state, player, from) && gate_options(state, player).len() > 1 {
-    return merge(state, #{
-      pending_gate:      #{ player: player, vacated: from },
-      gating_available:  remove_col(state.gating_available, player, from.col),
-    });
-  }
-
-  let ga = if is_gating_square(player, from.row, from.col) {
-    remove_col(state.gating_available, player, from.col)
-  } else {
-    state.gating_available
-  };
-  end_turn(merge(state, #{ gating_available: ga }))
-}
-
-fn apply_gate(state, player, pg, choice) {
-  let valid_choices = gate_options(state, player);
-  if !valid_choices.contains(choice) { throw `invalid gate choice: ${choice}`; }
-
-  let board = state.board;
-  let hand  = state.hand;
-
-  if choice != "none" {
-    board = board_set(board, pg.vacated, Piece(player_color(player), choice));
-    hand  = remove_from_hand(hand, player, choice);
-  }
-
-  end_turn(merge(state, #{ board: board, hand: hand, pending_gate: () }))
+  throw `unknown event type: ${event.type}`;
 }
 
 fn end_turn(state) {
   let state = check_game_over(state);
   if state.game_over != () { return state; }
-  let next = opponent(state.active_players[0]);
+  let next = opponent_color(state.active_players[0]);
   merge(state, #{ active_players: [next], running_clocks: [next] })
 }
 
@@ -228,34 +263,14 @@ fn check_game_over(state) {
   for p in state.players {
     let kings = board_find(state.board, Piece(p.color, "king"));
     if kings.len() == 0 {
-      let winner = opponent(p.name);
-      return merge(state, #{ game_over: Winner(winner) });
+      let winner_color = opponent_color(p.color);
+      let winner_idx = state.players
+        .filter(|q| q.color == winner_color)
+        .map(|q| q.board)[0];
+      return merge(state, #{ game_over: Winner(winner_idx) });
     }
   }
   state
-}
-
-// ── Utility ──────────────────────────────────────────────────
-
-fn remove_col(gating_available, player, col) {
-  let ga = gating_available;
-  for p in ga {
-    if p.player == player {
-      p.cols = p.cols.filter(|c| c != col);
-    }
-  }
-  ga
-}
-
-fn remove_from_hand(hand, player, piece_type) {
-  let h = hand;
-  for p in h {
-    if p.player == player {
-      let idx = p.held.index_of(piece_type);
-      if idx >= 0 { p.held.remove(idx); }
-    }
-  }
-  h
 }
 
 // ── init ──────────────────────────────────────────────────────
@@ -269,9 +284,7 @@ fn init(player_count) {
     ],
     active_players:     ["white"],
     running_clocks:     ["white"],
-    // Each player holds one Hawk and one Elephant in hand
     hand:               [#{ player: "white", held: ["hawk", "elephant"] }, #{ player: "black", held: ["hawk", "elephant"] }],
-    // Columns 0-7 are available for gating (all back-rank squares)
     gating_available:   [#{ player: "white", cols: [0,1,2,3,4,5,6,7] }, #{ player: "black", cols: [0,1,2,3,4,5,6,7] }],
     pending_gate:       (),
     pending_promotion:  (),

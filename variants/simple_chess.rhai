@@ -1,12 +1,11 @@
-// A minimal chess variant for integration tests.
-// Enforces turn order and basic piece ownership,
-// but does NOT validate chess rules (any piece may move anywhere).
+// A minimal chess variant for the dev board.
+// Enforces turn order and basic piece ownership.
 // Game ends when a king is captured.
 
 fn config() {
     #{
         api_version: 1,
-        name: "Simple Chess (test)",
+        name: "Simple Chess",
         version: "1.0.0",
         colors: ["white", "black"],
         allowed_player_count: 2,
@@ -29,42 +28,45 @@ fn init(player_count) {
 }
 
 fn valid_actions(state, player) {
-    // Simple chess doesn't define valid_actions - any piece can move anywhere
     []
 }
 
-fn apply(state, player, action) {
-    // player is a map #{ board, color }
+fn handle_event(state, player, event) {
     let player_color = player.color;
 
-    if !state.active_players.contains(player_color) { throw `${player_color} is not active`; }
-    if action.type != "move" { throw "only move actions are supported"; }
+    if event.type == "move" {
+        if !state.active_players.contains(player_color) {
+            throw `${player_color} is not active`;
+        }
 
-    let src_piece = board_get(state.board, action.from);
-    if src_piece == () { throw "no piece at source square"; }
+        let src = board_get(state.board, event.from);
+        if src == () { throw "no piece at source square"; }
+        if src.color != player_color { throw "that piece does not belong to you"; }
 
-    if src_piece.color != player_color { throw "that piece does not belong to you"; }
+        let dst = board_get(state.board, event.to);
+        if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
 
-    let dst_piece = board_get(state.board, action.to);
-    if dst_piece != () && dst_piece.color == player_color { throw "cannot capture your own piece"; }
+        let new_board = board_move_piece(state.board, event.from, event.to);
 
-    let new_board = board_move_piece(state.board, action.from, action.to);
+        let game_over = ();
+        if dst != () && dst.type == "king" {
+            let player_idx = state.players
+                .filter(|p| p.color == player_color)
+                .map(|p| p.board)[0];
+            game_over = Winner(player_idx);
+        }
 
-    // Game ends if a king was captured
-    let game_over = ();
-    if dst_piece != () && dst_piece.type == "king" {
-        // Find player index
-        let player_idx = state.players
-            .filter(|p| p.color == player_color)
-            .map(|p| p.board)[0];
-        game_over = Winner(player_idx);
+        let next = if player_color == "white" { "black" } else { "white" };
+        return #{
+            state: merge(state, #{
+                board: new_board,
+                active_players: [next],
+                running_clocks: [next],
+                game_over: game_over,
+            }),
+            ui: [],
+        };
     }
 
-    // Switch turn
-    let next = if player_color == "white" { "black" } else { "white" };
-    state.board = new_board;
-    state.active_players = [next];
-    state.running_clocks = [next];
-    state.game_over = game_over;
-    state
+    throw `unknown event type: ${event.type}`;
 }

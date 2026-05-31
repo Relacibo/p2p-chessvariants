@@ -1,66 +1,35 @@
-use rhai::{CustomType, Dynamic, EvalAltResult, Position, TypeBuilder};
+use rhai::{CustomType, Dynamic, TypeBuilder};
 use serde::{Deserialize, Serialize};
 
-use super::{piece::Piece, state::BoardCoords};
+use super::{piece::Piece, state::Coords};
 
+/// A game action.  After Phase 2 the only kind produced by scripts is `move`
+/// (from/to are `Coords` and can be board or reserve squares).
+/// `drop` and `choose` constructors are removed; those are replaced by events.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, CustomType, PartialEq)]
 #[serde(rename_all = "camelCase")]
-#[rhai_type(extra = Self::build_rhai_type)]
 pub struct Action {
     #[serde(rename = "type")]
-    #[rhai_type(name = "type", get = Self::get_type)]
+    #[rhai_type(name = "type", get = Self::get_type, readonly)]
     pub kind: String,
-    #[rhai_type(get = Self::get_from)]
-    pub from: Option<BoardCoords>,
-    #[rhai_type(get = Self::get_to)]
-    pub to: Option<BoardCoords>,
-    #[rhai_type(get = Self::get_piece)]
+    #[rhai_type(get = Self::get_from, readonly)]
+    pub from: Option<Coords>,
+    #[rhai_type(get = Self::get_to, readonly)]
+    pub to: Option<Coords>,
+    /// Piece involved (e.g. for drops — kept for deserialization compat)
+    #[rhai_type(get = Self::get_piece, readonly)]
     pub piece: Option<Piece>,
-    #[rhai_type(get = Self::get_tag)]
-    pub tag: Option<String>,
-    #[rhai_type(get = Self::get_value)]
-    pub value: Option<String>,
 }
 
 impl Action {
-    pub fn rhai_move(from: BoardCoords, to: BoardCoords) -> Self {
+    /// Construct a `move` action. Used by the engine and Rhai scripts via `Move(from, to)`.
+    pub fn rhai_move(from: Coords, to: Coords) -> Self {
         Self {
             kind: "move".into(),
             from: Some(from),
             to: Some(to),
             piece: None,
-            tag: None,
-            value: None,
         }
-    }
-
-    pub fn rhai_drop(piece: Piece, to: BoardCoords) -> Self {
-        Self {
-            kind: "drop".into(),
-            from: None,
-            to: Some(to),
-            piece: Some(piece),
-            tag: None,
-            value: None,
-        }
-    }
-
-    pub fn rhai_choose(tag: String, value: String) -> Self {
-        Self {
-            kind: "choose".into(),
-            from: None,
-            to: None,
-            piece: None,
-            tag: Some(tag),
-            value: Some(value),
-        }
-    }
-
-    pub fn build_rhai_type(builder: &mut TypeBuilder<Self>) {
-        builder
-            .with_fn("Move", Self::rhai_move)
-            .with_fn("Drop", Self::rhai_drop)
-            .with_fn("Choose", Self::rhai_choose);
     }
 
     pub fn get_type(&self) -> String {
@@ -84,44 +53,34 @@ impl Action {
             .map(Dynamic::from)
             .unwrap_or(Dynamic::UNIT)
     }
-
-    pub fn get_tag(&self) -> Dynamic {
-        self.tag.clone().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
-    }
-
-    pub fn get_value(&self) -> Dynamic {
-        self.value
-            .clone()
-            .map(Dynamic::from)
-            .unwrap_or(Dynamic::UNIT)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Action;
-    use crate::game::{piece::Piece, state::BoardCoords};
+    use crate::game::state::Coords;
 
     #[test]
     fn test_move_action() {
         let action = Action::rhai_move(
-            BoardCoords::new_board_0(1, 2),
-            BoardCoords::new_board_0(3, 4),
+            Coords::new_board_0(1, 2),
+            Coords::new_board_0(3, 4),
         );
         assert_eq!(action.get_type(), "move");
-        assert_eq!(
-            action.get_from().cast::<BoardCoords>(),
-            BoardCoords::new_board_0(1, 2)
-        );
+        let from = action.get_from().cast::<Coords>();
+        assert_eq!(from.row, 1);
+        assert_eq!(from.col, 2);
+        assert_eq!(from.coord_type, "board");
     }
 
     #[test]
-    fn test_drop_action() {
-        let action = Action::rhai_drop(
-            Piece::rhai_make_knight("white".into()),
-            BoardCoords::new_board_0(2, 2),
+    fn test_reserve_coords_action() {
+        let action = Action::rhai_move(
+            Coords::new_reserve(0),
+            Coords::new_board_0(3, 4),
         );
-        assert_eq!(action.get_type(), "drop");
-        assert!(action.get_from().is_unit());
+        let from = action.get_from().cast::<Coords>();
+        assert_eq!(from.coord_type, "reserve");
+        assert_eq!(from.index, 0);
     }
 }

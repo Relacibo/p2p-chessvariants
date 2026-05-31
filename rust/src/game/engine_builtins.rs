@@ -5,7 +5,7 @@ use rhai::{Array, Dynamic};
 use super::{
     actions::Action,
     moves,
-    state::{BoardCoords, BoardState},
+    state::{BoardCoords, BoardState, Coords},
 };
 
 /// Parse the `pieces` field from the variant config (a Rhai Dynamic map) into a
@@ -54,7 +54,7 @@ pub fn parse_custom_pieces(pieces_dyn: Option<Dynamic>) -> HashMap<String, Vec<S
     map
 }
 
-/// Generate all pseudo-move destinations for a piece at `from`.
+/// Generate all pseudo-move destinations for a piece at `from` (BoardCoords).
 /// For combined pieces, unions the destinations of component pieces.
 pub fn get_pseudo_move_dests(
     board: &BoardState,
@@ -63,41 +63,44 @@ pub fn get_pseudo_move_dests(
     color: &str,
     custom_pieces: &HashMap<String, Vec<String>>,
 ) -> Vec<BoardCoords> {
+    // Move functions now take Coords; convert back to BoardCoords for internal use.
     fn from_array(arr: Array) -> Vec<BoardCoords> {
         arr.into_iter()
-            .filter_map(|d| d.try_cast::<BoardCoords>())
+            .filter_map(|d| d.try_cast::<Coords>().and_then(|c| c.as_board_coords()))
             .collect()
     }
+
+    let from_coords = Coords::from(from.clone());
 
     match piece_type {
         "pawn" => from_array(moves::rhai_pawn_moves(
             board.clone(),
-            from.clone(),
+            from_coords,
             color.to_string(),
         )),
         "rook" => from_array(moves::rhai_rook_moves(
             board.clone(),
-            from.clone(),
+            from_coords,
             color.to_string(),
         )),
         "knight" => from_array(moves::rhai_knight_moves(
             board.clone(),
-            from.clone(),
+            from_coords,
             color.to_string(),
         )),
         "bishop" => from_array(moves::rhai_bishop_moves(
             board.clone(),
-            from.clone(),
+            from_coords,
             color.to_string(),
         )),
         "queen" => from_array(moves::rhai_queen_moves(
             board.clone(),
-            from.clone(),
+            from_coords,
             color.to_string(),
         )),
         "king" => from_array(moves::rhai_king_moves(
             board.clone(),
-            from.clone(),
+            from_coords,
             color.to_string(),
         )),
         custom => {
@@ -254,7 +257,10 @@ pub fn engine_valid_actions_impl(
                             continue;
                         }
                     }
-                    actions.push(Dynamic::from(Action::rhai_move(from.clone(), dest)));
+                    actions.push(Dynamic::from(Action::rhai_move(
+                        Coords::from(from.clone()),
+                        Coords::from(dest),
+                    )));
                 }
             }
         }

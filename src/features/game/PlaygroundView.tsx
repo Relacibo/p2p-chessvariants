@@ -67,14 +67,12 @@ function PlaygroundView() {
       const engine = engineRef.current;
       if (!engine || !player) return;
       try {
-        const newBoardJson = engine.applyActionJson(
-          player,
-          JSON.stringify(action)
-        );
-        setBoardState(JSON.parse(newBoardJson));
-        const activePlayers: string[] = JSON.parse(engine.activePlayersJson());
-        setPlayer(activePlayers[0] ?? "");
-        setValidActions(JSON.parse(engine.validActionsJson(activePlayers[0] ?? "")));
+        engine.handleEventJson(player, JSON.stringify(action));
+        setBoardState(JSON.parse(engine.boardStateJson()));
+        const activePlayers: { board: number; color: string }[] = JSON.parse(engine.activePlayersJson());
+        const firstPlayerJson = activePlayers[0] ? JSON.stringify(activePlayers[0]) : "";
+        setPlayer(firstPlayerJson);
+        setValidActions(JSON.parse(engine.validActionsJson(firstPlayerJson)));
         setLastAction(action);
       } catch (e: unknown) {
         console.error("Failed to apply action:", e);

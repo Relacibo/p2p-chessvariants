@@ -37,39 +37,42 @@ fn valid_actions(state, player) {
     []
 }
 
-fn apply(state, player, action) {
+fn handle_event(state, player, event) {
     // player is a map #{ board, color }
     let player_color = player.color;
 
-    if action.type != "move" { throw "only move actions are supported"; }
-    
-    // Check turn: active player must match
-    let is_active = state.active_players.contains(player_color);
-    if !is_active {
-        throw "not your turn";
+    if event.type == "move" {
+        if !state.active_players.contains(player_color) {
+            throw "not your turn";
+        }
+
+        let src = board_get(state.board, event.from);
+        if src == () { throw "no piece at source square"; }
+        if src.color != player_color { throw "that piece does not belong to you"; }
+
+        let dst = board_get(state.board, event.to);
+        if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
+
+        let new_board = board_move_piece(state.board, event.from, event.to);
+
+        let game_over = ();
+        if dst != () && dst.type == "king" {
+            let player_idx = state.players
+                .filter(|p| p.color == player_color)
+                .map(|p| p.board)[0];
+            game_over = Winner(player_idx);
+        }
+
+        let next = if player_color == "white" { "black" } else { "white" };
+        return #{
+            state: merge(state, #{
+                board: new_board,
+                active_players: [next],
+                game_over: game_over,
+            }),
+            ui: [],
+        };
     }
 
-    let src_piece = board_get(state.board, action.from);
-    if src_piece == () { throw "no piece at source square"; }
-    if src_piece.color != player_color { throw "that piece does not belong to you"; }
-
-    let dst_piece = board_get(state.board, action.to);
-    if dst_piece != () && dst_piece.color == player_color { throw "cannot capture your own piece"; }
-
-    let new_board = board_move_piece(state.board, action.from, action.to);
-
-    let game_over = ();
-    if dst_piece != () && dst_piece.type == "king" {
-        // Find player index
-        let player_idx = state.players
-            .filter(|p| p.color == player_color)
-            .map(|p| p.board)[0];
-        game_over = Winner(player_idx);
-    }
-
-    let next = if player_color == "white" { "black" } else { "white" };
-    state.board = new_board;
-    state.active_players = [next];
-    state.game_over = game_over;
-    state
+    throw `unknown event type: ${event.type}`;
 }

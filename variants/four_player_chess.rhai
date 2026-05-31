@@ -26,7 +26,6 @@ fn config() {
       type:  "rectangle",
       rows:  14,
       cols:  14,
-      // Cut the four 3×3 corners
       disabled_rects: [
         Rect( 0,  0, 3, 3),
         Rect( 0, 11, 3, 3),
@@ -213,11 +212,13 @@ fn piece_moves(state, from, player) {
 // ── valid_actions ─────────────────────────────────────────────
 
 fn valid_actions(state, player) {
+  // player is #{ board, color }
+  let player_name = player.color;  // name == color in four-player
+
   if state.pending_promotion != () {
     let pp = state.pending_promotion;
-    if player != pp.player { return []; }
-    return ["queen","rook","bishop","knight"]
-      .map(|v| Choose("promote", v));
+    if player_name != pp.player { return []; }
+    return [];  // UI modal handles the promotion choice
   }
 
   let actions = [];
@@ -226,8 +227,8 @@ fn valid_actions(state, player) {
       if !valid_square(r, c) { continue; }
       let from = Coords(r, c);
       let sq   = board_get(state.board, from);
-      if sq == () || !own_piece(sq, player) { continue; }
-      for dest in piece_moves(state, from, player) {
+      if sq == () || !own_piece(sq, player_name) { continue; }
+      for dest in piece_moves(state, from, player_name) {
         actions.push(Move(from, dest));
       }
     }
@@ -235,33 +236,38 @@ fn valid_actions(state, player) {
   actions
 }
 
-// ── apply ─────────────────────────────────────────────────────
+// ── handle_event ──────────────────────────────────────────────
 
-fn apply(state, player, action) {
-  if !state.active_players.contains(player) { throw `${player} is not active`; }
+fn handle_event(state, player, event) {
+  // player is #{ board, color }; name == color in four-player
+  let player_name = player.color;
 
-  // Promotion choice
-  if state.pending_promotion != () {
-    let pp = state.pending_promotion;
-    if player != pp.player { throw "waiting for promotion player"; }
-    if action.type != "choose" || action.tag != "promote" { throw "promotion choice required"; }
-    if !["queen","rook","bishop","knight"].contains(action.value) { throw "invalid piece"; }
-    let board = board_set(state.board, pp.to, Piece(player_color(player), action.value));
-    return advance_turn(merge(state, #{ board: board, pending_promotion: () }));
+  if !state.active_players.contains(player_name) {
+    throw `${player_name} is not active`;
   }
 
-  if action.type != "move" { throw "only moves supported"; }
-  let from  = action.from;
-  let to    = action.to;
+  // Promotion choice
+  if event.type == "promote" {
+    let pp = state.pending_promotion;
+    if pp == () || pp.player != player_name { throw "no pending promotion"; }
+    if !["queen","rook","bishop","knight"].contains(event.value) { throw "invalid piece"; }
+    let board = board_set(state.board, pp.to, Piece(player_color(player_name), event.value));
+    let new_state = advance_turn(merge(state, #{ board: board, pending_promotion: () }));
+    return #{ state: new_state, ui: [] };
+  }
+
+  if event.type != "move" { throw `unknown event type: ${event.type}`; }
+
+  let from  = event.from;
+  let to    = event.to;
   let piece = board_get(state.board, from);
 
-  if piece == () || !own_piece(piece, player) { throw "no own piece at source"; }
-  if !piece_moves(state, from, player).contains(to) { throw "illegal move"; }
+  if piece == () || !own_piece(piece, player_name) { throw "no own piece at source"; }
+  if !piece_moves(state, from, player_name).contains(to) { throw "illegal move"; }
 
   let captured = board_get(state.board, to);
   let board    = board_move_piece(state.board, from, to);
 
-  // Eliminate player whose king was captured
   let alive = state.alive;
   if captured != () && captured.type == "king" {
     let loser = player_name_for_color(state, captured.color);
@@ -269,13 +275,26 @@ fn apply(state, player, action) {
   }
 
   // Promotion
-  if piece.type == "pawn" && is_promo_square(player, to.row, to.col) {
-    return advance_turn(merge(state, #{ board: board, alive: alive,
-      pending_promotion: #{ player: player, to: to } }));
+  if piece.type == "pawn" && is_promo_square(player_name, to.row, to.col) {
+    let new_state = advance_turn(merge(state, #{
+      board: board,
+      alive: alive,
+      pending_promotion: #{ player: player_name, to: to }
+    }));
+    return #{
+      state: new_state,
+      ui: [#{
+        type: "choice",
+        action: "promote",
+        title: "Promote pawn",
+        options: ["queen","rook","bishop","knight"],
+        players: [player_name],
+      }],
+    };
   }
 
   let new_state = merge(state, #{ board: board, alive: alive, pending_promotion: () });
-  check_winner(advance_turn(new_state))
+  return #{ state: check_winner(advance_turn(new_state)), ui: [] };
 }
 
 fn player_name_for_color(state, color) {

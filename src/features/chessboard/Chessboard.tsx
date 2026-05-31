@@ -13,8 +13,11 @@ import {
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
+  WasmCoords,
   WasmPiece,
+  WasmUiElement,
   WasmVariantConfig,
+  isBoardCoords,
 } from "./types";
 import { getCachedImage, getPieceImageUrl, preloadAllPieceImages } from "./pieceImages";
 import styles from "./Chessboard.module.css";
@@ -51,8 +54,16 @@ export type ChessboardProps = {
   stageHeight?: number;
 };
 
-function coordsEq(a: WasmBoardCoords, b: WasmBoardCoords): boolean {
-  return a.row === b.row && a.col === b.col && a.boardIndex === b.boardIndex;
+function coordsEq(a: WasmCoords, b: WasmCoords): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === "reserve" && b.type === "reserve") return a.index === b.index;
+  if (a.type === "board" && b.type === "board")
+    return a.row === b.row && a.col === b.col && a.boardIndex === b.boardIndex;
+  return false;
+}
+
+function mkBoardCoords(row: number, col: number, boardIndex: number): WasmBoardCoords {
+  return { type: "board", row, col, boardIndex };
 }
 
 export function Chessboard({
@@ -120,19 +131,22 @@ export function Chessboard({
     // Show targets for whichever source is active (click-select or drag)
     const src = selected ?? dragging;
     if (src) {
-      for (const a of validActions)
-        if (a.from && coordsEq(a.from, src) && a.to)
+      for (const a of validActions) {
+        if (a.from && coordsEq(a.from, src) && a.to && isBoardCoords(a.to))
           s.add(`${a.to.row},${a.to.col}`);
+      }
     }
     if (selectedDropPiece) {
-      for (const a of validActions)
+      // Drops: from is a ReserveCoords. Show all valid destinations.
+      for (const a of validActions) {
         if (
-          a.type === "drop" &&
+          a.from?.type === "reserve" &&
           a.piece?.pieceType === selectedDropPiece.pieceType &&
           a.piece?.color === selectedDropPiece.color &&
-          a.to
+          a.to && isBoardCoords(a.to)
         )
           s.add(`${a.to.row},${a.to.col}`);
+      }
     }
     return s;
   }, [selected, dragging, selectedDropPiece, validActions]);
@@ -160,7 +174,7 @@ export function Chessboard({
       0,
       Math.min(rows - 1, flipped ? rows - 1 - rawRow : rawRow)
     );
-    return { row, col, boardIndex };
+    return mkBoardCoords(row, col, boardIndex);
   };
 
   const getPiece = (row: number, col: number) =>
@@ -169,13 +183,13 @@ export function Chessboard({
   const myColor = variantConfig.players.find(p => p.name === player)?.color ?? "white";
 
   const handleTileClick = (row: number, col: number) => {
-    const clicked: WasmBoardCoords = { row, col, boardIndex };
+    const clicked = mkBoardCoords(row, col, boardIndex);
 
-    // Drop from reserve pile
+    // Drop from reserve pile: find the matching Move action with ReserveCoords from
     if (selectedDropPiece) {
       const action = validActions.find(
         (a) =>
-          a.type === "drop" &&
+          a.from?.type === "reserve" &&
           a.piece?.pieceType === selectedDropPiece.pieceType &&
           a.piece?.color === selectedDropPiece.color &&
           a.to &&
@@ -216,13 +230,13 @@ export function Chessboard({
 
       const { x, y } = toPixel(row, col);
       const isLight = (row + col) % 2 === 0;
-      const isSelected =
-        selected != null && coordsEq(selected, { row, col, boardIndex });
+      const tileCoords = mkBoardCoords(row, col, boardIndex);
+      const isSelected = selected != null && coordsEq(selected, tileCoords);
       const isTarget = validTargets.has(`${row},${col}`);
       const isLastMove =
         lastAction &&
-        ((lastAction.from && coordsEq(lastAction.from, { row, col, boardIndex })) ||
-          (lastAction.to && coordsEq(lastAction.to, { row, col, boardIndex })));
+        ((lastAction.from && coordsEq(lastAction.from, tileCoords)) ||
+          (lastAction.to && coordsEq(lastAction.to, tileCoords)));
       const hasPiece = getPiece(row, col) != null;
 
       tiles.push(
@@ -264,7 +278,7 @@ export function Chessboard({
       if (!piece) continue;
 
       const { x, y } = toPixel(row, col);
-      const coords: WasmBoardCoords = { row, col, boardIndex };
+      const coords = mkBoardCoords(row, col, boardIndex);
       const canDrag = piece.color === myColor;
       const imgUrl = getPieceImageUrl(piece.color, piece.pieceType);
       const imgEl = imagesLoaded && imgUrl ? getCachedImage(imgUrl) : undefined;

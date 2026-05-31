@@ -25,10 +25,13 @@ import { ReservePile } from "../chessboard/ReservePile";
 import useConfigureLayout from "../layout/hooks";
 import style from "./DevBoardView.module.css";
 import {
+  PlayerRef,
   WasmAction,
   WasmBoardState,
+  WasmHandleEventResult,
   WasmPiece,
   WasmReservePileState,
+  WasmUiElement,
   WasmVariantConfig,
 } from "../chessboard/types";
 
@@ -62,14 +65,18 @@ function extractErrorMessage(e: unknown): string {
   try { return JSON.stringify(e); } catch { return String(e); }
 }
 
+function coordsLabel(c: WasmAction["from"]): string {
+  if (!c) return "?";
+  if (c.type === "board") return `(${c.row},${c.col})`;
+  return `reserve[${c.index}]`;
+}
+
 function actionLabel(a: WasmAction): string {
   if (a.type === "move" && a.from && a.to)
-    return `move (${a.from.row},${a.from.col})→(${a.to.row},${a.to.col})`;
-  if (a.type === "drop" && a.piece && a.to)
-    return `drop ${a.piece.color} ${a.piece.pieceType} → (${a.to.row},${a.to.col})`;
-  if (a.type === "choose" && a.tag)
-    return `choose ${a.tag}=${a.value ?? "?"}`;
-  return JSON.stringify(a);
+    return `move ${coordsLabel(a.from)}→${coordsLabel(a.to)}`;
+  if (a.value !== undefined)
+    return `${a.type}: ${a.value}`;
+  return `${a.type}`;
 }
 
 const PLAYER_COLORS_LABEL = ["White", "Black", "Red", "Blue"];
@@ -83,8 +90,9 @@ export function DevBoardView() {
   const [preset, setPreset] = useState<string>(PRESETS[0].value);
   const [customUrl, setCustomUrl] = useState("");
   const [playerCount, setPlayerCount] = useState<number | string>(2);
+  // controllingPlayer is stored as a JSON string: '{"board":0,"color":"white"}'
   const [controllingPlayer, setControllingPlayer] = useState<string>("");
-  const [activePlayers, setActivePlayers] = useState<string[]>([]);
+  const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
   const [allPlayers, setAllPlayers] = useState<{name: string; color: string; board: number; team: number}[]>([]);
 
   const engineRef = useRef<ChessvariantEngine | null>(null);
@@ -92,6 +100,7 @@ export function DevBoardView() {
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
   const [reservePile, setReservePile] = useState<WasmReservePileState | null>(null);
   const [validActions, setValidActions] = useState<WasmAction[]>([]);
+  const [uiElements, setUiElements] = useState<WasmUiElement[]>([]);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
   const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(null);
   const [loading, setLoading] = useState(false);
@@ -121,34 +130,35 @@ export function DevBoardView() {
   const showReserveSide = sideSpace >= reservePileWidth + 8;
 
   // ── Engine helpers ────────────────────────────────────────────────────────
-  const syncState = useCallback((engine: ChessvariantEngine) => {
+  const syncState = useCallback((engine: ChessvariantEngine, overridePlayer?: string) => {
     setBoardState(JSON.parse(engine.boardStateJson()));
-    
-    const ap: string[] = JSON.parse(engine.activePlayersJson());
+
+    const ap: PlayerRef[] = JSON.parse(engine.activePlayersJson());
     setActivePlayers(ap);
-    
+
     const allP: {name: string; color: string; board: number; team: number}[] = JSON.parse(engine.playersJson());
     setAllPlayers(allP);
-    
-    // Dev-mode: if no controllingPlayer set, use first active player
-    if (!controllingPlayer || !ap.includes(controllingPlayer)) {
-      setControllingPlayer(ap[0] ?? "");
+
+    // Determine the controlling player JSON string
+    const activePlayer = overridePlayer ?? controllingPlayer;
+    const firstActive = ap[0] ? JSON.stringify(ap[0]) : "";
+    const resolved = activePlayer || firstActive;
+    if (!activePlayer && firstActive) {
+      setControllingPlayer(firstActive);
     }
-    
+
     // Valid actions for controlling player
-    if (controllingPlayer) {
+    if (resolved) {
       let va: WasmAction[] = [];
       try {
-        va = JSON.parse(engine.validActionsJson(controllingPlayer));
+        va = JSON.parse(engine.validActionsJson(resolved));
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn("validActionsJson threw:", err);
       }
-      // eslint-disable-next-line no-console
-      console.log("syncState: player", controllingPlayer, "validActions", va.length, "first:", JSON.stringify(va[0]));
       setValidActions(va);
     }
-    
+
     const rpJson = engine.reservePileJson();
     setReservePile(rpJson ? JSON.parse(rpJson) : null);
   }, [controllingPlayer]);
@@ -169,10 +179,12 @@ export function DevBoardView() {
         const engine = new ChessvariantEngine(script, numPlayers);
         engineRef.current = engine;
         setVariantConfig(JSON.parse(engine.variantConfigJson()));
-        const initPlayers: string[] = JSON.parse(engine.activePlayersJson());
-        setControllingPlayer(initPlayers[0] ?? "");
+        const initPlayers: PlayerRef[] = JSON.parse(engine.activePlayersJson());
+        const firstPlayerJson = initPlayers[0] ? JSON.stringify(initPlayers[0]) : "";
+        setControllingPlayer(firstPlayerJson);
         setActivePlayers(initPlayers);
-        syncState(engine);
+        setUiElements([]);
+        syncState(engine, firstPlayerJson);
       } catch (e: unknown) {
         setError(extractErrorMessage(e));
       } finally {
@@ -209,12 +221,35 @@ export function DevBoardView() {
       const engine = engineRef.current;
       if (!engine || !controllingPlayer) return;
       try {
-        engine.applyActionJson(controllingPlayer, JSON.stringify(action));
+        const resultJson = engine.handleEventJson(controllingPlayer, JSON.stringify(action));
+        const result: WasmHandleEventResult = JSON.parse(resultJson);
+        setUiElements(result.ui ?? []);
         setLastAction(action);
         setSelectedDropPiece(null);
         setLog((prev) => [
           ...prev,
           { id: ++logSeq, timestamp: new Date().toLocaleTimeString(), player: controllingPlayer, action },
+        ]);
+        syncState(engine);
+      } catch (e: unknown) {
+        setError(extractErrorMessage(e));
+      }
+    },
+    [controllingPlayer, syncState]
+  );
+
+  const handleUiAction = useCallback(
+    (eventType: string, value?: string) => {
+      const engine = engineRef.current;
+      if (!engine || !controllingPlayer) return;
+      const event: WasmAction = { type: eventType, ...(value !== undefined && { value }) };
+      try {
+        const resultJson = engine.handleEventJson(controllingPlayer, JSON.stringify(event));
+        const result: WasmHandleEventResult = JSON.parse(resultJson);
+        setUiElements(result.ui ?? []);
+        setLog((prev) => [
+          ...prev,
+          { id: ++logSeq, timestamp: new Date().toLocaleTimeString(), player: controllingPlayer, action: event },
         ]);
         syncState(engine);
       } catch (e: unknown) {
@@ -355,7 +390,10 @@ export function DevBoardView() {
 
            <Select
              label="Controlling player (local)"
-             data={allPlayers.map(p => ({ value: p.name, label: `${p.color} (${p.name})` })) ?? []}
+             data={allPlayers.map(p => ({
+               value: JSON.stringify({ board: p.board, color: p.color }),
+               label: `${p.color} (${p.name})`,
+             }))}
              value={controllingPlayer}
              onChange={(v) => v != null && setControllingPlayer(v)}
            />
