@@ -1,16 +1,13 @@
-# Chess Variant Scripting API
+# Chess Variant Scripting API v3
 
 **Single Source of Truth** for the Rhai scripting interface.
-All agents (Plan, Build, Sonnet) MUST reference this document when working on engine/script features.
+All agents (Plan, Build) MUST reference this document.
 
-The `api_version` field in the script's `config()` return value defines the
-scripting API version the script targets. The engine validates this.
+`api_version` in `config()` must be `3`.
 
 ---
 
 ## 1. Script Functions
-
-These are the functions the script MUST or MAY implement. The engine calls them.
 
 ### `config()`
 
@@ -22,11 +19,11 @@ These are the functions the script MUST or MAY implement. The engine calls them.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `api_version` | i32 | YES | Must be `1` |
+| `api_version` | i32 | YES | Must be `3` |
 | `name` | string | YES | Variant display name |
 | `version` | string | YES | Variant script version |
-| `colors` | [string] | YES | Player color identifiers (e.g. `["white","black"]`) |
-| `allowed_player_count` | i32 | YES | Exact player count (simplest form: a single number). Also accepts `[i32]` for discrete values or `#{ min, max, step }` for a range. |
+| `colors` | [string] | YES | Player color identifiers |
+| `allowed_player_count` | i32, [i32], or #{min,max,step?} | YES | Player count constraint |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 
 ### `init(player_count)`
@@ -35,53 +32,99 @@ These are the functions the script MUST or MAY implement. The engine calls them.
 (i32) -> #{}
 ```
 
-**Mandatory.** Returns the initial game state. Called once at engine construction.
-
-The returned map must contain at least:
+**Mandatory.** Returns the initial game state.
 
 ```rhai
 #{
-    board: Board,         // native — one board or array of boards
-    players: [            // one entry per player
+    board: Board,
+    players: [
         #{ board: i32, color: string, team: i32 },
-        // ...
     ],
-    // ... any additional custom state keys
+    // custom state keys ...
 }
 ```
 
-Variants may add any keys. There is **no** `active_players` key (derived at runtime
-from `valid_actions`) and **no** `game_over` key (game ends when `valid_actions`
-returns all-empty; the outcome is communicated via `state.outcome`).
-
-The state returned here is also the starting point for `get_ui` — if you need
-UI-related state (e.g. `state.pending_promotion`, `state.reserve`), initialise those
-keys here.
-
-### `valid_actions(state, player)`
+### `valid_moves(state, player)`
 
 ```
-(#{}, Player) -> [Action]
+(#{}, Player) -> [Move]
 ```
 
-**Mandatory.** Returns the list of legal actions the given player may submit right now.
+**Mandatory.** Returns all legal `Move` actions for the given player.
+**Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
 ```rhai
-fn valid_actions(state, player) {
-    // Compute and return the actions for THIS player only.
-    [engine::Move(from, to), engine::SelectPiece(piece), engine::Cancel(), ...]
+fn valid_moves(state, player) {
+    if "outcome" in state { return []; }
+    if player.color != state.turn { return []; }
+
+    let moves = [];
+    for r in 0..8 {
+        for c in 0..8 {
+            let piece = engine::board::get(state.board, Coords(r, c));
+            if piece != () && piece.color == player.color {
+                let from = Coords(r, c);
+                let dests = moves_for_piece(state.board, from, piece.type, player.color);
+                for to in dests {
+                    if is_legal(state.board, from, to, player.color) {
+                        moves.push(Move(from, to));
+                    }
+                }
+            }
+        }
+    }
+    moves
 }
 ```
 
-- An empty `[]` means the player cannot act right now.
-- The engine calls this function once per player (iterating `state.players`) to
-  determine which players are active and whether the game is over.
-- Explicit turn tracking (`active_players`) is therefore not needed — it emerges
-  from the action availability.
-- Called after every `handle_action` (per player) and once per player after
-  `init` to establish who acts first.
-- When **every** player's `valid_actions` returns `[]` the game is over. The
-  engine reads `state.outcome` for the result (see `handle_action` below).
+- Returns `[]` if the player has no legal moves.
+- Engine caches result per player. Cache invalidated after every `handle_action`.
+
+### `is_game_over(state, all_valid_moves)`
+
+```
+(#{}, [ #{ player: Player, moves: [Move] } ]) -> bool
+```
+
+**Mandatory.** Called after `valid_moves` has been computed for **all** players.
+
+`all_valid_moves` is an array where each entry has the player and their legal moves:
+
+```rhai
+[
+    #{ player: #{ board: 0, color: "white", team: 0 }, moves: [Move, Move] },
+    #{ player: #{ board: 0, color: "black", team: 0 }, moves: [] },
+]
+```
+
+**Typical implementation** — all players have no moves:
+
+```rhai
+fn is_game_over(state, all_valid_moves) {
+    if "outcome" in state { return true; }
+    for entry in all_valid_moves {
+        if entry.moves.len() > 0 { return false; }
+    }
+    true
+}
+```
+
+Or **specific variant** — current player has no moves:
+
+```rhai
+fn is_game_over(state, all_valid_moves) {
+    for entry in all_valid_moves {
+        if entry.player.color == state.turn && entry.moves.len() == 0 {
+            return true;
+        }
+    }
+    false
+}
+```
+
+- Returns `true` → engine reads `state.outcome` for the result.
+- Returns `false` → game continues, valid_moves are cached for all players.
+- Outcome constructors: `Winner(idx)`, `Winners(["color",...])`, `Draw()` — set by `handle_action`.
 
 ### `handle_action(state, player, action)`
 
@@ -89,55 +132,36 @@ fn valid_actions(state, player) {
 (#{}, Player, Action) -> #{}
 ```
 
-**Mandatory.** The single action reducer. Called when any player submits any action.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `#{}` | Current game state |
-| `player` | `Player` | Player submitting the action (`.board`, `.color`, `.team`) |
-| `action` | `Action` | The submitted action (see Section 2) |
-
-Returns the new game state. Dispatch on `action.type`:
+**Mandatory.** The single action reducer. Dispatches on `action.type`:
 
 ```rhai
 fn handle_action(state, player, action) {
     if action.type == "move" {
-        // action.from  : Coords
-        // action.to    : Coords
-    } else if action.type == "select_piece" {
-        // action.piece : Piece
-    } else if action.type == "interact" {
-        // action.element_id : string
-    } else if action.type == "cancel" {
-        // no payload — abort pending action
+        // action.from, action.to — engine guarantees legality (see §6)
+        let new_board = engine::board::move_piece(state.board, action.from, action.to);
+        // ... turn switch, king capture, outcome check ...
     }
-
-    // Signal game over by setting state.outcome before returning.
-    // The engine reads this when valid_actions becomes all-empty.
-    // if checkmate { state.outcome = engine::Winner(0); }
-    // if draw      { state.outcome = engine::Draw();    }
-
+    if action.type == "select_piece" {
+        // action.piece — user picked from PiecePicker UI element
+        // Script must validate: is state.pending active?
+    }
+    if action.type == "interact" {
+        // action.element_id — user clicked a Button UI element
+    }
+    if action.type == "cancel" {
+        // user dismissed PiecePicker without selecting — abort pending sequence
+    }
     state
 }
 ```
 
-**Safety guarantee**: The engine validates that the submitted action is present in
-the `actions` list for the submitting player in `valid_actions(state, player)` **before**
-calling `handle_action`. The script does not need to re-validate legality.
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `state` | `#{}` | Current game state |
+| `player` | `Player` | Submitting player (`.board`, `.color`, `.team`) |
+| `action` | `Action` | See Section 2 |
 
-**Game-over outcome**: When the script determines the game is ending (e.g. checkmate,
-no legal moves next turn), it sets `state.outcome` to one of the engine-provided
-outcome values before returning. The engine reads `state.outcome` once
-`valid_actions` returns all-empty:
-
-| Constructor | Meaning |
-|-------------|---------|
-| `engine::Winner(player_index)` | Single winner by player index |
-| `engine::Winners(["white","red"])` | Multiple winners by color |
-| `engine::Draw()` | Draw |
-
-If `state.outcome` is not set when `valid_actions` goes all-empty, the engine
-treats the result as a draw.
+**Game-over:** Set `state.outcome` before returning. Engine reads it when `is_game_over` returns `true`.
 
 ### `get_ui(state, player)`
 
@@ -145,315 +169,223 @@ treats the result as a draw.
 (#{}, Player) -> #{}
 ```
 
-**Optional** (returns `#{}` if absent). Returns UI elements for a specific player.
+**Optional** (returns `#{}` if absent). Returns UI elements for the given player.
+Pure function of `state` and `player`.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `#{}` | Current game state |
-| `player` | `Player` | Player whose UI is being requested |
+```rhai
+fn get_ui(state, player) {
+    let ui = #{};
 
-Returns a **map keyed by stable, unique string element IDs**. Each value is a
-UI element map (see Section 3). The engine serializes the entire return value
-to JSON for the frontend.
+    if player.color == state.turn {
+        ui.btn_pass = #{ type: "button", label: "Pass" };
+    }
 
-- **Pure data — no closures.** There are no `on_click` or `on_select` handlers.
-  Interactions are expressed as actions in `valid_actions` instead.
-- Called after every `handle_action` and on any UI poll/refresh.
-- Must be a pure function of `state` and `player`.
-- Returns `#{}` if there is nothing to show.
-- **Element ID uniqueness**: The engine detects duplicate keys and throws an error.
-  Use descriptive, namespaced IDs (e.g. `"promo_pick"`, `"reserve_pile"`,
-  `"draw_offer_btn"`).
+    // PiecePicker for promotion
+    if state.pending == "promotion" {
+        ui.promo_pick = #{
+            type: "piece_picker",
+            pieces: [
+                Piece(player.color, "queen"),
+                Piece(player.color, "rook"),
+                Piece(player.color, "bishop"),
+                Piece(player.color, "knight"),
+            ],
+        };
+    }
+
+    // Reserve pile
+    if state.reserve != () && state.reserve[player.color].len() > 0 {
+        ui.reserve = #{ type: "reserve_pile", pieces: state.reserve[player.color] };
+    }
+
+    ui
+}
+```
+
+- Called after every `handle_action` and on UI refresh.
+- Element IDs must be unique; engine throws on duplicates.
 
 ---
 
 ## 2. Action Types
 
-Actions are submitted by players and validated against `valid_actions` before
-`handle_action` is called. Every action has a `type` discriminator field.
+Every action has a `type` discriminator field.
 
 ### `Move`
 
 ```rhai
-engine::Move(from, to)
-// from : Coords  — board square or ReserveCoords(i)
-// to   : Coords  — destination board square
+Move(from, to)
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `"move"` | Discriminator |
-| `from` | `Coords` | Source square. `.type == "reserve"` for reserve drops |
-| `to` | `Coords` | Destination square (always a board square) |
+| `from` | `Coords` | Board square or `ReserveCoords(i)` |
+| `to` | `Coords` | Destination board square |
 
-Reserve drops use `from = engine::ReserveCoords(i)`.
+Returned by `valid_moves`. Reserve drops use `from = ReserveCoords(i)`.
 
 ### `SelectPiece`
 
 ```rhai
-engine::SelectPiece(piece)
-// piece : Piece
+SelectPiece(piece)
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `"select_piece"` | Discriminator |
-| `piece` | `Piece` | The piece chosen by the player |
+| `piece` | `Piece` | Chosen piece |
 
-Used for promotion, gating, or any scenario where the player must choose a piece
-type. If the player may abort, include `Cancel()` in `valid_actions` alongside the
-`SelectPiece` actions.
-
-**Auto-spawn behaviour**: The frontend automatically displays a piece selection
-dialog when the player's `valid_actions` list contains at least one `SelectPiece`
-action. The dialog lists all pieces from the `SelectPiece` actions (deduplicated
-by `color` + `pieceType`). A cancel button is shown only when a `Cancel` action
-is also present. The dialog hides automatically as soon as `valid_actions` no
-longer contains any `SelectPiece` action.
-
-Scripts should **not** return a `piece_selection` UI element from `get_ui` — the
-dialog is fully driven by `valid_actions`.
+Emitted by the frontend when the user picks from a `PiecePicker` UI element.
+**Not** returned by `valid_moves`. Script must validate state conditions in `handle_action`.
 
 ### `Interact`
 
 ```rhai
-engine::Interact(element_id)
-// element_id : string
+Interact(element_id)
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `"interact"` | Discriminator |
-| `element_id` | string | ID of the UI element being activated |
+| `element_id` | string | Matches key in `get_ui` return map |
 
-A button is interactive if and only if the
-corresponding `engine::Interact(element_id)` is present in the player's
-`valid_actions` list.
+Emitted when the user clicks a `Button` UI element. **Not** returned by `valid_moves`.
 
 ### `Cancel`
 
 ```rhai
-engine::Cancel()
-// no arguments
+Cancel()
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | `"cancel"` | Discriminator |
-
-Used to abort a multi-step action sequence (e.g. promotion, gating) without
-committing any state change. Only valid when returned by `valid_actions`.
-See Section 4 for the pending-action pattern.
+No payload. Emitted when the user dismisses a `PiecePicker` without selecting.
+**Not** returned by `valid_moves`.
 
 ---
 
 ## 3. UI Element Types
 
-Returned by `get_ui` as values in the element map. Elements are **pure data** —
-there are no handler closures. All interactivity is expressed via `valid_actions`.
+Returned by `get_ui` as values in the element map. Pure data — no closures.
 
 ### `Button`
 
 ```rhai
-#{
-    type: "button",
-    label: string,
-}
+#{ type: "button", label: string }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"button"` | YES | Discriminator |
-| `label` | string | YES | Button text |
+| Field | Type | Required |
+|-------|------|----------|
+| `type` | `"button"` | YES |
+| `label` | string | YES |
 
-Clicking sends an `Interact(element_id)` action (where `element_id` is the map key
-under which this element was returned by `get_ui`). The button is enabled only when
-the corresponding `Interact` action is present in the player's `valid_actions`.
+Clicking emits `Interact(element_id)`.
 
 ### `Banner`
 
 ```rhai
-#{
-    type: "banner",
-    text: string,
-    style: "info" | "warning" | "error",   // default: "info"
-}
+#{ type: "banner", text: string, style: "info" | "warning" | "error" }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"banner"` | YES | Discriminator |
-| `text` | string | YES | Banner message |
-| `style` | string | NO | `"info"`, `"warning"`, or `"error"` |
+| Field | Type | Required |
+|-------|------|----------|
+| `type` | `"banner"` | YES |
+| `text` | string | YES |
+| `style` | string | NO (default `"info"`) |
 
-Non-interactive. No corresponding action type.
+Non-interactive.
 
 ### `ReservePile`
 
 ```rhai
-#{
-    type: "reserve_pile",
-    pieces: [Piece, ...],
-}
+#{ type: "reserve_pile", pieces: [Piece, ...] }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"reserve_pile"` | YES | Discriminator |
-| `pieces` | array of `Piece` | YES | Pieces currently in the reserve |
+| Field | Type | Required |
+|-------|------|----------|
+| `type` | `"reserve_pile"` | YES |
+| `pieces` | [Piece] | YES |
 
-Displays the player's reserve. Pieces in the reserve can be dragged/clicked to
-generate `Move(ReserveCoords(i), to)` actions; these must be present in
-`valid_actions` to be legal. The script controls if, when, and how the reserve
-is shown via `get_ui`.
+Dragging/clicking a reserve piece produces `Move(ReserveCoords(i), to)` when the target is a valid board square.
+
+### `PiecePicker`
+
+```rhai
+#{ type: "piece_picker", pieces: [Piece, ...] }
+```
+
+| Field | Type | Required |
+|-------|------|----------|
+| `type` | `"piece_picker"` | YES |
+| `pieces` | [Piece] | YES |
+
+The frontend renders a modal/dialog listing the pieces.
+Clicking a piece emits `SelectPiece(piece)`. Dismissing emits `Cancel()`.
+Shown when present in `get_ui`; hidden when absent.
 
 ---
 
-## 4. Action Flow & Turn Sequences
-
-### Turn as an Action Sequence
-
-A **turn** is not a single move but a sequence of `(player, action)` pairs that
-advance the game from one state to the next stable point. The engine records the
-full sequence for network sync and replay.
-
-Example — pawn promotion in Crazyhouse:
-
-```
-Turn record:
-  1. ("white", Move(e7 → e8))          // pawn reaches promotion square
-  2. ("white", SelectPiece(queen))     // white picks the promotion piece
-```
-
-After step 1, `valid_actions(state, white)` contains four `SelectPiece` actions
-and `valid_actions(state, black)` is empty — so white must act again before black
-can move. After step 2, it is black's turn.
-
-**Replay**: submit each `(player, action)` pair in the recorded order. Because
-`handle_action` is a pure function of `(state, player, action)`, replay is
-deterministic.
-
-### Pending-Action Pattern (no rollback needed)
-
-Multi-step turns (promotion, gating, etc.) use a **pending** pattern. The first
-action does NOT commit to the board — it merely records the intent in custom
-state keys. Subsequent actions commit or cancel:
-
-```rhai
-fn handle_action(state, player, action) {
-    if action.type == "move" && needs_promotion(state, action) {
-        // DO NOT apply the move yet — store it as pending
-        return merge(state, #{
-            pending_move: action,
-            pending: "promotion",
-        });
-    }
-    if action.type == "select_piece" && state.pending == "promotion" {
-        // Now commit: apply the stored move AND the chosen piece
-        let b = engine::board::move_piece(state.board,
-            state.pending_move.from, state.pending_move.to);
-        b = engine::board::set(b, state.pending_move.to, action.piece);
-        return merge(state, #{ board: b, pending: (), pending_move: () });
-    }
-    if action.type == "cancel" {
-        // Abort: forget the pending move, return to stable state
-        // Nothing was committed — no rollback needed
-        return merge(state, #{ pending: (), pending_move: () });
-    }
-    // ...
-}
-```
-
-```rhai
-fn valid_actions(state, player) {
-    if state.pending == "promotion" {
-        // Only the current player (who initiated promotion) may select or cancel
-        if player != current_player { return []; }
-        return [
-            SelectPiece(Piece("white", "queen")),
-            SelectPiece(Piece("white", "rook")),
-            SelectPiece(Piece("white", "bishop")),
-            SelectPiece(Piece("white", "knight")),
-            Cancel(),                               // ← universal abort
-        ];
-    }
-    // normal turn: only the player whose turn it is gets moves
-    // ...
-    []
-}
-```
-
-**Key property**: No board mutation occurs until the player commits. Cancel resets
-the pending flags without needing a backup board or undo logic. The turn switch
-happens automatically when `valid_actions` gives the next player non-empty actions.
-
-### Engine Flow per Action
-
-```
-Player submits (player, action)
-    │
-    ▼
-Engine validates: action ∈ valid_actions(state, player)
-    │  invalid → error returned, state unchanged
-    ▼
-handle_action(state, player, action) → new_state
-    │  script may set new_state.outcome here
-    ▼
-valid_actions(new_state) → [{player, actions}, ...]
-    │  all actions empty? → game over, read new_state.outcome for result
-    ▼
-get_ui(new_state, player) → UI data (serialized to JSON for frontend)
-    │
-    ▼
-Return { valid_actions, ui, game_over } to frontend
-```
-
----
-
-## 5. Engine WASM Endpoints
-
-All game logic runs in the Rust engine (WASM). The frontend is a thin
-presentation layer.
+## 4. Engine Flow
 
 ### Constructor
 
 ```
-new ChessvariantEngine(script_content: string, player_count: number) → engine
+new ChessvariantEngine(script, player_count)
+→ calls config() → validates api_version=3 → calls init() → returns engine
 ```
 
-Calls `config()` and `init(player_count)`. Validates player count. Calls
-`valid_actions(initial_state)` to establish the first active players.
-
-### Submit Action
+### Submit Action — Phase 1 (synchronous, immediate)
 
 ```
-engine.submitAction(player_json, action_json) → result_json
+player submits (player_json, action_json)
+  │
+  ├─ action is Move AND cached_valid_moves is None?
+  │   → engine::is_legal(board, from, to, color)  [Rust, no script call]
+  │   → illegal? → reject
+  │
+  ├─ action is Move AND cached_valid_moves is Some?
+  │   → action must be in player's moves list
+  │   → not found? → reject
+  │
+  ├─ action is non-Move (SelectPiece, Interact, Cancel)?
+  │   → pass through unconditionally
+  │
+  ▼
+handle_action(state, player, action) → new_state
+  │
+  ├─ cached_valid_moves = None   [invalidate]
+  ├─ get_ui(new_state, player) → serialize to JSON
+  │
+  ▼
+Return { board_state, ui, game_over: null? } to frontend
 ```
 
-1. Deserializes player and action.
-2. **Validates**: action must be in the `actions` list for this player in `valid_actions(state, player)`. If not → error.
-3. Calls `handle_action(state, player, action)` → new state.
-4. Calls `valid_actions(new_state, player)` for each player in `state.players` → determines active players.
-5. If all actions empty → game over; reads `new_state.outcome` for result (default: draw).
-6. Calls `get_ui(new_state, player)` → serializes UI data.
-7. Returns `{ "valid_actions": [...], "ui": {...}, "game_over": null | {...} }`.
-
-### Valid Actions
+### Phase 2a — local player first
 
 ```
-engine.validActionsJson() → string
+valid_moves(new_state, local_player)  → [Move, ...]
+  → postMessage { _phase: "validMoves", player, moves } to frontend
+  → store in engine cache (partial)
 ```
 
-Returns `[{"player": {...}, "actions": [...]}, ...]` for **all** players. No player argument.
-Does not modify state.
-
-### UI Poll / Refresh
+### Phase 2b — remaining players
 
 ```
-engine.getUiJson(player_json) → string
+for each player in state.players except local:
+    valid_moves(new_state, player) → [Move, ...]
+    → store in engine cache
 ```
 
-Calls `get_ui(state, player)` → `{ "ui": {...} }`. Does not modify state.
+### Phase 2c — game over check
+
+```
+all_valid_moves = collected from Phase 2a + 2b
+is_game_over(new_state, all_valid_moves) → bool
+  │
+  ├─ true  → read new_state.outcome
+  │          → postMessage { _phase: "gameOver", result: { type, player? } }
+  │
+  └─ false → commit valid_moves cache
+```
 
 ### State Queries
 
@@ -462,135 +394,99 @@ engine.boardStateJson()    → string
 engine.playersJson()       → string
 engine.variantConfigJson() → string
 engine.name()              → string
+engine.stateJson()         → string
+```
+
+### Valid Moves Poll
+
+```
+engine.validMovesForPlayerJson(player_json) → string
+// Returns cached valid_moves for a single player (Phase 2a caller).
+```
+
+### UI Refresh
+
+```
+engine.getUiJson(player_json) → string
+// Calls get_ui(state, player). Does not modify state or cache.
 ```
 
 ---
 
-## 6. Built-in Modules (Rhai)
-
-All built-in functions and types are organized into Rhai modules.
-Scripts access them via module paths (e.g. `engine::board::get(...)`).
+## 5. Built-in Modules
 
 ### `engine::board` — Board Operations
 
-Board functions use copy-on-write semantics. Scripts receive a new `Board` value
-after each mutation; the engine internally reuses shared state for performance.
-
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `get` | `(Board, Coords) -> Piece` | Read piece at coords. Returns `()` if empty. |
-| `set` | `(Board, Coords, Piece) -> Board` | Place piece (returns new board). |
-| `move_piece` | `(Board, Coords, Coords) -> Board` | Move piece from→to (returns new board). |
-| `find` | `(Board, Piece) -> [Coords]` | Find all coords with matching piece. |
-| `rows` | `(Board) -> i32` | Board height. |
-| `cols` | `(Board) -> i32` | Board width. |
-| `count` | `(Board) -> i32` | Total pieces on board. |
-
-### `engine::board` — Movement Primitives
-
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `ray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` | Ray trace in direction. |
-| `xray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` | X-ray (through pieces). |
-| `jump` | `(Board, Coords, [[i32,i32]]) -> [{coords, piece}]` | Knight-style jump moves. |
+| Function | Signature |
+|----------|-----------|
+| `get` | `(Board, Coords) -> Piece` |
+| `set` | `(Board, Coords, Piece) -> Board` |
+| `move_piece` | `(Board, Coords, Coords) -> Board` |
+| `find` | `(Board, Piece) -> [Coords]` |
+| `rows` | `(Board) -> i32` |
+| `cols` | `(Board) -> i32` |
+| `count` | `(Board) -> i32` |
+| `ray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` |
+| `xray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` |
+| `jump` | `(Board, Coords, [[i32,i32]]) -> [{coords, piece}]` |
 
 ### `engine::moves` — Pseudo-Legal Move Generators
 
-The third parameter is always the **moving piece's color** (e.g. `"white"`, `"black"`),
-not the piece type.
+| Function | Signature |
+|----------|-----------|
+| `pawn` | `(Board, Coords, color) -> [Coords]` |
+| `rook` | `(Board, Coords, color) -> [Coords]` |
+| `knight` | `(Board, Coords, color) -> [Coords]` |
+| `bishop` | `(Board, Coords, color) -> [Coords]` |
+| `queen` | `(Board, Coords, color) -> [Coords]` |
+| `king` | `(Board, Coords, color) -> [Coords]` |
+
+### `engine` — Helpers
 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
-| `pawn` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal pawn moves. |
-| `rook` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal rook moves. |
-| `knight` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal knight moves. |
-| `bishop` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal bishop moves. |
-| `queen` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal queen moves. |
-| `king` | `(Board, Coords, color: string) -> [Coords]` | Pseudo-legal king moves. |
-
-### `engine` — Engine Helpers
-
-| Function | Signature | Purpose |
-|----------|-----------|---------|
-| `is_square_attacked` | `(Board, Coords, attacker_color: string) -> bool` | Is the square attacked by any piece of the given color? |
-| `pseudo_moves` | `(Board, Coords, piece_type: string, color: string) -> [Coords]` | Pseudo-moves for a given piece type and color. |
-| `is_legal` | `(Board, Coords, Coords, color: string) -> bool` | Would moving piece from→to leave the player's own king in check? `false` = illegal, `true` = legal. |
-| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge two maps. |
-| `standard_start_position` | `() -> Board` | 8×8 standard chess starting position. |
-
-Check-filtering for king safety is typically done with `is_legal` inside the
-script's `valid_actions(state, player)`:
-
-```rhai
-fn valid_actions(state, player) {
-    let mut actions = [];
-    let all_squares = engine::board::find(state.board, Piece(player.color, ""))
-        .filter(|c| board_get(state.board, c).color == player.color);
-    for from in all_squares {
-        let piece = engine::board::get(state.board, from);
-        let dests = engine::moves::pawn(state.board, from, player.color)  // ... etc per type
-            .filter(|to| engine::is_legal(state.board, from, to, player.color));
-        for to in dests {
-            actions.push(engine::Move(from, to));
-        }
-    }
-    actions
-}
-```
+| `is_square_attacked` | `(Board, Coords, color) -> bool` | Square attacked by pieces of color? |
+| `pseudo_moves` | `(Board, Coords, piece_type, color) -> [Coords]` | Pseudo-moves for any piece type |
+| `is_legal` | `(Board, Coords, Coords, color) -> bool` | Would move leave own king in check? |
+| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge |
+| `standard_start_position` | `() -> Board` | 8×8 standard chess |
 
 ### `engine` — Constructors
 
-| Function | Returns | Usage |
-|----------|---------|-------|
-| `Coords(r, c)` | `Coords` | Board square (board_index 0). |
-| `Coords(r, c, b)` | `Coords` | Board square on board `b`. |
-| `ReserveCoords(i)` | `Coords` | Reserve slot `i` (`.type == "reserve"`). |
-| `Player("color")` | `Player` | Player by color string. |
-| `Player(board, "color")` | `Player` | Player by board index and color. |
-| `Piece("color", "type")` | `Piece` | Piece with color and type. |
-| `Move(from, to)` | `Action` | Move action. |
-| `SelectPiece(piece)` | `Action` | SelectPiece action. |
-| `Interact(element_id)` | `Action` | Interact action (button activation). |
-| `Cancel()` | `Action` | Abort multi-step sequence (no payload). |
-| `Winner(idx)` | `Dynamic` | Game-over: single winner by player index. |
-| `Winners(arr)` | `Dynamic` | Game-over: multiple winners by color strings. |
-| `Draw()` | `Dynamic` | Game-over: draw. |
-| `Rectangle(r,c)` | `#{}` | Board layout: rectangle. |
-| `Rect(r1,c1,r2,c2)` | `#{}` | Rectangular region descriptor. |
-
-### `log` — Logging
-
 | Function | Purpose |
 |----------|---------|
-| `log::debug(msg)` | Debug-level log. |
-| `log::info(msg)` | Info-level log. |
-| `log::warn(msg)` | Warning-level log. |
-| `log::error(msg)` | Error-level log. |
+| `Coords(r, c)` | Board square |
+| `Coords(r, c, board)` | Board square on board `board` |
+| `ReserveCoords(i)` | Reserve slot |
+| `Move(from, to)` | Move action |
+| `SelectPiece(piece)` | SelectPiece action |
+| `Interact(element_id)` | Interact action |
+| `Cancel()` | Cancel action |
+| `Piece(color, type)` | Piece |
+| `Player(color)` | Player by color |
+| `Player(board, color)` | Player by board + color |
+| `Winner(idx)` | Game outcome |
+| `Winners([colors])` | Game outcome |
+| `Draw()` | Game outcome |
 
-### Native Types
+### `log`
 
-| Type | Module | Fields |
-|------|--------|--------|
-| `Coords` | — | `.type` (`"board"` or `"reserve"`), `.row`, `.col`, `.board_index`, `.index` |
-| `Player` | — | `.board`, `.color`, `.team` |
-| `Piece` | — | `.color`, `.type` |
-| `Action` | — | `.type`, `.from`\*, `.to`\*, `.piece`\*, `.element_id`\*, `.cancel`† |
-
-\* Field presence depends on action type: `Move` has `.from`/`.to`; `SelectPiece`
-has `.piece`; `Interact` has `.element_id`.
-† `Cancel` has no payload fields — all fields are `()`.
+| Function |
+|----------|
+| `log::debug(msg)` |
+| `log::info(msg)` |
+| `log::warn(msg)` |
+| `log::error(msg)` |
 
 ---
 
-## 7. Safety Guarantees
-
-The Rust engine enforces these guarantees. Scripts can rely on them.
+## 6. Safety Guarantees
 
 | Guarantee | Enforcement |
 |-----------|-------------|
-| Submitted action is legal | Engine validates action is in the player's `actions` list from `valid_actions(state, player)` **before** calling `handle_action`. |
-| Only active players can act | A player can only submit actions when their `actions` list from `valid_actions(state, player)` is non-empty. |
-| UI element IDs are unique | Engine detects duplicate keys in `get_ui` return value and throws. |
-| State immutability | Engine never modifies the state map. The script owns all state transitions. |
-| Deterministic replay | `handle_action` is a pure function: replaying the same `(player, action)` sequence always reproduces the same state. |
-| Game-over is terminal | Once `valid_actions` returns all-empty, the engine reads `state.outcome` and stops calling any script function. |
+| Move is legal | Engine validates: cached `valid_moves` fresh → action must be in list. Cache stale → Rust `is_legal` check before `handle_action`. |
+| Non-Move actions are state-consistent | Script validates state conditions in `handle_action`. Engine passes them through. |
+| UI element IDs unique | Engine throws on duplicate keys in `get_ui` return. |
+| State immutability | Engine never mutates state map. Script owns all transitions. |
+| Deterministic replay | `handle_action` is pure: same `(player, action)` → same state. |
+| Game-over is terminal | Once `is_game_over` returns `true`, engine reads `state.outcome` and stops calling script functions. |

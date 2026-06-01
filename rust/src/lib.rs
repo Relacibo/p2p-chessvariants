@@ -31,11 +31,11 @@ pub(crate) struct PlayerRef {
     color: String,
 }
 
-/// A player's valid actions, as returned by `valid_actions(state, player)`.
+/// A player's valid moves, as returned by `valid_moves(state, player)`.
 #[derive(Clone, Debug, Serialize)]
-pub struct PlayerActions {
+pub struct PlayerMoves {
     pub player: PlayerId,
-    pub actions: Vec<Action>,
+    pub moves: Vec<Action>,
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
@@ -45,7 +45,11 @@ pub struct ChessvariantEngine {
     ast: AST,
     pub(crate) game_state: Dynamic,
     pub(crate) variant_config: VariantConfig,
-    pub(crate) cached_valid_actions: Option<Vec<PlayerActions>>,
+    /// Fully computed valid_moves for all players + game_over result.
+    /// Set to None after every handle_action (cache invalidation).
+    pub(crate) cached_valid_moves: Option<(Vec<PlayerMoves>, Option<serde_json::Value>)>,
+    /// Partial accumulation during progressive Phase 2 (2a then 2b).
+    partial_moves: Vec<PlayerMoves>,
 }
 
 // ─── Builtin Registration ────────────────────────────────────────────────────
@@ -317,12 +321,13 @@ impl ChessvariantEngine {
             ast,
             game_state,
             variant_config,
-            cached_valid_actions: None,
+            cached_valid_moves: None,
+            partial_moves: Vec::new(),
         };
 
-        // Compute valid_actions for the initial state to cache it
-        let initial_actions = cv_engine.compute_valid_actions_all()?;
-        cv_engine.cached_valid_actions = Some(initial_actions);
+        // Compute valid_moves for all players and cache the result
+        let (all_moves, game_over) = cv_engine.compute_valid_moves_all()?;
+        cv_engine.cached_valid_moves = Some((all_moves, game_over));
 
         Ok(cv_engine)
     }
@@ -461,19 +466,41 @@ impl ChessvariantEngine {
         Ok(serde_json::to_string_pretty(&json)?)
     }
 
-    /// Returns valid actions for ALL players. No player argument.
-    /// Format: `[{"player": {...}, "actions": [...]}, ...]`
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validActionsJson))]
-    pub fn valid_actions_json(&mut self) -> Result<String, CvError> {
-        let actions = self.compute_valid_actions_all()?;
-        self.cached_valid_actions = Some(actions.clone());
-        Ok(serde_json::to_string(&actions)?)
+    /// Returns valid moves for ALL players + game_over. Caches the result.
+    /// Format: `{ "validMoves": [{"player": {...}, "moves": [...]}, ...], "gameOver": null | {...} }`
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesAllJson))]
+    pub fn valid_moves_all_json(&mut self) -> Result<String, CvError> {
+        let (all_moves, game_over) = self.compute_valid_moves_all()?;
+        self.cached_valid_moves = Some((all_moves.clone(), game_over.clone()));
+        Ok(serde_json::to_string(&serde_json::json!({
+            "validMoves": all_moves,
+            "gameOver": game_over,
+        }))?)
+    }
+
+    /// Compute valid_moves for a single player (Phase 2a — local player first).
+    /// Accumulates result into partial cache. The engine does not store a
+    /// completed cache until `validMovesAllJson` is called.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesForPlayerJson))]
+    pub fn valid_moves_for_player_json(&mut self, player_json: String) -> Result<String, CvError> {
+        let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
+        let player = player_ref_to_player_id(&self.game_state, &player_ref);
+        let moves = self.compute_valid_moves_for_player(&player)?;
+        // Accumulate into partial cache
+        self.partial_moves.push(PlayerMoves {
+            player: player.clone(),
+            moves: moves.clone(),
+        });
+        Ok(serde_json::to_string(&serde_json::json!({
+            "player": player,
+            "moves": moves,
+        }))?)
     }
 
     /// Submit an action. Replaces old `handleMove` + `uiInteraction`.
     /// Always returns a JSON string. On error, the result contains `"error"`.
-    /// Success: `{ "valid_actions": [...], "ui": {...}, "game_over": null | {...} }`
-    /// Error:   `{ "error": "message", "valid_actions": null, "ui": null, "game_over": null }`
+    /// Success: `{ "ui": {...}, "game_over": null | {...}, "board_state": {...} }`
+    /// Error:   `{ "error": "message", "ui": null, "game_over": null, "board_state": null }`
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = submitAction))]
     pub fn submit_action_js(
         &mut self,
@@ -484,9 +511,9 @@ impl ChessvariantEngine {
             Ok(json) => json,
             Err(e) => serde_json::json!({
                 "error": e.to_string(),
-                "valid_actions": null,
                 "ui": null,
                 "game_over": null,
+                "board_state": null,
             })
             .to_string(),
         }
@@ -529,29 +556,21 @@ impl ChessvariantEngine {
         player: &PlayerId,
         action: &Action,
     ) -> Result<serde_json::Value, CvError> {
-        // 1. Compute valid_actions for THIS player only (no need to compute all players).
-        let player_actions = self.compute_valid_actions_for_player(player)?;
-
-        // 2. Validate: action type must exist in the player's actions list.
-        // Specific field validation (from/to, piece, element_id) is done
-        // by the script in handle_action.
-        let is_legal = player_actions.iter().any(|a| {
-            a.kind == action.kind
-                && match a.kind.as_str() {
-                    "move" => true, // any move validates (script validates specifics)
-                    "select_piece" => a.piece == action.piece,
-                    "interact" => a.element_id == action.element_id,
-                    "cancel" => true, // cancel has no payload to validate
-                    _ => true,
+        // If cached_valid_moves is None (e.g. before first computation or
+        // after another action invalidated it), validate Move actions
+        // via is_legal (Rust, no script). Non-Move actions always pass.
+        if self.cached_valid_moves.is_none() {
+            match action.kind.as_str() {
+                "move" => {
+                    if !self.is_move_legal(action, &player.color)? {
+                        return Err(CvError::Internal("illegal move".into()));
+                    }
                 }
-        });
-        if !is_legal {
-            return Err(CvError::Internal(
-                "illegal action — not in valid_actions".into(),
-            ));
+                _ => { /* non-Move actions pass through */ }
+            }
         }
 
-        // 4. Call handle_action(state, player, action)
+        // Call handle_action(state, player, action)
         let mut scope = Scope::new();
         let new_state = self.engine.call_fn::<Dynamic>(
             &mut scope,
@@ -565,9 +584,9 @@ impl ChessvariantEngine {
         )?;
 
         self.game_state = new_state;
-        // Invalidate cached valid_actions — frontend will refetch asynchronously
-        // via validActionsJson() to avoid blocking the main thread.
-        self.cached_valid_actions = None;
+        // Invalidate cached valid_moves — frontend will recompute via Phase 2
+        self.cached_valid_moves = None;
+        self.partial_moves.clear();
 
         // Check game_over from state.outcome (set by script's handle_action)
         let game_over = self.extract_outcome_from_state();
@@ -579,8 +598,6 @@ impl ChessvariantEngine {
         let board = self.get_normalized_board()?;
         let board_json = serde_json::to_value(&board)?;
 
-        // Build result — includes board_state for immediate render.
-        // valid_actions are fetched asynchronously via validActionsJson().
         Ok(serde_json::json!({
             "ui": ui,
             "game_over": game_over,
@@ -651,37 +668,35 @@ impl ChessvariantEngine {
         self.game_state.clone()
     }
 
-    /// Get the colors of currently active players from cached valid_actions (for tests).
-    /// Recomputes valid_actions if cache is empty (e.g. after a submit that deferred computation).
+    /// Get the colors of currently active players from cached valid_moves (for tests).
+    /// Recomputes valid_moves if cache is empty.
     pub fn active_player_colors(&mut self) -> Vec<String> {
-        if self.cached_valid_actions.is_none() {
-            if let Ok(actions) = self.compute_valid_actions_all() {
-                self.cached_valid_actions = Some(actions);
+        if self.cached_valid_moves.is_none() {
+            if let Ok((all_moves, game_over)) = self.compute_valid_moves_all() {
+                self.cached_valid_moves = Some((all_moves, game_over));
             }
         }
-        self.cached_valid_actions
+        self.cached_valid_moves
             .as_ref()
-            .map(|v| {
+            .map(|(v, _)| {
                 v.iter()
-                    .filter(|pa| !pa.actions.is_empty())
-                    .map(|pa| pa.player.color.clone())
+                    .filter(|pm| !pm.moves.is_empty())
+                    .map(|pm| pm.player.color.clone())
                     .collect()
             })
             .unwrap_or_default()
     }
 
-    /// Check if the game is over by examining cached valid_actions (for tests).
+    /// Check if the game is over by examining cached valid_moves (for tests).
     pub fn is_game_over(&self) -> bool {
-        self.cached_valid_actions
-            .as_ref()
-            .map(|v| v.iter().all(|pa| pa.actions.is_empty()))
-            .unwrap_or_else(|| {
-                // Cache not available — check state.outcome directly
-                self.game_state
-                    .read_lock::<rhai::Map>()
-                    .map(|m| m.contains_key("outcome"))
-                    .unwrap_or(false)
-            })
+        if let Some((_, ref go)) = self.cached_valid_moves {
+            go.is_some()
+        } else {
+            self.game_state
+                .read_lock::<rhai::Map>()
+                .map(|m| m.contains_key("outcome"))
+                .unwrap_or(false)
+        }
     }
 
     /// Extract `state.outcome` as a Dynamic (for tests).
@@ -777,8 +792,8 @@ impl ChessvariantEngine {
         serialize_ui_to_json(&ui_map)
     }
 
-    /// Call `valid_actions(state, player)`, parse the returned `[Action]` array.
-    fn compute_valid_actions_for_player(
+    /// Call `valid_moves(state, player)`, parse the returned `[Move]` array.
+    fn compute_valid_moves_for_player(
         &mut self,
         player: &PlayerId,
     ) -> Result<Vec<Action>, CvError> {
@@ -786,7 +801,7 @@ impl ChessvariantEngine {
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
-            "valid_actions",
+            "valid_moves",
             (
                 self.game_state.clone(),
                 Dynamic::from(player.clone()),
@@ -802,7 +817,7 @@ impl ChessvariantEngine {
 
         let arr = actions_dyn
             .try_cast::<rhai::Array>()
-            .ok_or_else(|| CvError::Internal("valid_actions did not return an array".into()))?;
+            .ok_or_else(|| CvError::Internal("valid_moves did not return an array".into()))?;
 
         Ok(arr
             .into_iter()
@@ -812,6 +827,32 @@ impl ChessvariantEngine {
                     .or_else(|| rhai::serde::from_dynamic(&item).ok())
             })
             .collect())
+    }
+
+    /// Validate a Move action via `is_legal` (Rust, no script). Used as
+    /// fallback when the valid_moves cache is stale (None after handle_action).
+    fn is_move_legal(&self, action: &Action, player_color: &str) -> Result<bool, CvError> {
+        let from = action.from.as_ref().ok_or_else(|| {
+            CvError::Internal("move action has no from field".into())
+        })?;
+        let to = action.to.as_ref().ok_or_else(|| {
+            CvError::Internal("move action has no to field".into())
+        })?;
+        let board = self.get_normalized_board()?;
+        let from_bc = from.as_board_coords().ok_or_else(|| {
+            CvError::Internal("invalid from coords".into())
+        })?;
+        let to_bc = to.as_board_coords().ok_or_else(|| {
+            CvError::Internal("invalid to coords".into())
+        })?;
+        let mut temp = board.clone();
+        game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
+        let empty_custom = std::collections::HashMap::new();
+        Ok(!game::engine_builtins::is_king_in_check(
+            &temp,
+            player_color,
+            &empty_custom,
+        ))
     }
 
     /// Extract all PlayerIds from `state.players`.
@@ -857,25 +898,72 @@ impl ChessvariantEngine {
             .collect()
     }
 
-    /// Call `valid_actions(state, player)` for every player, assemble into `Vec<PlayerActions>`.
-    fn compute_valid_actions_all(&mut self) -> Result<Vec<PlayerActions>, CvError> {
-        // Use cache if available (state hasn't changed)
-        if let Some(ref cached) = self.cached_valid_actions {
-            return Ok(cached.clone());
-        }
-
+    /// Call `valid_moves(state, player)` for every player, assemble into `Vec<PlayerMoves>`,
+    /// then call `is_game_over` and return the game_over result.
+    fn compute_valid_moves_all(&mut self) -> Result<(Vec<PlayerMoves>, Option<serde_json::Value>), CvError> {
         let player_ids = self.get_player_ids()?;
-        let mut result = Vec::new();
+        let mut result: Vec<PlayerMoves> = Vec::new();
+        // Merge any already-computed partial moves (from Phase 2a)
+        let mut partial: std::collections::HashMap<String, Vec<Action>> =
+            self.partial_moves.drain(..)
+                .map(|pm| (Self::player_key(&pm.player), pm.moves))
+                .collect();
 
-        for player_id in &player_ids {
-            let actions = self.compute_valid_actions_for_player(player_id)?;
-            result.push(PlayerActions {
-                player: player_id.clone(),
-                actions,
+        for pid in &player_ids {
+            let moves = if let Some(cached) = partial.remove(&Self::player_key(pid)) {
+                cached
+            } else {
+                self.compute_valid_moves_for_player(pid)?
+            };
+            result.push(PlayerMoves {
+                player: pid.clone(),
+                moves,
             });
         }
 
-        Ok(result)
+        // Call is_game_over(state, all_valid_moves)
+        let game_over = self.call_is_game_over(&result);
+        // Clear partial cache for next cycle
+        self.partial_moves.clear();
+
+        Ok((result, game_over))
+    }
+
+    /// Build a stable string key from a PlayerId.
+    fn player_key(pid: &PlayerId) -> String {
+        format!("b{}:{}", pid.board, pid.color)
+    }
+
+    /// Call `is_game_over(state, all_valid_moves)` → returns game_over JSON or None.
+    fn call_is_game_over(&mut self, all_moves: &[PlayerMoves]) -> Option<serde_json::Value> {
+        // Build the all_valid_moves array for the script
+        let mut scope = Scope::new();
+        let entries: rhai::Array = all_moves.iter().map(|pm| {
+            let mut entry = rhai::Map::new();
+            entry.insert("player".into(), Dynamic::from(pm.player.clone()));
+            let moves_arr: rhai::Array = pm.moves.iter().map(|m| Dynamic::from(m.clone())).collect();
+            entry.insert("moves".into(), Dynamic::from(moves_arr));
+            Dynamic::from(entry)
+        }).collect();
+
+        match self.engine.call_fn::<bool>(
+            &mut scope,
+            &self.ast,
+            "is_game_over",
+            (self.game_state.clone(), Dynamic::from(entries)),
+        ) {
+            Ok(true) => self.extract_outcome_from_state(),
+            Ok(false) => None,
+            Err(_) => {
+                // Fallback: if all moves empty and outcome is set → game over
+                let all_empty = all_moves.iter().all(|pm| pm.moves.is_empty());
+                if all_empty {
+                    self.extract_outcome_from_state()
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     /// Read `state.outcome` and convert to JSON. Returns None if no outcome is set.
@@ -997,6 +1085,24 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     })
                     .collect();
                 serde_json::json!({ "type": "reserve_pile", "pieces": pieces_json })
+            }
+            "piece_picker" => {
+                let pieces_arr = elem_map
+                    .get("pieces")
+                    .cloned()
+                    .and_then(|d| d.try_cast::<rhai::Array>())
+                    .unwrap_or_default();
+                let pieces_json: Vec<serde_json::Value> = pieces_arr
+                    .iter()
+                    .filter_map(|d| {
+                        let piece: Piece = d.clone().try_cast::<Piece>()?;
+                        Some(serde_json::json!({
+                            "color": piece.color_name(),
+                            "pieceType": piece.piece_type_name(),
+                        }))
+                    })
+                    .collect();
+                serde_json::json!({ "type": "piece_picker", "pieces": pieces_json })
             }
             _ => continue,
         };

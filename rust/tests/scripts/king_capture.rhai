@@ -7,7 +7,7 @@
 
 fn config() {
     #{
-        api_version: 2,
+        api_version: 3,
         name: "King Capture Test",
         version: "1.0.0",
         colors: ["white", "black"],
@@ -31,10 +31,14 @@ fn init(player_count) {
     }
 }
 
-fn valid_actions(state, player) {
+fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.color != state.turn { return []; }
     [Move(Coords(0,0), Coords(0,0))]  // any move validates
+}
+
+fn is_game_over(state, all_valid_moves) {
+    "outcome" in state
 }
 
 fn handle_action(state, player, action) {

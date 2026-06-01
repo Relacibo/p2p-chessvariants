@@ -1,12 +1,12 @@
-// Simple Chess — API v2
+// Simple Chess — API v3
 // Uses engine::moves::* for per-piece pseudo-legal move generation.
 // Uses is_legal for check filtering.
 // Enforces turn order, piece ownership, and king safety in handle_action.
-// Game ends when a king is captured.
+// Game-over determined by is_game_over().
 
 fn config() {
     #{
-        api_version: 2,
+        api_version: 3,
         name: "Simple Chess",
         version: "2.0.0",
         colors: ["white", "black"],
@@ -36,7 +36,7 @@ fn moves_for_piece(board, from, piece_type, color) {
     []
 }
 
-fn valid_actions(state, player) {
+fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.color != state.turn { return []; }
 
@@ -56,6 +56,14 @@ fn valid_actions(state, player) {
         }
     }
     pa
+}
+
+fn is_game_over(state, all_valid_moves) {
+    if "outcome" in state { return true; }
+    for entry in all_valid_moves {
+        if entry.moves.len() > 0 { return false; }
+    }
+    true
 }
 
 fn handle_action(state, player, action) {

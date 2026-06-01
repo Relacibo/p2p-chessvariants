@@ -1,6 +1,6 @@
-// Seirawan Chess (S-Chess) — API v2
+// Seirawan Chess (S-Chess) — API v3
 fn config() {
-    #{ api_version: 2, name: "Seirawan Chess", version: "2.0.0", colors: ["white","black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
+    #{ api_version: 3, name: "Seirawan Chess", version: "3.0.0", colors: ["white","black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
 }
 fn init(player_count) {
     #{ board: standard_start_position(), players: [#{ board: 0, color: "white", team: 0 },#{ board: 0, color: "black", team: 1 }], turn: "white" }
@@ -14,7 +14,7 @@ fn moves_for_piece(board, from, piece_type, color) {
     else if piece_type == "king" { return engine::moves::king(board, from, color); }
     []
 }
-fn valid_actions(state, player) {
+fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.color != state.turn { return []; }
 
@@ -28,6 +28,11 @@ fn valid_actions(state, player) {
         }
     }}
     pa
+}
+fn is_game_over(state, all_valid_moves) {
+    if "outcome" in state { return true; }
+    for entry in all_valid_moves { if entry.moves.len() > 0 { return false; } }
+    true
 }
 fn handle_action(state, player, action) {
     let player_color = player.color;
