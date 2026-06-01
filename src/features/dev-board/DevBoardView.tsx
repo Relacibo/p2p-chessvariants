@@ -151,6 +151,9 @@ export function DevBoardView() {
   );
   const [log, setLog] = useState<LogEntry[]>([]);
   const [gameStateJson, setGameStateJson] = useState<object | null>(null);
+  const [showGameState, setShowGameState] = useState(false);
+  const [validActionsJsonStr, setValidActionsJsonStr] = useState<string | null>(null);
+  const [showValidActions, setShowValidActions] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -735,23 +738,31 @@ export function DevBoardView() {
           </ScrollArea>
 
           {/* ── Game State JSON (collapsible) ── */}
-          {gameStateJson && (
-            <Box>
-              <Group
-                justify="space-between"
-                align="center"
-                style={{ cursor: "pointer" }}
-                onClick={() =>
-                  setGameStateJson((prev) => (prev ? null : prev))
+          <Box>
+            <Group
+              justify="space-between"
+              align="center"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                if (!showGameState && !gameStateJson) {
+                  // Fetch on first expand
+                  try {
+                    setGameStateJson(
+                      JSON.parse(engineRef.current!.stateJson())
+                    );
+                  } catch { /* ignore */ }
                 }
-              >
-                <Text size="sm" fw={600}>
-                  Game State
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {gameStateJson ? "▼" : "▶"}
-                </Text>
-              </Group>
+                setShowGameState((s) => !s);
+              }}
+            >
+              <Text size="sm" fw={600}>
+                Game State
+              </Text>
+              <Text size="xs" c="dimmed">
+                {showGameState ? "▼" : "▶"}
+              </Text>
+            </Group>
+            {showGameState && gameStateJson && (
               <Box
                 mt={4}
                 style={{
@@ -776,8 +787,71 @@ export function DevBoardView() {
                   {JSON.stringify(gameStateJson, null, 2)}
                 </Text>
               </Box>
-            </Box>
-          )}
+            )}
+          </Box>
+
+          {/* ── Valid Actions JSON (collapsible) ── */}
+          <Box mt="xs">
+            <Group
+              justify="space-between"
+              align="center"
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                if (!showValidActions && !validActionsJsonStr) {
+                  // Fetch on first expand
+                  try {
+                    setValidActionsJsonStr(
+                      engineRef.current!.validActionsJson()
+                    );
+                  } catch { /* ignore */ }
+                }
+                setShowValidActions((s) => !s);
+              }}
+            >
+              <Text size="sm" fw={600}>
+                Valid Actions
+              </Text>
+              <Text size="xs" c="dimmed">
+                {showValidActions ? "▼" : "▶"}
+              </Text>
+            </Group>
+            {showValidActions && validActionsJsonStr && (
+              <Box
+                mt={4}
+                style={{
+                  maxHeight: 300,
+                  overflow: "auto",
+                  background: "#1a1b1e",
+                  borderRadius: 4,
+                  padding: 8,
+                }}
+              >
+                <Text
+                  size="xs"
+                  component="pre"
+                  style={{
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    fontFamily: "monospace",
+                    color: "#c9d1d9",
+                  }}
+                >
+                  {(() => {
+                    try {
+                      return JSON.stringify(
+                        JSON.parse(validActionsJsonStr),
+                        null,
+                        2
+                      );
+                    } catch {
+                      return validActionsJsonStr;
+                    }
+                  })()}
+                </Text>
+              </Box>
+            )}
+          </Box>
             </Stack>
           </ScrollArea>
         </Paper>
