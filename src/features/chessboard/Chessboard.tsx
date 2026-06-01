@@ -10,7 +10,6 @@ import {
 } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import {
-  PlayerRef,
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
@@ -30,15 +29,14 @@ const VALID_MOVE_DOT = "rgba(0, 180, 0, 0.7)";
 const VALID_CAPTURE_FILL = "rgba(0, 180, 0, 0.35)";
 const LAST_MOVE_FILL = "rgba(255, 215, 0, 0.35)";
 
-/** Standard player-index → color mapping; extend for 4-player games. */
-const PLAYER_COLORS = ["white", "black", "red", "blue"];
-
 export type ChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
   validActions: WasmAction[];
-  player: string;
-  boardIndex?: number;
+  /** Which board to render (from the controlling player's board index). */
+  boardIndex: number;
+  /** Whether the board is flipped for this player's perspective. */
+  flipped: boolean;
   onSubmitAction: (action: WasmAction) => void;
   lastAction?: WasmAction;
   /** When set, highlights valid drop squares for this piece (from reserve pile). */
@@ -70,8 +68,8 @@ export function Chessboard({
   variantConfig,
   boardState,
   validActions,
-  player,
-  boardIndex = 0,
+  boardIndex,
+  flipped,
   onSubmitAction,
   lastAction,
   selectedDropPiece = null,
@@ -108,20 +106,16 @@ export function Chessboard({
       (stageRef.current.container().style.cursor = cursor);
   };
 
-  // Player identity determines board orientation
-  // player is a JSON string: {"board":0,"color":"white"}
-  // white sees row 7 at bottom, black sees row 0 at bottom
-  const playerColor = useMemo(() => {
-    if (!player) return "white";
-    try {
-      const p = JSON.parse(player) as PlayerRef;
-      return p.color ?? "white";
-    } catch {
-      // Legacy: player might be a plain color string
-      return player;
+  // Derive pickable squares from validActions — which pieces can be selected/dragged.
+  // A square is pickable if there is at least one Move action from it.
+  const pickableSquares = useMemo(() => {
+    const s = new Set<string>();
+    for (const a of validActions) {
+      if (a.type === "move" && isBoardCoords(a.from))
+        s.add(`${a.from.row},${a.from.col}`);
     }
-  }, [player]);
-  const flipped = playerColor === "black";
+    return s;
+  }, [validActions]);
 
   useEffect(() => {
     preloadAllPieceImages().then(() => setImagesLoaded(true));
@@ -190,8 +184,6 @@ export function Chessboard({
   const getPiece = (row: number, col: number) =>
     boardState.boards[boardIndex]?.[row * cols + col] ?? null;
 
-  const myColor = playerColor;
-
   const handleTileClick = (row: number, col: number) => {
     const clicked = mkBoardCoords(row, col, boardIndex);
 
@@ -223,7 +215,7 @@ export function Chessboard({
     }
 
     const piece = getPiece(row, col);
-    if (piece?.color === myColor) {
+    if (piece && pickableSquares.has(`${row},${col}`)) {
       setSelected(clicked);
     } else {
       setSelected(null);
@@ -288,7 +280,7 @@ export function Chessboard({
 
       const { x, y } = toPixel(row, col);
       const coords = mkBoardCoords(row, col, boardIndex);
-      const canDrag = piece.color === myColor;
+      const canDrag = pickableSquares.has(`${row},${col}`);
       const imgUrl = getPieceImageUrl(piece.color, piece.pieceType);
       const imgEl = imagesLoaded && imgUrl ? getCachedImage(imgUrl) : undefined;
       const isDragging = dragging != null && coordsEq(dragging, coords);

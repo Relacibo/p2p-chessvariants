@@ -2,21 +2,9 @@ import { Box, Group, Paper, Stack, Text, Tooltip, UnstyledButton } from "@mantin
 import { WasmPiece } from "./types";
 import { getPieceImageUrl } from "./pieceImages";
 
-/** Parse a player JSON string `{"board":0,"color":"white"}` to extract the color. */
-function parsePlayerColor(player: string): string {
-  try {
-    const p = JSON.parse(player) as { board: number; color: string };
-    return p.color;
-  } catch {
-    return player; // legacy: plain color string
-  }
-}
-
 interface ReservePileProps {
   /** Accepts either the old WasmReservePileState or a simple pieces array */
   reservePile: { reserve_piles: WasmPiece[][] } | { pieces: WasmPiece[] };
-  /** JSON-stringified PlayerRef: `{"board":0,"color":"white"}` */
-  player: string;
   selectedPiece?: WasmPiece | null;
   onSelectPiece?: (piece: WasmPiece | null) => void;
   /** Tile size in px; piece icons scale to 80% of this. Defaults to 40. */
@@ -33,13 +21,11 @@ function getPiles(
 
 export function ReservePile({
   reservePile,
-  player,
   selectedPiece,
   onSelectPiece,
   tileSize = 40,
 }: ReservePileProps) {
   const pieceSize = Math.round(tileSize * 0.85);
-  const playerColor = parsePlayerColor(player);
   const piles = getPiles(reservePile);
 
   return (
@@ -47,9 +33,8 @@ export function ReservePile({
       {piles.map((pile: WasmPiece[], pIdx: number) => {
         const color = ["white", "black", "red", "blue"][pIdx] ?? "white";
         const label = ["White", "Black", "Red", "Blue"][pIdx] ?? `Player ${pIdx}`;
-        const isMyPile = ["white", "black", "red", "blue"][pIdx] === playerColor;
         return (
-          <Paper key={pIdx} withBorder p="xs" style={{ opacity: isMyPile ? 1 : 0.65 }}>
+          <Paper key={pIdx} withBorder p="xs">
             <Text size="xs" fw={600} mb={4} c="dimmed">
               {label} reserve
             </Text>
@@ -72,9 +57,7 @@ export function ReservePile({
                   >
                     <UnstyledButton
                       onClick={() =>
-                        isMyPile
-                          ? onSelectPiece?.(isSelected ? null : piece)
-                          : undefined
+                        onSelectPiece?.(isSelected ? null : piece)
                       }
                       style={{
                         width: pieceSize,
@@ -87,7 +70,7 @@ export function ReservePile({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        cursor: isMyPile ? "pointer" : "default",
+                        cursor: "pointer",
                       }}
                     >
                       {imgUrl ? (

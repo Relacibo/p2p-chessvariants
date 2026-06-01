@@ -25,7 +25,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
@@ -165,6 +165,15 @@ export function DevBoardView() {
   const reservePileWidth = Math.max(72, Math.round(boardSize * 0.22));
   const sideSpace = containerSize.w - boardSize;
   const showReserveSide = sideSpace >= reservePileWidth + 48;
+
+  // Derive board index and orientation from the controlling player's full identity.
+  const playerRef = useMemo((): PlayerRef | null => {
+    if (!controllingPlayer) return null;
+    try { return JSON.parse(controllingPlayer) as PlayerRef; }
+    catch { return null; }
+  }, [controllingPlayer]);
+  const currentBoardIndex = playerRef?.board ?? 0;
+  const currentFlipped = playerRef?.color === "black";
 
   // ── Container resize observer ──
   useEffect(() => {
@@ -505,7 +514,8 @@ export function DevBoardView() {
           variantConfig={variantConfig}
           boardState={boardState}
           validActions={validActions}
-          player={controllingPlayer}
+          boardIndex={currentBoardIndex}
+          flipped={currentFlipped}
           onSubmitAction={handleSubmitAction}
           lastAction={lastAction}
           selectedDropPiece={selectedDropPiece}
@@ -541,7 +551,6 @@ export function DevBoardView() {
             reservePile={{
               reserve_piles: [reservePile.pieces],
             }}
-            player={controllingPlayer}
             selectedPiece={selectedDropPiece}
             onSelectPiece={setSelectedDropPiece}
             tileSize={44}
