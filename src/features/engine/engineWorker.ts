@@ -81,12 +81,22 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         break;
       }
       case "submitAction": {
-        const r = await whenReady(() => {
-          const p = payload as { player: string; actionJson: string };
-          const result = JSON.parse(need().submitAction(p.player, p.actionJson));
-          return { ...result, validActions: JSON.parse(need().validActionsJson()) };
+        const p = payload as { player: string; actionJson: string };
+        // Phase 1: board state + ui + game_over — send IMMEDIATELY
+        const result = await whenReady(() => {
+          const r = JSON.parse(need().submitAction(p.player, p.actionJson));
+          return r;
         });
-        ok(id, r);
+        ok(id, { _phase: "board", result });
+
+        // Phase 2: valid_actions — compute and send as follow-up
+        whenReady(() => {
+          postMessage({
+            id,
+            _phase: "validActions",
+            result: JSON.parse(need().validActionsJson()),
+          });
+        });
         break;
       }
       case "validActionsJson":

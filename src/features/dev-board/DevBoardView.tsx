@@ -378,12 +378,33 @@ export function DevBoardView() {
     closeDrawer();
   };
 
+  // ── Register validActions follow-up callback on the current proxy ──
+  useEffect(() => {
+    const proxy = proxyRef.current;
+    if (!proxy) return;
+    proxy.onValidActions = (allValid: unknown) => {
+      const va = allValid as WasmPlayerActions[];
+      setValidActionsAll(va);
+      setActivePlayers(deriveActivePlayers(va));
+      const ref: PlayerRef = JSON.parse(controllingPlayer);
+      const entry = va.find(
+        pa => pa.player.board === ref.board && pa.player.color === ref.color
+      );
+      setValidActions(entry?.actions ?? []);
+      // Refresh players
+      proxy.playersJson().then(allP => setAllPlayers(allP as { color: string; board: number; team: number }[]));
+    };
+    return () => { proxy.onValidActions = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proxyRef.current, controllingPlayer]);
+
   // ── Submit an action via submitAction ──
   const handleSubmitAction = useCallback(
     async (action: WasmAction) => {
       const proxy = proxyRef.current;
       if (!proxy || !controllingPlayer) return;
       try {
+        // Phase 1: board state + ui + game_over — arrives immediately
         const result = await proxy.submitAction(
           controllingPlayer,
           JSON.stringify(action),
@@ -398,19 +419,11 @@ export function DevBoardView() {
           });
           return;
         }
-        // All data arrives at once from the Worker — no second call needed
+        // ── Render board immediately ──
         setUiElements(result.ui as WasmUiMap);
         setLastAction(action);
         setSelectedDropPiece(null);
         if (result.board_state) setBoardState(result.board_state as WasmBoardState);
-        const allValid = (result.validActions ?? []) as WasmPlayerActions[];
-        setValidActionsAll(allValid);
-        setActivePlayers(deriveActivePlayers(allValid));
-        const ref: PlayerRef = JSON.parse(controllingPlayer);
-        const entry = allValid.find(
-          pa => pa.player.board === ref.board && pa.player.color === ref.color
-        );
-        setValidActions(entry?.actions ?? []);
         if (action.type === "move") {
           addLogEntry(controllingPlayer, { kind: "move", action });
         } else if (action.type === "interact") {
@@ -432,6 +445,7 @@ export function DevBoardView() {
           }
         }
         if (!foundReserve) setReservePile(null);
+        // Phase 2: valid_actions arrive asynchronously via proxy.onValidActions
       } catch (e: unknown) {
         notifications.show({
           title: "Action failed",
