@@ -204,9 +204,46 @@ fn register_engine_helpers(engine: &mut Engine) {
 
 // ─── Player ID helpers ───────────────────────────────────────────────────────
 
-/// Convert a PlayerRef to PlayerId. Team is set to 0 — scripts read team from
-/// state.players, not from the PlayerId passed by the engine.
-fn player_ref_to_player_id(_state: &Dynamic, pref: &PlayerRef) -> PlayerId {
+/// Convert a PlayerRef to PlayerId. Reads team from state.players.
+fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
+    // Read team from state.players
+    if let Some(players_map_lock) = state.read_lock::<rhai::Map>() {
+        if let Some(arr) = players_map_lock
+            .get("players")
+            .cloned()
+            .and_then(|v: rhai::Dynamic| v.try_cast::<rhai::Array>())
+        {
+            for p in arr {
+                if let Some(m) = p.clone().try_cast::<rhai::Map>() {
+                    let color = m
+                        .get("color")
+                        .cloned()
+                        .and_then(|v: rhai::Dynamic| v.into_string().ok())
+                        .unwrap_or_default();
+                    let board: i32 = m
+                        .get("board")
+                        .cloned()
+                        .and_then(|v: rhai::Dynamic| v.as_int().ok())
+                        .map(|v| v as i32)
+                        .unwrap_or(0);
+                    if color == pref.color && board == pref.board as i32 {
+                        let team: i32 = m
+                            .get("team")
+                            .cloned()
+                            .and_then(|v: rhai::Dynamic| v.as_int().ok())
+                            .map(|v| v as i32)
+                            .unwrap_or(0);
+                        return PlayerId::with_team(
+                            pref.board as i32,
+                            pref.color.clone(),
+                            team,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    // Fallback: team 0
     PlayerId::with_team(pref.board as i32, pref.color.clone(), 0)
 }
 
