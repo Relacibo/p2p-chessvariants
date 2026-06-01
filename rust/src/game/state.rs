@@ -27,6 +27,7 @@ pub struct Coords {
     #[rhai_type(readonly)]
     pub board_index: i32,
     /// Reserve index — only valid when coord_type == "reserve"
+    #[serde(default)]
     #[rhai_type(readonly)]
     pub index: i32,
 }
