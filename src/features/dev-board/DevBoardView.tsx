@@ -39,7 +39,6 @@ import {
   WasmBoardState,
   WasmPiece,
   WasmPlayerActions,
-  WasmSubmitActionResult,
   WasmUiMap,
   WasmUiReservePile,
   WasmVariantConfig,
@@ -382,8 +381,8 @@ export function DevBoardView() {
   useEffect(() => {
     const proxy = proxyRef.current;
     if (!proxy) return;
-    proxy.onValidActions = (allValid: unknown) => {
-      const va = allValid as WasmPlayerActions[];
+    proxy.onValidActions = (payload) => {
+      const va = payload.validActions as WasmPlayerActions[];
       setValidActionsAll(va);
       setActivePlayers(deriveActivePlayers(va));
       const ref: PlayerRef = JSON.parse(controllingPlayer);
@@ -391,8 +390,8 @@ export function DevBoardView() {
         pa => pa.player.board === ref.board && pa.player.color === ref.color
       );
       setValidActions(entry?.actions ?? []);
-      // Refresh players
-      proxy.playersJson().then(allP => setAllPlayers(allP as { color: string; board: number; team: number }[]));
+      setAllPlayers(payload.players as { color: string; board: number; team: number }[]);
+      setGameStateJson(payload.stateJson as object);
     };
     return () => { proxy.onValidActions = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

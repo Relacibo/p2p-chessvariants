@@ -20,12 +20,18 @@ interface WorkerMsg {
   error?: string;
 }
 
+export interface ValidActionsPayload {
+  validActions: unknown;
+  stateJson: unknown;
+  players: unknown;
+}
+
 export class EngineProxy {
   private readonly worker: Worker;
   private pending = new Map<number, { resolve: Resolve; reject: Reject }>();
   private seq = 0;
   /** Called when validActions follow-up arrives after submitAction. */
-  public onValidActions: ((allValid: unknown) => void) | null = null;
+  public onValidActions: ((payload: ValidActionsPayload) => void) | null = null;
 
   constructor() {
     this.worker = new EngineWorker();
@@ -35,7 +41,7 @@ export class EngineProxy {
 
       // Phase 2 of submitAction — valid_actions computed, deliver to callback
       if (msg._phase === "validActions") {
-        this.onValidActions?.(msg.result);
+        this.onValidActions?.(msg.result as ValidActionsPayload);
         return;
       }
 

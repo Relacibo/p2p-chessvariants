@@ -122,7 +122,7 @@ fn handle_action(state, player, action) {
 ```
 
 **Safety guarantee**: The engine validates that the submitted action is present in
-the `actions` list for the submitting player in `valid_actions(state)` **before**
+the `actions` list for the submitting player in `valid_actions(state, player)` **before**
 calling `handle_action`. The script does not need to re-validate legality.
 
 **Game-over outcome**: When the script determines the game is ending (e.g. checkmate,
@@ -325,8 +325,8 @@ Turn record:
   2. ("white", SelectPiece(queen))     // white picks the promotion piece
 ```
 
-After step 1, `valid_actions(state)["white"]` contains four `SelectPiece` actions
-and `valid_actions(state)["black"]` is empty — so white must act again before black
+After step 1, `valid_actions(state, white)` contains four `SelectPiece` actions
+and `valid_actions(state, black)` is empty — so white must act again before black
 can move. After step 2, it is black's turn.
 
 **Replay**: submit each `(player, action)` pair in the recorded order. Because
@@ -393,7 +393,7 @@ happens automatically when `valid_actions` gives the next player non-empty actio
 Player submits (player, action)
     │
     ▼
-Engine validates: action ∈ valid_actions(state)[player]
+Engine validates: action ∈ valid_actions(state, player)
     │  invalid → error returned, state unchanged
     ▼
 handle_action(state, player, action) → new_state
@@ -431,9 +431,9 @@ engine.submitAction(player_json, action_json) → result_json
 ```
 
 1. Deserializes player and action.
-2. **Validates**: action must be in the `actions` list for this player in `valid_actions(state)`. If not → error.
+2. **Validates**: action must be in the `actions` list for this player in `valid_actions(state, player)`. If not → error.
 3. Calls `handle_action(state, player, action)` → new state.
-4. Calls `valid_actions(new_state)` → determines active players.
+4. Calls `valid_actions(new_state, player)` for each player in `state.players` → determines active players.
 5. If all actions empty → game over; reads `new_state.outcome` for result (default: draw).
 6. Calls `get_ui(new_state, player)` → serializes UI data.
 7. Returns `{ "valid_actions": [...], "ui": {...}, "game_over": null | {...} }`.
@@ -519,7 +519,7 @@ not the piece type.
 | `standard_start_position` | `() -> Board` | 8×8 standard chess starting position. |
 
 Check-filtering for king safety is typically done with `is_legal` inside the
-script's `valid_actions(state)`:
+script's `valid_actions(state, player)`:
 
 ```rhai
 fn valid_actions(state, player) {
@@ -588,8 +588,8 @@ The Rust engine enforces these guarantees. Scripts can rely on them.
 
 | Guarantee | Enforcement |
 |-----------|-------------|
-| Submitted action is legal | Engine validates action is in the player's `actions` list from `valid_actions(state)` **before** calling `handle_action`. |
-| Only active players can act | A player can only submit actions when their `actions` list in `valid_actions` is non-empty. |
+| Submitted action is legal | Engine validates action is in the player's `actions` list from `valid_actions(state, player)` **before** calling `handle_action`. |
+| Only active players can act | A player can only submit actions when their `actions` list from `valid_actions(state, player)` is non-empty. |
 | UI element IDs are unique | Engine detects duplicate keys in `get_ui` return value and throws. |
 | State immutability | Engine never modifies the state map. The script owns all state transitions. |
 | Deterministic replay | `handle_action` is a pure function: replaying the same `(player, action)` sequence always reproduces the same state. |

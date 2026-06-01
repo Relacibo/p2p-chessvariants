@@ -5,11 +5,6 @@ declare module "*?worker" {
   export default WorkerFactory;
 }
 
-declare module "*?worker&inline" {
-  const WorkerFactory: new () => Worker;
-  export default WorkerFactory;
-}
-
 // Raw WASM binding module — no WASM import, pure JS shims
 declare module "/rust/pkg/chessvariant_engine_bg.js" {
   export { ChessvariantEngine, CvJsError, Piece, PieceColor, PieceType } from "chessvariant-engine";

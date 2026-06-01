@@ -89,12 +89,16 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         });
         ok(id, { _phase: "board", result });
 
-        // Phase 2: valid_actions — compute and send as follow-up
+        // Phase 2: valid_actions, state, players — compute and send as follow-up
         whenReady(() => {
           postMessage({
             id,
             _phase: "validActions",
-            result: JSON.parse(need().validActionsJson()),
+            result: {
+              validActions: JSON.parse(need().validActionsJson()),
+              stateJson:    JSON.parse(need().stateJson()),
+              players:      JSON.parse(need().playersJson()),
+            },
           });
         });
         break;
