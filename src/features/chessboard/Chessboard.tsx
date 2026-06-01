@@ -140,15 +140,10 @@ export function Chessboard({
     const s = new Set<string>();
     // Show targets for whichever source is active (click-select or drag)
     const src = selected ?? dragging;
-    const hasAnyMove = validActions.some((a) => a.type === "move");
-    if (src && hasAnyMove) {
-      // Highlight all squares as valid targets (engine validates specifics)
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          if (r !== src.row || c !== src.col) {
-            s.add(`${r},${c}`);
-          }
-        }
+    if (src) {
+      for (const a of validActions) {
+        if (a.type === "move" && coordsEq(a.from, src) && isBoardCoords(a.to))
+          s.add(`${a.to.row},${a.to.col}`);
       }
     }
     if (selectedDropPiece) {
@@ -163,20 +158,15 @@ export function Chessboard({
       }
     }
     return s;
-  }, [selected, dragging, selectedDropPiece, validActions, rows, cols]);
-
-  const hasMoveAction = useMemo(
-    () => validActions.some((a) => a.type === "move"),
-    [validActions]
-  );
+  }, [selected, dragging, selectedDropPiece, validActions]);
 
   const findAction = useCallback(
-    (from: WasmBoardCoords, to: WasmBoardCoords): Extract<WasmAction, { type: "move" }> | undefined => {
-      // If any move action exists in validActions, build a synthetic move.
-      // The engine validates only action kind ("move"), not specific coordinates.
-      if (!validActionsRef.current.some((a) => a.type === "move")) return undefined;
-      return { type: "move", from, to } as Extract<WasmAction, { type: "move" }>;
-    },
+    (from: WasmBoardCoords, to: WasmBoardCoords) =>
+      validActionsRef.current.find(
+        (a) =>
+          a.type === "move" && coordsEq(a.from, from) && coordsEq(a.to, to)
+      ) as Extract<WasmAction, { type: "move" }> | undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

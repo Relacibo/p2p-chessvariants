@@ -165,6 +165,7 @@ fn register_engine_helpers(engine: &mut Engine) {
     );
 
     // engine::is_legal(board, from, to, color) — check protection (king safety)
+    let cp_legal2 = cp_legal.clone();
     engine.register_fn(
         "engine::is_legal",
         move |board: BoardState, from: Coords, to: Coords, color: String| -> bool {
@@ -173,6 +174,17 @@ fn register_engine_helpers(engine: &mut Engine) {
             let mut temp = board.clone();
             game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
             !game::engine_builtins::is_king_in_check(&temp, &color, &cp_legal)
+        },
+    );
+    // Also register as bare global for testing
+    engine.register_fn(
+        "is_legal",
+        move |board: BoardState, from: Coords, to: Coords, color: String| -> bool {
+            let Some(from_bc) = from.as_board_coords() else { return false; };
+            let Some(to_bc) = to.as_board_coords() else { return false; };
+            let mut temp = board.clone();
+            game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
+            !game::engine_builtins::is_king_in_check(&temp, &color, &cp_legal2)
         },
     );
 
