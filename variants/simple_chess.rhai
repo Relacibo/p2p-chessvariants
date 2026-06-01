@@ -1,7 +1,6 @@
 // Simple Chess — API v2
 // Uses engine::moves::* for per-piece pseudo-legal move generation.
-// Uses is_legal for check filtering.
-// Enforces turn order, piece ownership, and king safety.
+// Enforces turn order, piece ownership, and king safety in handle_action.
 // Game ends when a king is captured.
 
 fn config() {
@@ -50,9 +49,7 @@ fn valid_actions(state) {
                         let from = Coords(r, c);
                         let dests = moves_for_piece(state.board, from, piece.type, p.color);
                         for to in dests {
-                            if is_legal(state.board, from, to, p.color) {
-                                pa.push(Move(from, to));
-                            }
+                            pa.push(Move(from, to));
                         }
                     }
                 }

@@ -238,6 +238,44 @@ fn parse_player_id(d: &Dynamic) -> Result<PlayerId, CvError> {
     Err(CvError::Internal("valid_actions player is not a PlayerId or player map".into()))
 }
 
+/// Convert a Rhai Map (and nested values) to a serde_json::Value.
+fn rhai_map_to_json(map: &rhai::Map) -> serde_json::Value {
+    let mut json_map = serde_json::Map::new();
+    for (key, value) in map {
+        let json_value = rhai_dynamic_to_json(value);
+        json_map.insert(key.to_string(), json_value);
+    }
+    serde_json::Value::Object(json_map)
+}
+
+fn rhai_dynamic_to_json(value: &rhai::Dynamic) -> serde_json::Value {
+    if value.is::<rhai::Map>() {
+        let map = value.read_lock::<rhai::Map>().unwrap();
+        rhai_map_to_json(&map)
+    } else if value.is::<rhai::Array>() {
+        let arr = value.read_lock::<rhai::Array>().unwrap();
+        let json_arr: Vec<serde_json::Value> = arr.iter().map(rhai_dynamic_to_json).collect();
+        serde_json::Value::Array(json_arr)
+    } else if let Ok(s) = value.clone().into_string() {
+        serde_json::Value::String(s)
+    } else if let Ok(n) = value.as_int() {
+        serde_json::Value::Number(serde_json::Number::from(n))
+    } else if value.is::<f64>() {
+        let f: f64 = value.clone().cast();
+        serde_json::Number::from_f64(f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null)
+    } else if value.is_bool() {
+        let b: bool = value.clone().cast();
+        serde_json::Value::Bool(b)
+    } else if value.is_unit() {
+        serde_json::Value::Null
+    } else {
+        // Fallback: string representation
+        serde_json::Value::String(format!("{:?}", value))
+    }
+}
+
 // ─── Constructor ─────────────────────────────────────────────────────────────
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
@@ -394,6 +432,24 @@ impl ChessvariantEngine {
         };
 
         Ok(serde_json::to_string(&players)?)
+    }
+
+    /// Returns full game state (the Rhai map) as JSON, with the board fully serialized.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = stateJson))]
+    pub fn state_json(&self) -> Result<String, CvError> {
+        let map = self.game_state.read_lock::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
+        // Convert Rhai Map to serde_json::Value
+        let mut json = rhai_map_to_json(&map);
+        // Replace the board entry (which is just a type name string) with the fully serialized board
+        if let Some(obj) = json.as_object_mut() {
+            if let Ok(board_json) = self.board_state_json() {
+                if let Ok(board_value) = serde_json::from_str::<serde_json::Value>(&board_json) {
+                    obj.insert("board".to_string(), board_value);
+                }
+            }
+        }
+        Ok(serde_json::to_string_pretty(&json)?)
     }
 
     /// Returns valid actions for ALL players. No player argument.

@@ -150,6 +150,7 @@ export function DevBoardView() {
     null
   );
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [gameStateJson, setGameStateJson] = useState<object | null>(null);
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -240,6 +241,12 @@ export function DevBoardView() {
           }
         }
         if (!foundReserve) setReservePile(null);
+        // Fetch full game state as JSON
+        try {
+          setGameStateJson(JSON.parse(engine.stateJson()));
+        } catch {
+          setGameStateJson(null);
+        }
       } else {
         setValidActions([]);
         setUiElements(null);
@@ -435,6 +442,12 @@ export function DevBoardView() {
       // Refresh board state
       setBoardState(JSON.parse(engine.boardStateJson()));
       setAllPlayers(JSON.parse(engine.playersJson()));
+      // Refresh game state JSON
+      try {
+        setGameStateJson(JSON.parse(engine.stateJson()));
+      } catch {
+        setGameStateJson(null);
+      }
     },
     [controllingPlayer, addLogEntry, deriveActivePlayers]
   );
@@ -695,6 +708,51 @@ export function DevBoardView() {
               </Group>
             ))}
           </ScrollArea>
+
+          {/* ── Game State JSON (collapsible) ── */}
+          {gameStateJson && (
+            <Box>
+              <Group
+                justify="space-between"
+                align="center"
+                style={{ cursor: "pointer" }}
+                onClick={() =>
+                  setGameStateJson((prev) => (prev ? null : prev))
+                }
+              >
+                <Text size="sm" fw={600}>
+                  Game State
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {gameStateJson ? "▼" : "▶"}
+                </Text>
+              </Group>
+              <Box
+                mt={4}
+                style={{
+                  maxHeight: 300,
+                  overflow: "auto",
+                  background: "#1a1b1e",
+                  borderRadius: 4,
+                  padding: 8,
+                }}
+              >
+                <Text
+                  size="xs"
+                  component="pre"
+                  style={{
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    fontFamily: "monospace",
+                    color: "#c9d1d9",
+                  }}
+                >
+                  {JSON.stringify(gameStateJson, null, 2)}
+                </Text>
+              </Box>
+            </Box>
+          )}
             </Stack>
           </ScrollArea>
         </Paper>
