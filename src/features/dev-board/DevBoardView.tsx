@@ -38,7 +38,7 @@ import {
   WasmAction,
   WasmBoardState,
   WasmPiece,
-  WasmPlayerActions,
+  WasmPlayerMoves,
   WasmUiMap,
   WasmUiReservePile,
   WasmVariantConfig,
@@ -140,10 +140,10 @@ export function DevBoardView() {
   const [reservePile, setReservePile] = useState<WasmUiReservePile | null>(
     null
   );
-  const [validActions, setValidActions] = useState<WasmAction[]>([]);
-  const [validActionsAll, setValidActionsAll] = useState<WasmPlayerActions[]>(
-    []
-  );
+  const [validMoves, setValidMoves] = useState<WasmAction[]>([]);
+
+  const [validMovesAll, setValidMovesAll] = useState<WasmPlayerMoves[]>([]);
+
   const [uiElements, setUiElements] = useState<WasmUiMap | null>(null);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
   const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(
@@ -152,8 +152,13 @@ export function DevBoardView() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [gameStateJson, setGameStateJson] = useState<object | null>(null);
   const [showGameState, setShowGameState] = useState(false);
-  const [validActionsJsonStr, setValidActionsJsonStr] = useState<string | null>(null);
-  const [showValidActions, setShowValidActions] = useState(false);
+  const [validMovesJsonStr, setValidMovesJsonStr] = useState<string | null>(null);
+  const [showValidMoves, setShowValidMoves] = useState(false);
+  const [gameOver, setGameOver] = useState<{
+    type: "winner" | "winners" | "draw";
+    player?: number;
+    players?: number[];
+  } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -177,14 +182,14 @@ export function DevBoardView() {
 
   // Determine if a piece selection dialog should be shown
   const selectablePieces = useMemo(() => {
-    return validActions
+    return validMoves
       .filter((a): a is WasmAction & { type: "select_piece" } => a.type === "select_piece")
       .map((a) => a.piece);
-  }, [validActions]);
+  }, [validMoves]);
 
   const hasCancel = useMemo(
-    () => validActions.some((a) => a.type === "cancel"),
-    [validActions],
+    () => validMoves.some((a) => a.type === "cancel"),
+    [validMoves],
   );
 
   // ── Container resize observer ──
@@ -215,9 +220,9 @@ export function DevBoardView() {
 
   // Derive active players from valid_actions all (entries with non-empty actions)
   const deriveActivePlayers = useCallback(
-    (allActions: WasmPlayerActions[]): PlayerRef[] => {
+    (allActions: WasmPlayerMoves[]): PlayerRef[] => {
       return allActions
-        .filter((pa) => pa.actions.length > 0)
+        .filter((pa) => pa.moves.length > 0)
         .map((pa) => ({
           board: pa.player.board,
           color: pa.player.color,
@@ -231,11 +236,11 @@ export function DevBoardView() {
       const p = player ?? controllingPlayer;
       const [boardState, allValid, allP] = await Promise.all([
         proxy.boardStateJson() as Promise<WasmBoardState>,
-        proxy.validActionsJson() as Promise<WasmPlayerActions[]>,
+        proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
         proxy.playersJson() as Promise<{ color: string; board: number; team: number }[]>,
       ]);
       setBoardState(boardState);
-      setValidActionsAll(allValid);
+      setValidMovesAll(allValid);
       setActivePlayers(deriveActivePlayers(allValid));
       setAllPlayers(allP);
       if (p) {
@@ -243,7 +248,7 @@ export function DevBoardView() {
         const entry = allValid.find(pa =>
           pa.player.board === ref.board && pa.player.color === ref.color
         );
-        setValidActions(entry?.actions ?? []);
+        setValidMoves(entry?.moves ?? []);
         const uiResult = await proxy.getUiJson(p) as { ui: WasmUiMap };
         const ui = (uiResult.ui ?? null) as WasmUiMap | null;
         setUiElements(ui);
@@ -259,7 +264,7 @@ export function DevBoardView() {
         }
         if (!foundReserve) setReservePile(null);
       } else {
-        setValidActions([]);
+        setValidMoves([]);
         setUiElements(null);
       }
     },
@@ -293,8 +298,8 @@ export function DevBoardView() {
       setVariantConfig(null);
       setBoardState(null);
       setReservePile(null);
-      setValidActions([]);
-      setValidActionsAll([]);
+      setValidMoves([]);
+      setValidMovesAll([]);
       setUiElements(null);
       try {
         const script = await fetchScriptText(url);
@@ -303,8 +308,8 @@ export function DevBoardView() {
         proxyRef.current = proxy;
         setVariantConfig(init.variantConfig as WasmVariantConfig);
         setBoardState(init.boardState as WasmBoardState);
-        const initialValid = init.validActions as WasmPlayerActions[];
-        setValidActionsAll(initialValid);
+        const initialValid = init.validMoves as WasmPlayerMoves[];
+        setValidMovesAll(initialValid);
         const initPlayers = deriveActivePlayers(initialValid);
         const firstPlayer = initPlayers[0] ? JSON.stringify(initPlayers[0]) : "";
         setControllingPlayer(firstPlayer);
@@ -377,21 +382,28 @@ export function DevBoardView() {
     closeDrawer();
   };
 
-  // ── Register validActions follow-up callback on the current proxy ──
+  // ── Register progressive Phase 2 callbacks on the current proxy ──
   useEffect(() => {
     const proxy = proxyRef.current;
     if (!proxy) return;
-    proxy.onValidActions = (payload) => {
-      const va = payload.validActions as WasmPlayerActions[];
-      setValidActionsAll(va);
-      setActivePlayers(deriveActivePlayers(va));
-      const ref: PlayerRef = JSON.parse(controllingPlayer);
-      const entry = va.find(
-        pa => pa.player.board === ref.board && pa.player.color === ref.color
-      );
-      setValidActions(entry?.actions ?? []);
+    // Phase 2a: local player's valid_moves (fast, updates highlights)
+    proxy.onValidMoves = (payload) => {
+      const lm = payload.validMoves;
+      setValidMoves((lm.moves ?? []) as WasmAction[]);
     };
-    return () => { proxy.onValidActions = null; };
+    // Phase 2c: all validMoves for all players + game_over result
+    proxy.onGameOver = (payload) => {
+      const va = payload.validMoves as WasmPlayerMoves[];
+      setValidMovesAll(va);
+      setActivePlayers(deriveActivePlayers(va));
+      if (payload.gameOver) {
+        setGameOver(payload.gameOver as typeof gameOver);
+      }
+    };
+    return () => {
+      proxy.onValidMoves = null;
+      proxy.onGameOver = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proxyRef.current, controllingPlayer]);
 
@@ -405,6 +417,7 @@ export function DevBoardView() {
         const result = await proxy.submitAction(
           controllingPlayer,
           JSON.stringify(action),
+          controllingPlayer,
         );
         if (result.error) {
           notifications.show({
@@ -445,7 +458,7 @@ export function DevBoardView() {
           }
         }
         if (!foundReserve) setReservePile(null);
-        // Phase 2: valid_actions arrive asynchronously via proxy.onValidActions
+        // Phase 2: valid_actions arrive asynchronously via proxy.onValidMoves
       } catch (e: unknown) {
         notifications.show({
           title: "Action failed",
@@ -483,7 +496,7 @@ export function DevBoardView() {
         <Chessboard
           variantConfig={variantConfig}
           boardState={boardState}
-          validActions={validActions}
+          validMoves={validMoves}
           boardIndex={currentBoardIndex}
           flipped={currentFlipped}
           onSubmitAction={handleSubmitAction}
@@ -783,23 +796,23 @@ export function DevBoardView() {
               align="center"
               style={{ cursor: "pointer" }}
               onClick={() => {
-                if (!showValidActions && !validActionsJsonStr) {
+                if (!showValidMoves && !validMovesJsonStr) {
                   // Fetch on first expand
-                  void proxyRef.current?.validActionsJson().then(v => {
-                    try { setValidActionsJsonStr(JSON.stringify(v, null, 2)); } catch { /* ignore */ }
+                  void proxyRef.current?.validMovesJson().then(v => {
+                    try { setValidMovesJsonStr(JSON.stringify(v, null, 2)); } catch { /* ignore */ }
                   });
                 }
-                setShowValidActions((s) => !s);
+                setShowValidMoves((s) => !s);
               }}
             >
               <Text size="sm" fw={600}>
                 Valid Actions
               </Text>
               <Text size="xs" c="dimmed">
-                {showValidActions ? "▼" : "▶"}
+                {showValidMoves ? "▼" : "▶"}
               </Text>
             </Group>
-            {showValidActions && validActionsJsonStr && (
+            {showValidMoves && validMovesJsonStr && (
               <Box
                 mt={4}
                 style={{
@@ -824,12 +837,12 @@ export function DevBoardView() {
                   {(() => {
                     try {
                       return JSON.stringify(
-                        JSON.parse(validActionsJsonStr),
+                        JSON.parse(validMovesJsonStr),
                         null,
                         2
                       );
                     } catch {
-                      return validActionsJsonStr;
+                      return validMovesJsonStr;
                     }
                   })()}
                 </Text>

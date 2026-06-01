@@ -32,7 +32,7 @@ const LAST_MOVE_FILL = "rgba(255, 215, 0, 0.35)";
 export type ChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
-  validActions: WasmAction[];
+  validMoves: WasmAction[];
   /** Which board to render (from the controlling player's board index). */
   boardIndex: number;
   /** Whether the board is flipped for this player's perspective. */
@@ -67,7 +67,7 @@ function mkBoardCoords(row: number, col: number, boardIndex: number): WasmBoardC
 export function Chessboard({
   variantConfig,
   boardState,
-  validActions,
+  validMoves,
   boardIndex,
   flipped,
   onSubmitAction,
@@ -97,25 +97,25 @@ export function Chessboard({
   const stageRef = useRef<any>(null);
   const dragSurfaceRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // Keep a ref to validActions so onDrop always has fresh data
-  const validActionsRef = useRef(validActions);
-  validActionsRef.current = validActions;
+  // Keep a ref to validMoves so onDrop always has fresh data
+  const validMovesRef = useRef(validMoves);
+  validMovesRef.current = validMoves;
 
   const setCursor = (cursor: string) => {
     stageRef.current?.container()?.style &&
       (stageRef.current.container().style.cursor = cursor);
   };
 
-  // Derive pickable squares from validActions — which pieces can be selected/dragged.
+  // Derive pickable squares from validMoves — which pieces can be selected/dragged.
   // A square is pickable if there is at least one Move action from it.
   const pickableSquares = useMemo(() => {
     const s = new Set<string>();
-    for (const a of validActions) {
+    for (const a of validMoves) {
       if (a.type === "move" && isBoardCoords(a.from))
         s.add(`${a.from.row},${a.from.col}`);
     }
     return s;
-  }, [validActions]);
+  }, [validMoves]);
 
   useEffect(() => {
     preloadAllPieceImages().then(() => setImagesLoaded(true));
@@ -135,14 +135,14 @@ export function Chessboard({
     // Show targets for whichever source is active (click-select or drag)
     const src = selected ?? dragging;
     if (src) {
-      for (const a of validActions) {
+      for (const a of validMoves) {
         if (a.type === "move" && coordsEq(a.from, src) && isBoardCoords(a.to))
           s.add(`${a.to.row},${a.to.col}`);
       }
     }
     if (selectedDropPiece) {
       // Drops: from is a ReserveCoords. Show all valid destinations.
-      for (const a of validActions) {
+      for (const a of validMoves) {
         if (
           a.type === "move" &&
           a.from.type === "reserve" &&
@@ -152,11 +152,11 @@ export function Chessboard({
       }
     }
     return s;
-  }, [selected, dragging, selectedDropPiece, validActions]);
+  }, [selected, dragging, selectedDropPiece, validMoves]);
 
   const findAction = useCallback(
     (from: WasmBoardCoords, to: WasmBoardCoords) =>
-      validActionsRef.current.find(
+      validMovesRef.current.find(
         (a) =>
           a.type === "move" && coordsEq(a.from, from) && coordsEq(a.to, to)
       ) as Extract<WasmAction, { type: "move" }> | undefined,
@@ -189,7 +189,7 @@ export function Chessboard({
 
     // Drop from reserve pile: find the matching Move action with ReserveCoords from
     if (selectedDropPiece) {
-      const action = validActions.find(
+      const action = validMoves.find(
         (a): a is Extract<WasmAction, { type: "move" }> =>
           a.type === "move" &&
           a.from.type === "reserve" &&

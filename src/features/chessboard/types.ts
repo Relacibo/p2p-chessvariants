@@ -34,7 +34,7 @@ export function isBoardCoords(c: WasmCoords): c is WasmBoardCoords {
   return c.type === "board";
 }
 
-/** Action types produced by `validActionsJson()`. */
+/** Action types. `select_piece` and `cancel` come only from PiecePicker UI elements. */
 export type WasmAction =
   | { type: "move"; from: WasmCoords; to: WasmCoords }
   | { type: "select_piece"; piece: WasmPiece }
@@ -99,29 +99,36 @@ export interface WasmUiReservePile {
   pieces: WasmPiece[];
 }
 
+/** A piece picker modal (promotion, gating, etc.). */
+export interface WasmUiPiecePicker {
+  type: "piece_picker";
+  pieces: WasmPiece[];
+}
+
 export type WasmUiElementNode =
   | WasmUiButton
   | WasmUiBanner
-  | WasmUiReservePile;
+  | WasmUiReservePile
+  | WasmUiPiecePicker;
 
 /** UI map returned by engine: { [elementId: string]: WasmUiElementNode }. */
 export type WasmUiMap = Record<string, WasmUiElementNode>;
 
-/** A player's valid actions entry from `validActionsJson()`. */
-export interface WasmPlayerActions {
+/** A player's valid moves entry from `validMovesJson()`. */
+export interface WasmPlayerMoves {
   player: { board: number; color: string; team: number };
-  actions: WasmAction[];
+  moves: WasmAction[];
 }
 
 /** Result of `submitAction()`. */
 export interface WasmSubmitActionResult {
-  valid_actions?: WasmPlayerActions[]; // omitted — fetched async via validActionsJson()
   ui: WasmUiMap;
   game_over: {
     type: "winner" | "winners" | "draw";
     player?: number;
     players?: number[];
   } | null;
+  board_state: WasmBoardState;
 }
 
 /** A player reference: `{ board, color }`. */

@@ -3,6 +3,11 @@
  *
  * All heavy WASM/Rhai computation runs here.
  * Messages are accepted immediately (before WASM is ready) and queued.
+ *
+ * Progressive Phase 2 after submitAction:
+ *   2a. valid_moves for local player → postMessage immediately
+ *   2b. valid_moves for remaining players (background, no message)
+ *   2c. is_game_over + game_over → postMessage when ready
  */
 
 import type { ChessvariantEngine as EngineType } from "chessvariant-engine";
@@ -18,7 +23,7 @@ interface BgModule {
 interface WorkerRequest {
   id: number;
   type:
-    | "init" | "submitAction" | "validActionsJson" | "getUiJson"
+    | "init" | "submitAction" | "validMovesJson" | "getUiJson"
     | "boardStateJson" | "playersJson" | "variantConfigJson" | "stateJson";
   payload?: unknown;
 }
@@ -71,9 +76,12 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         await whenReady(() => {
           const p = payload as { script: string; playerCount: number };
           engine = new EngineClass(p.script, p.playerCount);
+          // Use validMovesAllJson for initial state (includes game_over check)
+          const va = JSON.parse(engine.validMovesAllJson());
           return {
             boardState:    JSON.parse(engine.boardStateJson()),
-            validActions:  JSON.parse(engine.validActionsJson()),
+            validMoves:    va.validMoves,
+            gameOver:      va.gameOver,
             players:       JSON.parse(engine.playersJson()),
             variantConfig: JSON.parse(engine.variantConfigJson()),
           };
@@ -81,11 +89,10 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         break;
       }
       case "submitAction": {
-        const p = payload as { player: string; actionJson: string };
-        // Phase 1: board, ui, game_over + fast serializations — send IMMEDIATELY
+        const p = payload as { player: string; actionJson: string; localPlayer: string };
+        // Phase 1: board, ui, game_over — send IMMEDIATELY
         const result = await whenReady(() => {
           const r = JSON.parse(need().submitAction(p.player, p.actionJson));
-          // Append cheap serializations so the frontend gets the full picture now
           return {
             ...r,
             stateJson: JSON.parse(need().stateJson()),
@@ -94,18 +101,29 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         });
         ok(id, result);
 
-        // Phase 2: valid_actions only — expensive Rhai computation, follow-up
-        whenReady(() => {
-          postMessage({
-            id,
-            _phase: "validActions",
-            result: { validActions: JSON.parse(need().validActionsJson()) },
-          });
+        // Phase 2a: valid_moves for local player FIRST
+        const localMoves = await whenReady(() =>
+          JSON.parse(need().validMovesForPlayerJson(p.localPlayer))
+        );
+        postMessage({
+          id,
+          _phase: "validMoves",
+          result: { validMoves: localMoves },
+        });
+
+        // Phase 2b + 2c: remaining players + game_over check
+        const all = await whenReady(() =>
+          JSON.parse(need().validMovesAllJson())
+        );
+        postMessage({
+          id,
+          _phase: "gameOver",
+          result: { gameOver: all.gameOver, validMoves: all.validMoves },
         });
         break;
       }
-      case "validActionsJson":
-        ok(id, await whenReady(() => JSON.parse(need().validActionsJson()))); break;
+      case "validMovesJson":
+        ok(id, await whenReady(() => JSON.parse(need().validMovesAllJson()))); break;
       case "getUiJson":
         ok(id, await whenReady(() => JSON.parse(need().getUiJson((payload as { player: string }).player)))); break;
       case "boardStateJson":

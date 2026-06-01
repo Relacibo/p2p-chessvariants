@@ -2,9 +2,9 @@
  * Promise-based proxy to the WASM engine running in a Web Worker.
  * Every call is async — zero main-thread blocking.
  *
- * submitAction uses a two-phase protocol:
- *   1. "board" — board_state + ui + game_over, returned immediately
- *   2. "validActions" — all valid actions, delivered via onValidActions callback
+ * Progressive Phase 2 after submitAction:
+ *   1. "validMoves" — local player's moves, delivered ASAP via onValidMoves
+ *   2. "gameOver"  — full validMoves + game_over, delivered via onGameOver
  */
 
 import EngineWorker from "./engineWorker.ts?worker";
@@ -15,21 +15,31 @@ type Reject  = (e: Error) => void;
 
 interface WorkerMsg {
   id: number;
-  _phase?: "board" | "validActions";
+  _phase?: "validMoves" | "gameOver";
   result?: unknown;
   error?: string;
 }
 
-export interface ValidActionsPayload {
-  validActions: unknown;
+export interface ValidMovesPayload {
+  validMoves: {
+    player: { board: number; color: string; team: number };
+    moves: unknown[];
+  };
+}
+
+export interface GameOverPayload {
+  validMoves: unknown[];
+  gameOver: unknown;
 }
 
 export class EngineProxy {
   private readonly worker: Worker;
   private pending = new Map<number, { resolve: Resolve; reject: Reject }>();
   private seq = 0;
-  /** Called when validActions follow-up arrives after submitAction. */
-  public onValidActions: ((payload: ValidActionsPayload) => void) | null = null;
+  /** Called when local player's validMoves are ready (Phase 2a). */
+  public onValidMoves: ((payload: ValidMovesPayload) => void) | null = null;
+  /** Called after all validMoves + is_game_over computed (Phase 2b+c). */
+  public onGameOver: ((payload: GameOverPayload) => void) | null = null;
 
   constructor() {
     this.worker = new EngineWorker();
@@ -37,13 +47,19 @@ export class EngineProxy {
     this.worker.onmessage = ({ data }: MessageEvent<WorkerMsg>) => {
       const msg = data as WorkerMsg;
 
-      // Phase 2 of submitAction — valid_actions computed, deliver to callback
-      if (msg._phase === "validActions") {
-        this.onValidActions?.(msg.result as ValidActionsPayload);
+      // Phase 2a — local player's valid_moves, fast path
+      if (msg._phase === "validMoves") {
+        this.onValidMoves?.(msg.result as ValidMovesPayload);
         return;
       }
 
-      // Normal request-response (init, board phase, etc.)
+      // Phase 2b+c — game over result with full validMoves
+      if (msg._phase === "gameOver") {
+        this.onGameOver?.(msg.result as GameOverPayload);
+        return;
+      }
+
+      // Normal request-response
       const p = this.pending.get(msg.id);
       if (!p) return;
       this.pending.delete(msg.id);
@@ -69,24 +85,29 @@ export class EngineProxy {
 
   init(script: string, playerCount: number) {
     return this.call<{
-      boardState: unknown; validActions: unknown;
-      players: unknown; variantConfig: unknown;
+      boardState: unknown;
+      validMoves: unknown[];
+      gameOver: unknown;
+      players: unknown[];
+      variantConfig: unknown;
     }>("init", { script, playerCount });
   }
 
   /**
-   * Phase 1 resolves with board_state, ui, game_over.
-   * Phase 2 (valid_actions) arrives via this.onValidActions.
+   * Phase 1 resolves with board_state, ui, game_over, stateJson, players.
+   * Phase 2a → this.onValidMoves  (local player's moves)
+   * Phase 2c → this.onGameOver    (all moves + game_over result)
    */
-  submitAction(player: string, actionJson: string) {
+  submitAction(player: string, actionJson: string, localPlayer: string) {
     return this.call<{
       ui: unknown; game_over: unknown;
-      board_state: unknown;
+      board_state: unknown; stateJson: unknown;
+      players: unknown[];
       error?: string;
-    }>("submitAction", { player, actionJson });
+    }>("submitAction", { player, actionJson, localPlayer });
   }
 
-  validActionsJson()  { return this.call<unknown>("validActionsJson"); }
+  validMovesJson()  { return this.call<unknown>("validMovesJson"); }
   getUiJson(p: string){ return this.call<{ ui: unknown }>("getUiJson", { player: p }); }
   boardStateJson()    { return this.call<unknown>("boardStateJson"); }
   playersJson()       { return this.call<unknown[]>("playersJson"); }
