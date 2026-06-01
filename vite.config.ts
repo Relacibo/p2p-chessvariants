@@ -34,6 +34,10 @@ export default defineConfig(({ command, mode }) => {
     build: {
       target: "esnext",
     },
+    worker: {
+      format: "es",
+      plugins: () => [wasm(), topLevelAwait()],
+    },
     define: {
       global: "globalThis",
     },
