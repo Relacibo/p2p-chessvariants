@@ -123,7 +123,10 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         break;
       }
       case "validMovesJson":
-        ok(id, await whenReady(() => JSON.parse(need().validMovesAllJson()))); break;
+        ok(id, await whenReady(() => {
+          const r = JSON.parse(need().validMovesAllJson());
+          return r.validMoves; // just the moves array, not the full {validMoves, gameOver} object
+        })); break;
       case "getUiJson":
         ok(id, await whenReady(() => JSON.parse(need().getUiJson((payload as { player: string }).player)))); break;
       case "boardStateJson":
