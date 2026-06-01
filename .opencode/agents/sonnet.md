@@ -13,7 +13,7 @@ implementation of non-trivial features. You write production-quality code.
 - Frontend: React (Mantine UI), Redux, WebAssembly
 - **Scripting API**: See `specs/scripting-api.md` — the single source of truth for
   the engine–script interface. Key points: `on_move`, `get_ui`, handler closures
-  on `Button`/`PieceSelection`/`Banner` elements, no global event bus.
+  on `Button`/`Banner`/`ReservePile` elements, no global event bus.
 - Follow code style from AGENTS.md (snake_case Rust, camelCase TS, English comments)
 
 ## When to Use This Agent

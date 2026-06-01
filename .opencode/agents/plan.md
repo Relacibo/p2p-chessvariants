@@ -29,7 +29,7 @@ designing or modifying any engine/script feature. Key constraints from the spec:
 
 - **`on_move(state, player, from, to, piece)`** — mandatory, typed move handler. No `handle_event`.
 - **`get_ui(state, player)`** — returns UI elements as a map keyed by stable string IDs
-  (`Button`, `PieceSelection`, `Banner`). Handlers are inline closures on elements.
+  (`Button`, `Banner`, `ReservePile`). Handlers are inline closures on elements.
 - **Scoped events only** — no global event bus, no `on("name", handler)` registration.
 - **No `on_drop`** — reserve placements use the same `on_move` (from.type == "reserve").
 - **No JSON parsing in scripts** — every value crossing Rust↔Rhai is a native type.

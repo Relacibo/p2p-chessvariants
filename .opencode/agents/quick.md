@@ -24,7 +24,7 @@ The Rhai scripting API is defined in `specs/scripting-api.md`. This document is 
 implementing engine features, script functions, or Wasm endpoints. Key constraints:
 
 - **`on_move(state, player, from, to, piece) → state`** — mandatory, typed move handler.
-- **`get_ui(state, player) → #{}`** — returns UI as map of `Button`, `PieceSelection`, `Banner`.
+- **`get_ui(state, player) → #{}`** — returns UI as map of `Button`, `Banner`, `ReservePile`.
 - **Handler closures** — `on_click` and `on_select` are stored by the engine, stripped from JSON.
 - **Engine discards handlers** after every state change, re-fetches via `get_ui`.
 - **No `handle_event`, `on_select`, `on_drop`, `on("name", handler)`** — these do not exist in v2.
