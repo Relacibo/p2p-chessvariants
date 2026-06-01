@@ -969,32 +969,6 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .unwrap_or_default();
                 serde_json::json!({ "type": "button", "label": label })
             }
-            "piece_selection" => {
-                let title = elem_map
-                    .get("title")
-                    .and_then(|v| v.clone().into_string().ok())
-                    .unwrap_or_default();
-                let pieces_arr = elem_map
-                    .get("pieces")
-                    .cloned()
-                    .and_then(|d| d.try_cast::<rhai::Array>())
-                    .unwrap_or_default();
-                let pieces_json: Vec<serde_json::Value> = pieces_arr
-                    .iter()
-                    .filter_map(|d| {
-                        let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(serde_json::json!({
-                            "color": piece.color_name(),
-                            "pieceType": piece.piece_type_name(),
-                        }))
-                    })
-                    .collect();
-                serde_json::json!({
-                    "type": "piece_selection",
-                    "title": title,
-                    "pieces": pieces_json,
-                })
-            }
             "banner" => {
                 let text = elem_map
                     .get("text")

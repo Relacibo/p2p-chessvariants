@@ -86,13 +86,6 @@ export interface WasmUiButton {
   label: string;
 }
 
-/** A piece selection dialog (promotion, gating…). */
-export interface WasmUiPieceSelection {
-  type: "piece_selection";
-  title: string;
-  pieces: WasmPiece[];
-}
-
 /** A non-interactive info/warning/error banner. */
 export interface WasmUiBanner {
   type: "banner";
@@ -108,7 +101,6 @@ export interface WasmUiReservePile {
 
 export type WasmUiElementNode =
   | WasmUiButton
-  | WasmUiPieceSelection
   | WasmUiBanner
   | WasmUiReservePile;
 

@@ -30,6 +30,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
 import { ReservePile } from "../chessboard/ReservePile";
+import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
 import style from "./DevBoardView.module.css";
 import {
@@ -174,6 +175,18 @@ export function DevBoardView() {
   }, [controllingPlayer]);
   const currentBoardIndex = playerRef?.board ?? 0;
   const currentFlipped = playerRef?.color === "black";
+
+  // Determine if a piece selection dialog should be shown
+  const selectablePieces = useMemo(() => {
+    return validActions
+      .filter((a): a is WasmAction & { type: "select_piece" } => a.type === "select_piece")
+      .map((a) => a.piece);
+  }, [validActions]);
+
+  const hasCancel = useMemo(
+    () => validActions.some((a) => a.type === "cancel"),
+    [validActions],
+  );
 
   // ── Container resize observer ──
   useEffect(() => {
@@ -523,6 +536,15 @@ export function DevBoardView() {
           size={boardSize}
           stageWidth={containerSize.w}
           stageHeight={containerSize.h}
+        />
+      )}
+
+      {/* ── Piece selection dialog (auto-spawned from valid_actions) ── */}
+      {selectablePieces.length > 0 && (
+        <PieceSelectionDialog
+          selectablePieces={selectablePieces}
+          hasCancel={hasCancel}
+          onSubmit={handleSubmitAction}
         />
       )}
 

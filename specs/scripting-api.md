@@ -209,6 +209,16 @@ Used for promotion, gating, or any scenario where the player must choose a piece
 type. If the player may abort, include `Cancel()` in `valid_actions` alongside the
 `SelectPiece` actions.
 
+**Auto-spawn behaviour**: The frontend automatically displays a piece selection
+dialog when the player's `valid_actions` list contains at least one `SelectPiece`
+action. The dialog lists all pieces from the `SelectPiece` actions (deduplicated
+by `color` + `pieceType`). A cancel button is shown only when a `Cancel` action
+is also present. The dialog hides automatically as soon as `valid_actions` no
+longer contains any `SelectPiece` action.
+
+Scripts should **not** return a `piece_selection` UI element from `get_ui` — the
+dialog is fully driven by `valid_actions`.
+
 ### `Interact`
 
 ```rhai
@@ -264,27 +274,6 @@ there are no handler closures. All interactivity is expressed via `valid_actions
 Clicking sends an `Interact(element_id)` action (where `element_id` is the map key
 under which this element was returned by `get_ui`). The button is enabled only when
 the corresponding `Interact` action is present in the player's `valid_actions`.
-
-### `PieceSelection`
-
-```rhai
-#{
-    type: "piece_selection",
-    title: string,
-    pieces: [Piece, ...],
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"piece_selection"` | YES | Discriminator |
-| `title` | string | YES | Dialog title |
-| `pieces` | array of `Piece` | YES | Selectable pieces (`.color`, `.type`) |
-
-Selecting a piece sends a `SelectPiece(piece)` action. The dialog is shown when
-`valid_actions` contains at least one `SelectPiece` action for the player.
-To allow the player to abort, include `Cancel()` in `valid_actions`. The frontend
-renders a cancel button automatically when a `piece_selection` element is active.
 
 ### `Banner`
 
