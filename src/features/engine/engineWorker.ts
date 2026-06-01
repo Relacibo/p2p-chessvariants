@@ -92,7 +92,7 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
             players:   JSON.parse(need().playersJson()),
           };
         });
-        ok(id, { _phase: "board", result });
+        ok(id, result);
 
         // Phase 2: valid_actions only — expensive Rhai computation, follow-up
         whenReady(() => {
