@@ -390,8 +390,6 @@ export function DevBoardView() {
         pa => pa.player.board === ref.board && pa.player.color === ref.color
       );
       setValidActions(entry?.actions ?? []);
-      setAllPlayers(payload.players as { color: string; board: number; team: number }[]);
-      setGameStateJson(payload.stateJson as object);
     };
     return () => { proxy.onValidActions = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -423,6 +421,9 @@ export function DevBoardView() {
         setLastAction(action);
         setSelectedDropPiece(null);
         if (result.board_state) setBoardState(result.board_state as WasmBoardState);
+        const extra = result as unknown as Record<string, unknown>;
+        if (extra.stateJson) setGameStateJson(extra.stateJson as object);
+        if (extra.players) setAllPlayers(extra.players as { color: string; board: number; team: number }[]);
         if (action.type === "move") {
           addLogEntry(controllingPlayer, { kind: "move", action });
         } else if (action.type === "interact") {

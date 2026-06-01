@@ -82,23 +82,24 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
       }
       case "submitAction": {
         const p = payload as { player: string; actionJson: string };
-        // Phase 1: board state + ui + game_over — send IMMEDIATELY
+        // Phase 1: board, ui, game_over + fast serializations — send IMMEDIATELY
         const result = await whenReady(() => {
           const r = JSON.parse(need().submitAction(p.player, p.actionJson));
-          return r;
+          // Append cheap serializations so the frontend gets the full picture now
+          return {
+            ...r,
+            stateJson: JSON.parse(need().stateJson()),
+            players:   JSON.parse(need().playersJson()),
+          };
         });
         ok(id, { _phase: "board", result });
 
-        // Phase 2: valid_actions, state, players — compute and send as follow-up
+        // Phase 2: valid_actions only — expensive Rhai computation, follow-up
         whenReady(() => {
           postMessage({
             id,
             _phase: "validActions",
-            result: {
-              validActions: JSON.parse(need().validActionsJson()),
-              stateJson:    JSON.parse(need().stateJson()),
-              players:      JSON.parse(need().playersJson()),
-            },
+            result: { validActions: JSON.parse(need().validActionsJson()) },
           });
         });
         break;

@@ -22,8 +22,6 @@ interface WorkerMsg {
 
 export interface ValidActionsPayload {
   validActions: unknown;
-  stateJson: unknown;
-  players: unknown;
 }
 
 export class EngineProxy {
