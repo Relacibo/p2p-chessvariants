@@ -27,7 +27,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { EngineProxy } from "../engine/EngineProxy";
+import { ChessvariantEngine } from "chessvariant-engine";
 import { Chessboard } from "../chessboard/Chessboard";
 import { ReservePile } from "../chessboard/ReservePile";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
@@ -133,7 +133,7 @@ export function DevBoardView() {
     { color: string; board: number; team: number }[]
   >([]);
 
-  const proxyRef = useRef<EngineProxy | null>(null);
+  const engineRef = useRef<ChessvariantEngine | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(
     null
   );
@@ -228,20 +228,19 @@ export function DevBoardView() {
   );
 
   const syncState = useCallback(
-    async (proxy: EngineProxy, player?: string) => {
+    (engine: ChessvariantEngine, player?: string) => {
       const p = player ?? controllingPlayer;
-      const [boardState, allValid, allP] = await Promise.all([
-        proxy.boardStateJson() as Promise<WasmBoardState>,
-        proxy.validActionsJson() as Promise<WasmPlayerActions[]>,
-        proxy.playersJson() as Promise<{ color: string; board: number; team: number }[]>,
-      ]);
-      setBoardState(boardState);
+      setBoardState(JSON.parse(engine.boardStateJson()));
+      const allValid: WasmPlayerActions[] = JSON.parse(
+        engine.validActionsJson()
+      );
       setValidActionsAll(allValid);
       const ap = deriveActivePlayers(allValid);
       setActivePlayers(ap);
+      const allP: { color: string; board: number; team: number }[] =
+        JSON.parse(engine.playersJson());
       setAllPlayers(allP);
       if (p) {
-        // Extract actions for the controlling player
         const playerRef: PlayerRef = JSON.parse(p);
         const playerEntry = allValid.find(
           (pa) =>
@@ -249,11 +248,9 @@ export function DevBoardView() {
             pa.player.color === playerRef.color
         );
         setValidActions(playerEntry?.actions ?? []);
-        // Fetch UI for the current controlling player
-        const uiResult = await proxy.getUiJson(p) as { ui: WasmUiMap };
+        const uiResult = JSON.parse(engine.getUiJson(p));
         const ui = (uiResult.ui ?? null) as WasmUiMap | null;
         setUiElements(ui);
-        // Check for reserve pile in UI
         let foundReserve = false;
         if (ui) {
           for (const el of Object.values(ui)) {
@@ -265,6 +262,11 @@ export function DevBoardView() {
           }
         }
         if (!foundReserve) setReservePile(null);
+        try {
+          setGameStateJson(JSON.parse(engine.stateJson()));
+        } catch {
+          setGameStateJson(null);
+        }
       } else {
         setValidActions([]);
         setUiElements(null);
@@ -290,8 +292,8 @@ export function DevBoardView() {
 
   const loadScript = useCallback(
     async (url: string, numPlayers: number) => {
-      proxyRef.current?.terminate();
-      proxyRef.current = null;
+      engineRef.current?.free();
+      engineRef.current = null;
       notifications.clean();
       setLoading(true);
       setLog([]);
@@ -305,22 +307,23 @@ export function DevBoardView() {
       setUiElements(null);
       try {
         const script = await fetchScriptText(url);
-        const proxy = new EngineProxy();
-        const initResult = await proxy.init(script, numPlayers);
-        proxyRef.current = proxy;
-        const config = initResult.variantConfig as WasmVariantConfig;
+        const engine = new ChessvariantEngine(script, numPlayers);
+        engineRef.current = engine;
+        const config: WasmVariantConfig = JSON.parse(
+          engine.variantConfigJson()
+        );
         setVariantConfig(config);
-        // Get initial valid actions to determine active players
-        const initialValid = initResult.validActions as WasmPlayerActions[];
+        const initialValid: WasmPlayerActions[] = JSON.parse(
+          engine.validActionsJson()
+        );
         setValidActionsAll(initialValid);
-        setBoardState(initResult.boardState as WasmBoardState);
         const initPlayers = deriveActivePlayers(initialValid);
         const firstPlayerJson = initPlayers[0]
           ? JSON.stringify(initPlayers[0])
           : "";
         setControllingPlayer(firstPlayerJson);
         setActivePlayers(initPlayers);
-        await syncState(proxy, firstPlayerJson);
+        syncState(engine, firstPlayerJson);
       } catch (e: unknown) {
         notifications.show({
           title: "Load failed",
@@ -338,9 +341,9 @@ export function DevBoardView() {
 
   // ── Sync when controlling player changes ──
   useEffect(() => {
-    const proxy = proxyRef.current;
-    if (!proxy || !controllingPlayer) return;
-    syncState(proxy, controllingPlayer);
+    const engine = engineRef.current;
+    if (!engine || !controllingPlayer) return;
+    syncState(engine, controllingPlayer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controllingPlayer]);
 
@@ -390,85 +393,94 @@ export function DevBoardView() {
 
   // ── Submit an action via submitAction ──
   const handleSubmitAction = useCallback(
-    async (action: WasmAction) => {
-      const proxy = proxyRef.current;
-      if (!proxy || !controllingPlayer) return;
-      try {
-        const result = await proxy.submitAction(
-          controllingPlayer,
-          JSON.stringify(action)
-        ) as {
-          ui: WasmUiMap;
-          game_over: WasmSubmitActionResult["game_over"];
-          validActions: WasmPlayerActions[];
-          boardState: WasmBoardState;
-          error?: string;
-        };
-        if (result.error) {
-          notifications.show({
-            title: "Action failed",
-            message: result.error,
-            color: "red",
-            withBorder: true,
-            autoClose: false,
-          });
-          return;
-        }
-        // Update all state from the single Worker response — no rAF needed
-        setUiElements(result.ui);
-        setLastAction(action);
-        setSelectedDropPiece(null);
-        setBoardState(result.boardState);
-        setValidActionsAll(result.validActions);
-        const ap = deriveActivePlayers(result.validActions);
-        setActivePlayers(ap);
-        const cpRef2: PlayerRef = JSON.parse(controllingPlayer);
-        const cpEntry2 = result.validActions.find(
-          (pa) =>
-            pa.player.board === cpRef2.board &&
-            pa.player.color === cpRef2.color
-        );
-        setValidActions(cpEntry2?.actions ?? []);
-        if (action.type === "move") {
-          addLogEntry(controllingPlayer, { kind: "move", action });
-        } else if (action.type === "interact") {
-          addLogEntry(controllingPlayer, {
-            kind: "ui",
-            elementId: action.elementId,
-          });
-        } else if (action.type === "select_piece") {
-          addLogEntry(controllingPlayer, {
-            kind: "ui",
-            elementId: "select_piece",
-            piece: action.piece,
-          });
-        } else if (action.type === "cancel") {
-          addLogEntry(controllingPlayer, {
-            kind: "ui",
-            elementId: "cancel",
-          });
-        }
-        // Check for reserve pile in UI
-        let foundReserve = false;
-        if (result.ui) {
-          for (const el of Object.values(result.ui)) {
-            if (el.type === "reserve_pile") {
-              setReservePile(el as WasmUiReservePile);
-              foundReserve = true;
-              break;
-            }
-          }
-        }
-        if (!foundReserve) setReservePile(null);
-      } catch (e: unknown) {
+    (action: WasmAction) => {
+      const engine = engineRef.current;
+      if (!engine || !controllingPlayer) return;
+      const resultJson = engine.submitAction(
+        controllingPlayer,
+        JSON.stringify(action)
+      );
+      const result: WasmSubmitActionResult & {
+        error?: string;
+        board_state?: WasmBoardState;
+      } = JSON.parse(resultJson);
+      if (result.error) {
         notifications.show({
           title: "Action failed",
-          message: extractErrorMessage(e),
+          message: result.error,
           color: "red",
           withBorder: true,
           autoClose: false,
         });
+        return;
       }
+      // ── Render board immediately from submitAction result ──
+      setUiElements(result.ui);
+      setLastAction(action);
+      setSelectedDropPiece(null);
+      if (result.board_state) {
+        setBoardState(result.board_state);
+      }
+      if (action.type === "move") {
+        addLogEntry(controllingPlayer, { kind: "move", action });
+      } else if (action.type === "interact") {
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId: action.elementId,
+        });
+      } else if (action.type === "select_piece") {
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId: "select_piece",
+          piece: action.piece,
+        });
+      } else if (action.type === "cancel") {
+        addLogEntry(controllingPlayer, {
+          kind: "ui",
+          elementId: "cancel",
+        });
+      }
+      // Check for reserve pile in UI
+      let foundReserve = false;
+      if (result.ui) {
+        for (const el of Object.values(result.ui)) {
+          if (el.type === "reserve_pile") {
+            setReservePile(el as WasmUiReservePile);
+            foundReserve = true;
+            break;
+          }
+        }
+      }
+      if (!foundReserve) setReservePile(null);
+      // ── Defer valid_actions to next task to let the board render first ──
+      setTimeout(() => {
+        const engine2 = engineRef.current;
+        if (!engine2) return;
+        try {
+          const allValid: WasmPlayerActions[] = JSON.parse(
+            engine2.validActionsJson()
+          );
+          setValidActionsAll(allValid);
+          const ap = deriveActivePlayers(allValid);
+          setActivePlayers(ap);
+          const cpRef: PlayerRef = JSON.parse(controllingPlayer);
+          const cpEntry = allValid.find(
+            (pa) =>
+              pa.player.board === cpRef.board &&
+              pa.player.color === cpRef.color
+          );
+          setValidActions(cpEntry?.actions ?? []);
+          // Refresh players and game state
+          setAllPlayers(JSON.parse(engine2.playersJson()));
+          try {
+            setGameStateJson(JSON.parse(engine2.stateJson()));
+          } catch {
+            setGameStateJson(null);
+          }
+        } catch {
+          // valid_actions fetch can fail if state became invalid
+        }
+      }, 0);
     },
     [controllingPlayer, addLogEntry, deriveActivePlayers]
   );
@@ -748,14 +760,11 @@ export function DevBoardView() {
               onClick={() => {
                 if (!showGameState && !gameStateJson) {
                   // Fetch on first expand
-                  Promise.resolve().then(async () => {
-                    try {
-                  const proxy = proxyRef.current;
-                  if (!proxy) return;
-                  const stateJson = await proxy.stateJson();
-                  setGameStateJson(stateJson as object);
-                    } catch { /* ignore */ }
-                  });
+                  try {
+                    setGameStateJson(
+                      JSON.parse(engineRef.current!.stateJson())
+                    );
+                  } catch { /* ignore */ }
                 }
                 setShowGameState((s) => !s);
               }}
@@ -804,14 +813,11 @@ export function DevBoardView() {
               onClick={() => {
                 if (!showValidActions && !validActionsJsonStr) {
                   // Fetch on first expand
-                  Promise.resolve().then(async () => {
-                    try {
-                      const proxy = proxyRef.current;
-                      if (!proxy) return;
-                      const allValid = await proxy.validActionsJson();
-                      setValidActionsJsonStr(JSON.stringify(allValid, null, 2));
-                    } catch { /* ignore */ }
-                  });
+                  try {
+                    setValidActionsJsonStr(
+                      engineRef.current!.validActionsJson()
+                    );
+                  } catch { /* ignore */ }
                 }
                 setShowValidActions((s) => !s);
               }}

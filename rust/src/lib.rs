@@ -575,11 +575,16 @@ impl ChessvariantEngine {
         // Call get_ui(new_state, player)
         let ui = self.run_get_ui(player)?;
 
-        // Build result — valid_actions are NOT included here.
-        // The frontend fetches them asynchronously via validActionsJson().
+        // Serialize board state so the frontend can render immediately
+        let board = self.get_normalized_board()?;
+        let board_json = serde_json::to_value(&board)?;
+
+        // Build result — includes board_state for immediate render.
+        // valid_actions are fetched asynchronously via validActionsJson().
         Ok(serde_json::json!({
             "ui": ui,
             "game_over": game_over,
+            "board_state": board_json,
         }))
     }
 
