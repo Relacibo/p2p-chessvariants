@@ -25,7 +25,7 @@ fn valid_actions(state) {
                 if piece != () && piece.color == p.color {
                     let from = Coords(r, c);
                     let dests = moves_for_piece(state.board, from, piece.type, p.color);
-                    for to in dests { pa.push(Move(from, to)); }
+                    for to in dests { if is_legal(state.board, from, to, p.color) { pa.push(Move(from, to)); } }
                 }
             }}
             actions.push(#{ player: p, actions: pa });

@@ -123,7 +123,7 @@ export interface WasmPlayerActions {
 
 /** Result of `submitAction()`. */
 export interface WasmSubmitActionResult {
-  valid_actions: WasmPlayerActions[];
+  valid_actions?: WasmPlayerActions[]; // omitted — fetched async via validActionsJson()
   ui: WasmUiMap;
   game_over: {
     type: "winner" | "winners" | "draw";

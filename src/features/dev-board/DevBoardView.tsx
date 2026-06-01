@@ -415,18 +415,43 @@ export function DevBoardView() {
           elementId: "cancel",
         });
       }
-      // Update valid actions and active players from result
-      setValidActionsAll(result.valid_actions);
-      const ap = deriveActivePlayers(result.valid_actions);
-      setActivePlayers(ap);
-      // Extract valid actions for the controlling player
-      const cpRef: PlayerRef = JSON.parse(controllingPlayer);
-      const cpEntry = result.valid_actions.find(
-        (pa) =>
-          pa.player.board === cpRef.board &&
-          pa.player.color === cpRef.color
-      );
-      setValidActions(cpEntry?.actions ?? []);
+      // Update valid actions from result if present (backward compat),
+      // otherwise fetch asynchronously to avoid blocking the UI.
+      if (result.valid_actions) {
+        setValidActionsAll(result.valid_actions);
+        const ap = deriveActivePlayers(result.valid_actions);
+        setActivePlayers(ap);
+        const cpRef2: PlayerRef = JSON.parse(controllingPlayer);
+        const cpEntry2 = result.valid_actions.find(
+          (pa) =>
+            pa.player.board === cpRef2.board &&
+            pa.player.color === cpRef2.color
+        );
+        setValidActions(cpEntry2?.actions ?? []);
+      } else {
+        // Defer valid_actions fetch — it's computed in WASM and can block the main thread
+        requestAnimationFrame(() => {
+          const engine2 = engineRef.current;
+          if (!engine2) return;
+          try {
+            const allValid: WasmPlayerActions[] = JSON.parse(
+              engine2.validActionsJson()
+            );
+            setValidActionsAll(allValid);
+            const ap = deriveActivePlayers(allValid);
+            setActivePlayers(ap);
+            const cpRef3: PlayerRef = JSON.parse(controllingPlayer);
+            const cpEntry3 = allValid.find(
+              (pa) =>
+                pa.player.board === cpRef3.board &&
+                pa.player.color === cpRef3.color
+            );
+            setValidActions(cpEntry3?.actions ?? []);
+          } catch {
+            // valid_actions fetch can fail if state became invalid
+          }
+        });
+      }
       // Check for reserve pile in UI
       let foundReserve = false;
       if (result.ui) {

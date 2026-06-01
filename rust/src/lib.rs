@@ -572,28 +572,19 @@ impl ChessvariantEngine {
         )?;
 
         self.game_state = new_state;
-        self.cached_valid_actions = None; // invalidate cache
+        // Invalidate cached valid_actions — frontend will refetch asynchronously
+        // via validActionsJson() to avoid blocking the main thread.
+        self.cached_valid_actions = None;
 
-        // 5. Call valid_actions(new_state) — all players
-        let new_all_actions = self.compute_valid_actions_all()?;
-        self.cached_valid_actions = Some(new_all_actions.clone());
+        // Check game_over from state.outcome (set by script's handle_action)
+        let game_over = self.extract_outcome_from_state();
 
-        // 6. Determine game_over: all entries empty → read state.outcome
-        let game_over = if new_all_actions.iter().all(|pa| pa.actions.is_empty()) {
-            self.extract_outcome_from_state()
-        } else {
-            None
-        };
-
-        // 7. Call get_ui(new_state, player)
+        // Call get_ui(new_state, player)
         let ui = self.run_get_ui(player)?;
 
-        // 8. Build result
-        let valid_actions_json: serde_json::Value =
-            serde_json::to_value(&new_all_actions).unwrap_or_default();
-
+        // Build result — valid_actions are NOT included here.
+        // The frontend fetches them asynchronously via validActionsJson().
         Ok(serde_json::json!({
-            "valid_actions": valid_actions_json,
             "ui": ui,
             "game_over": game_over,
         }))
@@ -663,7 +654,13 @@ impl ChessvariantEngine {
     }
 
     /// Get the colors of currently active players from cached valid_actions (for tests).
-    pub fn active_player_colors(&self) -> Vec<String> {
+    /// Recomputes valid_actions if cache is empty (e.g. after a submit that deferred computation).
+    pub fn active_player_colors(&mut self) -> Vec<String> {
+        if self.cached_valid_actions.is_none() {
+            if let Ok(actions) = self.compute_valid_actions_all() {
+                self.cached_valid_actions = Some(actions);
+            }
+        }
         self.cached_valid_actions
             .as_ref()
             .map(|v| {
@@ -680,7 +677,13 @@ impl ChessvariantEngine {
         self.cached_valid_actions
             .as_ref()
             .map(|v| v.iter().all(|pa| pa.actions.is_empty()))
-            .unwrap_or(false)
+            .unwrap_or_else(|| {
+                // Cache not available — check state.outcome directly
+                self.game_state
+                    .read_lock::<rhai::Map>()
+                    .map(|m| m.contains_key("outcome"))
+                    .unwrap_or(false)
+            })
     }
 
     /// Extract `state.outcome` as a Dynamic (for tests).
