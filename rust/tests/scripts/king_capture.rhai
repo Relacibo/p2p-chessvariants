@@ -31,22 +31,10 @@ fn init(player_count) {
     }
 }
 
-fn valid_actions(state) {
-    let actions = [];
-    for p in state.players {
-        // Game over: no actions for any player
-        if "outcome" in state {
-            actions.push(#{ player: p, actions: [] });
-        } else if p.color == state.turn {
-            actions.push(#{
-                player: p,
-                actions: [Move(Coords(0,0), Coords(0,0))],  // any move validates
-            });
-        } else {
-            actions.push(#{ player: p, actions: [] });
-        }
-    }
-    actions
+fn valid_actions(state, player) {
+    if "outcome" in state { return []; }
+    if player.color != state.turn { return []; }
+    [Move(Coords(0,0), Coords(0,0))]  // any move validates
 }
 
 fn handle_action(state, player, action) {

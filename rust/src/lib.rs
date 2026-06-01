@@ -31,7 +31,7 @@ pub(crate) struct PlayerRef {
     color: String,
 }
 
-/// A player's valid actions, as returned by `valid_actions(state)`.
+/// A player's valid actions, as returned by `valid_actions(state, player)`.
 #[derive(Clone, Debug, Serialize)]
 pub struct PlayerActions {
     pub player: PlayerId,
@@ -245,34 +245,6 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
     }
     // Fallback: team 0
     PlayerId::with_team(pref.board as i32, pref.color.clone(), 0)
-}
-
-/// Parse a dynamic value into a `PlayerId`, supporting both custom type and map format.
-fn parse_player_id(d: &Dynamic) -> Result<PlayerId, CvError> {
-    // Try PlayerId custom type first
-    if let Some(pid) = d.clone().try_cast::<PlayerId>() {
-        return Ok(pid);
-    }
-    // Try map format: #{ board: i32, color: string, team?: i32 }
-    if let Some(m) = d.clone().try_cast::<rhai::Map>() {
-        let color = m
-            .get("color")
-            .cloned()
-            .and_then(|v: rhai::Dynamic| v.into_string().ok())
-            .unwrap_or_default();
-        let board = m
-            .get("board")
-            .cloned()
-            .and_then(|v: rhai::Dynamic| v.as_int().ok())
-            .unwrap_or(0) as i32;
-        let team = m
-            .get("team")
-            .cloned()
-            .and_then(|v: rhai::Dynamic| v.as_int().ok())
-            .unwrap_or(0) as i32;
-        return Ok(PlayerId::with_team(board, color, team));
-    }
-    Err(CvError::Internal("valid_actions player is not a PlayerId or player map".into()))
 }
 
 /// Convert a Rhai Map (and nested values) to a serde_json::Value.
@@ -557,42 +529,26 @@ impl ChessvariantEngine {
         player: &PlayerId,
         action: &Action,
     ) -> Result<serde_json::Value, CvError> {
-        // 1. Get/compute valid_actions for all players
-        let all_actions = self.compute_valid_actions_all()?;
+        // 1. Compute valid_actions for THIS player only (no need to compute all players).
+        let player_actions = self.compute_valid_actions_for_player(player)?;
 
-        // Skip validation if the script does not implement valid_actions
-        let has_validation = !all_actions.is_empty();
-
-        if has_validation {
-            // 2. Find this player's entry
-            let player_entry = all_actions
-                .iter()
-                .find(|pa| pa.player == *player)
-                .ok_or_else(|| {
-                    CvError::Internal(format!(
-                        "player not found in valid_actions: board={}, color={}",
-                        player.board, player.color
-                    ))
-                })?;
-
-            // 3. Validate: action type must exist in the player's actions list.
-            // Specific field validation (from/to, piece, element_id) is done
-            // by the script in handle_action.
-            let is_legal = player_entry.actions.iter().any(|a| {
-                a.kind == action.kind
-                    && match a.kind.as_str() {
-                        "move" => true, // any move validates (script validates specifics)
-                        "select_piece" => a.piece == action.piece,
-                        "interact" => a.element_id == action.element_id,
-                        "cancel" => true, // cancel has no payload to validate
-                        _ => true,
-                    }
-            });
-            if !is_legal {
-                return Err(CvError::Internal(
-                    "illegal action — not in valid_actions".into(),
-                ));
-            }
+        // 2. Validate: action type must exist in the player's actions list.
+        // Specific field validation (from/to, piece, element_id) is done
+        // by the script in handle_action.
+        let is_legal = player_actions.iter().any(|a| {
+            a.kind == action.kind
+                && match a.kind.as_str() {
+                    "move" => true, // any move validates (script validates specifics)
+                    "select_piece" => a.piece == action.piece,
+                    "interact" => a.element_id == action.element_id,
+                    "cancel" => true, // cancel has no payload to validate
+                    _ => true,
+                }
+        });
+        if !is_legal {
+            return Err(CvError::Internal(
+                "illegal action — not in valid_actions".into(),
+            ));
         }
 
         // 4. Call handle_action(state, player, action)
@@ -816,19 +772,20 @@ impl ChessvariantEngine {
         serialize_ui_to_json(&ui_map)
     }
 
-    /// Call `valid_actions(state)` (no player arg), parse into `Vec<PlayerActions>`.
-    fn compute_valid_actions_all(&mut self) -> Result<Vec<PlayerActions>, CvError> {
-        // Use cache if available (state hasn't changed)
-        if let Some(ref cached) = self.cached_valid_actions {
-            return Ok(cached.clone());
-        }
-
+    /// Call `valid_actions(state, player)`, parse the returned `[Action]` array.
+    fn compute_valid_actions_for_player(
+        &mut self,
+        player: &PlayerId,
+    ) -> Result<Vec<Action>, CvError> {
         let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
             "valid_actions",
-            (self.game_state.clone(),),
+            (
+                self.game_state.clone(),
+                Dynamic::from(player.clone()),
+            ),
         );
         let actions_dyn = match result {
             Ok(v) => v,
@@ -838,41 +795,79 @@ impl ChessvariantEngine {
             Err(e) => return Err(CvError::from(e)),
         };
 
-        // Parse the array of maps: [{player: Player, actions: [Action]}, ...]
         let arr = actions_dyn
             .try_cast::<rhai::Array>()
             .ok_or_else(|| CvError::Internal("valid_actions did not return an array".into()))?;
 
-        let mut result = Vec::new();
-        for entry in arr {
-            let entry_map = entry
-                .try_cast::<rhai::Map>()
-                .ok_or_else(|| CvError::Internal("valid_actions entry is not a map".into()))?;
+        Ok(arr
+            .into_iter()
+            .filter_map(|item| {
+                item.clone()
+                    .try_cast::<Action>()
+                    .or_else(|| rhai::serde::from_dynamic(&item).ok())
+            })
+            .collect())
+    }
 
-            let player_dyn = entry_map
-                .get("player")
-                .ok_or_else(|| CvError::Internal("valid_actions entry missing 'player'".into()))?
-                .clone();
+    /// Extract all PlayerIds from `state.players`.
+    fn get_player_ids(&self) -> Result<Vec<PlayerId>, CvError> {
+        let players_map = self
+            .game_state
+            .read_lock::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
 
-            let player: PlayerId = parse_player_id(&player_dyn)?;
+        let players_dyn = players_map
+            .get("players")
+            .cloned()
+            .ok_or_else(|| CvError::Internal("state.players key is missing".into()))?;
 
-            let actions_arr = entry_map
-                .get("actions")
-                .ok_or_else(|| CvError::Internal("valid_actions entry missing 'actions'".into()))?
-                .clone()
-                .try_cast::<rhai::Array>()
-                .ok_or_else(|| CvError::Internal("valid_actions actions is not an array".into()))?;
+        let players_arr: rhai::Array = players_dyn
+            .try_cast::<rhai::Array>()
+            .ok_or_else(|| CvError::Internal("state.players is not an array".into()))?;
 
-            let actions: Vec<Action> = actions_arr
-                .into_iter()
-                .filter_map(|item| {
-                    item.clone()
-                        .try_cast::<Action>()
-                        .or_else(|| rhai::serde::from_dynamic(&item).ok())
+        players_arr
+            .into_iter()
+            .map(|p: Dynamic| {
+                let player_map: rhai::Map = p
+                    .try_cast::<rhai::Map>()
+                    .ok_or_else(|| CvError::Internal("player entry is not a map".into()))?;
+                let color: String = player_map
+                    .get("color")
+                    .and_then(|v: &Dynamic| v.clone().into_string().ok())
+                    .unwrap_or_default();
+                let board = player_map
+                    .get("board")
+                    .and_then(|v: &Dynamic| v.as_int().ok())
+                    .unwrap_or(0) as i32;
+                let team = player_map
+                    .get("team")
+                    .and_then(|v: &Dynamic| v.as_int().ok())
+                    .unwrap_or(0) as i32;
+                Ok(PlayerId {
+                    board,
+                    color,
+                    team,
                 })
-                .collect();
+            })
+            .collect()
+    }
 
-            result.push(PlayerActions { player, actions });
+    /// Call `valid_actions(state, player)` for every player, assemble into `Vec<PlayerActions>`.
+    fn compute_valid_actions_all(&mut self) -> Result<Vec<PlayerActions>, CvError> {
+        // Use cache if available (state hasn't changed)
+        if let Some(ref cached) = self.cached_valid_actions {
+            return Ok(cached.clone());
+        }
+
+        let player_ids = self.get_player_ids()?;
+        let mut result = Vec::new();
+
+        for player_id in &player_ids {
+            let actions = self.compute_valid_actions_for_player(player_id)?;
+            result.push(PlayerActions {
+                player: player_id.clone(),
+                actions,
+            });
         }
 
         Ok(result)

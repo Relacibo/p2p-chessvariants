@@ -58,35 +58,30 @@ The state returned here is also the starting point for `get_ui` — if you need
 UI-related state (e.g. `state.pending_promotion`, `state.reserve`), initialise those
 keys here.
 
-### `valid_actions(state)`
+### `valid_actions(state, player)`
 
 ```
-(#{}) -> [#{player: Player, actions: [Action]}]
+(#{}, Player) -> [Action]
 ```
 
-**Mandatory.** Returns an array — one entry per player — mapping each `Player` to
-the list of legal actions they may submit right now.
+**Mandatory.** Returns the list of legal actions the given player may submit right now.
 
 ```rhai
-fn valid_actions(state) {
-    [
-        #{ player: Player(0, "white"), actions: [engine::Move(from, to), ...] },
-        #{ player: Player(0, "black"), actions: [] },
-        // one entry per player in state.players
-    ]
+fn valid_actions(state, player) {
+    // Compute and return the actions for THIS player only.
+    [engine::Move(from, to), engine::SelectPiece(piece), engine::Cancel(), ...]
 }
 ```
 
-- A player whose `actions` list is empty cannot act right now.
-- The engine derives the active players from this array (entries with non-empty lists).
+- An empty `[]` means the player cannot act right now.
+- The engine calls this function once per player (iterating `state.players`) to
+  determine which players are active and whether the game is over.
 - Explicit turn tracking (`active_players`) is therefore not needed — it emerges
   from the action availability.
-- Called after every `handle_action` and once after `init` to establish who acts
-  first.
-- **Must cover all players** in `state.players`. Missing players are treated as
-  having no legal actions.
-- When **every** player's `actions` list is empty the game is over. The engine
-  reads `state.outcome` for the result (see `handle_action` below).
+- Called after every `handle_action` (per player) and once per player after
+  `init` to establish who acts first.
+- When **every** player's `valid_actions` returns `[]` the game is over. The
+  engine reads `state.outcome` for the result (see `handle_action` below).
 
 ### `handle_action(state, player, action)`
 
@@ -370,22 +365,21 @@ fn handle_action(state, player, action) {
 ```
 
 ```rhai
-fn valid_actions(state) {
+fn valid_actions(state, player) {
     if state.pending == "promotion" {
-        // Only the current player may select or cancel
+        // Only the current player (who initiated promotion) may select or cancel
+        if player != current_player { return []; }
         return [
-            #{ player: current, actions: [
-                SelectPiece(Piece("white", "queen")),
-                SelectPiece(Piece("white", "rook")),
-                SelectPiece(Piece("white", "bishop")),
-                SelectPiece(Piece("white", "knight")),
-                Cancel(),                               // ← universal abort
-            ] },
-            #{ player: opponent, actions: [] },
+            SelectPiece(Piece("white", "queen")),
+            SelectPiece(Piece("white", "rook")),
+            SelectPiece(Piece("white", "bishop")),
+            SelectPiece(Piece("white", "knight")),
+            Cancel(),                               // ← universal abort
         ];
     }
     // normal turn: only the player whose turn it is gets moves
     // ...
+    []
 }
 ```
 
@@ -528,23 +522,19 @@ Check-filtering for king safety is typically done with `is_legal` inside the
 script's `valid_actions(state)`:
 
 ```rhai
-fn valid_actions(state) {
-    let result = [];
-    for p in state.players {
-        let mut actions = [];
-        let all_squares = engine::board::find(state.board, Piece(p.color, ""))
-            .filter(|c| board_get(state.board, c).color == p.color);
-        for from in all_squares {
-            let piece = engine::board::get(state.board, from);
-            let dests = engine::moves::pawn(state.board, from, p.color)  // ... etc per type
-                .filter(|to| engine::is_legal(state.board, from, to, p.color));
-            for to in dests {
-                actions.push(engine::Move(from, to));
-            }
+fn valid_actions(state, player) {
+    let mut actions = [];
+    let all_squares = engine::board::find(state.board, Piece(player.color, ""))
+        .filter(|c| board_get(state.board, c).color == player.color);
+    for from in all_squares {
+        let piece = engine::board::get(state.board, from);
+        let dests = engine::moves::pawn(state.board, from, player.color)  // ... etc per type
+            .filter(|to| engine::is_legal(state.board, from, to, player.color));
+        for to in dests {
+            actions.push(engine::Move(from, to));
         }
-        result.push(#{ player: p, actions: actions });
     }
-    result
+    actions
 }
 ```
 

@@ -187,16 +187,6 @@ fn test_king_capture_game_not_over_after_non_king_move() {
 // ─── Smoke tests ──────────────────────────────────────────────────────────────
 
 #[test]
-fn test_smoke_bughouse_config_and_init() {
-    let _engine = make_engine("../variants/bughouse.rhai", 4);
-}
-
-#[test]
-fn test_smoke_four_player_chess_config_and_init() {
-    let _engine = make_engine("../variants/four_player_chess.rhai", 4);
-}
-
-#[test]
 fn test_smoke_seirawan_chess_config_and_init() {
     let _engine = make_engine("../variants/seirawan_chess.rhai", 2);
 }

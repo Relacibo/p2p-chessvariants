@@ -14,24 +14,20 @@ fn moves_for_piece(board, from, piece_type, color) {
     else if piece_type == "king" { return engine::moves::king(board, from, color); }
     []
 }
-fn valid_actions(state) {
-    let actions = [];
-    for p in state.players {
-        if "outcome" in state { actions.push(#{ player: p, actions: [] }); }
-        else if p.color == state.turn {
-            let pa = [];
-            for r in 0..8 { for c in 0..8 {
-                let piece = engine::board::get(state.board, Coords(r, c));
-                if piece != () && piece.color == p.color {
-                    let from = Coords(r, c);
-                    let dests = moves_for_piece(state.board, from, piece.type, p.color);
-                    for to in dests { if is_legal(state.board, from, to, p.color) { pa.push(Move(from, to)); } }
-                }
-            }}
-            actions.push(#{ player: p, actions: pa });
-        } else { actions.push(#{ player: p, actions: [] }); }
-    }
-    actions
+fn valid_actions(state, player) {
+    if "outcome" in state { return []; }
+    if player.color != state.turn { return []; }
+
+    let pa = [];
+    for r in 0..8 { for c in 0..8 {
+        let piece = engine::board::get(state.board, Coords(r, c));
+        if piece != () && piece.color == player.color {
+            let from = Coords(r, c);
+            let dests = moves_for_piece(state.board, from, piece.type, player.color);
+            for to in dests { if is_legal(state.board, from, to, player.color) { pa.push(Move(from, to)); } }
+        }
+    }}
+    pa
 }
 fn handle_action(state, player, action) {
     let player_color = player.color;

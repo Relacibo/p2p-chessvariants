@@ -12,14 +12,6 @@ export const OFFICIAL_VARIANTS: VariantEntry[] = [
     url: "/variants/simple_chess.rhai",
   },
   {
-    name: "Bughouse",
-    url: "/variants/bughouse.rhai",
-  },
-  {
-    name: "4 Player Chess",
-    url: "/variants/four_player_chess.rhai",
-  },
-  {
     name: "Seirawan Chess",
     url: "/variants/seirawan_chess.rhai",
   },

@@ -158,35 +158,33 @@ engine_pseudo_moves(state, from)              // → [Coords]
 
 ---
 
-### `fn valid_actions(state)`
+### `fn valid_actions(state, player)`
 
-Returns all currently legal actions for all active players. Used by the UI for
-move highlighting. If not defined but `pseudo_moves` / `pieces` is set, the engine uses
-`engine_valid_actions` automatically.
+Returns all currently legal actions for the given player. Called by the engine
+once per player to determine active players and game-over state. Used by the UI
+for move highlighting.
 
 Override this to **add special moves** (castling, en passant, drops) on top:
 
 ```rhai
-fn valid_actions(state) {
-  let base = engine_valid_actions(state);   // standard moves with optional check filter
-  base + castling_actions(state)
-       + en_passant_actions(state)
+fn valid_actions(state, player) {
+  let base = engine_valid_actions(state, player);   // standard moves with optional check filter
+  base + castling_actions(state, player)
+       + en_passant_actions(state, player)
 }
 ```
 
-For variants with **multiple active players** (Bughouse), return actions for all:
+For variants with **multiple active players**, the engine calls this function
+for each player in `state.players` independently:
 
 ```rhai
-fn valid_actions(state) {
-  let result = [];
-  for player in state.active_players {
-    result += engine_valid_actions_for(state, player);
-  }
-  result
+fn valid_actions(state, player) {
+  if player.color != state.turn { return []; }
+  engine_valid_actions_for(state, player)
 }
 ```
 
-Return type: `Array` of `#{ player: int, action: Action }`.
+Return type: `Array` of `Action`.
 
 ---
 
@@ -239,14 +237,14 @@ if action.type == "choose" {
 | 2a | `pieces` in config | Engine auto-generates `pseudo_moves` for listed pieces |
 | 2b | `fn pseudo_moves(state, from)` | Manual override or fully custom pieces |
 | 2a or 2b | → enables → | `is_square_attacked`, `engine_valid_actions` builtins |
-| 3 | `fn valid_actions(state)` | UI highlights; override to add castling, en passant, drops |
+| 3 | `fn valid_actions(state, player)` | UI highlights; override to add castling, en passant, drops |
 
 Most scripts only need Tier 1 + 2a + 3, e.g.:
 ```rhai
 fn config() { #{ ..., pieces: #{ "hawk": combine("bishop","knight") }, check_protection: true } }
 fn init(n)  { ... }
 fn apply(state, player, action) { ... }
-fn valid_actions(state) { engine_valid_actions(state) + castling_actions(state) }
+fn valid_actions(state, player) { engine_valid_actions(state, player) + castling_actions(state, player) }
 ```
 
 ---
