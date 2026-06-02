@@ -344,6 +344,11 @@ export function Chessboard({
               setCursor("grabbing");
               // Hide Konva piece — DOM drag surface shows the visual copy
               e.target.opacity(0);
+              // Disable canvas pointer-events during drag so Konva's
+              // _pointermove handler never fires — this prevents the
+              // getIntersection → getImageData GPU readback (888ms+ per move).
+              const container = stageRef.current?.container();
+              if (container) container.style.pointerEvents = "none";
               // Spawn DOM drag surface (follows cursor with GPU compositing)
               const piece = getPiece(row, col);
               const pieceImgUrl = getPieceImageUrl(piece?.color ?? "white", piece?.pieceType ?? "pawn");
@@ -365,6 +370,9 @@ export function Chessboard({
               window.addEventListener("pointermove", handleWindowPointerMove);
             }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              // Restore canvas pointer-events immediately
+              const container = stageRef.current?.container();
+              if (container) container.style.pointerEvents = "";
               const handler = handleWindowPointerMoveRef.current;
               if (handler) window.removeEventListener("pointermove", handler);
               // Hide DOM drag surface
@@ -378,8 +386,14 @@ export function Chessboard({
               setCursor("default");
               let pendingSet = false;
               if (origin) {
-                const stage = e.target.getStage();
-                const pointer = stage?.getPointerPosition();
+                // Use the pointerup event's coordinates (stage.getPointerPosition()
+                // is stale because the canvas had pointer-events:none during drag)
+                const stageBox = stageRef.current?.container()?.getBoundingClientRect();
+                const clientX = (e.evt as unknown as PointerEvent).clientX;
+                const clientY = (e.evt as unknown as PointerEvent).clientY;
+                const pointer = stageBox
+                  ? { x: clientX - stageBox.left, y: clientY - stageBox.top }
+                  : null;
                 if (pointer) {
                   const target = fromPixel(pointer.x, pointer.y);
                   const action = findAction(origin, target);
