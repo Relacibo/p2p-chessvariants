@@ -15,14 +15,18 @@ pub struct Action {
     #[rhai_type(name = "type", get = Self::get_type, readonly)]
     pub kind: String,
     #[rhai_type(get = Self::get_from, readonly)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<Coords>,
     #[rhai_type(get = Self::get_to, readonly)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<Coords>,
     /// Piece involved (select_piece actions, drops)
     #[rhai_type(get = Self::get_piece, readonly)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub piece: Option<Piece>,
     /// UI element ID for interact actions
     #[rhai_type(get = Self::get_element_id, readonly)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub element_id: Option<String>,
 }
 
