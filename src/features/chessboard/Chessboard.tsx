@@ -372,13 +372,11 @@ export function Chessboard({
                 dragSurfaceRef.current.style.display = "none";
                 dragSurfaceRef.current.innerHTML = "";
               }
-              // Restore Konva piece visibility and snap back to grid
-              e.target.opacity(1);
-              e.target.position({ x, y });
               const origin = dragOrigin.current;
               dragOrigin.current = null;
               setDragging(null);
               setCursor("default");
+              let pendingSet = false;
               if (origin) {
                 const stage = e.target.getStage();
                 const pointer = stage?.getPointerPosition();
@@ -389,12 +387,19 @@ export function Chessboard({
                     const piece = getPiece(origin.row, origin.col);
                     if (piece && isBoardCoords(action.to)) {
                       setPendingMove({ from: origin, piece, to: action.to });
+                      pendingSet = true;
                     }
                     onSubmitAction(action);
                     setSelected(null);
                   }
                 }
               }
+              if (!pendingSet) {
+                // No valid move: snap piece back to its grid position
+                e.target.opacity(1);
+                e.target.position({ x, y });
+              }
+              // If pendingSet: keep piece invisible — React unmounts it via pendingMove
             }}
           />
         );
