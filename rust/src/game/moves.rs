@@ -71,18 +71,15 @@ pub fn slides(
     result
 }
 
-pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array {
-    let Some(from) = from.as_board_coords() else {
-        return Array::new();
-    };
-    if !board.in_bounds(&from) {
-        return Array::new();
+/// Pseudo-legal pawn destinations. Takes references to avoid board clones.
+pub(crate) fn pawn_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
+    if !board.in_bounds(from) {
+        return Vec::new();
     }
-
-    let direction = match color.as_str() {
+    let direction = match color {
         "white" => -1,
         "black" => 1,
-        _ => return Array::new(),
+        _ => return Vec::new(),
     };
     let start_row = if color == "white" {
         board.rows as i32 - 2
@@ -94,7 +91,6 @@ pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array 
     let one_forward = BoardCoords::new(from.row + direction, from.col, from.board_index);
     if board.in_bounds(&one_forward) && board.get_piece(&one_forward).is_none() {
         result.push(one_forward.clone());
-
         let two_forward = BoardCoords::new(from.row + 2 * direction, from.col, from.board_index);
         if from.row == start_row
             && board.in_bounds(&two_forward)
@@ -103,8 +99,7 @@ pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array 
             result.push(two_forward);
         }
     }
-
-    for dc in [-1, 1] {
+    for dc in [-1i32, 1] {
         let target = BoardCoords::new(from.row + direction, from.col + dc, from.board_index);
         if !board.in_bounds(&target) {
             continue;
@@ -116,32 +111,25 @@ pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array 
             result.push(target);
         }
     }
-
-    to_array(result)
+    result
 }
 
-pub fn rhai_rook_moves(board: BoardState, from: Coords, color: String) -> Array {
-    let Some(from) = from.as_board_coords() else {
-        return Array::new();
-    };
-    to_array(slides(
-        &board,
-        &from,
-        &[(1, 0), (-1, 0), (0, 1), (0, -1)],
-        &color,
-    ))
+/// Pseudo-legal rook destinations. Takes references to avoid board clones.
+pub(crate) fn rook_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
+    slides(board, from, &[(1, 0), (-1, 0), (0, 1), (0, -1)], color)
 }
 
-pub fn rhai_knight_moves(board: BoardState, from: Coords, color: String) -> Array {
-    let Some(from) = from.as_board_coords() else {
-        return Array::new();
-    };
-    if !board.in_bounds(&from) {
-        return Array::new();
+/// Pseudo-legal knight destinations. Takes references to avoid board clones.
+pub(crate) fn knight_dests(
+    board: &BoardState,
+    from: &BoardCoords,
+    color: &str,
+) -> Vec<BoardCoords> {
+    if !board.in_bounds(from) {
+        return Vec::new();
     }
-
     let offsets = [
-        (-2, -1),
+        (-2i32, -1i32),
         (-2, 1),
         (-1, -2),
         (-1, 2),
@@ -153,34 +141,29 @@ pub fn rhai_knight_moves(board: BoardState, from: Coords, color: String) -> Arra
     let mut result = Vec::new();
     for (dr, dc) in offsets {
         push_if_targetable(
-            &board,
+            board,
             BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
-            &color,
+            color,
             &mut result,
         );
     }
-    to_array(result)
+    result
 }
 
-pub fn rhai_bishop_moves(board: BoardState, from: Coords, color: String) -> Array {
-    let Some(from) = from.as_board_coords() else {
-        return Array::new();
-    };
-    to_array(slides(
-        &board,
-        &from,
-        &[(1, 1), (1, -1), (-1, 1), (-1, -1)],
-        &color,
-    ))
+/// Pseudo-legal bishop destinations. Takes references to avoid board clones.
+pub(crate) fn bishop_dests(
+    board: &BoardState,
+    from: &BoardCoords,
+    color: &str,
+) -> Vec<BoardCoords> {
+    slides(board, from, &[(1, 1), (1, -1), (-1, 1), (-1, -1)], color)
 }
 
-pub fn rhai_queen_moves(board: BoardState, from: Coords, color: String) -> Array {
-    let Some(from) = from.as_board_coords() else {
-        return Array::new();
-    };
-    to_array(slides(
-        &board,
-        &from,
+/// Pseudo-legal queen destinations. Takes references to avoid board clones.
+pub(crate) fn queen_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
+    slides(
+        board,
+        from,
         &[
             (1, 0),
             (-1, 0),
@@ -191,33 +174,74 @@ pub fn rhai_queen_moves(board: BoardState, from: Coords, color: String) -> Array
             (-1, 1),
             (-1, -1),
         ],
-        &color,
-    ))
+        color,
+    )
+}
+
+/// Pseudo-legal king destinations. Takes references to avoid board clones.
+pub(crate) fn king_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
+    if !board.in_bounds(from) {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    for dr in -1i32..=1 {
+        for dc in -1i32..=1 {
+            if dr == 0 && dc == 0 {
+                continue;
+            }
+            push_if_targetable(
+                board,
+                BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
+                color,
+                &mut result,
+            );
+        }
+    }
+    result
+}
+
+// ── Rhai-facing wrappers (take ownership as required by Rhai's type system) ───
+
+pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    to_array(pawn_dests(&board, &from, &color))
+}
+
+pub fn rhai_rook_moves(board: BoardState, from: Coords, color: String) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    to_array(rook_dests(&board, &from, &color))
+}
+
+pub fn rhai_knight_moves(board: BoardState, from: Coords, color: String) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    to_array(knight_dests(&board, &from, &color))
+}
+
+pub fn rhai_bishop_moves(board: BoardState, from: Coords, color: String) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    to_array(bishop_dests(&board, &from, &color))
+}
+
+pub fn rhai_queen_moves(board: BoardState, from: Coords, color: String) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    to_array(queen_dests(&board, &from, &color))
 }
 
 pub fn rhai_king_moves(board: BoardState, from: Coords, color: String) -> Array {
     let Some(from) = from.as_board_coords() else {
         return Array::new();
     };
-    if !board.in_bounds(&from) {
-        return Array::new();
-    }
-
-    let mut result = Vec::new();
-    for dr in -1..=1 {
-        for dc in -1..=1 {
-            if dr == 0 && dc == 0 {
-                continue;
-            }
-            push_if_targetable(
-                &board,
-                BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
-                &color,
-                &mut result,
-            );
-        }
-    }
-    to_array(result)
+    to_array(king_dests(&board, &from, &color))
 }
 
 #[cfg(test)]

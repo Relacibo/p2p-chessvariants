@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use rhai::Array;
-
 use super::{
     moves,
-    state::{BoardCoords, BoardState, Coords},
+    state::{BoardCoords, BoardState},
 };
 
 /// Generate all pseudo-move destinations for a piece at `from` (BoardCoords).
@@ -16,46 +14,13 @@ pub fn get_pseudo_move_dests(
     color: &str,
     custom_pieces: &HashMap<String, Vec<String>>,
 ) -> Vec<BoardCoords> {
-    // Move functions now take Coords; convert back to BoardCoords for internal use.
-    fn from_array(arr: Array) -> Vec<BoardCoords> {
-        arr.into_iter()
-            .filter_map(|d| d.try_cast::<Coords>().and_then(|c| c.as_board_coords()))
-            .collect()
-    }
-
-    let from_coords = Coords::from(from.clone());
-
     match piece_type {
-        "pawn" => from_array(moves::rhai_pawn_moves(
-            board.clone(),
-            from_coords,
-            color.to_string(),
-        )),
-        "rook" => from_array(moves::rhai_rook_moves(
-            board.clone(),
-            from_coords,
-            color.to_string(),
-        )),
-        "knight" => from_array(moves::rhai_knight_moves(
-            board.clone(),
-            from_coords,
-            color.to_string(),
-        )),
-        "bishop" => from_array(moves::rhai_bishop_moves(
-            board.clone(),
-            from_coords,
-            color.to_string(),
-        )),
-        "queen" => from_array(moves::rhai_queen_moves(
-            board.clone(),
-            from_coords,
-            color.to_string(),
-        )),
-        "king" => from_array(moves::rhai_king_moves(
-            board.clone(),
-            from_coords,
-            color.to_string(),
-        )),
+        "pawn"   => moves::pawn_dests(board, from, color),
+        "rook"   => moves::rook_dests(board, from, color),
+        "knight" => moves::knight_dests(board, from, color),
+        "bishop" => moves::bishop_dests(board, from, color),
+        "queen"  => moves::queen_dests(board, from, color),
+        "king"   => moves::king_dests(board, from, color),
         custom => {
             if let Some(parts) = custom_pieces.get(custom) {
                 let mut result = Vec::new();

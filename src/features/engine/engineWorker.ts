@@ -2,16 +2,15 @@
  * Web Worker — owns the WASM ChessvariantEngine.
  *
  * All heavy WASM/Rhai computation runs here.
- * WASM is loaded automatically via the static import — Vite/vite-plugin-wasm bundles
- * the WASM binary and _bg.js glue code into the worker chunk.
+ * WASM is loaded via a dynamic import on first use to avoid blocking the
+ * module body (the static import's top-level await can deadlock in some
+ * Chromium versions when the WASM module graph has async initialisation).
  *
  * Progressive Phase 2 after submitAction:
  *   2a. valid_moves for local player → postMessage immediately
  *   2b. valid_moves for remaining players (background, no message)
  *   2c. is_game_over + game_over → postMessage when ready
  */
-
-import { ChessvariantEngine } from "chessvariant-engine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,23 +22,37 @@ interface WorkerRequest {
   payload?: unknown;
 }
 
+// ── Lazy WASM import ──────────────────────────────────────────────────────────
+// Use dynamic import so the worker module body (and `onmessage`) can execute
+// synchronously without waiting for the WASM's top-level async initialisation.
+// The static import caused a module-init hang in module workers under Chromium.
+
+type EngineInstance = import("chessvariant-engine").ChessvariantEngine;
+
+let _engineModule: typeof import("chessvariant-engine") | null = null;
+
+async function getEngineClass() {
+  if (!_engineModule) {
+    _engineModule = await import("chessvariant-engine");
+  }
+  return _engineModule.ChessvariantEngine;
+}
+
 // ── Engine state ──────────────────────────────────────────────────────────────
 
-let engine: ChessvariantEngine | null = null;
+let engine: EngineInstance | null = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function ok(id: number, result: unknown) { postMessage({ id, result }); }
 function err(id: number, message: string) { postMessage({ id, error: message }); }
 
-function need(): ChessvariantEngine {
+function need(): EngineInstance {
   if (!engine) throw new Error("Engine not initialised");
   return engine;
 }
 
 // ── Message loop ──────────────────────────────────────────────────────────────
-// In module workers, incoming messages are queued until the module body
-// (including all static imports) has finished evaluating.
 
 onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const { id, type, payload } = e.data;
@@ -47,6 +60,7 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
     switch (type) {
       case "init": {
         const p = payload as { script: string; playerCount: number };
+        const ChessvariantEngine = await getEngineClass();
         engine = new ChessvariantEngine(p.script, p.playerCount);
         const va = JSON.parse(engine.validMovesAllJson());
         ok(id, {
@@ -75,6 +89,10 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
           _phase: "validMoves",
           result: { validMoves: localMoves },
         });
+
+        // Yield to let Phase 2a message reach the main thread before blocking
+        // on the more expensive Phase 2b computation.
+        await new Promise<void>(r => setTimeout(r, 0));
 
         // Phase 2b + 2c: remaining players + game_over check
         const all = JSON.parse(need().validMovesAllJson());

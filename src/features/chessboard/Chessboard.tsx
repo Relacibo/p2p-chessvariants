@@ -100,6 +100,8 @@ export function Chessboard({
   // Keep a ref to validMoves so onDrop always has fresh data
   const validMovesRef = useRef(validMoves);
   validMovesRef.current = validMoves;
+  // Keep a stable ref to the pointer-move handler so add/remove always match
+  const handleWindowPointerMoveRef = useRef<((e: PointerEvent) => void) | null>(null);
 
   const setCursor = (cursor: string) => {
     stageRef.current?.container()?.style &&
@@ -340,7 +342,8 @@ export function Chessboard({
               window.addEventListener("pointermove", handleWindowPointerMove);
             }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
-              window.removeEventListener("pointermove", handleWindowPointerMove);
+              const handler = handleWindowPointerMoveRef.current;
+              if (handler) window.removeEventListener("pointermove", handler);
               // Hide DOM drag surface
               if (dragSurfaceRef.current) {
                 dragSurfaceRef.current.style.display = "none";
@@ -397,11 +400,16 @@ export function Chessboard({
   }
 
   // ── Window pointer move handler for drag surface ──────────────────────────
+  // Keep a stable ref so add/remove always refer to the same function object,
+  // even if tileSize changes mid-drag.
+  const tileSizeRef = useRef(tileSize);
+  tileSizeRef.current = tileSize;
   const handleWindowPointerMove = useCallback((e: PointerEvent) => {
     if (!dragSurfaceRef.current) return;
     dragSurfaceRef.current.style.transform =
-      `translate(${e.clientX - tileSize / 2}px, ${e.clientY - tileSize / 2}px)`;
-  }, [tileSize]);
+      `translate(${e.clientX - tileSizeRef.current / 2}px, ${e.clientY - tileSizeRef.current / 2}px)`;
+  }, []); // stable — reads tileSize via ref
+  handleWindowPointerMoveRef.current = handleWindowPointerMove;
 
   return (
     <>
