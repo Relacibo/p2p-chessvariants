@@ -138,15 +138,19 @@ fn is_game_over(state, all_valid_moves) {
 fn handle_action(state, player, action) {
     if action.type == "move" {
         // action.from, action.to — engine guarantees legality (see §6)
-        let new_board = engine::board::move_piece(state.board, action.from, action.to);
-        // ... turn switch, king capture, outcome check ...
+        state.board = engine::board::move_piece(state.board, action.from, action.to);
+        state.turn = if state.turn == "white" { "black" } else { "white" };
+    }
+    if action.type == "interact" && action.element_id == "summon_btn" {
+        // Example: "Summon" button places a pawn in the center of the board.
+        // Can only be used once per player (guarded by state.summoned flag).
+        let spawn = Coords(3, 3); // d5-ish
+        state.board = engine::board::set(state.board, spawn, Piece(player.color, "pawn"));
+        state.summoned = true;
     }
     if action.type == "select_piece" {
         // action.piece — user picked from PiecePicker UI element
         // Script must validate: is state.pending active?
-    }
-    if action.type == "interact" {
-        // action.element_id — user clicked a Button UI element
     }
     if action.type == "cancel" {
         // user dismissed PiecePicker without selecting — abort pending sequence
@@ -176,8 +180,10 @@ Pure function of `state` and `player`.
 fn get_ui(state, player) {
     let ui = #{};
 
-    if player.color == state.turn {
-        ui.btn_pass = #{ type: "button", label: "Pass" };
+    // "Summon" button: available once per game, lets the player spawn a pawn
+    // in the center. Pressing it emits Interact("summon_btn").
+    if player.color == state.turn && !state.summoned {
+        ui.summon_btn = #{ type: "button", label: "Summon Pawn" };
     }
 
     // PiecePicker for promotion
