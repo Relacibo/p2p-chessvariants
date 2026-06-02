@@ -57,7 +57,7 @@ export function PixiChessboard({
   const sw = stageWidth ?? Math.round(tileSize * cols);
   const sh = stageHeight ?? Math.round(tileSize * rows);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<PixiBoard | null>(null);
   const [zoomMode, setZoomMode] = useState<ZoomMode>("single");
 
@@ -88,7 +88,7 @@ export function PixiChessboard({
 
   // ── Mount / unmount ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!containerRef.current) return;
 
     const board = new PixiBoard(
       (a) => onSubmitActionRef.current(a),
@@ -98,7 +98,7 @@ export function PixiChessboard({
     boardRef.current = board;
 
     board
-      .init(canvasRef.current, sw, sh)
+      .init(containerRef.current, sw, sh)
       .then(() => {
         // Use the latest state (not the stale closure values from mount time)
         if (stateRef.current) board.update(stateRef.current);
@@ -151,11 +151,11 @@ export function PixiChessboard({
   };
 
   return (
-    <div style={{ position: "relative", width: sw, height: sh }}>
-      <canvas
-        ref={canvasRef}
-        style={{ display: "block", width: sw, height: sh }}
-      />
+    <div
+      ref={containerRef}
+      style={{ position: "relative", width: sw, height: sh }}
+    >
+      {/* PixiJS appends its canvas here after init() */}
       <button
         onClick={toggleZoom}
         title={zoomMode === "single" ? "Zoom out (overview)" : "Zoom in (single board)"}

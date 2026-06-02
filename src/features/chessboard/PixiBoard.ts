@@ -108,17 +108,17 @@ export class PixiBoard {
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
-  async init(
-    canvas: HTMLCanvasElement,
-    width: number,
-    height: number
-  ): Promise<void> {
+  // Takes a container div — PixiJS creates its own <canvas> so that two
+  // concurrent async inits (React StrictMode double-mount) never share a canvas
+  // element and cannot corrupt each other's WebGL context.
+  async init(container: HTMLElement, width: number, height: number): Promise<void> {
+    if (this.destroyed) return;
+
     const app = new Application();
     this.app = app;
 
     try {
       await app.init({
-        canvas,
         width,
         height,
         backgroundColor: 0x2d2d2d,
@@ -135,10 +135,18 @@ export class PixiBoard {
     // Component may have been unmounted while init was awaiting.
     // Use the local `app` ref — this.app may have been nulled by destroy().
     if (this.destroyed) {
-      app.destroy(false, { children: true });
+      app.destroy(true, { children: true });
       this.app = null;
       return;
     }
+
+    // Only append to DOM after init completes — ensures no two canvases share
+    // a WebGL context during the StrictMode double-mount window.
+    const canvas = app.canvas as HTMLCanvasElement;
+    canvas.style.display = "block";
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    container.appendChild(canvas);
 
     app.stage.addChild(this.rootContainer);
     this.rootContainer.addChild(this.bgGraphics);
@@ -149,7 +157,7 @@ export class PixiBoard {
     await this.loadTextures();
 
     if (this.destroyed) {
-      app.destroy(false, { children: true });
+      app.destroy(true, { children: true });
       this.app = null;
       return;
     }
@@ -184,11 +192,14 @@ export class PixiBoard {
       window.removeEventListener("pointerup", this.dragPointerUp);
     for (const s of this.pieceSprites.values()) s.destroy();
     this.pieceSprites.clear();
-    // Only call app.destroy() if app.init() fully completed.
-    // If init is still in-flight, it will detect this.destroyed and self-destruct.
     if (this.initDone && this.app) {
+      // Remove canvas from DOM before destroying so React's container div is clean.
+      const canvas = this.app.canvas as HTMLCanvasElement;
+      canvas.parentNode?.removeChild(canvas);
       this.app.destroy(false, { children: true });
     }
+    // If init is still in-flight, it will detect this.destroyed and call
+    // app.destroy(true, ...) which removes the canvas itself.
     this.app = null;
     this.initDone = false;
   }
