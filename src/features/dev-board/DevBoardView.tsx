@@ -28,7 +28,7 @@ import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
-import { Chessboard, type PendingMove } from "../chessboard/Chessboard";
+import { PixiChessboard as Chessboard, type PendingMove } from "../chessboard/PixiChessboard";
 import { ReservePile } from "../chessboard/ReservePile";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
