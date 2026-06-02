@@ -1084,7 +1084,11 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         }))
                     })
                     .collect();
-                serde_json::json!({ "type": "reserve_pile", "pieces": pieces_json })
+                let board_index = elem_map
+                    .get("board_index")
+                    .and_then(|v| v.as_int().ok())
+                    .unwrap_or(0);
+                serde_json::json!({ "type": "reserve_pile", "pieces": pieces_json, "board_index": board_index })
             }
             "piece_picker" => {
                 let pieces_arr = elem_map

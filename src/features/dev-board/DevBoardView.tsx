@@ -29,7 +29,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
 import { PixiChessboard as Chessboard, type PendingMove } from "../chessboard/PixiChessboard";
-import { ReservePile } from "../chessboard/ReservePile";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
 import style from "./DevBoardView.module.css";
@@ -40,7 +39,6 @@ import {
   WasmPiece,
   WasmPlayerMoves,
   WasmUiMap,
-  WasmUiReservePile,
   WasmVariantConfig,
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
@@ -138,9 +136,6 @@ export function DevBoardView() {
   );
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
-  const [reservePile, setReservePile] = useState<WasmUiReservePile | null>(
-    null
-  );
   const [validMoves, setValidMoves] = useState<WasmAction[]>([]);
 
   const [validMovesAll, setValidMovesAll] = useState<WasmPlayerMoves[]>([]);
@@ -164,13 +159,6 @@ export function DevBoardView() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
-  const boardSize =
-    containerSize.w > 0 && containerSize.h > 0
-      ? Math.min(containerSize.w, containerSize.h)
-      : 0;
-  const reservePileWidth = Math.max(72, Math.round(boardSize * 0.22));
-  const sideSpace = containerSize.w - boardSize;
-  const showReserveSide = sideSpace >= reservePileWidth + 48;
 
   // Derive board index and orientation from the controlling player's full identity.
   const playerRef = useMemo((): PlayerRef | null => {
@@ -179,7 +167,13 @@ export function DevBoardView() {
     catch { return null; }
   }, [controllingPlayer]);
   const currentBoardIndex = playerRef?.board ?? 0;
-  const currentFlipped = playerRef?.color === "black";
+
+  const flippedByBoard = useMemo((): boolean[] => {
+    const count = variantConfig?.board.count ?? 1;
+    const arr = new Array<boolean>(count).fill(false);
+    if (playerRef) arr[playerRef.board] = playerRef.color === "black";
+    return arr;
+  }, [variantConfig?.board.count, playerRef]);
 
   // Determine if a piece selection dialog should be shown
   const selectablePieces = useMemo(() => {
@@ -253,17 +247,6 @@ export function DevBoardView() {
         const uiResult = await proxy.getUiJson(p) as { ui: WasmUiMap };
         const ui = (uiResult.ui ?? null) as WasmUiMap | null;
         setUiElements(ui);
-        let foundReserve = false;
-        if (ui) {
-          for (const el of Object.values(ui)) {
-            if (el.type === "reserve_pile") {
-              setReservePile(el as WasmUiReservePile);
-              foundReserve = true;
-              break;
-            }
-          }
-        }
-        if (!foundReserve) setReservePile(null);
       } else {
         setValidMoves([]);
         setUiElements(null);
@@ -298,7 +281,6 @@ export function DevBoardView() {
       setSelectedDropPiece(null);
       setVariantConfig(null);
       setBoardState(null);
-      setReservePile(null);
       setValidMoves([]);
       setValidMovesAll([]);
       setUiElements(null);
@@ -453,18 +435,6 @@ export function DevBoardView() {
         } else if (action.type === "cancel") {
           addLogEntry(controllingPlayer, { kind: "ui", elementId: "cancel" });
         }
-        let foundReserve = false;
-        const ui = result.ui as WasmUiMap | null;
-        if (ui) {
-          for (const el of Object.values(ui)) {
-            if (el.type === "reserve_pile") {
-              setReservePile(el as WasmUiReservePile);
-              foundReserve = true;
-              break;
-            }
-          }
-        }
-        if (!foundReserve) setReservePile(null);
         // Phase 2: valid_actions arrive asynchronously via proxy.onValidMoves
       } catch (e: unknown) {
         notifications.show({
@@ -499,18 +469,19 @@ export function DevBoardView() {
           <Loader />
         </Box>
       )}
-      {!loading && boardState && variantConfig && (
+      {!loading && boardState && variantConfig && containerSize.w > 0 && containerSize.h > 0 && (
         <Chessboard
           variantConfig={variantConfig}
           boardState={boardState}
           validMoves={validMoves}
-          boardIndex={currentBoardIndex}
-          flipped={currentFlipped}
+          activeBoardIndex={currentBoardIndex}
+          flippedByBoard={flippedByBoard}
           onSubmitAction={handleSubmitAction}
           lastAction={lastAction}
           selectedDropPiece={selectedDropPiece}
           onClearDropPiece={() => setSelectedDropPiece(null)}
-          size={boardSize}
+          onSelectReservePiece={(piece) => setSelectedDropPiece(piece)}
+          uiMap={uiElements ?? {}}
           stageWidth={containerSize.w}
           stageHeight={containerSize.h}
           pendingMove={pendingMove}
@@ -525,38 +496,6 @@ export function DevBoardView() {
           hasCancel={hasCancel}
           onSubmit={handleSubmitAction}
         />
-      )}
-
-      {/* ── Reserve pile ── */}
-      {reservePile && !loading && (
-        <Box
-          style={
-            showReserveSide
-              ? {
-                  position: "absolute",
-                  right: Math.max(8, sideSpace - reservePileWidth - 8),
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  width: reservePileWidth,
-                }
-              : {
-                  position: "absolute",
-                  bottom: 56,
-                  right: 8,
-                  width: reservePileWidth,
-                  opacity: 0.92,
-                }
-          }
-        >
-          <ReservePile
-            reservePile={{
-              reserve_piles: [reservePile.pieces],
-            }}
-            selectedPiece={selectedDropPiece}
-            onSelectPiece={setSelectedDropPiece}
-            tileSize={44}
-          />
-        </Box>
       )}
 
       {/* ── Dev gear button — only shown when drawer is closed (drawer has its own close X) ── */}

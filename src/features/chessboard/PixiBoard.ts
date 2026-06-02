@@ -13,6 +13,8 @@ import {
   WasmBoardState,
   WasmPiece,
   WasmVariantConfig,
+  WasmUiMap,
+  WasmUiReservePile,
   isBoardCoords,
 } from "./types";
 import type { PendingMove } from "./PixiChessboard";
@@ -25,17 +27,18 @@ const SELECTED_COLOR = 0x1478ff;
 const VALID_MOVE_COLOR = 0x00b400;
 const LAST_MOVE_COLOR = 0xffd700;
 const GHOST_ALPHA = 0.35;
+// Gap between board slots as a fraction of stageWidth
+const SLOT_GAP_RATIO = 0.08;
+// Reserve panel width as a fraction of stageWidth (when reserves exist)
+const RESERVE_PANEL_RATIO = 0.20;
+const RESERVE_PADDING = 6;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function coordsEq(a: WasmBoardCoords, b: WasmBoardCoords): boolean {
   return a.row === b.row && a.col === b.col && a.boardIndex === b.boardIndex;
 }
 
-function mkBoardCoords(
-  row: number,
-  col: number,
-  boardIndex: number
-): WasmBoardCoords {
+function mkBoardCoords(row: number, col: number, boardIndex: number): WasmBoardCoords {
   return { type: "board", row, col, boardIndex };
 }
 
@@ -45,43 +48,57 @@ export type ZoomMode = "single" | "overview";
 export interface SceneState {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
+  /** Valid moves for the controlling player only. */
   validMoves: WasmAction[];
-  boardIndex: number;
-  flipped: boolean;
-  tileSize: number;
+  /** Board index of the local controlling player — determines interactivity. */
+  activeBoardIndex: number;
+  /** Per-slot flip flag (index = boardIndex). */
+  flippedByBoard: boolean[];
   stageWidth: number;
   stageHeight: number;
   pendingMove: PendingMove | null;
   lastAction: WasmAction | undefined;
   selectedDropPiece: WasmPiece | null | undefined;
+  uiMap: WasmUiMap;
 }
 
-interface Layout {
+/** Per-slot layout in world (rootContainer-local) coordinates. */
+interface SlotLayout {
+  boardIndex: number;
   tileSize: number;
   rows: number;
   cols: number;
   boardW: number;
   boardH: number;
-  offsetX: number;
-  offsetY: number;
-  boardIndex: number;
+  // Board tile origin (world coords)
+  boardLeft: number;
+  boardTop: number;
   flipped: boolean;
+  // Reserve column (world coords)
+  reserveLeft: number;
+  reserveTop: number;
+  reserveW: number;
+  // Slot bounds (world coords) for hit-testing
+  slotLeft: number;
+  slotRight: number;
 }
 
 // ─── Scene manager ────────────────────────────────────────────────────────────
 export class PixiBoard {
   private app: Application | null = null;
 
-  // rootContainer carries all board content and is scaled for zoom.
+  // Flat shared layers — all slots draw into the same layers at their world positions.
   private rootContainer = new Container();
   private bgGraphics = new Graphics();
   private highlightGraphics = new Graphics();
+  private reserveLayer = new Container();
   private pieceLayer = new Container();
-  // Drag copies live above pieces, inside rootContainer (scales with zoom).
   private dragLayer = new Container();
 
-  private pieceSprites = new Map<string, Sprite>(); // key = `${row},${col}`
+  private pieceSprites = new Map<string, Sprite>();
+  private reserveSprites = new Map<string, Sprite>();
   private state: SceneState | null = null;
+  private slotLayouts: SlotLayout[] = [];
   private selected: WasmBoardCoords | null = null;
   private textureCache = new Map<string, Texture>();
   private initDone = false;
@@ -93,10 +110,19 @@ export class PixiBoard {
   private dragPointerMove: ((e: PointerEvent) => void) | null = null;
   private dragPointerUp: ((e: PointerEvent) => void) | null = null;
 
-  // Mutable callbacks — updated without re-initialising the board
+  // Zoom animation
+  private zoomCurrent = { x: 0, y: 0, scale: 1 };
+  private zoomTarget = { x: 0, y: 0, scale: 1 };
+  private zoomAnimating = false;
+  private currentZoomMode: ZoomMode = "single";
+  private focusedBoardIndex = 0;
+
+  // Mutable callbacks — updated without re-initialising
   onSubmitAction: (action: WasmAction) => void;
   onPendingMove: (move: PendingMove | null) => void;
   onClearDropPiece: (() => void) | undefined;
+  onSelectReservePiece: ((piece: WasmPiece, elementId: string) => void) | undefined;
+  onZoomModeChange: ((mode: ZoomMode) => void) | undefined;
 
   constructor(
     onSubmitAction: (action: WasmAction) => void,
@@ -108,9 +134,8 @@ export class PixiBoard {
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
-  // Takes a container div — PixiJS creates its own <canvas> so that two
-  // concurrent async inits (React StrictMode double-mount) never share a canvas
-  // element and cannot corrupt each other's WebGL context.
+  // Takes a container div — PixiJS creates its own <canvas> so two concurrent
+  // async inits (React StrictMode double-mount) never share a WebGL context.
   async init(container: HTMLElement, width: number, height: number): Promise<void> {
     if (this.destroyed) return;
 
@@ -119,8 +144,8 @@ export class PixiBoard {
 
     try {
       await app.init({
-        width,
-        height,
+        width: Math.max(width, 1),
+        height: Math.max(height, 1),
         backgroundColor: 0x2d2d2d,
         antialias: true,
         resolution: window.devicePixelRatio ?? 1,
@@ -132,16 +157,12 @@ export class PixiBoard {
       return;
     }
 
-    // Component may have been unmounted while init was awaiting.
-    // Use the local `app` ref — this.app may have been nulled by destroy().
     if (this.destroyed) {
       app.destroy(true, { children: true });
       this.app = null;
       return;
     }
 
-    // Only append to DOM after init completes — ensures no two canvases share
-    // a WebGL context during the StrictMode double-mount window.
     const canvas = app.canvas as HTMLCanvasElement;
     canvas.style.display = "block";
     canvas.style.width = `${width}px`;
@@ -151,8 +172,13 @@ export class PixiBoard {
     app.stage.addChild(this.rootContainer);
     this.rootContainer.addChild(this.bgGraphics);
     this.rootContainer.addChild(this.highlightGraphics);
+    this.rootContainer.addChild(this.reserveLayer);
     this.rootContainer.addChild(this.pieceLayer);
     this.rootContainer.addChild(this.dragLayer);
+
+    app.ticker.add(() => {
+      if (this.zoomAnimating) this.stepZoomAnimation();
+    });
 
     await this.loadTextures();
 
@@ -186,20 +212,17 @@ export class PixiBoard {
 
   destroy(): void {
     this.destroyed = true;
-    if (this.dragPointerMove)
-      window.removeEventListener("pointermove", this.dragPointerMove);
-    if (this.dragPointerUp)
-      window.removeEventListener("pointerup", this.dragPointerUp);
+    if (this.dragPointerMove) window.removeEventListener("pointermove", this.dragPointerMove);
+    if (this.dragPointerUp) window.removeEventListener("pointerup", this.dragPointerUp);
     for (const s of this.pieceSprites.values()) s.destroy();
     this.pieceSprites.clear();
+    for (const s of this.reserveSprites.values()) s.destroy();
+    this.reserveSprites.clear();
     if (this.initDone && this.app) {
-      // Remove canvas from DOM before destroying so React's container div is clean.
       const canvas = this.app.canvas as HTMLCanvasElement;
       canvas.parentNode?.removeChild(canvas);
       this.app.destroy(false, { children: true });
     }
-    // If init is still in-flight, it will detect this.destroyed and call
-    // app.destroy(true, ...) which removes the canvas itself.
     this.app = null;
     this.initDone = false;
   }
@@ -209,106 +232,170 @@ export class PixiBoard {
   update(s: SceneState): void {
     if (!this.initDone) return;
     const prev = this.state;
+
+    if (!prev) {
+      // First update: initialize zoom position to active board slot (instant, no animation).
+      this.focusedBoardIndex = s.activeBoardIndex;
+      const targetX = this.slotX(s.activeBoardIndex, s.stageWidth);
+      this.zoomCurrent = { x: targetX, y: 0, scale: 1 };
+      this.zoomTarget = { x: targetX, y: 0, scale: 1 };
+      this.rootContainer.position.set(targetX, 0);
+      this.rootContainer.scale.set(1);
+    }
+
     this.state = s;
 
     const layoutChanged =
       !prev ||
-      prev.tileSize !== s.tileSize ||
       prev.stageWidth !== s.stageWidth ||
       prev.stageHeight !== s.stageHeight ||
       prev.boardState.rows !== s.boardState.rows ||
       prev.boardState.cols !== s.boardState.cols ||
-      prev.flipped !== s.flipped;
+      prev.flippedByBoard !== s.flippedByBoard ||
+      prev.variantConfig.board.count !== s.variantConfig.board.count ||
+      prev.uiMap !== s.uiMap;
 
     const piecesChanged =
       layoutChanged ||
       prev?.boardState !== s.boardState ||
       prev?.pendingMove !== s.pendingMove ||
-      prev?.validMoves !== s.validMoves;
+      prev?.validMoves !== s.validMoves ||
+      prev?.activeBoardIndex !== s.activeBoardIndex;
 
     const highlightsChanged =
       piecesChanged ||
       prev?.lastAction !== s.lastAction ||
       prev?.selectedDropPiece !== s.selectedDropPiece;
 
+    const reserveChanged =
+      layoutChanged ||
+      prev?.uiMap !== s.uiMap ||
+      prev?.selectedDropPiece !== s.selectedDropPiece;
+
     if (layoutChanged) {
       this.app?.renderer.resize(s.stageWidth, s.stageHeight);
+      const canvas = this.app?.canvas as HTMLCanvasElement | undefined;
+      if (canvas) {
+        canvas.style.width = `${s.stageWidth}px`;
+        canvas.style.height = `${s.stageHeight}px`;
+      }
+      this.slotLayouts = this.computeSlotLayouts(s);
       this.rebuildBackground();
-      this.rebuildHitArea();
     }
     if (piecesChanged) this.rebuildPieces();
     if (highlightsChanged) this.rebuildHighlights();
+    if (reserveChanged) this.rebuildReservePiles();
   }
 
   setZoomMode(mode: ZoomMode): void {
-    if (!this.state) return;
-    const { tileSize, stageWidth, stageHeight } = this.state;
-    const { rows, cols } = this.state.boardState;
-    const boardW = tileSize * cols;
-    const boardH = tileSize * rows;
+    this.currentZoomMode = mode;
+    this.applyZoomMode(mode, this.focusedBoardIndex);
+    this.onZoomModeChange?.(mode);
+  }
 
-    if (mode === "single") {
-      this.rootContainer.scale.set(1);
-      this.rootContainer.position.set(0, 0);
-    } else {
-      // Overview: scale so that the board fits ~1/3 of the viewport
-      // (leaving room to conceptually show 6 boards around it).
-      const n = Math.ceil(Math.sqrt(6));
-      const scale = Math.min(
-        (stageWidth / boardW) / n,
-        (stageHeight / boardH) / n
-      );
-      this.rootContainer.scale.set(scale);
-      this.rootContainer.position.set(
-        (stageWidth - boardW * scale) / 2,
-        (stageHeight - boardH * scale) / 2
-      );
+  getZoomMode(): ZoomMode {
+    return this.currentZoomMode;
+  }
+
+  // ─── Slot layout ───────────────────────────────────────────────────────────
+
+  /** World X offset of slot i. */
+  private slotX(boardIndex: number, stageWidth: number): number {
+    const gap = Math.round(stageWidth * SLOT_GAP_RATIO);
+    return -(boardIndex * (stageWidth + gap));
+  }
+
+  private computeSlotLayouts(s: SceneState): SlotLayout[] {
+    const { stageWidth: W, stageHeight: H, variantConfig, boardState, flippedByBoard, uiMap } = s;
+    const boardCount = variantConfig.board.count;
+    const { rows, cols } = boardState;
+    const gap = Math.round(W * SLOT_GAP_RATIO);
+    const slotStride = W + gap;
+
+    const reserveForBoard = new Set<number>();
+    for (const el of Object.values(uiMap)) {
+      if (el.type === "reserve_pile") {
+        reserveForBoard.add((el as WasmUiReservePile).board_index ?? 0);
+      }
     }
+
+    const layouts: SlotLayout[] = [];
+    for (let i = 0; i < boardCount; i++) {
+      const hasReserve = reserveForBoard.has(i);
+      const reserveW = hasReserve ? Math.max(60, Math.round(W * RESERVE_PANEL_RATIO)) : 0;
+      const boardAreaW = W - reserveW - (hasReserve ? 12 : 0);
+      const tileSize = Math.max(
+        16,
+        Math.min(Math.floor(boardAreaW / cols), Math.floor((H - 16) / rows))
+      );
+      const boardW = tileSize * cols;
+      const boardH = tileSize * rows;
+      const slotOriginX = i * slotStride;
+      const boardLeft = slotOriginX + Math.floor((boardAreaW - boardW) / 2);
+      const boardTop = Math.floor((H - boardH) / 2);
+
+      layouts.push({
+        boardIndex: i,
+        tileSize,
+        rows,
+        cols,
+        boardW,
+        boardH,
+        boardLeft,
+        boardTop,
+        flipped: flippedByBoard[i] ?? false,
+        reserveLeft: slotOriginX + boardAreaW + 12,
+        reserveTop: Math.round(H * 0.1),
+        reserveW,
+        slotLeft: slotOriginX,
+        slotRight: slotOriginX + W,
+      });
+    }
+    return layouts;
+  }
+
+  private getSlotForBoard(boardIndex: number): SlotLayout | null {
+    return this.slotLayouts.find((sl) => sl.boardIndex === boardIndex) ?? null;
   }
 
   // ─── Coordinate helpers ────────────────────────────────────────────────────
 
-  private getLayout(): Layout | null {
-    if (!this.state) return null;
-    const { tileSize, stageWidth, stageHeight, boardIndex, flipped } =
-      this.state;
-    const { rows, cols } = this.state.boardState;
-    const boardW = tileSize * cols;
-    const boardH = tileSize * rows;
-    const offsetX = Math.floor((stageWidth - boardW) / 2);
-    const offsetY = Math.floor((stageHeight - boardH) / 2);
-    return { tileSize, rows, cols, boardW, boardH, offsetX, offsetY, boardIndex, flipped };
-  }
-
-  /** Logical (row, col) → rootContainer-local pixel top-left. */
-  private toLocal(row: number, col: number, l: Layout) {
+  /** Logical (row, col) → world-space pixel top-left for a given slot. */
+  private toWorld(row: number, col: number, sl: SlotLayout): { x: number; y: number } {
     return {
-      x: l.offsetX + col * l.tileSize,
-      y: l.offsetY + (l.flipped ? l.rows - 1 - row : row) * l.tileSize,
+      x: sl.boardLeft + col * sl.tileSize,
+      y: sl.boardTop + (sl.flipped ? sl.rows - 1 - row : row) * sl.tileSize,
     };
   }
 
-  /** rootContainer-local pixel → board coords (null if outside board). */
-  private fromLocal(lx: number, ly: number, l: Layout): WasmBoardCoords | null {
-    const rawCol = Math.floor((lx - l.offsetX) / l.tileSize);
-    const rawRow = Math.floor((ly - l.offsetY) / l.tileSize);
-    if (rawCol < 0 || rawCol >= l.cols || rawRow < 0 || rawRow >= l.rows)
-      return null;
-    const row = l.flipped ? l.rows - 1 - rawRow : rawRow;
-    return mkBoardCoords(row, rawCol, l.boardIndex);
+  /** World-space pixel → board coords (null if outside all boards). */
+  private fromWorld(wx: number, wy: number): { coords: WasmBoardCoords; sl: SlotLayout } | null {
+    for (const sl of this.slotLayouts) {
+      const relX = wx - sl.boardLeft;
+      const relY = wy - sl.boardTop;
+      const rawCol = Math.floor(relX / sl.tileSize);
+      const rawRow = Math.floor(relY / sl.tileSize);
+      if (rawCol < 0 || rawCol >= sl.cols || rawRow < 0 || rawRow >= sl.rows) continue;
+      const row = sl.flipped ? sl.rows - 1 - rawRow : rawRow;
+      return { coords: mkBoardCoords(row, rawCol, sl.boardIndex), sl };
+    }
+    return null;
   }
 
-  /** Client (viewport) pixel → rootContainer-local pixel. */
-  private clientToLocal(clientX: number, clientY: number): { x: number; y: number } | null {
+  /** Which slot does a world X coordinate belong to? */
+  private slotAtWorldX(wx: number): SlotLayout | null {
+    return this.slotLayouts.find((sl) => wx >= sl.slotLeft && wx < sl.slotRight) ?? null;
+  }
+
+  /** Client (viewport) pixel → world (rootContainer-local) pixel. */
+  private clientToWorld(clientX: number, clientY: number): { x: number; y: number } | null {
     if (!this.app) return null;
     const rect = (this.app.canvas as HTMLCanvasElement).getBoundingClientRect();
-    const stageX = clientX - rect.left;
-    const stageY = clientY - rect.top;
     const sx = this.rootContainer.scale.x || 1;
     const sy = this.rootContainer.scale.y || 1;
     return {
-      x: (stageX - this.rootContainer.x) / sx,
-      y: (stageY - this.rootContainer.y) / sy,
+      x: (clientX - rect.left - this.rootContainer.x) / sx,
+      y: (clientY - rect.top - this.rootContainer.y) / sy,
     };
   }
 
@@ -316,8 +403,7 @@ export class PixiBoard {
 
   private disabledSet(): Set<string> {
     const s = new Set<string>();
-    for (const { r1, c1, r2: h, c2: w } of (this.state?.variantConfig.board
-      .disabled_rects ?? [])) {
+    for (const { r1, c1, r2: h, c2: w } of (this.state?.variantConfig.board.disabled_rects ?? [])) {
       for (let r = r1; r < r1 + h; r++)
         for (let c = c1; c < c1 + w; c++) s.add(`${r},${c}`);
     }
@@ -328,55 +414,38 @@ export class PixiBoard {
 
   private rebuildBackground(): void {
     this.bgGraphics.clear();
-    const l = this.getLayout();
-    if (!l) return;
+    if (!this.state) return;
     const disabled = this.disabledSet();
-    for (let row = 0; row < l.rows; row++) {
-      for (let col = 0; col < l.cols; col++) {
-        if (disabled.has(`${row},${col}`)) continue;
-        const { x, y } = this.toLocal(row, col, l);
-        this.bgGraphics
-          .rect(x, y, l.tileSize, l.tileSize)
-          .fill((row + col) % 2 === 0 ? LIGHT : DARK);
+    for (const sl of this.slotLayouts) {
+      for (let row = 0; row < sl.rows; row++) {
+        for (let col = 0; col < sl.cols; col++) {
+          if (disabled.has(`${row},${col}`)) continue;
+          const { x, y } = this.toWorld(row, col, sl);
+          this.bgGraphics
+            .rect(x, y, sl.tileSize, sl.tileSize)
+            .fill((row + col) % 2 === 0 ? LIGHT : DARK);
+        }
       }
     }
 
-    // The background graphics object also handles click events for the board.
     this.bgGraphics.eventMode = "static";
     this.bgGraphics.removeAllListeners();
     this.bgGraphics.on("pointerdown", (e: FederatedPointerEvent) => {
       if (this.dragOrigin) return;
-      const local = e.getLocalPosition(this.rootContainer);
-      const l2 = this.getLayout();
-      if (!l2) return;
-      const coords = this.fromLocal(local.x, local.y, l2);
-      if (coords) {
-        this.handleTileClick(coords.row, coords.col);
-      } else {
-        this.selected = null;
-        this.onClearDropPiece?.();
-        this.rebuildHighlights();
-      }
+      const world = e.getLocalPosition(this.rootContainer);
+      this.handleBoardPointerDown(world.x, world.y);
     });
-  }
-
-  /** Re-attaches the hit-area listener; called when layout changes. */
-  private rebuildHitArea(): void {
-    // Hit-area is already on bgGraphics — rebuildBackground sets it up.
-    // Nothing extra needed here; keeping the method for clarity.
   }
 
   private rebuildHighlights(): void {
     this.highlightGraphics.clear();
-    const l = this.getLayout();
-    if (!this.state || !l) return;
-    const { validMoves, lastAction, selectedDropPiece, boardIndex } = this.state;
+    if (!this.state) return;
+    const { validMoves, lastAction, selectedDropPiece } = this.state;
     const disabled = this.disabledSet();
 
-    // Compute valid target squares for the current selection / drag / reserve piece.
-    // During drag, dragOrigin acts as the selection source.
     const activeSource = this.dragOrigin ?? this.selected;
     const validTargets = new Set<string>();
+
     if (activeSource) {
       for (const a of validMoves) {
         if (
@@ -385,74 +454,62 @@ export class PixiBoard {
           coordsEq(a.from, activeSource) &&
           isBoardCoords(a.to)
         ) {
-          validTargets.add(`${a.to.row},${a.to.col}`);
+          validTargets.add(`${a.to.boardIndex},${a.to.row},${a.to.col}`);
         }
       }
     }
     if (selectedDropPiece) {
       for (const a of validMoves) {
-        if (
-          a.type === "move" &&
-          a.from.type === "reserve" &&
-          isBoardCoords(a.to)
-        ) {
-          validTargets.add(`${a.to.row},${a.to.col}`);
+        if (a.type === "move" && a.from.type === "reserve" && isBoardCoords(a.to)) {
+          validTargets.add(`${a.to.boardIndex},${a.to.row},${a.to.col}`);
         }
       }
     }
 
-    for (let row = 0; row < l.rows; row++) {
-      for (let col = 0; col < l.cols; col++) {
-        if (disabled.has(`${row},${col}`)) continue;
-        const { x, y } = this.toLocal(row, col, l);
-        const coords = mkBoardCoords(row, col, boardIndex);
+    for (const sl of this.slotLayouts) {
+      for (let row = 0; row < sl.rows; row++) {
+        for (let col = 0; col < sl.cols; col++) {
+          if (disabled.has(`${row},${col}`)) continue;
+          const { x, y } = this.toWorld(row, col, sl);
+          const coords = mkBoardCoords(row, col, sl.boardIndex);
 
-        // Last-move highlight
-        if (lastAction?.type === "move") {
-          const fromMatch =
-            isBoardCoords(lastAction.from) && coordsEq(lastAction.from, coords);
-          const toMatch =
-            isBoardCoords(lastAction.to) && coordsEq(lastAction.to, coords);
-          if (fromMatch || toMatch) {
-            this.highlightGraphics
-              .rect(x, y, l.tileSize, l.tileSize)
-              .fill({ color: LAST_MOVE_COLOR, alpha: 0.35 });
+          if (lastAction?.type === "move") {
+            const fromMatch = isBoardCoords(lastAction.from) && coordsEq(lastAction.from, coords);
+            const toMatch = isBoardCoords(lastAction.to) && coordsEq(lastAction.to, coords);
+            if (fromMatch || toMatch) {
+              this.highlightGraphics
+                .rect(x, y, sl.tileSize, sl.tileSize)
+                .fill({ color: LAST_MOVE_COLOR, alpha: 0.35 });
+            }
           }
-        }
 
-        // Selected-square highlight (also shown during drag)
-        if (activeSource && coordsEq(activeSource, coords)) {
-          this.highlightGraphics
-            .rect(x, y, l.tileSize, l.tileSize)
-            .fill({ color: SELECTED_COLOR, alpha: 0.45 });
-        }
+          if (activeSource && coordsEq(activeSource, coords)) {
+            this.highlightGraphics
+              .rect(x, y, sl.tileSize, sl.tileSize)
+              .fill({ color: SELECTED_COLOR, alpha: 0.45 });
+          }
 
-        // Valid-target highlight: dot for empty square, ring overlay for captures
-        if (validTargets.has(`${row},${col}`)) {
-          const hasPiece = this.getDisplayPiece(row, col) != null;
-          if (hasPiece) {
-            this.highlightGraphics
-              .rect(x, y, l.tileSize, l.tileSize)
-              .fill({ color: VALID_MOVE_COLOR, alpha: 0.35 });
-          } else {
-            this.highlightGraphics
-              .circle(
-                x + l.tileSize / 2,
-                y + l.tileSize / 2,
-                l.tileSize * 0.16
-              )
-              .fill({ color: VALID_MOVE_COLOR, alpha: 0.7 });
+          if (validTargets.has(`${sl.boardIndex},${row},${col}`)) {
+            const hasPiece = this.getDisplayPiece(row, col, sl.boardIndex) != null;
+            if (hasPiece) {
+              this.highlightGraphics
+                .rect(x, y, sl.tileSize, sl.tileSize)
+                .fill({ color: VALID_MOVE_COLOR, alpha: 0.35 });
+            } else {
+              this.highlightGraphics
+                .circle(x + sl.tileSize / 2, y + sl.tileSize / 2, sl.tileSize * 0.16)
+                .fill({ color: VALID_MOVE_COLOR, alpha: 0.7 });
+            }
           }
         }
       }
     }
   }
 
-  private getDisplayPiece(row: number, col: number): WasmPiece | null {
+  private getDisplayPiece(row: number, col: number, boardIndex: number): WasmPiece | null {
     if (!this.state) return null;
-    const { boardState, boardIndex, pendingMove } = this.state;
-    const piece =
-      boardState.boards[boardIndex]?.[row * boardState.cols + col] ?? null;
+    const { boardState, pendingMove } = this.state;
+    const piece = boardState.boards[boardIndex]?.[row * boardState.cols + col] ?? null;
     if (!pendingMove) return piece;
     const coords = mkBoardCoords(row, col, boardIndex);
     if (coordsEq(pendingMove.from, coords)) return null;
@@ -461,38 +518,37 @@ export class PixiBoard {
   }
 
   private rebuildPieces(): void {
-    const l = this.getLayout();
-    if (!this.state || !l) return;
-    const { validMoves, boardIndex } = this.state;
+    if (!this.state) return;
+    const { validMoves, activeBoardIndex } = this.state;
     const disabled = this.disabledSet();
 
     const pickable = new Set<string>();
     for (const a of validMoves) {
       if (a.type === "move" && isBoardCoords(a.from))
-        pickable.add(`${a.from.row},${a.from.col}`);
+        pickable.add(`${a.from.boardIndex},${a.from.row},${a.from.col}`);
     }
 
-    // Build desired state
-    const desired = new Map<
-      string,
-      { piece: WasmPiece; x: number; y: number; canDrag: boolean }
-    >();
-    for (let row = 0; row < l.rows; row++) {
-      for (let col = 0; col < l.cols; col++) {
-        if (disabled.has(`${row},${col}`)) continue;
-        const piece = this.getDisplayPiece(row, col);
-        if (!piece) continue;
-        const pos = this.toLocal(row, col, l);
-        desired.set(`${row},${col}`, {
-          piece,
-          x: pos.x,
-          y: pos.y,
-          canDrag: pickable.has(`${row},${col}`),
-        });
+    type DesiredEntry = { piece: WasmPiece; x: number; y: number; canDrag: boolean; sl: SlotLayout };
+    const desired = new Map<string, DesiredEntry>();
+    for (const sl of this.slotLayouts) {
+      for (let row = 0; row < sl.rows; row++) {
+        for (let col = 0; col < sl.cols; col++) {
+          if (disabled.has(`${row},${col}`)) continue;
+          const piece = this.getDisplayPiece(row, col, sl.boardIndex);
+          if (!piece) continue;
+          const { x, y } = this.toWorld(row, col, sl);
+          desired.set(`b${sl.boardIndex}_${row},${col}`, {
+            piece,
+            x,
+            y,
+            canDrag: sl.boardIndex === activeBoardIndex &&
+              pickable.has(`${sl.boardIndex},${row},${col}`),
+            sl,
+          });
+        }
       }
     }
 
-    // Remove sprites no longer needed
     for (const [key, sprite] of this.pieceSprites) {
       if (!desired.has(key)) {
         this.pieceLayer.removeChild(sprite);
@@ -501,17 +557,19 @@ export class PixiBoard {
       }
     }
 
-    // Add or update sprites
-    for (const [key, { piece, x, y, canDrag }] of desired) {
+    for (const [key, { piece, x, y, canDrag, sl }] of desired) {
       const url = getPieceImageUrl(piece.color, piece.pieceType);
       const tex = url ? (this.textureCache.get(url) ?? null) : null;
       if (!tex) continue;
 
-      const [rowStr, colStr] = key.split(",");
-      const row = Number(rowStr);
-      const col = Number(colStr);
+      // Parse row/col from key: "b{boardIndex}_{row},{col}"
+      const m = key.match(/^b\d+_(\d+),(\d+)$/);
+      if (!m) continue;
+      const row = Number(m[1]);
+      const col = Number(m[2]);
       const isDragOrigin =
         this.dragOrigin != null &&
+        this.dragOrigin.boardIndex === sl.boardIndex &&
         this.dragOrigin.row === row &&
         this.dragOrigin.col === col;
 
@@ -525,9 +583,8 @@ export class PixiBoard {
       }
 
       sprite.position.set(x, y);
-      sprite.width = l.tileSize;
-      sprite.height = l.tileSize;
-      // Show ghost at drag origin; dragged piece appears via dragCopy
+      sprite.width = sl.tileSize;
+      sprite.height = sl.tileSize;
       sprite.alpha = isDragOrigin ? GHOST_ALPHA : 1;
       sprite.eventMode = canDrag ? "static" : "none";
       sprite.cursor = canDrag ? "grab" : "default";
@@ -536,26 +593,122 @@ export class PixiBoard {
         sprite.removeAllListeners();
         const r = row;
         const c = col;
+        const boardIdx = sl.boardIndex;
         sprite.on("pointerdown", (e: FederatedPointerEvent) => {
           e.stopPropagation();
-          // Select this piece immediately so valid-move dots appear during drag.
-          // startDrag will set dragOrigin and null selected; rebuildHighlights
-          // uses dragOrigin as the active source when set.
-          this.selected = mkBoardCoords(r, c, boardIndex);
-          this.startDrag(sprite!, mkBoardCoords(r, c, boardIndex), e);
+          this.selected = mkBoardCoords(r, c, boardIdx);
+          this.startDrag(sprite!, mkBoardCoords(r, c, boardIdx), e, sl);
         });
+      }
+    }
+  }
+
+  private rebuildReservePiles(): void {
+    if (!this.state) return;
+    const { uiMap, selectedDropPiece } = this.state;
+
+    for (const sprite of this.reserveSprites.values()) {
+      this.reserveLayer.removeChild(sprite);
+      sprite.destroy();
+    }
+    this.reserveSprites.clear();
+
+    // Group reserve piles by board index
+    const pilesByBoard = new Map<number, { elementId: string; pile: WasmUiReservePile }[]>();
+    for (const [elementId, el] of Object.entries(uiMap)) {
+      if (el.type !== "reserve_pile") continue;
+      const pile = el as WasmUiReservePile;
+      const boardIdx = pile.board_index ?? 0;
+      if (!pilesByBoard.has(boardIdx)) pilesByBoard.set(boardIdx, []);
+      pilesByBoard.get(boardIdx)!.push({ elementId, pile });
+    }
+
+    for (const [boardIdx, piles] of pilesByBoard) {
+      const sl = this.getSlotForBoard(boardIdx);
+      if (!sl || sl.reserveW <= 0) continue;
+
+      const pieceTileSize = Math.min(
+        sl.tileSize * 0.85,
+        sl.reserveW - RESERVE_PADDING * 2
+      );
+      let yOffset = sl.reserveTop;
+
+      for (const { elementId, pile } of piles) {
+        for (let idx = 0; idx < pile.pieces.length; idx++) {
+          const piece = pile.pieces[idx];
+          const url = getPieceImageUrl(piece.color, piece.pieceType);
+          const tex = url ? (this.textureCache.get(url) ?? null) : null;
+          if (!tex) continue;
+
+          const key = `r_${elementId}_${idx}`;
+          const sprite = new Sprite(tex);
+          sprite.position.set(sl.reserveLeft + RESERVE_PADDING, yOffset);
+          sprite.width = pieceTileSize;
+          sprite.height = pieceTileSize;
+          sprite.eventMode = "static";
+          sprite.cursor = "pointer";
+
+          if (
+            selectedDropPiece &&
+            selectedDropPiece.color === piece.color &&
+            selectedDropPiece.pieceType === piece.pieceType
+          ) {
+            sprite.tint = 0x88bbff;
+          }
+
+          const capturedPiece = piece;
+          const capturedElementId = elementId;
+          sprite.on("pointerdown", (e: FederatedPointerEvent) => {
+            e.stopPropagation();
+            this.onSelectReservePiece?.(capturedPiece, capturedElementId);
+            this.selected = null;
+            this.rebuildHighlights();
+          });
+
+          this.reserveLayer.addChild(sprite);
+          this.reserveSprites.set(key, sprite);
+          yOffset += pieceTileSize + RESERVE_PADDING;
+        }
       }
     }
   }
 
   // ─── Interaction ───────────────────────────────────────────────────────────
 
-  private handleTileClick(row: number, col: number): void {
+  private handleBoardPointerDown(wx: number, wy: number): void {
     if (!this.state) return;
-    const { validMoves, boardIndex, selectedDropPiece } = this.state;
+    const hit = this.fromWorld(wx, wy);
+
+    if (!hit) {
+      // Clicked outside all boards — deselect
+      this.selected = null;
+      this.onClearDropPiece?.();
+      this.rebuildHighlights();
+      return;
+    }
+
+    const { coords, sl } = hit;
+
+    // Clicking a passive board in overview mode → zoom to it
+    if (sl.boardIndex !== this.state.activeBoardIndex) {
+      if (this.currentZoomMode === "overview") {
+        this.focusedBoardIndex = sl.boardIndex;
+        this.currentZoomMode = "single";
+        this.applyZoomMode("single", sl.boardIndex);
+        this.onZoomModeChange?.("single");
+      }
+      return;
+    }
+
+    this.handleTileClick(coords.row, coords.col, sl.boardIndex);
+  }
+
+  private handleTileClick(row: number, col: number, boardIndex: number): void {
+    if (!this.state) return;
+    const { validMoves, selectedDropPiece } = this.state;
     const clicked = mkBoardCoords(row, col, boardIndex);
 
-    // Reserve-pile drop
+    // Drop a reserve piece
     if (selectedDropPiece) {
       const action = validMoves.find(
         (a): a is Extract<WasmAction, { type: "move" }> =>
@@ -582,7 +735,7 @@ export class PixiBoard {
           coordsEq(a.to, clicked)
       );
       if (action) {
-        const piece = this.getDisplayPiece(this.selected.row, this.selected.col);
+        const piece = this.getDisplayPiece(this.selected.row, this.selected.col, boardIndex);
         if (piece && isBoardCoords(action.to)) {
           this.onPendingMove({ from: this.selected, piece, to: action.to });
         }
@@ -594,10 +747,9 @@ export class PixiBoard {
     }
 
     // Select / deselect piece
-    const piece = this.getDisplayPiece(row, col);
+    const piece = this.getDisplayPiece(row, col, boardIndex);
     const canPick = validMoves.some(
-      (a) =>
-        a.type === "move" && isBoardCoords(a.from) && coordsEq(a.from, clicked)
+      (a) => a.type === "move" && isBoardCoords(a.from) && coordsEq(a.from, clicked)
     );
     this.selected = piece && canPick ? clicked : null;
     this.rebuildHighlights();
@@ -606,36 +758,26 @@ export class PixiBoard {
   private startDrag(
     originSprite: Sprite,
     origin: WasmBoardCoords,
-    e: FederatedPointerEvent
+    e: FederatedPointerEvent,
+    sl: SlotLayout
   ): void {
     if (!this.app || !this.state) return;
-    const l = this.getLayout();
-    if (!l) return;
 
     this.dragOrigin = origin;
-    this.selected = null; // dragOrigin takes over as active source in rebuildHighlights
+    this.selected = null;
     originSprite.alpha = GHOST_ALPHA;
 
-    // Create a drag copy that follows the cursor inside rootContainer
     const dragCopy = new Sprite(originSprite.texture);
-    dragCopy.width = l.tileSize;
-    dragCopy.height = l.tileSize;
-    const initLocal = e.getLocalPosition(this.rootContainer);
-    dragCopy.position.set(
-      initLocal.x - l.tileSize / 2,
-      initLocal.y - l.tileSize / 2
-    );
+    dragCopy.width = sl.tileSize;
+    dragCopy.height = sl.tileSize;
+    const initWorld = e.getLocalPosition(this.rootContainer);
+    dragCopy.position.set(initWorld.x - sl.tileSize / 2, initWorld.y - sl.tileSize / 2);
     this.dragLayer.addChild(dragCopy);
     this.dragCopy = dragCopy;
 
     const moveHandler = (ev: PointerEvent) => {
-      const local = this.clientToLocal(ev.clientX, ev.clientY);
-      if (local) {
-        dragCopy.position.set(
-          local.x - l.tileSize / 2,
-          local.y - l.tileSize / 2
-        );
-      }
+      const world = this.clientToWorld(ev.clientX, ev.clientY);
+      if (world) dragCopy.position.set(world.x - sl.tileSize / 2, world.y - sl.tileSize / 2);
     };
 
     const upHandler = (ev: PointerEvent) => {
@@ -652,8 +794,9 @@ export class PixiBoard {
       this.dragOrigin = null;
 
       if (savedOrigin && this.state) {
-        const local = this.clientToLocal(ev.clientX, ev.clientY);
-        const target = local ? this.fromLocal(local.x, local.y, this.getLayout()!) : null;
+        const world = this.clientToWorld(ev.clientX, ev.clientY);
+        const hit = world ? this.fromWorld(world.x, world.y) : null;
+        const target = hit?.coords ?? null;
 
         if (target) {
           const action = this.state.validMoves.find(
@@ -665,18 +808,17 @@ export class PixiBoard {
               coordsEq(a.to, target)
           );
           if (action) {
-            const piece = this.getDisplayPiece(savedOrigin.row, savedOrigin.col);
+            const piece = this.getDisplayPiece(savedOrigin.row, savedOrigin.col, savedOrigin.boardIndex);
             if (piece && isBoardCoords(action.to)) {
               this.onPendingMove({ from: savedOrigin, piece, to: action.to });
             }
             this.onSubmitAction(action);
-            // Keep ghost invisible — React will re-render via pendingMove
             originSprite.alpha = 0;
           } else {
-            originSprite.alpha = 1; // invalid drop: snap back
+            originSprite.alpha = 1;
           }
         } else {
-          originSprite.alpha = 1; // dropped outside board
+          originSprite.alpha = 1;
         }
       } else {
         originSprite.alpha = 1;
@@ -690,5 +832,56 @@ export class PixiBoard {
     window.addEventListener("pointermove", moveHandler);
     window.addEventListener("pointerup", upHandler);
     this.rebuildHighlights();
+  }
+
+  // ─── Zoom animation ────────────────────────────────────────────────────────
+
+  private applyZoomMode(mode: ZoomMode, boardIndex: number): void {
+    if (!this.state) return;
+    const { stageWidth: W, stageHeight: H, variantConfig } = this.state;
+    const boardCount = variantConfig.board.count;
+    const gap = Math.round(W * SLOT_GAP_RATIO);
+    const slotStride = W + gap;
+
+    if (mode === "single") {
+      this.zoomTarget = { x: -(boardIndex * slotStride), y: 0, scale: 1 };
+    } else {
+      if (boardCount <= 1) {
+        this.zoomTarget = { x: 0, y: 0, scale: 1 };
+      } else {
+        const totalW = boardCount * slotStride - gap;
+        const scale = Math.min(W / totalW, 1);
+        const scaledW = totalW * scale;
+        const scaledH = H * scale;
+        this.zoomTarget = {
+          x: (W - scaledW) / 2,
+          y: (H - scaledH) / 2,
+          scale,
+        };
+      }
+    }
+    this.zoomAnimating = true;
+  }
+
+  private stepZoomAnimation(): void {
+    const SPEED = 0.14;
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    this.zoomCurrent.x = lerp(this.zoomCurrent.x, this.zoomTarget.x, SPEED);
+    this.zoomCurrent.y = lerp(this.zoomCurrent.y, this.zoomTarget.y, SPEED);
+    this.zoomCurrent.scale = lerp(this.zoomCurrent.scale, this.zoomTarget.scale, SPEED);
+    this.rootContainer.position.set(this.zoomCurrent.x, this.zoomCurrent.y);
+    this.rootContainer.scale.set(this.zoomCurrent.scale);
+
+    const done =
+      Math.abs(this.zoomCurrent.x - this.zoomTarget.x) < 0.5 &&
+      Math.abs(this.zoomCurrent.y - this.zoomTarget.y) < 0.5 &&
+      Math.abs(this.zoomCurrent.scale - this.zoomTarget.scale) < 0.001;
+
+    if (done) {
+      this.rootContainer.position.set(this.zoomTarget.x, this.zoomTarget.y);
+      this.rootContainer.scale.set(this.zoomTarget.scale);
+      this.zoomCurrent = { ...this.zoomTarget };
+      this.zoomAnimating = false;
+    }
   }
 }

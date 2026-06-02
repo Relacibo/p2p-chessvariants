@@ -97,6 +97,8 @@ export interface WasmUiBanner {
 export interface WasmUiReservePile {
   type: "reserve_pile";
   pieces: WasmPiece[];
+  /** Which board slot this reserve pile belongs to (default 0). Set by the Rhai script. */
+  board_index: number;
 }
 
 /** A piece picker modal (promotion, gating, etc.). */

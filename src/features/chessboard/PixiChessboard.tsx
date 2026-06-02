@@ -6,6 +6,7 @@ import type {
   WasmBoardState,
   WasmPiece,
   WasmVariantConfig,
+  WasmUiMap,
 } from "./types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,17 +20,17 @@ export type PixiChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
   validMoves: WasmAction[];
-  boardIndex: number;
-  flipped: boolean;
+  /** Board index of the local controlling player — determines interactivity. */
+  activeBoardIndex: number;
+  /** Per-slot flip flag (index = boardIndex). Defaults to [false]. */
+  flippedByBoard?: boolean[];
   onSubmitAction: (action: WasmAction) => void;
   lastAction?: WasmAction;
   selectedDropPiece?: WasmPiece | null;
   onClearDropPiece?: () => void;
-  /** Logical board pixel size. Defaults to 480. */
-  size?: number;
-  /** Total canvas width. Defaults to board width. */
+  onSelectReservePiece?: (piece: WasmPiece, elementId: string) => void;
+  uiMap?: WasmUiMap;
   stageWidth?: number;
-  /** Total canvas height. Defaults to board height. */
   stageHeight?: number;
   pendingMove?: PendingMove | null;
   onPendingMove?: (move: PendingMove | null) => void;
@@ -40,22 +41,21 @@ export function PixiChessboard({
   variantConfig,
   boardState,
   validMoves,
-  boardIndex,
-  flipped,
+  activeBoardIndex,
+  flippedByBoard = [false],
   onSubmitAction,
   lastAction,
   selectedDropPiece = null,
   onClearDropPiece,
-  size = 480,
-  stageWidth,
-  stageHeight,
+  onSelectReservePiece,
+  uiMap = {},
+  stageWidth = 480,
+  stageHeight = 480,
   pendingMove = null,
   onPendingMove,
 }: PixiChessboardProps) {
-  const { rows, cols } = boardState;
-  const tileSize = size / Math.max(rows, cols);
-  const sw = stageWidth ?? Math.round(tileSize * cols);
-  const sh = stageHeight ?? Math.round(tileSize * rows);
+  const sw = stageWidth;
+  const sh = stageHeight;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<PixiBoard | null>(null);
@@ -67,14 +67,14 @@ export function PixiChessboard({
     variantConfig,
     boardState,
     validMoves,
-    boardIndex,
-    flipped,
-    tileSize,
+    activeBoardIndex,
+    flippedByBoard,
     stageWidth: sw,
     stageHeight: sh,
     pendingMove: pendingMove ?? null,
     lastAction,
     selectedDropPiece: selectedDropPiece ?? null,
+    uiMap,
   };
 
   // Keep stable callback refs so the scene manager always dispatches to the
@@ -85,6 +85,8 @@ export function PixiChessboard({
   onPendingMoveRef.current = onPendingMove;
   const onClearDropPieceRef = useRef(onClearDropPiece);
   onClearDropPieceRef.current = onClearDropPiece;
+  const onSelectReservePieceRef = useRef(onSelectReservePiece);
+  onSelectReservePieceRef.current = onSelectReservePiece;
 
   // ── Mount / unmount ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -95,12 +97,14 @@ export function PixiChessboard({
       (m) => onPendingMoveRef.current?.(m)
     );
     board.onClearDropPiece = () => onClearDropPieceRef.current?.();
+    board.onSelectReservePiece = (piece, elementId) =>
+      onSelectReservePieceRef.current?.(piece, elementId);
+    board.onZoomModeChange = (mode) => setZoomMode(mode);
     boardRef.current = board;
 
     board
       .init(containerRef.current, sw, sh)
       .then(() => {
-        // Use the latest state (not the stale closure values from mount time)
         if (stateRef.current) board.update(stateRef.current);
       })
       .catch((e: unknown) => {
@@ -120,27 +124,27 @@ export function PixiChessboard({
       variantConfig,
       boardState,
       validMoves,
-      boardIndex,
-      flipped,
-      tileSize,
+      activeBoardIndex,
+      flippedByBoard,
       stageWidth: sw,
       stageHeight: sh,
       pendingMove: pendingMove ?? null,
       lastAction,
       selectedDropPiece: selectedDropPiece ?? null,
+      uiMap,
     });
   }, [
     variantConfig,
     boardState,
     validMoves,
-    boardIndex,
-    flipped,
-    tileSize,
+    activeBoardIndex,
+    flippedByBoard,
     sw,
     sh,
     pendingMove,
     lastAction,
     selectedDropPiece,
+    uiMap,
   ]);
 
   // ── Zoom toggle ──────────────────────────────────────────────────────────
@@ -156,26 +160,28 @@ export function PixiChessboard({
       style={{ position: "relative", width: sw, height: sh }}
     >
       {/* PixiJS appends its canvas here after init() */}
-      <button
-        onClick={toggleZoom}
-        title={zoomMode === "single" ? "Zoom out (overview)" : "Zoom in (single board)"}
-        style={{
-          position: "absolute",
-          bottom: 8,
-          right: 8,
-          zIndex: 10,
-          padding: "4px 8px",
-          fontSize: 18,
-          background: "rgba(0,0,0,0.55)",
-          color: "#fff",
-          border: "none",
-          borderRadius: 6,
-          cursor: "pointer",
-          lineHeight: 1,
-        }}
-      >
-        {zoomMode === "single" ? "⊟" : "⊞"}
-      </button>
+      {variantConfig.board.count > 1 && (
+        <button
+          onClick={toggleZoom}
+          title={zoomMode === "single" ? "Zoom out (overview)" : "Zoom in (single board)"}
+          style={{
+            position: "absolute",
+            bottom: 8,
+            right: 8,
+            zIndex: 10,
+            padding: "4px 8px",
+            fontSize: 18,
+            background: "rgba(0,0,0,0.55)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            lineHeight: 1,
+          }}
+        >
+          {zoomMode === "single" ? "⊟" : "⊞"}
+        </button>
+      )}
     </div>
   );
 }
