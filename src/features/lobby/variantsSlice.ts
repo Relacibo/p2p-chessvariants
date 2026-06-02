@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSelector, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "../../app/store";
 
 export interface VariantEntry {
@@ -45,9 +45,9 @@ const variantsSlice = createSlice({
 export const { addCustomVariant, removeCustomVariant } = variantsSlice.actions;
 export const selectCustomVariants = (state: RootState) =>
   state.lobbyVariants.customVariants;
-export const selectAllVariants = (state: RootState) => [
-  ...OFFICIAL_VARIANTS,
-  ...state.lobbyVariants.customVariants,
-];
+export const selectAllVariants = createSelector(
+  selectCustomVariants,
+  (customVariants) => [...OFFICIAL_VARIANTS, ...customVariants],
+);
 
 export default variantsSlice.reducer;

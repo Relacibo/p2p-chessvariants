@@ -427,6 +427,8 @@ export function DevBoardView() {
             withBorder: true,
             autoClose: false,
           });
+          // Force a boardState identity change to clear optimistic prediction
+          setBoardState(prev => prev ? { ...prev } : null);
           return;
         }
         // ── Render board immediately ──

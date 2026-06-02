@@ -93,6 +93,15 @@ export function Chessboard({
   const [selected, setSelected] = useState<WasmBoardCoords | null>(null);
   const [dragging, setDragging] = useState<WasmBoardCoords | null>(null);
   const dragOrigin = useRef<WasmBoardCoords | null>(null);
+
+  // Optimistic client-side prediction: show move immediately on drop, before
+  // the worker responds. Cleared as soon as real boardState arrives.
+  const [pendingMove, setPendingMove] = useState<{
+    from: WasmBoardCoords;
+    piece: WasmPiece;
+    to: WasmBoardCoords;
+  } | null>(null);
+  useEffect(() => { setPendingMove(null); }, [boardState]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stageRef = useRef<any>(null);
   const dragSurfaceRef = useRef<HTMLDivElement>(null);
@@ -186,6 +195,16 @@ export function Chessboard({
   const getPiece = (row: number, col: number) =>
     boardState.boards[boardIndex]?.[row * cols + col] ?? null;
 
+  /** getPiece with optimistic prediction applied. */
+  const getDisplayPiece = (row: number, col: number): WasmPiece | null => {
+    const piece = getPiece(row, col);
+    if (!pendingMove) return piece;
+    const coords = mkBoardCoords(row, col, boardIndex);
+    if (coordsEq(coords, pendingMove.from)) return null;
+    if (coordsEq(coords, pendingMove.to)) return pendingMove.piece;
+    return piece;
+  };
+
   const handleTileClick = (row: number, col: number) => {
     const clicked = mkBoardCoords(row, col, boardIndex);
 
@@ -210,6 +229,10 @@ export function Chessboard({
     if (selected) {
       const action = findAction(selected, clicked);
       if (action) {
+        const piece = getPiece(selected.row, selected.col);
+        if (piece && isBoardCoords(action.to)) {
+          setPendingMove({ from: selected, piece, to: action.to });
+        }
         onSubmitAction(action);
         setSelected(null);
         return;
@@ -240,7 +263,7 @@ export function Chessboard({
         lastAction.type === "move" &&
         (coordsEq(lastAction.from, tileCoords) ||
           coordsEq(lastAction.to, tileCoords));
-      const hasPiece = getPiece(row, col) != null;
+      const hasPiece = getDisplayPiece(row, col) != null;
 
       tiles.push(
         <Group key={`t-${row}-${col}`} onClick={() => handleTileClick(row, col)}>
@@ -277,7 +300,7 @@ export function Chessboard({
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       if (disabledSet.has(`${row},${col}`)) continue;
-      const piece = getPiece(row, col);
+      const piece = getDisplayPiece(row, col);
       if (!piece) continue;
 
       const { x, y } = toPixel(row, col);
@@ -363,6 +386,10 @@ export function Chessboard({
                   const target = fromPixel(pointer.x, pointer.y);
                   const action = findAction(origin, target);
                   if (action) {
+                    const piece = getPiece(origin.row, origin.col);
+                    if (piece && isBoardCoords(action.to)) {
+                      setPendingMove({ from: origin, piece, to: action.to });
+                    }
                     onSubmitAction(action);
                     setSelected(null);
                   }
