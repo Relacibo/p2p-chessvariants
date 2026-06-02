@@ -28,7 +28,7 @@ import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
-import { Chessboard } from "../chessboard/Chessboard";
+import { Chessboard, type PendingMove } from "../chessboard/Chessboard";
 import { ReservePile } from "../chessboard/ReservePile";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
@@ -137,6 +137,7 @@ export function DevBoardView() {
     null
   );
   const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [reservePile, setReservePile] = useState<WasmUiReservePile | null>(
     null
   );
@@ -429,12 +430,16 @@ export function DevBoardView() {
           });
           // Force a boardState identity change to clear optimistic prediction
           setBoardState(prev => prev ? { ...prev } : null);
+          setPendingMove(null);
           return;
         }
         // ── Render board immediately ──
         setUiElements(result.ui as WasmUiMap);
         setLastAction(action);
         setSelectedDropPiece(null);
+        // Clear optimistic prediction in the same batch as the real board state
+        // so React renders them together (one Konva repaint instead of two).
+        setPendingMove(null);
         if (result.board_state) setBoardState(result.board_state as WasmBoardState);
         const extra = result as unknown as Record<string, unknown>;
         if (extra.stateJson) setGameStateJson(extra.stateJson as object);
@@ -508,6 +513,8 @@ export function DevBoardView() {
           size={boardSize}
           stageWidth={containerSize.w}
           stageHeight={containerSize.h}
+          pendingMove={pendingMove}
+          onPendingMove={setPendingMove}
         />
       )}
 

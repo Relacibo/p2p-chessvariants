@@ -29,6 +29,12 @@ const VALID_MOVE_DOT = "rgba(0, 180, 0, 0.7)";
 const VALID_CAPTURE_FILL = "rgba(0, 180, 0, 0.35)";
 const LAST_MOVE_FILL = "rgba(255, 215, 0, 0.35)";
 
+export type PendingMove = {
+  from: WasmBoardCoords;
+  piece: WasmPiece;
+  to: WasmBoardCoords;
+};
+
 export type ChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
@@ -50,6 +56,13 @@ export type ChessboardProps = {
    */
   stageWidth?: number;
   stageHeight?: number;
+  /**
+   * Optimistic prediction: piece appears at destination immediately on drop,
+   * before the worker confirms. Managed by the parent so it can be cleared in
+   * the same state batch as the real boardState update (avoids an extra render).
+   */
+  pendingMove?: PendingMove | null;
+  onPendingMove?: (move: PendingMove | null) => void;
 };
 
 function coordsEq(a: WasmCoords, b: WasmCoords): boolean {
@@ -77,6 +90,8 @@ export function Chessboard({
   size = 480,
   stageWidth,
   stageHeight,
+  pendingMove = null,
+  onPendingMove,
 }: ChessboardProps) {
   const { rows, cols } = boardState;
   const tileSize = size / Math.max(rows, cols);
@@ -94,14 +109,6 @@ export function Chessboard({
   const [dragging, setDragging] = useState<WasmBoardCoords | null>(null);
   const dragOrigin = useRef<WasmBoardCoords | null>(null);
 
-  // Optimistic client-side prediction: show move immediately on drop, before
-  // the worker responds. Cleared as soon as real boardState arrives.
-  const [pendingMove, setPendingMove] = useState<{
-    from: WasmBoardCoords;
-    piece: WasmPiece;
-    to: WasmBoardCoords;
-  } | null>(null);
-  useEffect(() => { setPendingMove(null); }, [boardState]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stageRef = useRef<any>(null);
   const dragSurfaceRef = useRef<HTMLDivElement>(null);
@@ -231,7 +238,7 @@ export function Chessboard({
       if (action) {
         const piece = getPiece(selected.row, selected.col);
         if (piece && isBoardCoords(action.to)) {
-          setPendingMove({ from: selected, piece, to: action.to });
+          onPendingMove?.({ from: selected, piece, to: action.to });
         }
         onSubmitAction(action);
         setSelected(null);
@@ -400,7 +407,7 @@ export function Chessboard({
                   if (action) {
                     const piece = getPiece(origin.row, origin.col);
                     if (piece && isBoardCoords(action.to)) {
-                      setPendingMove({ from: origin, piece, to: action.to });
+                      onPendingMove?.({ from: origin, piece, to: action.to });
                       pendingSet = true;
                     }
                     onSubmitAction(action);
