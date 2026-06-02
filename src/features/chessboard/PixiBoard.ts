@@ -373,14 +373,16 @@ export class PixiBoard {
     const { validMoves, lastAction, selectedDropPiece, boardIndex } = this.state;
     const disabled = this.disabledSet();
 
-    // Compute valid target squares for the current selection / reserve piece.
+    // Compute valid target squares for the current selection / drag / reserve piece.
+    // During drag, dragOrigin acts as the selection source.
+    const activeSource = this.dragOrigin ?? this.selected;
     const validTargets = new Set<string>();
-    if (this.selected) {
+    if (activeSource) {
       for (const a of validMoves) {
         if (
           a.type === "move" &&
           isBoardCoords(a.from) &&
-          coordsEq(a.from, this.selected) &&
+          coordsEq(a.from, activeSource) &&
           isBoardCoords(a.to)
         ) {
           validTargets.add(`${a.to.row},${a.to.col}`);
@@ -418,8 +420,8 @@ export class PixiBoard {
           }
         }
 
-        // Selected-square highlight
-        if (this.selected && coordsEq(this.selected, coords)) {
+        // Selected-square highlight (also shown during drag)
+        if (activeSource && coordsEq(activeSource, coords)) {
           this.highlightGraphics
             .rect(x, y, l.tileSize, l.tileSize)
             .fill({ color: SELECTED_COLOR, alpha: 0.45 });
@@ -536,6 +538,10 @@ export class PixiBoard {
         const c = col;
         sprite.on("pointerdown", (e: FederatedPointerEvent) => {
           e.stopPropagation();
+          // Select this piece immediately so valid-move dots appear during drag.
+          // startDrag will set dragOrigin and null selected; rebuildHighlights
+          // uses dragOrigin as the active source when set.
+          this.selected = mkBoardCoords(r, c, boardIndex);
           this.startDrag(sprite!, mkBoardCoords(r, c, boardIndex), e);
         });
       }
@@ -607,7 +613,7 @@ export class PixiBoard {
     if (!l) return;
 
     this.dragOrigin = origin;
-    this.selected = null;
+    this.selected = null; // dragOrigin takes over as active source in rebuildHighlights
     originSprite.alpha = GHOST_ALPHA;
 
     // Create a drag copy that follows the cursor inside rootContainer
