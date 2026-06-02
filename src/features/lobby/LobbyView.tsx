@@ -196,7 +196,7 @@ export default function LobbyView() {
       type === "lobby"
         ? dispatch(joinLobbyById(lobbyId!))
         : dispatch(joinLobbyByPeer(peerId!));
-    Promise.resolve(run).catch(() => {});
+    Promise.resolve(run).catch((e) => console.error("[lobby] auto-join failed", e));
   }, [dispatch, hasAutoJoined, lobbyId, lobbyStatus.phase, peerId, tabRole, token, type]);
 
   // Start/clear join timeout

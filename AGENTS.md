@@ -64,6 +64,13 @@ Bebop schemas live in `src/api/bebop/schemas/protocols/schemas/`. After editing 
 
 Always create and run temporary scripts inside `/tmp/`. Never litter the workspace root with utility scripts.
 
+## Error Handling
+
+- **Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
+- Every `catch` must at minimum `console.error(context, e)` with a descriptive context prefix (e.g. `"[lobby] auto-join failed"`).
+- In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?` or return `Err(CvError::...)`.
+- Silencing errors hides bugs and makes debugging impossible. Show errors to users where appropriate; always log them.
+
 ## Git Commits
 
 - Commit messages in **English**, plain text, no prefix

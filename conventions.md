@@ -19,6 +19,13 @@
 ### Rust
 - Follow standard Rust conventions (clippy warnings resolved, `rustfmt`).
 - Use `Result<T, CvError>` for fallible operations; prefer `?` over `unwrap`/`expect` in library code.
+
+### Error Handling
+
+**Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
+Every `catch` must at minimum log with a descriptive context prefix (e.g. `console.error("[module] operation failed", e)`).
+In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?` or return `Err(CvError::...)`.
+Silencing errors hides bugs and makes debugging impossible. Show errors to users where appropriate; always log them.
 - Rhai integration: register functions via `Engine::register_fn`, not `Engine::register_custom_operator` unless needed.
 - Custom types exposed to Rhai via `#[derive(Clone)]` and `Engine::register_type::<T>()`. Provide getters/setters using the `#[rhai_type(...)]` attribute.
 

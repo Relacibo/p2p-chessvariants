@@ -23,6 +23,13 @@ implementation of non-trivial features. You write production-quality code.
 - Code review and quality improvements
 - Tasks where you want the highest quality output
 
+## Error Handling
+
+**Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
+Every `catch` must at minimum log with a descriptive context prefix (e.g. `console.error("[module] operation failed", e)`).
+In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?`.
+Silencing errors hides bugs and makes debugging impossible.
+
 ## Your Workflow
 1. Understand the task and current codebase state
 2. Propose approach if needed (brief, no full blueprints)

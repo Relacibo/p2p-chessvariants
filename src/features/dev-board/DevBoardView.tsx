@@ -748,8 +748,8 @@ export function DevBoardView() {
                 if (!showGameState && !gameStateJson) {
                   // Fetch on first expand
                   void proxyRef.current?.stateJson().then(v => {
-                    try { setGameStateJson(v as object); } catch { /* ignore */ }
-                  });
+                    setGameStateJson(v as object);
+                  }).catch((e) => console.error("[dev] stateJson failed", e));
                 }
                 setShowGameState((s) => !s);
               }}
@@ -799,8 +799,8 @@ export function DevBoardView() {
                 if (!showValidMoves && !validMovesJsonStr) {
                   // Fetch on first expand
                   void proxyRef.current?.validMovesJson().then(v => {
-                    try { setValidMovesJsonStr(JSON.stringify(v, null, 2)); } catch { /* ignore */ }
-                  });
+                    setValidMovesJsonStr(JSON.stringify(v, null, 2));
+                  }).catch((e) => console.error("[dev] validMovesJson failed", e));
                 }
                 setShowValidMoves((s) => !s);
               }}

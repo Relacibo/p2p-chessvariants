@@ -33,3 +33,10 @@ implementing engine features, script functions, or Wasm endpoints. Key constrain
 - **Rust**: snake_case, `cargo fmt`, `rustfmt`, use `Result<T, CvError>`, prefer `?` over `unwrap`/`expect`
 - **TypeScript**: camelCase, Prettier (2-space indentation), functional components with hooks
 - All code comments, variable names, and documentation are in **English**
+
+## Error Handling
+
+**Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
+Every `catch` must at minimum log with a descriptive context prefix (e.g. `console.error("[module] operation failed", e)`).
+In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?`.
+Silencing errors hides bugs and makes debugging impossible.

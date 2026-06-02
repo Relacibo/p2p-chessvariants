@@ -32,3 +32,10 @@ After editing `.bop` files, regenerate with `bebopc build` from `src/api/bebop/`
 
 Always create and run temporary scripts inside `/tmp/` (e.g. `cat << 'EOF' > /tmp/update.py`).
 Never litter the workspace root with utility scripts.
+
+## Error Handling
+
+**Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
+Every `catch` must at minimum `console.error(context, e)` with a descriptive context prefix.
+In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?`.
+Silencing errors hides bugs and makes debugging impossible.

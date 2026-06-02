@@ -21,6 +21,12 @@ You are the Lead Software Architect for this chess variant engine project. Your 
 - The engine embeds Rhai scripting language for game rules and configuration
 - Frontend uses React (Mantine UI), Redux for state, WebAssembly (Wasm) for engine communication
 
+## Error Handling
+
+**Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
+Every `catch` must at minimum log with a descriptive context prefix.
+Silencing errors hides bugs and makes debugging impossible.
+
 ## Scripting API Specification
 
 The Rhai scripting API is defined in `specs/scripting-api.md`. This document is the
