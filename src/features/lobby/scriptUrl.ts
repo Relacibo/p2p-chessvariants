@@ -180,12 +180,12 @@ export async function parseScriptConfig(url: string): Promise<ScriptConfig> {
   }
 }
 
-/** Encode a script URL for embedding in a URL fragment. */
+/** Encode a script URL for embedding in a URL query parameter. */
 export function encodeScriptUrl(url: string): string {
   return encodeURIComponent(url);
 }
 
-/** Decode a script URL from a URL fragment. */
+/** Decode a script URL from a URL query parameter. */
 export function decodeScriptUrl(encoded: string): string {
   return decodeURIComponent(encoded);
 }
