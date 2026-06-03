@@ -25,7 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
@@ -117,7 +117,6 @@ function getActingPlayer(
 
 export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const variants = useSelector(selectAllVariants);
   const combobox = useCombobox();
@@ -149,6 +148,7 @@ export function DevBoardView() {
   >({});
 
   const proxyRef = useRef<EngineProxy | null>(null);
+  const lastLoadedUrl = useRef<string | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(
     null
   );
@@ -454,14 +454,18 @@ export function DevBoardView() {
       const variant = variants.find((v) => v.url === scriptUrl);
       if (variant) {
         setSelectedVariant(variant);
-        const n = typeof playerCount === "number" ? playerCount : 2;
-        loadScript(scriptUrl, n);
+        if (lastLoadedUrl.current !== scriptUrl) {
+          lastLoadedUrl.current = scriptUrl;
+          const n = typeof playerCount === "number" ? playerCount : 2;
+          loadScript(scriptUrl, n);
+        }
         return;
       }
     }
     // Fallback: first variant or first official
     const first = variants[0];
-    if (first) {
+    if (first && lastLoadedUrl.current !== first.url) {
+      lastLoadedUrl.current = first.url;
       setSelectedVariant(first);
       const n = typeof playerCount === "number" ? playerCount : 2;
       loadScript(first.url, n);
@@ -473,10 +477,7 @@ export function DevBoardView() {
     const variant = variants.find((v) => v.url === url);
     if (variant) {
       setSelectedVariant(variant);
-      const n = typeof playerCount === "number" ? playerCount : 2;
-      loadScript(url, n);
       combobox.closeDropdown();
-      navigate(`/dev?script=${encodeScriptUrl(url)}`, { replace: true });
     }
   };
 
