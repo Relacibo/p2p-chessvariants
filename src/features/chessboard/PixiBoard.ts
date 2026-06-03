@@ -745,7 +745,8 @@ export class PixiBoard {
     const textColor = 0xffffff;
     const radius = 6;
 
-    const totalH = btnH * 2 + gap;
+    const hasZoom = s.variantConfig.board.count > 1;
+    const totalH = hasZoom ? btnH * 2 + gap : btnH;
     const startY = Math.round((s.stageHeight - totalH) / 2);
     const btnX = s.stageWidth - btnW - rightMargin;
 
@@ -779,8 +780,8 @@ export class PixiBoard {
       this.uiOverlay.addChild(container);
     }
 
-    // ── Zoom button ──
-    {
+    // ── Zoom button (only when multiple boards exist) ──
+    if (hasZoom) {
       const container = new Container();
       container.eventMode = "static";
       container.cursor = "pointer";
