@@ -1,10 +1,10 @@
-// 4-Player Chess — API v3
+// 4-Player Chess — API v1
 // Cross-shaped board (14×14, 4 disabled corners).
 // Red=bottom, Blue=left, Yellow=top, Green=right
 
 fn config() {
     #{
-        api_version: 3,
+        api_version: 1,
         name: "4-Player Chess",
         version: "1.0.0",
         colors: ["red", "blue", "yellow", "green"],

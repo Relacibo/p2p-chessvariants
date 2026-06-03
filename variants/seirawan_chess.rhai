@@ -1,6 +1,6 @@
-// Seirawan Chess (S-Chess) — API v3
+// Seirawan Chess (S-Chess) — API v1
 fn config() {
-    #{ api_version: 3, name: "Seirawan Chess", version: "3.0.0", colors: ["white","black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
+    #{ api_version: 1, name: "Seirawan Chess", version: "1.0.0", colors: ["white","black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
 }
 fn init(player_count) {
     #{ board: standard_start_position(), players: [#{ board: 0, color: "white", team: 0 },#{ board: 0, color: "black", team: 1 }], turn: "white" }

@@ -1,10 +1,10 @@
-// Simple Chess — API v3
+// Simple Chess — API v1
 // handle_action validates all legality including king safety (is_in_check).
 // valid_moves generates candidates and filters via handle_action try/catch.
 
 fn config() {
     #{
-        api_version: 3,
+        api_version: 1,
         name: "Simple Chess",
         version: "2.0.0",
         colors: ["white", "black"],

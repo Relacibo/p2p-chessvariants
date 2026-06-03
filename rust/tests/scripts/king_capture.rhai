@@ -7,7 +7,7 @@
 
 fn config() {
     #{
-        api_version: 3,
+        api_version: 1,
         name: "King Capture Test",
         version: "1.0.0",
         colors: ["white", "black"],

@@ -1,9 +1,9 @@
-# Chess Variant Scripting API v3
+# Chess Variant Scripting API v1
 
 **Single Source of Truth** for the Rhai scripting interface.
 All agents (Plan, Build) MUST reference this document.
 
-`api_version` in `config()` must be `3`.
+`api_version` in `config()` must be `1`.
 
 ---
 
@@ -19,7 +19,7 @@ All agents (Plan, Build) MUST reference this document.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `api_version` | i32 | YES | Must be `3` |
+| `api_version` | i32 | YES | Must be `1` |
 | `name` | string | YES | Variant display name |
 | `version` | string | YES | Variant script version |
 | `colors` | [string] | YES | Player color identifiers |
@@ -501,7 +501,7 @@ Shown when present in `get_ui`; hidden when absent.
 
 ```
 new ChessvariantEngine(script, player_count)
-→ calls config() → validates api_version=3
+→ calls config() → validates api_version=1
 → calls pieces() (optional — absent fn silently skipped, errors propagate)
 → registers engine helpers with custom piece definitions
 → calls init() → returns engine

@@ -1,10 +1,10 @@
-// Bughouse Chess — API v3
+// Bughouse Chess — API v1
 // 2 boards, 4 players, teams. Captured pieces go to partner's reserve.
 // Engine reads state.board (array of BoardState).
 
 fn config() {
     #{
-        api_version: 3,
+        api_version: 1,
         name: "Bughouse",
         version: "1.0.0",
         colors: ["white", "black"],

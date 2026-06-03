@@ -1,10 +1,10 @@
 // Chess — full rules: castling, en passant, pawn promotion
-// API v3: handle_action validates all legality including king safety.
+// API v1: handle_action validates all legality including king safety.
 // valid_moves generates candidates and filters via handle_action try/catch.
 
 fn config() {
     #{
-        api_version: 3,
+        api_version: 1,
         name: "Chess",
         version: "1.0.0",
         colors: ["white", "black"],
