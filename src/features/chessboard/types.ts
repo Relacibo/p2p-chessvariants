@@ -20,6 +20,13 @@ export interface WasmBoardCoords {
   boardIndex: number;
 }
 
+/** Pending move from drag-start — the client predicts the move locally. */
+export type PendingMove = {
+  from: WasmBoardCoords;
+  piece: WasmPiece;
+  to: WasmBoardCoords;
+};
+
 /** A reserve slot coordinate — used when a piece is dragged from the reserve pile. */
 export interface WasmReserveCoords {
   type: "reserve";

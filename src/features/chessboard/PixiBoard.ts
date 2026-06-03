@@ -17,8 +17,8 @@ import {
   WasmUiMap,
   WasmUiReservePile,
   isBoardCoords,
+  type PendingMove,
 } from "./types";
-import type { PendingMove } from "./PixiChessboard";
 import { getPieceImageUrl } from "./pieceImages";
 
 // ─── Palette ─────────────────────────────────────────────────────────────────

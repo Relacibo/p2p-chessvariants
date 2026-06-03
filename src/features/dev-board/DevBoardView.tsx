@@ -28,12 +28,13 @@ import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
-import { PixiChessboard as Chessboard, type PendingMove } from "../chessboard/PixiChessboard";
+import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
 import style from "./DevBoardView.module.css";
 import {
   BoardOrientation,
+  PendingMove,
   PlayerRef,
   WasmAction,
   WasmBoardState,

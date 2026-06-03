@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PixiBoard, SceneState, ZoomMode } from "./PixiBoard";
 import type {
   BoardOrientation,
+  PendingMove,
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
@@ -11,12 +12,6 @@ import type {
 } from "./types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-export type PendingMove = {
-  from: WasmBoardCoords;
-  piece: WasmPiece;
-  to: WasmBoardCoords;
-};
-
 export type PixiChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
