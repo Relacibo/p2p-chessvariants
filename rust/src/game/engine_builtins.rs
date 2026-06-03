@@ -54,6 +54,15 @@ pub fn get_pseudo_move_dests(
                                     *board_delta,
                                 ));
                             }
+                            MoveComponent::PawnPush { dir, start_line } => {
+                                result.extend(moves::pawn_dests_generic(
+                                    board,
+                                    from,
+                                    *dir,
+                                    *start_line,
+                                    color,
+                                ));
+                            }
                         }
                     }
                     result.sort_unstable_by_key(|c| (c.row, c.col, c.board_index));
