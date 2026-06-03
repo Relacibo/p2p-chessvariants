@@ -1,13 +1,13 @@
 // 4-Player Chess — API v3
 // Cross-shaped board (14×14, 4 disabled corners).
-// Each player starts in their arm with team-based orientation.
+// Red=bottom, Blue=left, Yellow=top, Green=right
 
 fn config() {
     #{
         api_version: 3,
         name: "4-Player Chess",
         version: "1.0.0",
-        colors: ["north", "east", "south", "west"],
+        colors: ["red", "blue", "yellow", "green"],
         allowed_player_count: 4,
         board: #{
             type: "rectangle",
@@ -26,68 +26,66 @@ fn config() {
 fn init(player_count) {
     let board = board_empty(14, 14);
 
-    // North (team 0) — top arm, cols 3..10, rows 0..2
-    let north_back = [
-        Piece("north", "rook"), Piece("north", "knight"), Piece("north", "bishop"),
-        Piece("north", "queen"), Piece("north", "king"), Piece("north", "bishop"),
-        Piece("north", "knight"), Piece("north", "rook"),
+    // Yellow (team 0) — top arm, cols 3..10, rows 0..2
+    let y_back = [
+        Piece("yellow", "rook"), Piece("yellow", "knight"), Piece("yellow", "bishop"),
+        Piece("yellow", "queen"), Piece("yellow", "king"), Piece("yellow", "bishop"),
+        Piece("yellow", "knight"), Piece("yellow", "rook"),
     ];
-    for i in 0..north_back.len() {
-        board = engine::board::set(board, Coords(0, 3 + i, 0), north_back[i]);
-        board = engine::board::set(board, Coords(1, 3 + i, 0), Piece("north", "pawn"));
+    for i in 0..y_back.len() {
+        board = engine::board::set(board, Coords(0, 3 + i, 0), y_back[i]);
+        board = engine::board::set(board, Coords(1, 3 + i, 0), Piece("yellow", "pawn"));
     }
 
-    // East (team 1) — right arm, rows 3..10, cols 11..13
-    let east_back = [
-        Piece("east", "rook"), Piece("east", "knight"), Piece("east", "bishop"),
-        Piece("east", "queen"), Piece("east", "king"), Piece("east", "bishop"),
-        Piece("east", "knight"), Piece("east", "rook"),
+    // Green (team 1) — right arm, rows 3..10, cols 11..13
+    let g_back = [
+        Piece("green", "rook"), Piece("green", "knight"), Piece("green", "bishop"),
+        Piece("green", "queen"), Piece("green", "king"), Piece("green", "bishop"),
+        Piece("green", "knight"), Piece("green", "rook"),
     ];
-    for i in 0..east_back.len() {
-        board = engine::board::set(board, Coords(3 + i, 11, 0), east_back[i]);
-        board = engine::board::set(board, Coords(3 + i, 12, 0), Piece("east", "pawn"));
+    for i in 0..g_back.len() {
+        board = engine::board::set(board, Coords(3 + i, 11, 0), g_back[i]);
+        board = engine::board::set(board, Coords(3 + i, 12, 0), Piece("green", "pawn"));
     }
 
-    // South (team 2) — bottom arm, cols 3..10, rows 11..13
-    // Flipped: row 13 = back rank, row 12 = pawns
-    let south_back = [
-        Piece("south", "rook"), Piece("south", "knight"), Piece("south", "bishop"),
-        Piece("south", "queen"), Piece("south", "king"), Piece("south", "bishop"),
-        Piece("south", "knight"), Piece("south", "rook"),
+    // Red (team 2) — bottom arm, cols 3..10, rows 11..13
+    let r_back = [
+        Piece("red", "rook"), Piece("red", "knight"), Piece("red", "bishop"),
+        Piece("red", "queen"), Piece("red", "king"), Piece("red", "bishop"),
+        Piece("red", "knight"), Piece("red", "rook"),
     ];
-    for i in 0..south_back.len() {
-        board = engine::board::set(board, Coords(13, 3 + i, 0), south_back[i]);
-        board = engine::board::set(board, Coords(12, 3 + i, 0), Piece("south", "pawn"));
+    for i in 0..r_back.len() {
+        board = engine::board::set(board, Coords(13, 3 + i, 0), r_back[i]);
+        board = engine::board::set(board, Coords(12, 3 + i, 0), Piece("red", "pawn"));
     }
 
-    // West (team 3) — left arm, rows 3..10, cols 0..2
-    // Flipped: col 2 = back rank, col 1 = pawns
-    let west_back = [
-        Piece("west", "rook"), Piece("west", "knight"), Piece("west", "bishop"),
-        Piece("west", "queen"), Piece("west", "king"), Piece("west", "bishop"),
-        Piece("west", "knight"), Piece("west", "rook"),
+    // Blue (team 3) — left arm, rows 3..10, cols 0..2
+    let b_back = [
+        Piece("blue", "rook"), Piece("blue", "knight"), Piece("blue", "bishop"),
+        Piece("blue", "queen"), Piece("blue", "king"), Piece("blue", "bishop"),
+        Piece("blue", "knight"), Piece("blue", "rook"),
     ];
-    for i in 0..west_back.len() {
-        board = engine::board::set(board, Coords(3 + i, 2, 0), west_back[i]);
-        board = engine::board::set(board, Coords(3 + i, 1, 0), Piece("west", "pawn"));
+    for i in 0..b_back.len() {
+        board = engine::board::set(board, Coords(3 + i, 2, 0), b_back[i]);
+        board = engine::board::set(board, Coords(3 + i, 1, 0), Piece("blue", "pawn"));
     }
 
     #{
         board: board,
         players: [
-            #{ board: 0, color: "north", team: 0 },
-            #{ board: 0, color: "east",  team: 1 },
-            #{ board: 0, color: "south", team: 2 },
-            #{ board: 0, color: "west",  team: 3 },
+            #{ board: 0, color: "yellow", team: 0 },
+            #{ board: 0, color: "green",  team: 1 },
+            #{ board: 0, color: "red",    team: 2 },
+            #{ board: 0, color: "blue",   team: 3 },
         ],
         teams: [
-            #{ id: 0, orientations: [#{ board: 0, orientation: "normal" }] },
+            #{ id: 0, orientations: [#{ board: 0, orientation: "flipped" }] },
             #{ id: 1, orientations: [#{ board: 0, orientation: "clockwise" }] },
-            #{ id: 2, orientations: [#{ board: 0, orientation: "flipped" }] },
+            #{ id: 2, orientations: [#{ board: 0, orientation: "normal" }] },
             #{ id: 3, orientations: [#{ board: 0, orientation: "counterclockwise" }] },
         ],
-        turn: "north",
-        turn_order: ["north", "east", "south", "west"],
+        turn: "red",
+        turn_order: ["red", "blue", "yellow", "green"],
     }
 }
 

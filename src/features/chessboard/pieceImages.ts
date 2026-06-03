@@ -10,6 +10,18 @@ const PIECE_LETTER: Record<string, string> = {
 const COLOR_PREFIX: Record<string, string> = {
   white: "w",
   black: "b",
+  red: "w",    // reuse white piece + tint
+  blue: "w",   // reuse white piece + tint
+  yellow: "w", // reuse white piece + tint
+  green: "w",  // reuse white piece + tint
+};
+
+/** Hex tint colour applied to sprites for non-white/black pieces. */
+export const PIECE_TINT: Record<string, number> = {
+  red: 0xff3333,
+  blue: 0x3366ff,
+  yellow: 0xffdd33,
+  green: 0x33cc33,
 };
 
 export function getPieceImageUrl(color: string, pieceType: string): string | null {

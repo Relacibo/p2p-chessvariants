@@ -22,6 +22,7 @@ import {
   type PendingMove,
 } from "./types";
 import { getPieceImageUrl } from "./pieceImages";
+import { PIECE_TINT } from "./pieceImages";
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
 const LIGHT = 0xf0d9b5;
@@ -638,6 +639,9 @@ export class PixiBoard {
       let sprite = this.pieceSprites.get(key);
       if (!sprite) {
         sprite = new Sprite(tex);
+        if (PIECE_TINT[piece.color] != null) {
+          sprite.tint = PIECE_TINT[piece.color];
+        }
         this.pieceLayer.addChild(sprite);
         this.pieceSprites.set(key, sprite);
       } else if (sprite.texture !== tex) {
@@ -704,6 +708,9 @@ export class PixiBoard {
 
           const key = `r_${elementId}_${idx}`;
           const sprite = new Sprite(tex);
+          if (PIECE_TINT[piece.color] != null) {
+            sprite.tint = PIECE_TINT[piece.color];
+          }
           sprite.position.set(sl.reserveLeft + RESERVE_PADDING, yOffset);
           sprite.width = pieceTileSize;
           sprite.height = pieceTileSize;
