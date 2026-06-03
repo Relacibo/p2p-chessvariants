@@ -352,7 +352,10 @@ mod tests {
         array
             .into_iter()
             .map(|dynamic| dynamic.cast::<Coords>())
-            .map(|coords| (coords.row.unwrap_or(0), coords.col.unwrap_or(0)))
+            .map(|coords| match coords {
+                Coords::Board { row, col, .. } => (row, col),
+                Coords::Reserve { .. } => (0, 0),
+            })
             .collect()
     }
 

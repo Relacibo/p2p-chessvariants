@@ -119,9 +119,7 @@ mod tests {
         );
         assert_eq!(action.get_type(), "move");
         let from = action.get_from().cast::<Coords>();
-        assert_eq!(from.row, Some(1));
-        assert_eq!(from.col, Some(2));
-        assert_eq!(from.coord_type, "board");
+        assert_eq!(from, Coords::new_board_0(1, 2));
     }
 
     #[test]
@@ -131,8 +129,7 @@ mod tests {
             Coords::new_board_0(3, 4),
         );
         let from = action.get_from().cast::<Coords>();
-        assert_eq!(from.coord_type, "reserve");
-        assert_eq!(from.index, Some(0));
+        assert_eq!(from, Coords::new_reserve(0));
     }
 
     #[test]

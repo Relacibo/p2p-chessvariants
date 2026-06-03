@@ -401,8 +401,8 @@ Move(from, to)
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `"move"` | Discriminator |
-| `from` | `Coords` | Board square or `ReserveCoords(i)` |
-| `to` | `Coords` | Destination board square |
+| `from` | `Coords` | Board square or `ReserveCoords(i)`. Access via `.type`, `.row`, `.col`, `.board_index`, `.index` getters. |
+| `to` | `Coords` | Destination board square (always a board coordinate) |
 
 Returned by `valid_moves`. Reserve drops use `from = ReserveCoords(i)`.
 
@@ -690,9 +690,9 @@ engine.deriveUiJson(player_json) → string
 
 | Function | Purpose |
 |----------|---------|
-| `Coords(r, c)` | Board square |
+| `Coords(r, c)` | Board square (board_index = 0) |
 | `Coords(r, c, board)` | Board square on board `board` |
-| `ReserveCoords(i)` | Reserve slot |
+| `ReserveCoords(i)` | Reserve slot (board_index = 0) |
 | `Move(from, to)` | Move action |
 | `SelectPiece(piece)` | SelectPiece action |
 | `Interact(element_id)` | Interact action |
@@ -706,6 +706,24 @@ engine.deriveUiJson(player_json) → string
 | `Winner(idx)` | Game outcome |
 | `Winners([colors])` | Game outcome |
 | `Draw()` | Game outcome |
+
+Coords is an **opaque Rhai type** with the following getter properties:
+
+| Property | Type | Board | Reserve |
+|----------|------|-------|---------|
+| `coords.type` | string | `"board"` | `"reserve"` |
+| `coords.row` | i32 | row | 0 |
+| `coords.col` | i32 | column | 0 |
+| `coords.board_index` | i32 | board index | 0 |
+| `coords.index` | i32 | 0 | reserve slot index |
+
+JSON serialization (tagged enum):
+```json
+// Board square
+{ "type": "board", "row": 1, "col": 2, "boardIndex": 0 }
+// Reserve slot
+{ "type": "reserve", "index": 0, "boardIndex": 0 }
+```
 
 ### `log`
 

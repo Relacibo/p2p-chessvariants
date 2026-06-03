@@ -13,51 +13,73 @@ use super::piece::Piece;
 ///   `Coords(r, c)`       → board square, board_index 0
 ///   `Coords(r, c, b)`    → board square on board `b`
 ///   `ReserveCoords(i)`   → slot `i` in the player's reserve
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
-#[serde(rename_all = "camelCase")]
-pub struct Coords {
-    /// "board" or "reserve"
-    #[serde(rename = "type")]
-    #[rhai_type(name = "type", get = Self::get_coord_type, readonly)]
-    pub coord_type: String,
-    /// Board row — `None` when type is "reserve".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[rhai_type(get = Self::get_row, readonly)]
-    pub row: Option<i32>,
-    /// Board column — `None` when type is "reserve".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[rhai_type(get = Self::get_col, readonly)]
-    pub col: Option<i32>,
-    #[rhai_type(readonly)]
-    pub board_index: i32,
-    /// Reserve index — only valid when coord_type == "reserve"
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[rhai_type(get = Self::get_index, readonly)]
-    pub index: Option<i32>,
+///
+/// Serialized as tagged JSON: `{"type":"board","row":1,"col":2,"boardIndex":0}`
+/// or `{"type":"reserve","index":0,"boardIndex":0}`.
+///
+/// Rhai's blanket impl `impl<T: Any + Clone + SendSync> Variant for T` applies
+/// automatically, so no manual `Variant` impl is needed.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum Coords {
+    #[serde(rename = "board")]
+    Board {
+        row: i32,
+        col: i32,
+        board_index: i32,
+    },
+    #[serde(rename = "reserve")]
+    Reserve {
+        index: i32,
+        board_index: i32,
+    },
 }
 
 impl Coords {
-    fn get_index(&self) -> i32 {
-        self.index.unwrap_or(0)
+    // ── Rhai getters (all &mut self because Rhai's register_get requires it) ──
+
+    pub fn get_type_mut(&mut self) -> String {
+        match self {
+            Coords::Board { .. } => "board".to_string(),
+            Coords::Reserve { .. } => "reserve".to_string(),
+        }
     }
 
-    /// Rhai getter: returns 0 when type is "reserve" (no meaningful row).
-    fn get_row(&self) -> i32 {
-        self.row.unwrap_or(0)
+    pub fn get_row_mut(&mut self) -> i32 {
+        match self {
+            Coords::Board { row, .. } => *row,
+            Coords::Reserve { .. } => 0,
+        }
     }
 
-    /// Rhai getter: returns 0 when type is "reserve" (no meaningful col).
-    fn get_col(&self) -> i32 {
-        self.col.unwrap_or(0)
+    pub fn get_col_mut(&mut self) -> i32 {
+        match self {
+            Coords::Board { col, .. } => *col,
+            Coords::Reserve { .. } => 0,
+        }
     }
+
+    pub fn get_board_index_mut(&mut self) -> i32 {
+        match self {
+            Coords::Board { board_index, .. } => *board_index,
+            Coords::Reserve { board_index, .. } => *board_index,
+        }
+    }
+
+    pub fn get_index_mut(&mut self) -> i32 {
+        match self {
+            Coords::Board { .. } => 0,
+            Coords::Reserve { index, .. } => *index,
+        }
+    }
+
+    // ── Constructors ────────────────────────────────────────────────────────
 
     pub fn new_board(row: i32, col: i32, board_index: i32) -> Self {
-        Self {
-            coord_type: "board".into(),
-            row: Some(row),
-            col: Some(col),
+        Coords::Board {
+            row,
+            col,
             board_index,
-            index: None,
         }
     }
 
@@ -66,31 +88,22 @@ impl Coords {
     }
 
     pub fn new_reserve(index: i32) -> Self {
-        Self {
-            coord_type: "reserve".into(),
-            row: None,
-            col: None,
+        Coords::Reserve {
+            index,
             board_index: 0,
-            index: Some(index),
         }
     }
 
     /// Returns the underlying `BoardCoords` if this is a board coordinate, else `None`.
     pub fn as_board_coords(&self) -> Option<BoardCoords> {
-        if self.coord_type == "board" {
-            Some(BoardCoords::new(
-                self.row.unwrap_or(0),
-                self.col.unwrap_or(0),
-                self.board_index,
-            ))
-        } else {
-            None
+        match self {
+            Coords::Board {
+                row,
+                col,
+                board_index,
+            } => Some(BoardCoords::new(*row, *col, *board_index)),
+            Coords::Reserve { .. } => None,
         }
-    }
-
-    /// Getter exposed to Rhai as `.type` (cannot use field name directly — it's a Rust keyword).
-    pub fn get_coord_type(&self) -> String {
-        self.coord_type.clone()
     }
 }
 

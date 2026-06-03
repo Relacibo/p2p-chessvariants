@@ -61,11 +61,19 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<BoardState>()
         .build_type::<game::state::ReservePileState>()
         .build_type::<BoardCoords>()
-        .build_type::<Coords>()
         .build_type::<Piece>()
         .build_type::<game::variant_config::BoardLayoutConfig>()
         .build_type::<Action>()
         .build_type::<Player>();
+
+    // Coords is an opaque enum — register manually with getters.
+    engine
+        .register_type_with_name::<Coords>("Coords")
+        .register_get("type", Coords::get_type_mut)
+        .register_get("row", Coords::get_row_mut)
+        .register_get("col", Coords::get_col_mut)
+        .register_get("board_index", Coords::get_board_index_mut)
+        .register_get("index", Coords::get_index_mut);
 
     // ── Legacy global aliases (backward compat for existing variant scripts) ──
     // These are duplicates of engine::board::* — remove once all scripts migrate.
