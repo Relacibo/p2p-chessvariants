@@ -25,7 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
@@ -46,7 +46,6 @@ import {
 import { useSelector } from "../../app/hooks";
 import { selectAllVariants, VariantEntry } from "../lobby/variantsSlice";
 import {
-  decodeScriptUrl,
   encodeScriptUrl,
   fetchScriptText,
   getGithubBrowseUrl,
@@ -119,7 +118,6 @@ function getActingPlayer(
 export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const navigate = useNavigate();
-  const { scriptUrl: encodedParam } = useParams<{ scriptUrl?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const variants = useSelector(selectAllVariants);
   const combobox = useCombobox();
@@ -297,6 +295,7 @@ export function DevBoardView() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
     if (playerCount) next.set("players", String(playerCount));
+    if (selectedVariant?.url) next.set("script", encodeScriptUrl(selectedVariant.url));
     // Persist selectedPlayers as multiple 'player' params
     next.delete("player");
     for (const p of selectedPlayers) {
@@ -305,7 +304,7 @@ export function DevBoardView() {
     next.set("panel", drawerOpen ? "1" : "0");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerCount, selectedPlayers, drawerOpen]);
+  }, [playerCount, selectedPlayers, drawerOpen, selectedVariant?.url]);
 
   // ── Bidirectional sync: selectedPlayers[0] ↔ controllingPlayer ──
   useEffect(() => {
@@ -448,15 +447,15 @@ export function DevBoardView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controllingPlayer]);
 
-  // ── Mount: load from URL param, or default to first variant ──
+  // ── Mount: load from URL query param, or default to first variant ──
   useEffect(() => {
-    if (encodedParam) {
-      const url = decodeScriptUrl(encodedParam);
-      const variant = variants.find((v) => v.url === url);
+    const scriptUrl = searchParams.get("script");
+    if (scriptUrl) {
+      const variant = variants.find((v) => v.url === scriptUrl);
       if (variant) {
         setSelectedVariant(variant);
         const n = typeof playerCount === "number" ? playerCount : 2;
-        loadScript(url, n);
+        loadScript(scriptUrl, n);
         return;
       }
     }
@@ -468,7 +467,7 @@ export function DevBoardView() {
       loadScript(first.url, n);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [encodedParam]);
+  }, [searchParams.get("script")]);
 
   const handleVariantSelect = (url: string) => {
     const variant = variants.find((v) => v.url === url);
@@ -477,7 +476,7 @@ export function DevBoardView() {
       const n = typeof playerCount === "number" ? playerCount : 2;
       loadScript(url, n);
       combobox.closeDropdown();
-      navigate(`/dev/${encodeScriptUrl(url)}`, { replace: true });
+      navigate(`/dev?script=${encodeScriptUrl(url)}`, { replace: true });
     }
   };
 

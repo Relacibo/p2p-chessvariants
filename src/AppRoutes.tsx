@@ -23,7 +23,7 @@ const AppRoutes = () => {
       <Route path="settings/:tab" element={isGuest ? <Navigate to="/" replace /> : <SettingsView />} />
       <Route path="lobby/:lobbyId" element={<LobbyView />} />
       <Route path="lobby/by-peer-id/:peerId" element={<LobbyView />} />
-      <Route path="dev/:scriptUrl?" element={<DevBoardView />} />
+      <Route path="dev" element={<DevBoardView />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>
