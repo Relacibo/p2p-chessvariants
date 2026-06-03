@@ -20,7 +20,7 @@ fn init(player_count) {
             #{ id: 0, name: "White", board: 0, color: "white", team: 0 },
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1 },
         ],
-        turn: "white",
+        turn: 0,
         castling_rights: #{ wk: true, wq: true, bk: true, bq: true },
         en_passant: (),
     }
@@ -38,7 +38,7 @@ fn sq_attacked_by(board, pos, colors) {
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    if player.color != state.turn { return []; }
+    if player.id != state.turn { return []; }
 
     let color = player.color;
     let candidates = [];
@@ -98,8 +98,8 @@ fn is_game_over(state, all_valid_moves) {
 fn handle_action(state, player, action) {
     let player_color = player.color;
 
-    if state.turn != player_color {
-        throw `${player_color} is not active — it's ${state.turn}'s turn`;
+    if state.turn != player.id {
+        throw `${player.id} is not active — it's ${state.turn}'s turn`;
     }
 
     if action.type == "move" {
@@ -260,7 +260,7 @@ fn handle_action(state, player, action) {
             }
         }
 
-        let next_turn = if player_color == "white" { "black" } else { "white" };
+        let next_turn = if player.id == 0 { 1 } else { 0 };
         return merge(state, #{
             board: new_board,
             turn: next_turn,
@@ -275,7 +275,7 @@ fn handle_action(state, player, action) {
         if pp.color != player_color { throw "not your promotion"; }
 
         let new_board = engine::board::set(state.board, pp.to, action.piece);
-        let next_turn = if player_color == "white" { "black" } else { "white" };
+        let next_turn = if player.id == 0 { 1 } else { 0 };
 
         return merge(state, #{
             board: new_board,

@@ -20,7 +20,7 @@ fn init(player_count) {
             #{ id: 0, name: "White", board: 0, color: "white", team: 0 },
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1 },
         ],
-        turn: "white",
+        turn: 0,
     }
 }
 
@@ -36,7 +36,7 @@ fn moves_for_piece(board, from, piece_type, color) {
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    if player.color != state.turn { return []; }
+    if player.id != state.turn { return []; }
 
     let candidates = [];
     for r in 0..8 {
@@ -68,8 +68,8 @@ fn is_game_over(state, all_valid_moves) {
 fn handle_action(state, player, action) {
     let player_color = player.color;
 
-    if state.turn != player_color {
-        throw `${player_color} is not active — it's ${state.turn}'s turn`;
+    if state.turn != player.id {
+        throw `player ${player.id} is not active — it's ${state.turn}'s turn`;
     }
 
     if action.type == "move" {
@@ -110,7 +110,7 @@ fn handle_action(state, player, action) {
             }
         }
 
-        let next = if player_color == "white" { "black" } else { "white" };
+        let next = if player.id == 0 { 1 } else { 0 };
         return merge(state, #{ board: new_board, turn: next });
     }
 

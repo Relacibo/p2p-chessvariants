@@ -27,8 +27,8 @@ fn init(player_count) {
         ],
         // Pieces each player can drop from their reserve: key = "w0", "b0", "w1", "b1"
         reserves: #{ w0: [], b0: [], w1: [], b1: [] },
-        turn_order: ["white", "black"],
-        current_turn: ["white", "white"],
+        turn_order: [0, 1],
+        current_turn: [0, 0],
     }
 }
 
@@ -55,7 +55,7 @@ fn moves_for_piece(board, from, piece_type, color) {
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     let turn = state.current_turn[player.board];
-    if player.color != turn { return []; }
+    if player.id != turn { return []; }
 
     let board = state.board[player.board];
     let moves = [];
@@ -102,7 +102,7 @@ fn handle_action(state, player, action) {
     let col = player.color;
     let brd = player.board;
     let turn = state.current_turn[brd];
-    if col != turn { throw `${col} cannot move on board ${brd} — it's ${turn}'s turn`; }
+    if player.id != turn { throw `player ${player.id} cannot move on board ${brd} — it's player ${turn}'s turn`; }
 
     if action.type == "move" {
         let board = state.board[brd];
@@ -165,7 +165,7 @@ fn handle_action(state, player, action) {
         }
 
         // Advance turn on this board
-        let cur_idx = state.turn_order.index_of(col);
+        let cur_idx = state.turn_order.index_of(player.id);
         let next_idx = (cur_idx + 1) % state.turn_order.len;
         state.current_turn[brd] = state.turn_order[next_idx];
     }

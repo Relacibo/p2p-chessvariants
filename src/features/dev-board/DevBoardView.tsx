@@ -309,17 +309,20 @@ export function DevBoardView() {
     return actions;
   }, [validMovesAll, selectedPlayers, validMoves]);
 
-  // Determine if a piece selection dialog should be shown
+  // Piece picker dialog — derived from uiMap (get_ui), not from validMoves.
   const selectablePieces = useMemo(() => {
-    return displayValidMoves
-      .filter((a): a is WasmAction & { type: "select_piece" } => a.type === "select_piece")
-      .map((a) => a.piece);
-  }, [displayValidMoves]);
+    const pieces: WasmPiece[] = [];
+    if (uiElements) {
+      for (const el of Object.values(uiElements)) {
+        if (el.type === "piece_picker") {
+          pieces.push(...el.pieces);
+        }
+      }
+    }
+    return pieces;
+  }, [uiElements]);
 
-  const hasCancel = useMemo(
-    () => displayValidMoves.some((a) => a.type === "cancel"),
-    [displayValidMoves],
-  );
+  const hasCancel = useMemo(() => selectablePieces.length > 0, [selectablePieces]);
 
   // ── Container resize observer ──
   useEffect(() => {

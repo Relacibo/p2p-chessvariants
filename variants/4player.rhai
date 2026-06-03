@@ -86,8 +86,8 @@ fn init(player_count) {
             #{ id: 2, orientations: [#{ board: 0, orientation: "normal" }] },
             #{ id: 3, orientations: [#{ board: 0, orientation: "counterclockwise" }] },
         ],
-        turn: "red",
-        turn_order: ["red", "blue", "yellow", "green"],
+        turn: 2,
+        turn_order: [2, 3, 0, 1],
     }
 }
 
@@ -103,7 +103,7 @@ fn moves_for_piece(board, from, piece_type, color) {
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    if player.color != state.turn { return []; }
+    if player.id != state.turn { return []; }
 
     let moves = [];
     for r in 0..14 {
@@ -124,7 +124,7 @@ fn valid_moves(state, player) {
 }
 
 fn handle_action(state, player, action) {
-    if state.turn != player.color { throw `not ${player.color}'s turn`; }
+    if state.turn != player.id { throw `not ${player.id}'s turn`; }
 
     if action.type == "move" {
         let src = engine::board::get(state.board, action.from);
@@ -147,7 +147,7 @@ fn handle_action(state, player, action) {
         }
 
         // Next player's turn
-        let idx = state.turn_order.index_of(player.color);
+        let idx = state.turn_order.index_of(player.id);
         state.turn = state.turn_order[(idx + 1) % 4];
     }
 

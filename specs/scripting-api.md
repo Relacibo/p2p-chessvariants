@@ -162,7 +162,7 @@ fn init(player_count) {
             #{ id: 0, name: "White", board: 0, color: "white", team: 0, orientation: "normal" },
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1, orientation: "flipped" },
         ],
-        turn: "white",
+        turn: 0,  // player_id of the active player (variant convention)
     }
 }
 ```
@@ -184,7 +184,7 @@ fn init(player_count) {
             #{ id: 2, orientations: [#{ board: 0, orientation: "flipped" }] },
             #{ id: 3, orientations: [#{ board: 0, orientation: "counterclockwise" }] },
         ],
-        turn: "north",
+        turn: 0,  // player_id of the active player
     }
 }
 ```
@@ -203,7 +203,7 @@ The recommended pattern filters candidates through `handle_action`: any move tha
 ```rhai
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    if player.color != state.turn { return []; }
+    if player.id != state.turn { return []; }
 
     let candidates = [];
     for r in 0..8 {
@@ -263,7 +263,7 @@ Or **specific variant** — current player has no moves:
 ```rhai
 fn is_game_over(state, all_valid_moves) {
     for entry in all_valid_moves {
-        if entry.player.color == state.turn && entry.moves.len == 0 {
+        if entry.player.id == state.turn && entry.moves.len == 0 {
             return true;
         }
     }
@@ -294,7 +294,7 @@ Throwing from `handle_action` signals an illegal action. `valid_moves` uses this
 ```rhai
 fn handle_action(state, player, action) {
     if action.type == "move" {
-        if state.turn != player.color { throw "not your turn"; }
+        if state.turn != player.id { throw "not your turn"; }
         let piece = engine::board::get(state.board, action.from);
         if piece == () { throw "no piece at source square"; }
         if piece.color != player.color { throw "not your piece"; }
@@ -353,7 +353,7 @@ fn get_ui(state, player) {
 
     // "Summon" button: available once per game, lets the player spawn a pawn
     // in the center. Pressing it emits Interact("summon_btn").
-    if player.color == state.turn && !state.summoned {
+    if player.id == state.turn && !state.summoned {
         ui.summon_btn = #{ type: "button", label: "Summon Pawn" };
     }
 

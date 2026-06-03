@@ -27,13 +27,13 @@ fn init(player_count) {
             #{ id: 0, name: "White", board: 0, color: "white", team: 0 },
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1 },
         ],
-        turn: "white",
+        turn: 0,
     }
 }
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    if player.color != state.turn { return []; }
+    if player.id != state.turn { return []; }
     [Move(Coords(0,0), Coords(0,0))]  // any move validates
 }
 
@@ -44,7 +44,7 @@ fn is_game_over(state, all_valid_moves) {
 fn handle_action(state, player, action) {
     let player_color = player.color;
 
-    if state.turn != player_color {
+    if state.turn != player.id {
         throw "not your turn";
     }
 
@@ -73,7 +73,7 @@ fn handle_action(state, player, action) {
             }
         }
 
-        let next = if player_color == "white" { "black" } else { "white" };
+        let next = if player.id == 0 { 1 } else { 0 };
         return merge(state, #{ board: new_board, turn: next });
     }
 
