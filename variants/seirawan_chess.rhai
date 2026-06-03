@@ -48,13 +48,13 @@ fn handle_action(state, player, action) {
         if dst != () && dst.color == player_color { throw "own piece"; }
         let b = engine::board::move_piece(state.board, action.from, action.to);
         let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color);
-        if enemies.len() == 0 {
+        if enemies.len == 0 {
             enemies = state.players.filter(|p| p.color != player_color).map(|p| p.color);
         }
         if is_in_check(b, player_color, enemies) { throw "leaves king in check"; }
         for p in state.players {
             let kings = engine::board::find(b, Piece(p.color, "king"));
-            if kings.len() == 0 {
+            if kings.len == 0 {
                 let oc = if p.color == "white" { "black" } else { "white" };
                 let wi = state.players.filter(|q| q.color == oc).map(|q| q.board)[0];
                 return merge(state, #{ board: b, outcome: Winner(wi) });

@@ -131,14 +131,12 @@ fn register_engine_helpers(
     piece_defs: std::sync::Arc<game::piece_definition::PieceDefinitionMap>,
 ) {
     let cp_attacked = std::sync::Arc::clone(&piece_defs);
-    let cp_pseudo_engine_4arg = std::sync::Arc::clone(&piece_defs);
-    let cp_pseudo_engine_2arg = std::sync::Arc::clone(&piece_defs);
-    let cp_pseudo_global_4arg = std::sync::Arc::clone(&piece_defs);
-    let cp_pseudo_global_2arg = std::sync::Arc::clone(&piece_defs);
+            let cp_pseudo_4arg_a = std::sync::Arc::clone(&piece_defs);
+    let cp_pseudo_4arg_b = std::sync::Arc::clone(&piece_defs);
     let cp_legal = std::sync::Arc::clone(&piece_defs);
 
     engine.register_fn(
-        "engine::is_square_attacked",
+        "is_square_attacked",
         move |board: BoardState,
               coords: Coords,
               by_color: String|
@@ -152,37 +150,40 @@ fn register_engine_helpers(
 
     // 4-arg form: kept for backward compatibility with scripts that pass piece_type/color explicitly.
     engine.register_fn(
-        "engine::pseudo_moves",
+        "pseudo_moves",
         move |board: BoardState,
               from: Coords,
               piece_type: String,
               color: String|
-              -> Vec<Coords> {
+              -> rhai::Array {
             let Some(bc) = from.as_board_coords() else {
-                return vec![];
+                return rhai::Array::new();
             };
             game::engine_builtins::get_pseudo_move_dests(
                 &board,
                 &bc,
                 &piece_type,
                 &color,
-                &cp_pseudo_engine_4arg,
+                &cp_pseudo_4arg_a,
             )
             .into_iter()
-            .map(Coords::from)
+            .map(|c| Dynamic::from(Coords::from(c)))
             .collect()
         },
     );
 
     // 2-arg form: reads piece from board automatically.
+    // Registered globally (not with `engine::` prefix) because Rhai 1.x cannot
+    // resolve `engine::function` when `engine::board` / `engine::moves` are
+    // also registered as static modules.
     engine.register_fn(
-        "engine::pseudo_moves",
-        move |board: BoardState, from: Coords| -> Vec<Coords> {
+        "pseudo_moves",
+        move |board: BoardState, from: Coords| -> rhai::Array {
             let Some(bc) = from.as_board_coords() else {
-                return vec![];
+                return rhai::Array::new();
             };
             let Some(piece) = board.get_piece(&bc) else {
-                return vec![];
+                return rhai::Array::new();
             };
             let piece_type = piece.piece_type_name().to_string();
             let color = piece.color_name().to_string();
@@ -191,58 +192,10 @@ fn register_engine_helpers(
                 &bc,
                 &piece_type,
                 &color,
-                &cp_pseudo_engine_2arg,
+                &cp_pseudo_4arg_b,
             )
             .into_iter()
-            .map(Coords::from)
-            .collect()
-        },
-    );
-
-    // Global aliases for easier script calls.
-    engine.register_fn(
-        "pseudo_moves",
-        move |board: BoardState,
-              from: Coords,
-              piece_type: String,
-              color: String|
-              -> Vec<Coords> {
-            let Some(bc) = from.as_board_coords() else {
-                return vec![];
-            };
-            game::engine_builtins::get_pseudo_move_dests(
-                &board,
-                &bc,
-                &piece_type,
-                &color,
-                &cp_pseudo_global_4arg,
-            )
-            .into_iter()
-            .map(Coords::from)
-            .collect()
-        },
-    );
-
-    engine.register_fn(
-        "pseudo_moves",
-        move |board: BoardState, from: Coords| -> Vec<Coords> {
-            let Some(bc) = from.as_board_coords() else {
-                return vec![];
-            };
-            let Some(piece) = board.get_piece(&bc) else {
-                return vec![];
-            };
-            let piece_type = piece.piece_type_name().to_string();
-            let color = piece.color_name().to_string();
-            game::engine_builtins::get_pseudo_move_dests(
-                &board,
-                &bc,
-                &piece_type,
-                &color,
-                &cp_pseudo_global_2arg,
-            )
-            .into_iter()
-            .map(Coords::from)
+            .map(|c| Dynamic::from(Coords::from(c)))
             .collect()
         },
     );

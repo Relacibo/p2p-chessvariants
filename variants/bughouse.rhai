@@ -83,12 +83,12 @@ fn valid_moves(state, player) {
 
     // Reserve drops
     let rkey = reserve_key(player.color, player.board);
-    if rkey in state.reserves && state.reserves[rkey].len() > 0 {
+    if rkey in state.reserves && state.reserves[rkey].len > 0 {
         for r in 0..8 {
             for c in 0..8 {
                 let p = engine::board::get(board, Coords(r, c));
                 if p == () {
-                    for i in 0..state.reserves[rkey].len() {
+                    for i in 0..state.reserves[rkey].len {
                         moves.push(Move(ReserveCoords(i), Coords(r, c, player.board)));
                     }
                 }
@@ -110,7 +110,7 @@ fn handle_action(state, player, action) {
         if action.from.type == "reserve" {
             // Drop from reserve
             let rkey = reserve_key(col, brd);
-            if !(rkey in state.reserves) || state.reserves[rkey].len() <= action.from.index {
+            if !(rkey in state.reserves) || state.reserves[rkey].len <= action.from.index {
                 throw "invalid reserve index";
             }
             let piece = state.reserves[rkey][action.from.index];
@@ -122,7 +122,7 @@ fn handle_action(state, player, action) {
 
             // Remove from reserve
             let new_res = [];
-            for i in 0..state.reserves[rkey].len() {
+            for i in 0..state.reserves[rkey].len {
                 if i != action.from.index { new_res.push(state.reserves[rkey][i]); }
             }
             state.reserves[rkey] = new_res;
@@ -153,7 +153,7 @@ fn handle_action(state, player, action) {
                 for pl in state.players {
                     if pl.board == b {
                         let kings = engine::board::find(bb, Piece(pl.color, "king"));
-                        if kings.len() == 0 {
+                        if kings.len == 0 {
                             let other_team = if pl.team == 0 { 1 } else { 0 };
                             let winners = state.players.filter(|p| p.team == other_team);
                             state.outcome = Winners(winners.map(|p| p.board));
@@ -166,7 +166,7 @@ fn handle_action(state, player, action) {
 
         // Advance turn on this board
         let cur_idx = state.turn_order.index_of(col);
-        let next_idx = (cur_idx + 1) % state.turn_order.len();
+        let next_idx = (cur_idx + 1) % state.turn_order.len;
         state.current_turn[brd] = state.turn_order[next_idx];
     }
 
@@ -177,7 +177,7 @@ fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
     let has_moves = false;
     for entry in all_valid_moves {
-        if entry.moves.len() > 0 { has_moves = true; }
+        if entry.moves.len > 0 { has_moves = true; }
     }
     !has_moves
 }
@@ -185,7 +185,7 @@ fn is_game_over(state, all_valid_moves) {
 fn get_ui(state, player) {
     let ui = #{};
     let rkey = reserve_key(player.color, player.board);
-    if rkey in state.reserves && state.reserves[rkey].len() > 0 {
+    if rkey in state.reserves && state.reserves[rkey].len > 0 {
         ui[`reserve_${rkey}`] = #{
             type: "reserve_pile",
             pieces: state.reserves[rkey],

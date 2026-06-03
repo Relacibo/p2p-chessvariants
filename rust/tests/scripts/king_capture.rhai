@@ -61,7 +61,7 @@ fn handle_action(state, player, action) {
         // Check for king capture → game over
         for p in state.players {
             let kings = engine::board::find(new_board, Piece(p.color, "king"));
-            if kings.len() == 0 {
+            if kings.len == 0 {
                 let opponent_color = if p.color == "white" { "black" } else { "white" };
                 let winner_idx = state.players
                     .filter(|q| q.color == opponent_color)

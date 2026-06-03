@@ -32,7 +32,7 @@ fn init(player_count) {
         Piece("yellow", "queen"), Piece("yellow", "king"), Piece("yellow", "bishop"),
         Piece("yellow", "knight"), Piece("yellow", "rook"),
     ];
-    for i in 0..y_back.len() {
+    for i in 0..y_back.len {
         board = engine::board::set(board, Coords(0, 3 + i, 0), y_back[i]);
         board = engine::board::set(board, Coords(1, 3 + i, 0), Piece("yellow", "pawn"));
     }
@@ -44,7 +44,7 @@ fn init(player_count) {
         Piece("green", "queen"), Piece("green", "king"), Piece("green", "bishop"),
         Piece("green", "knight"), Piece("green", "rook"),
     ];
-    for i in 0..g_back.len() {
+    for i in 0..g_back.len {
         board = engine::board::set(board, Coords(3 + i, 13, 0), g_back[i]);
         board = engine::board::set(board, Coords(3 + i, 12, 0), Piece("green", "pawn"));
     }
@@ -55,7 +55,7 @@ fn init(player_count) {
         Piece("red", "queen"), Piece("red", "king"), Piece("red", "bishop"),
         Piece("red", "knight"), Piece("red", "rook"),
     ];
-    for i in 0..r_back.len() {
+    for i in 0..r_back.len {
         board = engine::board::set(board, Coords(13, 3 + i, 0), r_back[i]);
         board = engine::board::set(board, Coords(12, 3 + i, 0), Piece("red", "pawn"));
     }
@@ -67,7 +67,7 @@ fn init(player_count) {
         Piece("blue", "queen"), Piece("blue", "king"), Piece("blue", "bishop"),
         Piece("blue", "knight"), Piece("blue", "rook"),
     ];
-    for i in 0..b_back.len() {
+    for i in 0..b_back.len {
         board = engine::board::set(board, Coords(3 + i, 0, 0), b_back[i]);
         board = engine::board::set(board, Coords(3 + i, 1, 0), Piece("blue", "pawn"));
     }
@@ -139,7 +139,7 @@ fn handle_action(state, player, action) {
         // Check if any king was captured
         for p in state.players {
             let kings = engine::board::find(state.board, Piece(p.color, "king"));
-            if kings.len() == 0 {
+            if kings.len == 0 {
                 let survivors = state.players.filter(|q| q.color != p.color);
                 state.outcome = Winners(survivors.map(|q| q.board));
                 return state;
@@ -157,7 +157,7 @@ fn handle_action(state, player, action) {
 fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
     for entry in all_valid_moves {
-        if entry.moves.len() > 0 { return false; }
+        if entry.moves.len > 0 { return false; }
     }
     true
 }

@@ -60,7 +60,7 @@ fn valid_moves(state, player) {
 fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
     for entry in all_valid_moves {
-        if entry.moves.len() > 0 { return false; }
+        if entry.moves.len > 0 { return false; }
     }
     true
 }
@@ -86,7 +86,7 @@ fn handle_action(state, player, action) {
         let enemies = state.players
             .filter(|p| p.team != player.team)
             .map(|p| p.color);
-        if enemies.len() == 0 {
+        if enemies.len == 0 {
             enemies = state.players
                 .filter(|p| p.color != player_color)
                 .map(|p| p.color);
@@ -98,7 +98,7 @@ fn handle_action(state, player, action) {
         // Check for king capture → game over
         for p in state.players {
             let kings = engine::board::find(new_board, Piece(p.color, "king"));
-            if kings.len() == 0 {
+            if kings.len == 0 {
                 let opponent_color = if p.color == "white" { "black" } else { "white" };
                 let winner_idx = state.players
                     .filter(|q| q.color == opponent_color)

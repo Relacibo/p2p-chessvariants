@@ -29,7 +29,7 @@ fn init(player_count) {
 // Returns true if `pos` is attacked by any piece of any color in `colors`.
 fn sq_attacked_by(board, pos, colors) {
     for color in colors {
-        if engine::is_square_attacked(board, pos, color) {
+        if is_square_attacked(board, pos, color) {
             return true;
         }
     }
@@ -116,7 +116,7 @@ fn handle_action(state, player, action) {
         let enemies = state.players
             .filter(|p| p.team != player.team)
             .map(|p| p.color);
-        if enemies.len() == 0 {
+        if enemies.len == 0 {
             enemies = state.players
                 .filter(|p| p.color != player_color)
                 .map(|p| p.color);
