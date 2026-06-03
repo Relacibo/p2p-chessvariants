@@ -493,21 +493,21 @@ Dragging/clicking a reserve piece emits `Move(ReserveCoords(i), to)` when the ta
 ### `PiecePicker`
 
 ```rhai
-#{ type: "piece_picker", pieces: [Piece, ...], cancel?: bool, title?: string }
+#{ type: "piece_picker", pieces: [Piece, ...], cancelable?: bool, title?: string }
 ```
 
 | Field | Type | Required | Default |
 |-------|------|----------|---------|
 | `type` | `"piece_picker"` | YES | — |
 | `pieces` | [Piece] | YES | — |
-| `cancel` | bool | NO | `true` |
+| `cancelable` | bool | NO | `true` |
 | `title` | string | NO | — |
 
 The frontend renders an overlay listing the pieces as selectable sprites.
 
 - Clicking a piece emits `SelectPiece(piece)`.
-- If `cancel` is `true`, a cancel affordance is shown; dismissing or tapping the cancel area emits `Cancel()`.
-- If `cancel` is `false`, the picker is mandatory — no dismiss possible. Use for forced choices like pawn promotion where the player must pick a piece.
+- If `cancelable` is `true`, a cancel affordance is shown; dismissing or tapping the cancel area emits `Cancel()`.
+- If `cancelable` is `false`, the picker is mandatory — no dismiss possible. Use for forced choices like pawn promotion where the player must pick a piece.
 
 Shown when present in `derive_ui`; hidden when absent.
 
@@ -521,7 +521,7 @@ fn derive_ui(state, player) {
             return #{
                 promotion: #{
                     type: "piece_picker",
-                    cancel: false,
+                    cancelable: false,
                     title: "Promote pawn to:",
                     pieces: [
                         Piece(pp.color, "queen"),
@@ -547,7 +547,7 @@ fn derive_ui(state, player) {
     if "summon_pending" in state {
         result.choose_piece = #{
             type: "piece_picker",
-            cancel: true,
+            cancelable: true,
             pieces: [Piece(player.color, "knight"), Piece(player.color, "bishop")],
         };
     }

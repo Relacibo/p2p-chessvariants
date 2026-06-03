@@ -1203,8 +1203,8 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         }))
                     })
                     .collect();
-                let cancel_val = elem_map
-                    .get("cancel")
+                let cancelable_val = elem_map
+                    .get("cancelable")
                     .and_then(|v| v.as_bool().ok());
                 let title_val = elem_map
                     .get("title")
@@ -1214,8 +1214,8 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     "type": "piece_picker",
                     "pieces": pieces_json,
                 });
-                if let Some(cancel) = cancel_val {
-                    json["cancel"] = serde_json::Value::Bool(cancel);
+                if let Some(cancelable) = cancelable_val {
+                    json["cancelable"] = serde_json::Value::Bool(cancelable);
                 }
                 if let Some(title) = title_val {
                     json["title"] = serde_json::Value::String(title);
