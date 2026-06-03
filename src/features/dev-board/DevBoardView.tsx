@@ -220,26 +220,33 @@ export function DevBoardView() {
     return boards.size > 0 ? [...boards] : [currentBoardIndex];
   }, [selectedPlayers, currentBoardIndex]);
 
-  // Derive per-slot orientation: selected player wins over first-in-array.
+  // Derive per-slot orientation: selected player's team perspective.
   const orientationByBoard = useMemo((): BoardOrientation[] => {
     const count = variantConfig?.board.count ?? 1;
     const arr = new Array<BoardOrientation>(count).fill("normal");
     const covered = new Set<number>();
 
-    // 1) Selected players determine orientation per board
-    for (const sp of selectedPlayers) {
+    // Determine controlling team from first selected player
+    let controllingTeam = 0;
+    const firstSel = selectedPlayers[0];
+    if (firstSel) {
       try {
-        const ref = JSON.parse(sp) as PlayerRef;
-        if (covered.has(ref.board)) continue;
+        const ref = JSON.parse(firstSel) as PlayerRef;
         const cfg = allPlayers.find(p => p.board === ref.board && p.color === ref.color);
-        if (cfg?.orientation) {
-          covered.add(ref.board);
-          arr[ref.board] = cfg.orientation;
-        }
+        if (cfg) controllingTeam = cfg.team;
       } catch { /* skip */ }
     }
 
-    // 2) Fallback: first player per board for unselected boards
+    // 1) For each board, find player with same team as controlling player
+    for (const p of allPlayers) {
+      if (covered.has(p.board)) continue;
+      if (p.team === controllingTeam) {
+        covered.add(p.board);
+        arr[p.board] = p.orientation ?? "normal";
+      }
+    }
+
+    // 2) Remaining boards: first player per board
     for (const p of allPlayers) {
       if (covered.has(p.board)) continue;
       covered.add(p.board);
