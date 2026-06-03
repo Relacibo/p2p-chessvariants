@@ -22,7 +22,7 @@ mod modules;
 pub mod rhai_rust_error;
 
 // Re-exports for integration tests and external consumers
-pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, PlayerId};
+pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, Player};
 
 /// Player reference across WASM boundary.
 /// Preferred: `{"id":0}`.  Backward compat: `{"board":0,"color":"white"}`.
@@ -39,7 +39,7 @@ pub(crate) struct PlayerRef {
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
 #[derive(Clone, Debug, Serialize)]
 pub struct PlayerMoves {
-    pub player: PlayerId,
+    pub player: Player,
     pub moves: Vec<Action>,
 }
 
@@ -65,7 +65,7 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<Piece>()
         .build_type::<game::variant_config::BoardLayoutConfig>()
         .build_type::<Action>()
-        .build_type::<PlayerId>();
+        .build_type::<Player>();
 
     // ── Legacy global aliases (backward compat for existing variant scripts) ──
     // These are duplicates of engine::board::* — remove once all scripts migrate.
@@ -81,10 +81,10 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("!=", |a: Coords, b: Coords| -> bool { a != b });
     engine.register_fn("==", |a: BoardCoords, b: BoardCoords| -> bool { a == b });
     engine.register_fn("!=", |a: BoardCoords, b: BoardCoords| -> bool { a != b });
-    engine.register_fn("==", |a: PlayerId, b: PlayerId| -> bool {
+    engine.register_fn("==", |a: Player, b: Player| -> bool {
         a.id == b.id
     });
-    engine.register_fn("!=", |a: PlayerId, b: PlayerId| -> bool {
+    engine.register_fn("!=", |a: Player, b: Player| -> bool {
         a.id != b.id
     });
 
@@ -92,11 +92,11 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Coords", Coords::new_board_0);
     engine.register_fn("Coords", Coords::new_board);
     engine.register_fn("ReserveCoords", Coords::new_reserve);
-    engine.register_fn("Player", PlayerId::new_by_id);
-    engine.register_fn("Player", PlayerId::new_by_id_name);
-    engine.register_fn("Player", PlayerId::new_full);
-    engine.register_fn("Player", PlayerId::new_short);
-    engine.register_fn("Player", PlayerId::new_board_color);
+    engine.register_fn("Player", Player::new_by_id);
+    engine.register_fn("Player", Player::new_by_id_name);
+    engine.register_fn("Player", Player::new_full);
+    engine.register_fn("Player", Player::new_short);
+    engine.register_fn("Player", Player::new_board_color);
     engine.register_fn("Move", Action::rhai_move);
     engine.register_fn("SelectPiece", Action::rhai_select_piece);
     engine.register_fn("Interact", Action::rhai_interact);
@@ -255,9 +255,9 @@ fn load_piece_defs(
 
 // ─── Player ID helpers ───────────────────────────────────────────────────────
 
-/// Convert a PlayerRef to PlayerId. Reads all player fields from state.players.
+/// Convert a PlayerRef to Player. Reads all player fields from state.players.
 /// Supports both `{"id": N}` (preferred) and `{"board": N, "color": "..."}` (backward compat).
-fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
+fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> Player {
     if let Some(players_map_lock) = state.read_lock::<rhai::Map>() {
         if let Some(arr) = players_map_lock
             .get("players")
@@ -312,7 +312,7 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
                             .and_then(|v: rhai::Dynamic| v.as_int().ok())
                             .map(|v| v as i32)
                             .unwrap_or(0);
-                        return PlayerId {
+                        return Player {
                             id: pid,
                             name,
                             home_board,
@@ -326,7 +326,7 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
         }
     }
     // Fallback
-    PlayerId::new_by_id(0)
+    Player::new_by_id(0)
 }
 
 /// Convert a Rhai Map (and nested values) to a serde_json::Value.
@@ -672,7 +672,7 @@ impl ChessvariantEngine {
     /// Core action submission. Used both by WASM `submitAction` and native tests.
     pub fn submit_action_core(
         &mut self,
-        player: &PlayerId,
+        player: &Player,
         action: &Action,
     ) -> Result<serde_json::Value, CvError> {
         // Validate Move actions by calling valid_moves via Rhai.
@@ -743,8 +743,8 @@ impl ChessvariantEngine {
         self.submit_action_core(&player, &action)
     }
 
-    /// Find a PlayerId in state.players by color (for test convenience).
-    fn find_player_by_color(&self, color: &str) -> Result<PlayerId, CvError> {
+    /// Find a Player in state.players by color (for test convenience).
+    fn find_player_by_color(&self, color: &str) -> Result<Player, CvError> {
         let players_map = self
             .game_state
             .read_lock::<rhai::Map>()
@@ -767,7 +767,7 @@ impl ChessvariantEngine {
                         let team: i32 = m.get("team").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
                         let name: String = m.get("name").cloned().and_then(|v: Dynamic| v.into_string().ok()).unwrap_or_default();
                         let home_board: i32 = m.get("home_board").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
-                        return Ok(PlayerId {
+                        return Ok(Player {
                             id: pid,
                             name,
                             home_board,
@@ -885,7 +885,7 @@ impl ChessvariantEngine {
     }
 
     /// Call `derive_ui(state, player)`, serialize to JSON (no closures / no caching).
-    fn run_derive_ui(&self, player: &PlayerId) -> Result<serde_json::Value, CvError> {
+    fn run_derive_ui(&self, player: &Player) -> Result<serde_json::Value, CvError> {
         let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
@@ -909,7 +909,7 @@ impl ChessvariantEngine {
     /// Call `valid_moves(state, player)`, parse the returned `[Move]` array.
     fn compute_valid_moves_for_player(
         &mut self,
-        player: &PlayerId,
+        player: &Player,
     ) -> Result<Vec<Action>, CvError> {
         let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
@@ -947,8 +947,8 @@ impl ChessvariantEngine {
             .collect())
     }
 
-    /// Extract all PlayerIds from `state.players`.
-    fn get_player_ids(&self) -> Result<Vec<PlayerId>, CvError> {
+    /// Extract all Players from `state.players`.
+    fn get_player_ids(&self) -> Result<Vec<Player>, CvError> {
         let players_map = self
             .game_state
             .read_lock::<rhai::Map>()
@@ -994,7 +994,7 @@ impl ChessvariantEngine {
                     .get("home_board")
                     .and_then(|v: &Dynamic| v.as_int().ok())
                     .unwrap_or(0) as i32;
-                Ok(PlayerId {
+                Ok(Player {
                     id: pid,
                     name,
                     home_board,
