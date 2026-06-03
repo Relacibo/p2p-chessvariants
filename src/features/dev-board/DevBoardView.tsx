@@ -770,14 +770,6 @@ export function DevBoardView() {
               style={{ cursor: "pointer" }}
               onClick={() => setShowActionLog((s) => !s)}
             >
-              <Group gap="xs">
-                <Text size="sm" fw={600}>
-                  Action Log
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {showActionLog ? "▼" : "▶"}
-                </Text>
-              </Group>
               <ActionIcon
                 variant="subtle"
                 size="sm"
@@ -789,13 +781,23 @@ export function DevBoardView() {
               >
                 <IconTrash size="0.85rem" />
               </ActionIcon>
+              <Group gap="xs">
+                <Text size="sm" fw={600}>
+                  Action Log
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {showActionLog ? "▼" : "▶"}
+                </Text>
+              </Group>
             </Group>
             {showActionLog && (
               <Box
                 mt={4}
                 style={{
-                  maxHeight: 200,
+                  minHeight: 60,
+                  maxHeight: 300,
                   overflow: "auto",
+                  resize: "vertical",
                   background: "#1a1b1e",
                   borderRadius: 4,
                   padding: 8,
@@ -860,8 +862,10 @@ export function DevBoardView() {
               <Box
                 mt={4}
                 style={{
-                  maxHeight: 300,
+                  minHeight: 80,
+                  maxHeight: 400,
                   overflow: "auto",
+                  resize: "vertical",
                   background: "#1a1b1e",
                   borderRadius: 4,
                   padding: 8,
@@ -911,8 +915,10 @@ export function DevBoardView() {
               <Box
                 mt={4}
                 style={{
-                  maxHeight: 300,
+                  minHeight: 80,
+                  maxHeight: 400,
                   overflow: "auto",
+                  resize: "vertical",
                   background: "#1a1b1e",
                   borderRadius: 4,
                   padding: 8,
