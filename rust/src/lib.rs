@@ -131,8 +131,11 @@ fn register_engine_helpers(
     piece_defs: std::sync::Arc<game::piece_definition::PieceDefinitionMap>,
 ) {
     let cp_attacked = std::sync::Arc::clone(&piece_defs);
-    let cp_pseudo = std::sync::Arc::clone(&piece_defs);
-    let cp_legal = piece_defs;
+    let cp_pseudo_engine_4arg = std::sync::Arc::clone(&piece_defs);
+    let cp_pseudo_engine_2arg = std::sync::Arc::clone(&piece_defs);
+    let cp_pseudo_global_4arg = std::sync::Arc::clone(&piece_defs);
+    let cp_pseudo_global_2arg = std::sync::Arc::clone(&piece_defs);
+    let cp_legal = std::sync::Arc::clone(&piece_defs);
 
     engine.register_fn(
         "engine::is_square_attacked",
@@ -148,7 +151,6 @@ fn register_engine_helpers(
     );
 
     // 4-arg form: kept for backward compatibility with scripts that pass piece_type/color explicitly.
-    let cp_pseudo_4arg = std::sync::Arc::clone(&cp_pseudo);
     engine.register_fn(
         "engine::pseudo_moves",
         move |board: BoardState,
@@ -160,7 +162,11 @@ fn register_engine_helpers(
                 return vec![];
             };
             game::engine_builtins::get_pseudo_move_dests(
-                &board, &bc, &piece_type, &color, &cp_pseudo_4arg,
+                &board,
+                &bc,
+                &piece_type,
+                &color,
+                &cp_pseudo_engine_4arg,
             )
             .into_iter()
             .map(Coords::from)
@@ -181,7 +187,59 @@ fn register_engine_helpers(
             let piece_type = piece.piece_type_name().to_string();
             let color = piece.color_name().to_string();
             game::engine_builtins::get_pseudo_move_dests(
-                &board, &bc, &piece_type, &color, &cp_pseudo,
+                &board,
+                &bc,
+                &piece_type,
+                &color,
+                &cp_pseudo_engine_2arg,
+            )
+            .into_iter()
+            .map(Coords::from)
+            .collect()
+        },
+    );
+
+    // Global aliases for easier script calls.
+    engine.register_fn(
+        "pseudo_moves",
+        move |board: BoardState,
+              from: Coords,
+              piece_type: String,
+              color: String|
+              -> Vec<Coords> {
+            let Some(bc) = from.as_board_coords() else {
+                return vec![];
+            };
+            game::engine_builtins::get_pseudo_move_dests(
+                &board,
+                &bc,
+                &piece_type,
+                &color,
+                &cp_pseudo_global_4arg,
+            )
+            .into_iter()
+            .map(Coords::from)
+            .collect()
+        },
+    );
+
+    engine.register_fn(
+        "pseudo_moves",
+        move |board: BoardState, from: Coords| -> Vec<Coords> {
+            let Some(bc) = from.as_board_coords() else {
+                return vec![];
+            };
+            let Some(piece) = board.get_piece(&bc) else {
+                return vec![];
+            };
+            let piece_type = piece.piece_type_name().to_string();
+            let color = piece.color_name().to_string();
+            game::engine_builtins::get_pseudo_move_dests(
+                &board,
+                &bc,
+                &piece_type,
+                &color,
+                &cp_pseudo_global_2arg,
             )
             .into_iter()
             .map(Coords::from)
@@ -886,10 +944,14 @@ impl ChessvariantEngine {
         );
         let actions_dyn = match result {
             Ok(v) => v,
-            Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(..)) => {
-                return Ok(vec![]);
-            }
-            Err(e) => return Err(CvError::from(e)),
+            Err(e) => match &*e {
+                rhai::EvalAltResult::ErrorFunctionNotFound(fn_sig, ..)
+                    if fn_sig.starts_with("valid_moves") =>
+                {
+                    return Ok(vec![]);
+                }
+                _ => return Err(CvError::from(e)),
+            },
         };
 
         let arr = actions_dyn
@@ -1003,13 +1065,19 @@ impl ChessvariantEngine {
             "is_game_over",
             (self.game_state.clone(), Dynamic::from(entries)),
         ) {
-            Ok(true) => self.extract_outcome_from_state(),
+            Ok(true) => Some(
+                self.extract_outcome_from_state()
+                    .unwrap_or_else(|| serde_json::json!({ "type": "game_over" })),
+            ),
             Ok(false) => None,
             Err(_) => {
-                // Fallback: if all moves empty and outcome is set → game over
+                // Fallback: if all moves empty → game over
                 let all_empty = all_moves.iter().all(|pm| pm.moves.is_empty());
                 if all_empty {
-                    self.extract_outcome_from_state()
+                    Some(
+                        self.extract_outcome_from_state()
+                            .unwrap_or_else(|| serde_json::json!({ "type": "game_over" })),
+                    )
                 } else {
                     None
                 }
