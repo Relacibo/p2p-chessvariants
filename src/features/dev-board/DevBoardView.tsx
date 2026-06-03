@@ -770,25 +770,25 @@ export function DevBoardView() {
               style={{ cursor: "pointer" }}
               onClick={() => setShowActionLog((s) => !s)}
             >
-              <ActionIcon
-                variant="subtle"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLog([]);
-                }}
-                title="Clear"
-              >
-                <IconTrash size="0.85rem" />
-              </ActionIcon>
               <Group gap="xs">
                 <Text size="sm" fw={600}>
                   Action Log
                 </Text>
-                <Text size="xs" c="dimmed">
-                  {showActionLog ? "▼" : "▶"}
-                </Text>
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLog([]);
+                  }}
+                  title="Clear"
+                >
+                  <IconTrash size="0.85rem" />
+                </ActionIcon>
               </Group>
+              <Text size="xs" c="dimmed">
+                {showActionLog ? "▼" : "▶"}
+              </Text>
             </Group>
             {showActionLog && (
               <Box
