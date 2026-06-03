@@ -26,6 +26,86 @@ All agents (Plan, Build) MUST reference this document.
 | `allowed_player_count` | i32, [i32], or #{min,max,step?} | YES | Player count constraint |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 
+### `pieces()`
+
+```
+() -> [#{}]
+```
+
+**Optional.** Called once at engine startup (after `config()`, before `init()`). Defines custom piece types stored in the engine — never serialized into game state. Both peers derive them from the same script, so they never need to be transmitted.
+
+Each piece must have a unique `name` that does not shadow a built-in piece type (`pawn`, `rook`, `knight`, `bishop`, `queen`, `king`).
+
+#### `Parts` — union of existing piece types
+
+```rhai
+fn pieces() {
+    [
+        // empress = rook + knight
+        #{ name: "empress",  parts: ["rook", "knight"] },
+        // princess = bishop + knight
+        #{ name: "princess", parts: ["bishop", "knight"] },
+    ]
+}
+```
+
+`parts` lists any combination of built-in piece names and other custom piece names. Pseudo-moves are the union of all component types. Cycles are rejected at startup.
+
+#### `Components` — explicit movement rules
+
+```rhai
+fn pieces() {
+    [
+        // lance: slides forward only (white = up = row -1)
+        #{
+            name: "lance",
+            components: [
+                #{ type: "slide", dirs: [[-1, 0]] }
+            ]
+        },
+
+        // ferz: jumps one step diagonally
+        #{
+            name: "ferz",
+            components: [
+                #{ type: "jump", offsets: [[1,1],[1,-1],[-1,1],[-1,-1]] }
+            ]
+        },
+
+        // teleporter knight: jumps to knight offsets on board 1
+        #{
+            name: "phantom_knight",
+            components: [
+                #{
+                    type: "jump",
+                    offsets: [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]],
+                    target_board_delta: 1   // lands on board index + 1
+                }
+            ]
+        },
+    ]
+}
+```
+
+#### Component types
+
+| type | required fields | optional fields | description |
+|------|----------------|-----------------|-------------|
+| `slide` | `dirs: [[dr,dc],…]` | — | Ray in each direction. Stops at first occupied square (can capture enemy, blocked by own). Board stays the same. |
+| `jump` | `offsets: [[dr,dc],…]` | `target_board_delta: i32` (default `0`) | Fixed offset, ignores blocking pieces. Destination board = `from.board_index + target_board_delta`. Out-of-range board indices are silently filtered. |
+
+#### Using custom pieces in scripts
+
+```rhai
+// 2-arg form reads piece type and color from the board automatically:
+let dests = engine::pseudo_moves(state.board, from);
+
+// 4-arg form lets you specify piece type and color explicitly (also works):
+let dests = engine::pseudo_moves(state.board, from, "empress", player.color);
+```
+
+---
+
 ### `init(player_count)`
 
 ```
@@ -112,27 +192,31 @@ fn init(player_count) {
 **Mandatory.** Returns all legal `Move` actions for the given player.
 **Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
+The recommended pattern filters candidates through `handle_action`: any move that leaves the caller's king in check (or otherwise fails legality) will throw, and is excluded.
+
 ```rhai
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.color != state.turn { return []; }
 
-    let moves = [];
+    let candidates = [];
     for r in 0..8 {
         for c in 0..8 {
-            let piece = engine::board::get(state.board, Coords(r, c));
+            let from = Coords(r, c);
+            let piece = engine::board::get(state.board, from);
             if piece != () && piece.color == player.color {
-                let from = Coords(r, c);
-                let dests = moves_for_piece(state.board, from, piece.type, player.color);
+                let dests = engine::pseudo_moves(state.board, from);
                 for to in dests {
-                    if !is_king_in_check(state, from, to, player) {
-                        moves.push(Move(from, to));
-                    }
+                    candidates.push(Move(from, to));
                 }
             }
         }
     }
-    moves
+
+    candidates.filter(|m| {
+        try { handle_action(state, player, m); true }
+        catch(err) { false }
+    })
 }
 ```
 
@@ -191,13 +275,35 @@ fn is_game_over(state, all_valid_moves) {
 (#{}, Player, Action) -> #{}
 ```
 
-**Mandatory.** The single action reducer. Dispatches on `action.type`:
+**Mandatory.** The single action reducer. Dispatches on `action.type`.
+
+**Contract:** `handle_action` is responsible for ALL legality enforcement:
+- Turn order (whose turn it is)
+- Piece ownership (player can only move own pieces)
+- No self-capture
+- **King safety** — after applying the move, throw if the acting player's king is now in check
+
+Throwing from `handle_action` signals an illegal action. `valid_moves` uses this to filter candidates (try/catch pattern).
 
 ```rhai
 fn handle_action(state, player, action) {
     if action.type == "move" {
-        // action.from, action.to — engine guarantees legality (see §6)
-        state.board = engine::board::move_piece(state.board, action.from, action.to);
+        if state.turn != player.color { throw "not your turn"; }
+        let piece = engine::board::get(state.board, action.from);
+        if piece == () { throw "no piece at source square"; }
+        if piece.color != player.color { throw "not your piece"; }
+
+        let new_board = engine::board::move_piece(state.board, action.from, action.to);
+
+        // King safety: throw if own king is left in check
+        let enemy_colors = state.players
+            .filter(|p| p.team != player.team)
+            .map(|p| p.color);
+        if is_in_check(new_board, player.color, enemy_colors) {
+            throw "move leaves king in check";
+        }
+
+        state.board = new_board;
         state.turn = if state.turn == "white" { "black" } else { "white" };
     }
     if action.type == "interact" && action.element_id == "summon_btn" {
@@ -395,7 +501,10 @@ Shown when present in `get_ui`; hidden when absent.
 
 ```
 new ChessvariantEngine(script, player_count)
-→ calls config() → validates api_version=3 → calls init() → returns engine
+→ calls config() → validates api_version=3
+→ calls pieces() (optional — absent fn silently skipped, errors propagate)
+→ registers engine helpers with custom piece definitions
+→ calls init() → returns engine
 ```
 
 ### Submit Action — Phase 1 (synchronous, immediate)
@@ -511,8 +620,9 @@ engine.getUiJson(player_json) → string
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `is_square_attacked` | `(Board, Coords, color) -> bool` | Square attacked by pieces of color? |
-| `pseudo_moves` | `(Board, Coords, piece_type, color) -> [Coords]` | Pseudo-moves for any piece type |
-| `is_king_in_check` | `(State, Coords, Coords, Player) -> bool` | Would move leave own king in check? Uses team info from `state.players` to identify enemies. **Only simulates a simple from→to relocation** — does not model castling, en passant, or other special moves. |
+| `pseudo_moves` | `(Board, Coords) -> [Coords]` | Pseudo-moves for piece at coords (reads piece from board) |
+| `pseudo_moves` | `(Board, Coords, piece_type, color) -> [Coords]` | Pseudo-moves with explicit type and color |
+| `is_in_check` | `(Board, king_color, [enemy_color]) -> bool` | Is the king of `king_color` currently in check? Pure board scan — caller must apply any move first. |
 | `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess |
 

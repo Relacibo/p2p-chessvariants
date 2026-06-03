@@ -200,6 +200,34 @@ pub(crate) fn king_dests(board: &BoardState, from: &BoardCoords, color: &str) ->
     result
 }
 
+/// Pseudo-legal jump destinations (fixed offsets, ignores blocking pieces).
+/// `board_delta` shifts the destination board index relative to `from.board_index`.
+pub fn jumps(
+    board: &BoardState,
+    from: &BoardCoords,
+    offsets: &[(i32, i32)],
+    color: &str,
+    board_delta: i32,
+) -> Vec<BoardCoords> {
+    if !board.in_bounds(from) {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    for (dr, dc) in offsets {
+        push_if_targetable(
+            board,
+            BoardCoords::new(
+                from.row + dr,
+                from.col + dc,
+                from.board_index + board_delta,
+            ),
+            color,
+            &mut result,
+        );
+    }
+    result
+}
+
 // ── Rhai-facing wrappers (take ownership as required by Rhai's type system) ───
 
 pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array {

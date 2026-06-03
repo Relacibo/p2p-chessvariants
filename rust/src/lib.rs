@@ -126,14 +126,13 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_static_module("log", Rc::new(builtins::create_log_module()));
 }
 
-fn register_engine_helpers(engine: &mut Engine) {
-    // Custom pieces map — empty until Phase 3 (piece builder) is implemented.
-    let custom_pieces: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
-
-    let cp_attacked = custom_pieces.clone();
-    let cp_pseudo = custom_pieces.clone();
-    let cp_legal = custom_pieces;
+fn register_engine_helpers(
+    engine: &mut Engine,
+    piece_defs: std::sync::Arc<game::piece_definition::PieceDefinitionMap>,
+) {
+    let cp_attacked = std::sync::Arc::clone(&piece_defs);
+    let cp_pseudo = std::sync::Arc::clone(&piece_defs);
+    let cp_legal = piece_defs;
 
     engine.register_fn(
         "engine::is_square_attacked",
@@ -148,6 +147,8 @@ fn register_engine_helpers(engine: &mut Engine) {
         },
     );
 
+    // 4-arg form: kept for backward compatibility with scripts that pass piece_type/color explicitly.
+    let cp_pseudo_4arg = std::sync::Arc::clone(&cp_pseudo);
     engine.register_fn(
         "engine::pseudo_moves",
         move |board: BoardState,
@@ -158,6 +159,27 @@ fn register_engine_helpers(engine: &mut Engine) {
             let Some(bc) = from.as_board_coords() else {
                 return vec![];
             };
+            game::engine_builtins::get_pseudo_move_dests(
+                &board, &bc, &piece_type, &color, &cp_pseudo_4arg,
+            )
+            .into_iter()
+            .map(Coords::from)
+            .collect()
+        },
+    );
+
+    // 2-arg form: reads piece from board automatically.
+    engine.register_fn(
+        "engine::pseudo_moves",
+        move |board: BoardState, from: Coords| -> Vec<Coords> {
+            let Some(bc) = from.as_board_coords() else {
+                return vec![];
+            };
+            let Some(piece) = board.get_piece(&bc) else {
+                return vec![];
+            };
+            let piece_type = piece.piece_type_name().to_string();
+            let color = piece.color_name().to_string();
             game::engine_builtins::get_pseudo_move_dests(
                 &board, &bc, &piece_type, &color, &cp_pseudo,
             )
@@ -193,6 +215,27 @@ fn register_engine_helpers(engine: &mut Engine) {
         },
     );
     engine.register_fn("engine::standard_start_position", standard::standard_start_position);
+}
+
+// ─── Piece definition loader ──────────────────────────────────────────────────
+
+/// Call `fn pieces()` from the script if it exists and parse the result.
+/// Only `ErrorFunctionNotFound` is swallowed; all other errors propagate.
+fn load_piece_defs(
+    engine: &Engine,
+    ast: &rhai::AST,
+    scope: &mut rhai::Scope,
+) -> Result<game::piece_definition::PieceDefinitionMap, CvError> {
+    match engine.call_fn::<Dynamic>(scope, ast, "pieces", ()) {
+        Ok(dynamic) => game::piece_definition::parse_pieces_dynamic(dynamic),
+        Err(e) => {
+            if let rhai::EvalAltResult::ErrorFunctionNotFound(_, _) = *e {
+                Ok(game::piece_definition::PieceDefinitionMap::new())
+            } else {
+                Err(CvError::RhaiEvalAlt(e))
+            }
+        }
+    }
 }
 
 // ─── Player ID helpers ───────────────────────────────────────────────────────
@@ -302,7 +345,11 @@ impl ChessvariantEngine {
             )));
         }
 
-        register_engine_helpers(&mut engine);
+        // Call pieces() if present (optional). Only swallow ErrorFunctionNotFound.
+        let piece_defs = load_piece_defs(&engine, &ast, &mut scope)?;
+        let piece_defs = std::sync::Arc::new(piece_defs);
+
+        register_engine_helpers(&mut engine, piece_defs);
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
         let mut cv_engine = ChessvariantEngine {
