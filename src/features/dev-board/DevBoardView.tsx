@@ -260,28 +260,41 @@ export function DevBoardView() {
     return arr;
   }, [allPlayers, selectedPlayers, variantConfig?.board.count, localOrientationOverride]);
 
+  // Collect unique orientations from all players + local overrides, sorted clockwise.
+  const usedOrientations = useMemo((): BoardOrientation[] => {
+    const clockwiseOrder: BoardOrientation[] = [
+      "normal",
+      "clockwise",
+      "flipped",
+      "counterclockwise",
+    ];
+    const unique = new Set<BoardOrientation>();
+    for (const p of allPlayers) {
+      unique.add(p.orientation ?? "normal");
+    }
+    for (const o of Object.values(localOrientationOverride)) {
+      if (o) unique.add(o);
+    }
+    const sorted = clockwiseOrder.filter((o) => unique.has(o));
+    return sorted.length > 0 ? sorted : ["normal"];
+  }, [allPlayers, localOrientationOverride]);
+
   const handleRotateBoard = useCallback(
     (boardIndex: number) => {
-      const clockwiseCycle: BoardOrientation[] = [
-        "normal",
-        "clockwise",
-        "flipped",
-        "counterclockwise",
-      ];
       setLocalOrientationOverride((prev) => {
         const current =
           prev[boardIndex] ??
           allPlayers.find((p) => p.board === boardIndex)?.orientation ??
           "normal";
-        const currentIdx = clockwiseCycle.indexOf(current);
+        const currentIdx = usedOrientations.indexOf(current);
         const nextIdx =
           currentIdx >= 0
-            ? (currentIdx + 1) % clockwiseCycle.length
+            ? (currentIdx + 1) % usedOrientations.length
             : 0;
-        return { ...prev, [boardIndex]: clockwiseCycle[nextIdx] };
+        return { ...prev, [boardIndex]: usedOrientations[nextIdx] };
       });
     },
-    [allPlayers],
+    [allPlayers, usedOrientations],
   );
 
   // Union valid moves from all selected players for display.
