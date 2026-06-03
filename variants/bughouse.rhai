@@ -1,5 +1,6 @@
 // Bughouse Chess — API v3
 // 2 boards, 4 players, teams. Captured pieces go to partner's reserve.
+// Engine reads state.board (array of BoardState).
 
 fn config() {
     #{
@@ -16,29 +17,27 @@ fn init(player_count) {
     let b0 = standard_start_position();
     let b1 = standard_start_position();
     #{
-        boards: [b0, b1],
+        // Engine merges array of BoardState into one multi-board BoardState
+        board: [b0, b1],
         players: [
             #{ board: 0, color: "white", team: 0, orientation: "normal" },
             #{ board: 0, color: "black", team: 1, orientation: "flipped" },
             #{ board: 1, color: "white", team: 1, orientation: "normal" },
             #{ board: 1, color: "black", team: 0, orientation: "flipped" },
         ],
-        // Pieces each player can drop from their reserve
+        // Pieces each player can drop from their reserve: key = "w0", "b0", "w1", "b1"
         reserves: #{ w0: [], b0: [], w1: [], b1: [] },
-        turns: [["white", "black"], ["white", "black"]], // turn order per board
-        current_turn: ["white", "white"], // current player on each board
-        // Track which board the last move happened on
-        active_board: 0,
+        turn_order: ["white", "black"],
+        current_turn: ["white", "white"],
     }
 }
 
-fn reserve_key(color, board) {
-    color[0].to_string() + board.to_string()
+fn reserve_key(color, board_idx) {
+    color[0].to_string() + board_idx.to_string()
 }
 
-fn partner_key(color, board) {
-    // Partner: opposite color on the OTHER board
-    let pboard = if board == 0 { 1 } else { 0 };
+fn partner_key(color, board_idx) {
+    let pboard = if board_idx == 0 { 1 } else { 0 };
     let pcolor = if color == "white" { "black" } else { "white" };
     reserve_key(pcolor, pboard)
 }
@@ -53,29 +52,12 @@ fn moves_for_piece(board, from, piece_type, color) {
     []
 }
 
-fn board_idx_for_player(state, player) {
-    player.board
-}
-
-fn get_board(state, board_idx) {
-    if board_idx == 0 { state.boards[0] }
-    else { state.boards[1] }
-}
-
-fn set_board(state, board_idx, new_board) {
-    if board_idx == 0 {
-        state.boards[0] = new_board;
-    } else {
-        state.boards[1] = new_board;
-    }
-}
-
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     let turn = state.current_turn[player.board];
     if player.color != turn { return []; }
 
-    let board = get_board(state, player.board);
+    let board = state.board[player.board];
     let moves = [];
 
     // Normal piece moves
@@ -94,14 +76,13 @@ fn valid_moves(state, player) {
         }
     }
 
-    // Reserve drops: place captured pieces on empty squares
+    // Reserve drops
     let rkey = reserve_key(player.color, player.board);
     if rkey in state.reserves && state.reserves[rkey].len() > 0 {
         for r in 0..8 {
             for c in 0..8 {
                 let p = engine::board::get(board, Coords(r, c, player.board));
                 if p == () {
-                    // can drop any reserve piece here
                     for i in 0..state.reserves[rkey].len() {
                         moves.push(Move(ReserveCoords(i), Coords(r, c, player.board)));
                     }
@@ -119,7 +100,7 @@ fn handle_action(state, player, action) {
     if col != turn { throw `${col} cannot move on board ${brd} — it's ${turn}'s turn`; }
 
     if action.type == "move" {
-        let board = get_board(state, brd);
+        let board = state.board[brd];
 
         if action.from.type == "reserve" {
             // Drop from reserve
@@ -131,9 +112,7 @@ fn handle_action(state, player, action) {
             let target = engine::board::get(board, action.to);
             if target != () { throw "destination occupied"; }
 
-            // Place piece on board
-            let new_board = engine::board::set(board, action.to, piece);
-            set_board(state, brd, new_board);
+            state.board[brd] = engine::board::set(board, action.to, piece);
 
             // Remove from reserve
             let new_res = [];
@@ -150,7 +129,7 @@ fn handle_action(state, player, action) {
             let dst = engine::board::get(board, action.to);
             if dst != () && dst.color == col { throw "cannot capture own piece"; }
 
-            let new_board = engine::board::move_piece(board, action.from, action.to);
+            state.board[brd] = engine::board::move_piece(board, action.from, action.to);
 
             // Captured piece goes to partner's reserve
             if dst != () {
@@ -159,16 +138,13 @@ fn handle_action(state, player, action) {
                 state.reserves[pkey].push(dst);
             }
 
-            set_board(state, brd, new_board);
-
             // Check king capture on either board
             for b in 0..2 {
-                let bb = get_board(state, b);
+                let bb = state.board[b];
                 for pl in state.players {
                     if pl.board == b {
                         let kings = engine::board::find(bb, Piece(pl.color, "king"));
                         if kings.len() == 0 {
-                            // Find the other team's players
                             let other_team = if pl.team == 0 { 1 } else { 0 };
                             let winners = state.players.filter(|p| p.team == other_team);
                             state.outcome = Winners(winners.map(|p| p.board));
@@ -180,11 +156,9 @@ fn handle_action(state, player, action) {
         }
 
         // Advance turn on this board
-        let order = state.turns[brd];
-        let cur_idx = order.index_of(col);
-        let next_idx = (cur_idx + 1) % order.len();
-        state.current_turn[brd] = order[next_idx];
-        state.active_board = brd;
+        let cur_idx = state.turn_order.index_of(col);
+        let next_idx = (cur_idx + 1) % state.turn_order.len();
+        state.current_turn[brd] = state.turn_order[next_idx];
     }
 
     state
@@ -192,7 +166,6 @@ fn handle_action(state, player, action) {
 
 fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
-    // Game over when no one on either board can move
     let has_moves = false;
     for entry in all_valid_moves {
         if entry.moves.len() > 0 { has_moves = true; }
@@ -203,7 +176,6 @@ fn is_game_over(state, all_valid_moves) {
 fn get_ui(state, player) {
     let ui = #{};
     let rkey = reserve_key(player.color, player.board);
-
     if rkey in state.reserves && state.reserves[rkey].len() > 0 {
         ui[`reserve_${rkey}`] = #{
             type: "reserve_pile",
