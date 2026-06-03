@@ -20,10 +20,14 @@ pub struct Coords {
     #[serde(rename = "type")]
     #[rhai_type(name = "type", get = Self::get_coord_type, readonly)]
     pub coord_type: String,
-    #[rhai_type(readonly)]
-    pub row: i32,
-    #[rhai_type(readonly)]
-    pub col: i32,
+    /// Board row — `None` when type is "reserve".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[rhai_type(get = Self::get_row, readonly)]
+    pub row: Option<i32>,
+    /// Board column — `None` when type is "reserve".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[rhai_type(get = Self::get_col, readonly)]
+    pub col: Option<i32>,
     #[rhai_type(readonly)]
     pub board_index: i32,
     /// Reserve index — only valid when coord_type == "reserve"
@@ -37,11 +41,21 @@ impl Coords {
         self.index.unwrap_or(0)
     }
 
+    /// Rhai getter: returns 0 when type is "reserve" (no meaningful row).
+    fn get_row(&self) -> i32 {
+        self.row.unwrap_or(0)
+    }
+
+    /// Rhai getter: returns 0 when type is "reserve" (no meaningful col).
+    fn get_col(&self) -> i32 {
+        self.col.unwrap_or(0)
+    }
+
     pub fn new_board(row: i32, col: i32, board_index: i32) -> Self {
         Self {
             coord_type: "board".into(),
-            row,
-            col,
+            row: Some(row),
+            col: Some(col),
             board_index,
             index: None,
         }
@@ -54,8 +68,8 @@ impl Coords {
     pub fn new_reserve(index: i32) -> Self {
         Self {
             coord_type: "reserve".into(),
-            row: 0,
-            col: 0,
+            row: None,
+            col: None,
             board_index: 0,
             index: Some(index),
         }
@@ -64,7 +78,11 @@ impl Coords {
     /// Returns the underlying `BoardCoords` if this is a board coordinate, else `None`.
     pub fn as_board_coords(&self) -> Option<BoardCoords> {
         if self.coord_type == "board" {
-            Some(BoardCoords::new(self.row, self.col, self.board_index))
+            Some(BoardCoords::new(
+                self.row.unwrap_or(0),
+                self.col.unwrap_or(0),
+                self.board_index,
+            ))
         } else {
             None
         }

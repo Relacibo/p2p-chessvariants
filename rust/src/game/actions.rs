@@ -119,8 +119,8 @@ mod tests {
         );
         assert_eq!(action.get_type(), "move");
         let from = action.get_from().cast::<Coords>();
-        assert_eq!(from.row, 1);
-        assert_eq!(from.col, 2);
+        assert_eq!(from.row, Some(1));
+        assert_eq!(from.col, Some(2));
         assert_eq!(from.coord_type, "board");
     }
 
