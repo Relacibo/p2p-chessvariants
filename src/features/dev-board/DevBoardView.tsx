@@ -70,9 +70,17 @@ let logSeq = 0;
 function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
-  if (e && typeof e === "object" && "message" in e)
-    return String((e as { message: unknown }).message);
-  try { return JSON.stringify(e); } catch { return String(e); }
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    if (typeof obj.message === "string") return obj.message;
+    if (typeof obj.error === "string") return obj.error;
+    // Try meaningful toString (not the default [object Object])
+    if (typeof obj.toString === "function" &&
+        obj.toString !== Object.prototype.toString) {
+      return obj.toString();
+    }
+  }
+  try { return JSON.stringify(e, null, 2); } catch { return String(e); }
 }
 
 /** Determine which selected player should act based on the piece being moved. */
@@ -532,7 +540,7 @@ export function DevBoardView() {
         if (result.error) {
           notifications.show({
             title: "Action failed",
-            message: result.error,
+            message: extractErrorMessage(result.error),
             color: "red",
             withBorder: true,
             autoClose: false,
