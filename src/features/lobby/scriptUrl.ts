@@ -182,14 +182,12 @@ export async function parseScriptConfig(url: string): Promise<ScriptConfig> {
 
 /** Encode a script URL for embedding in a URL fragment. */
 export function encodeScriptUrl(url: string): string {
-  return btoa(url).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return encodeURIComponent(url);
 }
 
 /** Decode a script URL from a URL fragment. */
 export function decodeScriptUrl(encoded: string): string {
-  const padded = encoded.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
-  return atob(padded + pad);
+  return decodeURIComponent(encoded);
 }
 
 /**
