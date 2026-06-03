@@ -446,62 +446,114 @@ No payload. Emitted when the user dismisses a `PiecePicker` without selecting.
 
 ## 3. UI Element Types
 
-Returned by `derive_ui` as values in the element map. Pure data — no closures.
+Returned by `derive_ui` as values in the element map. Every element has a `type` discriminator. Pure data — no closures.
 
 ### `Button`
 
 ```rhai
-#{ type: "button", label: string }
+#{ type: "button", label: string, disabled?: bool }
 ```
 
-| Field | Type | Required |
-|-------|------|----------|
-| `type` | `"button"` | YES |
-| `label` | string | YES |
+| Field | Type | Required | Default |
+|-------|------|----------|---------|
+| `type` | `"button"` | YES | — |
+| `label` | string | YES | — |
+| `disabled` | bool | NO | `false` |
 
-Clicking emits `Interact(element_id)`.
+Clicking an enabled button emits `Interact(element_id)`. A disabled button is rendered greyed out and ignores clicks.
 
 ### `Banner`
 
 ```rhai
-#{ type: "banner", text: string, style: "info" | "warning" | "error" }
+#{ type: "banner", text: string, style?: "info" | "warning" | "error" }
 ```
 
-| Field | Type | Required |
-|-------|------|----------|
-| `type` | `"banner"` | YES |
-| `text` | string | YES |
-| `style` | string | NO (default `"info"`) |
+| Field | Type | Required | Default |
+|-------|------|----------|---------|
+| `type` | `"banner"` | YES | — |
+| `text` | string | YES | — |
+| `style` | string | NO | `"info"` |
 
-Non-interactive.
+Non-interactive. Rendered as a colored bar with the text. Style controls background color.
 
 ### `ReservePile`
 
 ```rhai
-#{ type: "reserve_pile", pieces: [Piece, ...] }
+#{ type: "reserve_pile", pieces: [Piece, ...], board_index?: i32 }
 ```
 
-| Field | Type | Required |
-|-------|------|----------|
-| `type` | `"reserve_pile"` | YES |
-| `pieces` | [Piece] | YES |
+| Field | Type | Required | Default |
+|-------|------|----------|---------|
+| `type` | `"reserve_pile"` | YES | — |
+| `pieces` | [Piece] | YES | — |
+| `board_index` | i32 | NO | `0` |
 
-Dragging/clicking a reserve piece produces `Move(ReserveCoords(i), to)` when the target is a valid board square.
+Dragging/clicking a reserve piece emits `Move(ReserveCoords(i), to)` when the target is a valid board square. `board_index` controls which board slot the pile is anchored to.
 
 ### `PiecePicker`
 
 ```rhai
-#{ type: "piece_picker", pieces: [Piece, ...] }
+#{ type: "piece_picker", pieces: [Piece, ...], cancel?: bool, title?: string }
 ```
 
-| Field | Type | Required |
-|-------|------|----------|
-| `type` | `"piece_picker"` | YES |
-| `pieces` | [Piece] | YES |
+| Field | Type | Required | Default |
+|-------|------|----------|---------|
+| `type` | `"piece_picker"` | YES | — |
+| `pieces` | [Piece] | YES | — |
+| `cancel` | bool | NO | `true` |
+| `title` | string | NO | — |
 
-The frontend renders a modal/dialog listing the pieces.
-Clicking a piece emits `SelectPiece(piece)`. Dismissing emits `Cancel()`.
+The frontend renders an overlay listing the pieces as selectable sprites.
+
+- Clicking a piece emits `SelectPiece(piece)`.
+- If `cancel` is `true`, a cancel affordance is shown; dismissing or tapping the cancel area emits `Cancel()`.
+- If `cancel` is `false`, the picker is mandatory — no dismiss possible. Use for forced choices like pawn promotion where the player must pick a piece.
+
 Shown when present in `derive_ui`; hidden when absent.
+
+#### Example: forced promotion picker (no cancel)
+
+```rhai
+fn derive_ui(state, player) {
+    if "promotion_pending" in state && state.promotion_pending != () {
+        let pp = state.promotion_pending;
+        if pp.color == player.color {
+            return #{
+                promotion: #{
+                    type: "piece_picker",
+                    cancel: false,
+                    title: "Promote pawn to:",
+                    pieces: [
+                        Piece(pp.color, "queen"),
+                        Piece(pp.color, "rook"),
+                        Piece(pp.color, "bishop"),
+                        Piece(pp.color, "knight"),
+                    ],
+                },
+            };
+        }
+    }
+    #{}
+}
+```
+
+#### Example: optional summon picker (cancel allowed)
+
+```rhai
+fn derive_ui(state, player) {
+    if player.color == state.turn && !state.summoned {
+        ui.summon_btn = #{ type: "button", label: "Summon Piece" };
+    }
+    if "summon_pending" in state {
+        result.choose_piece = #{
+            type: "piece_picker",
+            cancel: true,
+            pieces: [Piece(player.color, "knight"), Piece(player.color, "bishop")],
+        };
+    }
+    result
+}
+```
 
 ---
 

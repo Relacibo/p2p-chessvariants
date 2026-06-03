@@ -15,6 +15,7 @@ import {
   WasmBoardCoords,
   WasmBoardState,
   WasmPiece,
+  WasmUiPiecePicker,
   WasmVariantConfig,
   WasmUiMap,
   WasmUiReservePile,
@@ -767,11 +768,22 @@ export class PixiBoard {
     this.piecePickerLayer.removeChildren();
 
     // Find piece_picker entries in uiMap
-    const pieces: { color: string; pieceType: string }[] = [];
+    const pickerEls: WasmUiPiecePicker[] = [];
     for (const el of Object.values(uiMap)) {
       if (el.type === "piece_picker") {
-        pieces.push(...el.pieces);
+        pickerEls.push(el as WasmUiPiecePicker);
       }
+    }
+    if (pickerEls.length === 0) return;
+
+    // Merge pieces from all picker entries; use first non-default cancel/title
+    const pieces: { color: string; pieceType: string }[] = [];
+    let showCancel = true;
+    let title = "";
+    for (const el of pickerEls) {
+      pieces.push(...el.pieces);
+      if (el.cancel === false) showCancel = false;
+      if (el.title) title = el.title;
     }
     if (pieces.length === 0) return;
 
@@ -788,14 +800,27 @@ export class PixiBoard {
     bg.eventMode = "none";
     this.piecePickerLayer.addChild(bg);
 
-    // Cancel hint text
-    const cancelText = new Text({
-      text: "(right-click / tap away to cancel)",
-      style: { fontSize: 14, fill: 0xcccccc, fontFamily: "Arial" },
-    });
-    cancelText.anchor.set(0.5, 0);
-    cancelText.position.set(stageWidth / 2, y - pieceSize - 24);
-    this.piecePickerLayer.addChild(cancelText);
+    // Title text above pieces
+    if (title) {
+      const titleText = new Text({
+        text: title,
+        style: { fontSize: 18, fill: 0xffffff, fontFamily: "Arial", fontWeight: "bold" },
+      });
+      titleText.anchor.set(0.5, 1);
+      titleText.position.set(stageWidth / 2, y - pieceSize - 36);
+      this.piecePickerLayer.addChild(titleText);
+    }
+
+    // Cancel hint (only when cancelable)
+    if (showCancel) {
+      const cancelText = new Text({
+        text: "(right-click / tap away to cancel)",
+        style: { fontSize: 14, fill: 0xcccccc, fontFamily: "Arial" },
+      });
+      cancelText.anchor.set(0.5, 0);
+      cancelText.position.set(stageWidth / 2, y - pieceSize - 24);
+      this.piecePickerLayer.addChild(cancelText);
+    }
 
     // Piece sprites
     for (let i = 0; i < pieces.length; i++) {
@@ -829,17 +854,19 @@ export class PixiBoard {
       this.piecePickerSprites.set(`picker_${i}`, container);
     }
 
-    // Cancel: click on background area (not on a piece) sends cancel
-    const cancelBtn = new Graphics()
-      .rect(0, 0, stageWidth, stageHeight)
-      .fill({ color: 0x000000, alpha: 0.001 });
-    cancelBtn.eventMode = "static";
-    cancelBtn.cursor = "default";
-    cancelBtn.on("pointerdown", (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      this.onSubmitAction({ type: "cancel" });
-    });
-    this.piecePickerLayer.addChild(cancelBtn);
+    // Cancel: click on background area sends cancel (only when cancelable)
+    if (showCancel) {
+      const cancelBtn = new Graphics()
+        .rect(0, 0, stageWidth, stageHeight)
+        .fill({ color: 0x000000, alpha: 0.001 });
+      cancelBtn.eventMode = "static";
+      cancelBtn.cursor = "default";
+      cancelBtn.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        this.onSubmitAction({ type: "cancel" });
+      });
+      this.piecePickerLayer.addChild(cancelBtn);
+    }
   }
 
   private rebuildUiButtons(s: SceneState): void {

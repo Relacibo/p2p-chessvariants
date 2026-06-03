@@ -118,6 +118,8 @@ export interface WasmUiReservePile {
 export interface WasmUiPiecePicker {
   type: "piece_picker";
   pieces: WasmPiece[];
+  cancel?: boolean;
+  title?: string;
 }
 
 export type WasmUiElementNode =

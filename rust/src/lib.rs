@@ -1203,7 +1203,24 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         }))
                     })
                     .collect();
-                serde_json::json!({ "type": "piece_picker", "pieces": pieces_json })
+                let cancel_val = elem_map
+                    .get("cancel")
+                    .and_then(|v| v.as_bool().ok());
+                let title_val = elem_map
+                    .get("title")
+                    .cloned()
+                    .and_then(|v: rhai::Dynamic| v.into_string().ok());
+                let mut json = serde_json::json!({
+                    "type": "piece_picker",
+                    "pieces": pieces_json,
+                });
+                if let Some(cancel) = cancel_val {
+                    json["cancel"] = serde_json::Value::Bool(cancel);
+                }
+                if let Some(title) = title_val {
+                    json["title"] = serde_json::Value::String(title);
+                }
+                json
             }
             _ => continue,
         };
