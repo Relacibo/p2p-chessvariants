@@ -132,7 +132,7 @@ mod tests {
         );
         let from = action.get_from().cast::<Coords>();
         assert_eq!(from.coord_type, "reserve");
-        assert_eq!(from.index, 0);
+        assert_eq!(from.index, Some(0));
     }
 
     #[test]

@@ -27,19 +27,23 @@ pub struct Coords {
     #[rhai_type(readonly)]
     pub board_index: i32,
     /// Reserve index — only valid when coord_type == "reserve"
-    #[serde(default)]
-    #[rhai_type(readonly)]
-    pub index: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[rhai_type(get = Self::get_index, readonly)]
+    pub index: Option<i32>,
 }
 
 impl Coords {
+    fn get_index(&self) -> i32 {
+        self.index.unwrap_or(0)
+    }
+
     pub fn new_board(row: i32, col: i32, board_index: i32) -> Self {
         Self {
             coord_type: "board".into(),
             row,
             col,
             board_index,
-            index: 0,
+            index: None,
         }
     }
 
@@ -53,7 +57,7 @@ impl Coords {
             row: 0,
             col: 0,
             board_index: 0,
-            index,
+            index: Some(index),
         }
     }
 
