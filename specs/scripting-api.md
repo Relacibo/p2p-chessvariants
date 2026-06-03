@@ -189,22 +189,23 @@ fn init(player_count) {
 }
 ```
 
-### `valid_moves(state, player)`
+### `valid_moves(state, player_id)`
 
 ```
-(#{}, Player) -> [Move]
+(#{}, i32) -> [Move]
 ```
 
-**Mandatory.** Returns all legal `Move` actions for the given player.
+**Mandatory.** Returns all legal `Move` actions for the given player (identified by `player_id`).
 **Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
-The recommended pattern filters candidates through `handle_action`: any move that leaves the caller's king in check (or otherwise fails legality) will throw, and is excluded.
+The script looks up the player from `state.players` by id:
 
 ```rhai
-fn valid_moves(state, player) {
+fn valid_moves(state, player_id) {
     if "outcome" in state { return []; }
+    let player = state.players.find(|p| p.id == player_id);
     // Variant-defined turn check, e.g.:
-    // if player.id != state.turn { return []; }
+    // if player_id != state.turn { return []; }
 
     let candidates = [];
     for r in 0..8 {
@@ -221,14 +222,13 @@ fn valid_moves(state, player) {
     }
 
     candidates.filter(|m| {
-        try { handle_action(state, player, m); true }
+        try { handle_action(state, player_id, m); true }
         catch(err) { false }
     })
 }
 ```
 
 - Returns `[]` if the player has no legal moves.
-- Engine caches result per player. Cache invalidated after every `handle_action`.
 
 ### `is_game_over(state, all_valid_moves)`
 
@@ -236,7 +236,7 @@ fn valid_moves(state, player) {
 (#{}, [ #{ player: Player, moves: [Move] } ]) -> bool
 ```
 
-**Mandatory.** Called after `valid_moves` has been computed for **all** players.
+**Mandatory.** Called after `valid_moves` has been computed for **all** players — even when every player has an empty moves array (stalemate / game-over scenarios).
 
 `all_valid_moves` is an array where each entry has the player and their legal moves:
 
@@ -274,13 +274,13 @@ fn is_game_over(state, all_valid_moves) {
 ```
 
 - Returns `true` → engine reads `state.outcome` for the result.
-- Returns `false` → game continues, valid_moves are cached for all players.
+- Returns `false` → game continues.
 - Outcome constructors: `Winner(idx)`, `Winners(["color",...])`, `Draw()` — set by `handle_action`.
 
-### `handle_action(state, player, action)`
+### `handle_action(state, player_id, action)`
 
 ```
-(#{}, Player, Action) -> #{}
+(#{}, i32, Action) -> #{}
 ```
 
 **Mandatory.** The single action reducer. Dispatches on `action.type`.
@@ -294,10 +294,11 @@ fn is_game_over(state, all_valid_moves) {
 Throwing from `handle_action` signals an illegal action. `valid_moves` uses this to filter candidates (try/catch pattern).
 
 ```rhai
-fn handle_action(state, player, action) {
+fn handle_action(state, player_id, action) {
+    let player = state.players.find(|p| p.id == player_id);
     if action.type == "move" {
         // Variant-defined turn check, e.g.:
-        // if state.turn != player.id { throw "not your turn"; }
+        // if state.turn != player_id { throw "not your turn"; }
         let piece = engine::board::get(state.board, action.from);
         if piece == () { throw "no piece at source square"; }
         if piece.color != player.color { throw "not your piece"; }
@@ -317,14 +318,12 @@ fn handle_action(state, player, action) {
     }
     if action.type == "interact" && action.element_id == "summon_btn" {
         // Example: "Summon" button places a pawn in the center of the board.
-        // Can only be used once per player (guarded by state.summoned flag).
         let spawn = Coords(3, 3); // d5-ish
         state.board = engine::board::set(state.board, spawn, Piece(player.color, "pawn"));
         state.summoned = true;
     }
     if action.type == "select_piece" {
         // action.piece — user picked from PiecePicker UI element
-        // Script must validate: is state.pending active?
     }
     if action.type == "cancel" {
         // user dismissed PiecePicker without selecting — abort pending sequence
@@ -336,22 +335,23 @@ fn handle_action(state, player, action) {
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `state` | `#{}` | Current game state |
-| `player` | `Player` | Submitting player (`.id`, `.name`, `.home_board`, `.board`, `.color`, `.team`) |
+| `player_id` | i32 | Submitting player's id — look up from `state.players` |
 | `action` | `Action` | See Section 2 |
 
 **Game-over:** Set `state.outcome` before returning. Engine reads it when `is_game_over` returns `true`.
 
-### `derive_ui(state, player)`
+### `derive_ui(state, player_id)`
 
 ```
-(#{}, Player) -> #{}
+(#{}, i32) -> #{}
 ```
 
 **Optional** (returns `#{}` if absent). Returns UI elements for the given player.
-Pure function of `state` and `player`.
+Pure function of `state` and `player_id`.
 
 ```rhai
-fn derive_ui(state, player) {
+fn derive_ui(state, player_id) {
+    let player = state.players.find(|p| p.id == player_id);
     let ui = #{};
 
     // "Summon" button: available once per game, lets the player spawn a pawn
@@ -405,6 +405,8 @@ Move(from, to)
 | `to` | `Coords` | Destination board square |
 
 Returned by `valid_moves`. Reserve drops use `from = ReserveCoords(i)`.
+
+Moves are compared by structural equality of their `from` and `to` fields.
 
 ### `SelectPiece`
 
@@ -514,7 +516,8 @@ Shown when present in `derive_ui`; hidden when absent.
 #### Example: forced promotion picker (no cancel)
 
 ```rhai
-fn derive_ui(state, player) {
+fn derive_ui(state, player_id) {
+    let player = state.players.find(|p| p.id == player_id);
     if "promotion_pending" in state && state.promotion_pending != () {
         let pp = state.promotion_pending;
         if pp.color == player.color {
@@ -540,8 +543,9 @@ fn derive_ui(state, player) {
 #### Example: optional summon picker (cancel allowed)
 
 ```rhai
-fn derive_ui(state, player) {
-    if player.color == state.turn && !state.summoned {
+fn derive_ui(state, player_id) {
+    let player = state.players.find(|p| p.id == player_id);
+    if player_id == state.turn && !state.summoned {
         ui.summon_btn = #{ type: "button", label: "Summon Piece" };
     }
     if "summon_pending" in state {
@@ -574,22 +578,17 @@ new ChessvariantEngine(script, player_count)
 ```
 player submits (player_json, action_json)
   │
-  ├─ action is Move AND cached_valid_moves is None?
-  │   → call valid_moves(state, player) via Rhai
+  ├─ action is Move?
+  │   → call valid_moves(state, player_id) via Rhai
   │   → move not in returned list? → reject
-  │
-  ├─ action is Move AND cached_valid_moves is Some?
-  │   → action must be in player's moves list
-  │   → not found? → reject
   │
   ├─ action is non-Move (SelectPiece, Interact, Cancel)?
   │   → pass through unconditionally
   │
   ▼
-handle_action(state, player, action) → new_state
+handle_action(state, player_id, action) → new_state
   │
-  ├─ cached_valid_moves = None   [invalidate]
-  ├─ derive_ui(new_state, player) → serialize to JSON
+  ├─ derive_ui(new_state, player_id) → serialize to JSON
   │
   ▼
 Return { board_state, ui, game_over: null? } to frontend
@@ -598,17 +597,15 @@ Return { board_state, ui, game_over: null? } to frontend
 ### Phase 2a — local player first
 
 ```
-valid_moves(new_state, local_player)  → [Move, ...]
+valid_moves(new_state, local_player_id)  → [Move, ...]
   → postMessage { _phase: "validMoves", player, moves } to frontend
-  → store in engine cache (partial)
 ```
 
 ### Phase 2b — remaining players
 
 ```
 for each player in state.players except local:
-    valid_moves(new_state, player) → [Move, ...]
-    → store in engine cache
+    valid_moves(new_state, player.id) → [Move, ...]
 ```
 
 ### Phase 2c — game over check
@@ -620,7 +617,7 @@ is_game_over(new_state, all_valid_moves) → bool
   ├─ true  → read new_state.outcome
   │          → postMessage { _phase: "gameOver", result: { type, player? } }
   │
-  └─ false → commit valid_moves cache
+  └─ false → game continues
 ```
 
 ### State Queries
@@ -637,14 +634,14 @@ engine.stateJson()         → string
 
 ```
 engine.validMovesForPlayerJson(player_json) → string
-// Returns cached valid_moves for a single player (Phase 2a caller).
+// Computes valid_moves for a single player (Phase 2a caller).
 ```
 
 ### UI Refresh
 
 ```
 engine.deriveUiJson(player_json) → string
-// Calls derive_ui(state, player). Does not modify state or cache.
+// Calls derive_ui(state, player_id). Does not modify state.
 ```
 
 ---
@@ -749,7 +746,7 @@ The UI additionally provides a **rotate button** in the side panel that cycles t
 
 | Guarantee | Enforcement |
 |-----------|-------------|
-| Move is legal | Engine validates: cached `valid_moves` fresh → action must be in list. Cache stale → `valid_moves(state, player)` called via Rhai; move must be in returned list. |
+| Move is legal | Engine calls `valid_moves(state, player_id)` via Rhai; move must be in returned list. |
 | Non-Move actions are state-consistent | Script validates state conditions in `handle_action`. Engine passes them through. |
 | UI element IDs unique | Engine throws on duplicate keys in `derive_ui` return. |
 | State immutability | Engine never mutates state map. Script owns all transitions. |
