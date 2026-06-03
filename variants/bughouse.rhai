@@ -22,8 +22,8 @@ fn init(player_count) {
         players: [
             #{ board: 0, color: "white", team: 0, orientation: "normal" },
             #{ board: 0, color: "black", team: 1, orientation: "flipped" },
-            #{ board: 1, color: "black", team: 0, orientation: "flipped" },
             #{ board: 1, color: "white", team: 1, orientation: "normal" },
+            #{ board: 1, color: "black", team: 0, orientation: "flipped" },
         ],
         // Pieces each player can drop from their reserve: key = "w0", "b0", "w1", "b1"
         reserves: #{ w0: [], b0: [], w1: [], b1: [] },
