@@ -845,7 +845,7 @@ export class PixiBoard {
     this.slotBtnsLayer.removeChildren();
     if (this.currentZoomMode !== "overview" || s.variantConfig.board.count <= 1) return;
 
-    const btnW = 36;
+    const btnW = 28;
     const btnH = 28;
     const btnGapFromBoard = 16;
     const radius = 6;
@@ -854,7 +854,7 @@ export class PixiBoard {
     const textColor = 0xffffff;
 
     const textStyle = new TextStyle({
-      fontSize: 16,
+      fontSize: 20,
       fill: textColor,
       fontFamily: "sans-serif",
     });
