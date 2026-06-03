@@ -27,8 +27,9 @@ fn init(player_count) {
         ],
         // Pieces each player can drop from their reserve: key = "w0", "b0", "w1", "b1"
         reserves: #{ w0: [], b0: [], w1: [], b1: [] },
-        turn_order: [0, 1],
-        current_turn: [0, 0],
+        // Per-board turn order: board 0 → 0↔1, board 1 → 2↔3
+        turn_order: [[0, 1], [2, 3]],
+        current_turn: [0, 2],
     }
 }
 
@@ -54,8 +55,8 @@ fn moves_for_piece(board, from, piece_type, color) {
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    let turn = state.current_turn[player.board];
-    if player.id != turn { return []; }
+    let current = state.current_turn[player.board];
+    if player.id != current { return []; }
 
     let board = state.board[player.board];
     let moves = [];
@@ -156,7 +157,7 @@ fn handle_action(state, player, action) {
                         if kings.len == 0 {
                             let other_team = if pl.team == 0 { 1 } else { 0 };
                             let winners = state.players.filter(|p| p.team == other_team);
-                            state.outcome = Winners(winners.map(|p| p.board));
+                            state.outcome = Winners(winners.map(|p| p.id));
                             return state;
                         }
                     }
@@ -165,9 +166,10 @@ fn handle_action(state, player, action) {
         }
 
         // Advance turn on this board
-        let cur_idx = state.turn_order.index_of(player.id);
-        let next_idx = (cur_idx + 1) % state.turn_order.len;
-        state.current_turn[brd] = state.turn_order[next_idx];
+        let turn_order = state.turn_order[brd];
+        let cur_idx = turn_order.index_of(player.id);
+        let next_idx = (cur_idx + 1) % turn_order.len;
+        state.current_turn[brd] = turn_order[next_idx];
     }
 
     state
@@ -184,13 +186,16 @@ fn is_game_over(state, all_valid_moves) {
 
 fn derive_ui(state, player) {
     let ui = #{};
-    let rkey = reserve_key(player.color, player.board);
-    if rkey in state.reserves && state.reserves[rkey].len > 0 {
-        ui[`reserve_${rkey}`] = #{
-            type: "reserve_pile",
-            pieces: state.reserves[rkey],
-            board_index: player.board,
-        };
+    // Show reserve piles for all players, so all boards see their partner's captures
+    for p in state.players {
+        let rkey = reserve_key(p.color, p.board);
+        if rkey in state.reserves && state.reserves[rkey].len > 0 {
+            ui[`reserve_${rkey}`] = #{
+                type: "reserve_pile",
+                pieces: state.reserves[rkey],
+                board_index: p.board,
+            };
+        }
     }
     ui
 }
