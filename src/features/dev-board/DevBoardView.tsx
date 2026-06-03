@@ -370,10 +370,11 @@ export function DevBoardView() {
 
   const addLogEntry = useCallback(
     (player: string, action: LogAction) => {
+      const id = ++logSeq;
       setLog((prev) => [
         ...prev,
         {
-          id: ++logSeq,
+          id,
           timestamp: new Date().toLocaleTimeString(),
           player,
           action,
