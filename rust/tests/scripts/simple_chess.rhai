@@ -1,8 +1,6 @@
 // Simple Chess — API v3
-// Uses engine::moves::* for per-piece pseudo-legal move generation.
-// Uses is_king_in_check for check filtering.
-// Enforces turn order, piece ownership, and king safety in handle_action.
-// Game-over determined by is_game_over().
+// handle_action validates all legality including king safety (is_in_check).
+// valid_moves generates candidates and filters via handle_action try/catch.
 
 fn config() {
     #{
@@ -40,7 +38,7 @@ fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.color != state.turn { return []; }
 
-    let pa = [];
+    let candidates = [];
     for r in 0..8 {
         for c in 0..8 {
             let piece = engine::board::get(state.board, Coords(r, c));
@@ -48,14 +46,15 @@ fn valid_moves(state, player) {
                 let from = Coords(r, c);
                 let dests = moves_for_piece(state.board, from, piece.type, player.color);
                 for to in dests {
-                    if !is_king_in_check(state, from, to, player) {
-                        pa.push(Move(from, to));
-                    }
+                    candidates.push(Move(from, to));
                 }
             }
         }
     }
-    pa
+    candidates.filter(|m| {
+        try { handle_action(state, player, m); true }
+        catch(err) { false }
+    })
 }
 
 fn is_game_over(state, all_valid_moves) {
@@ -82,6 +81,19 @@ fn handle_action(state, player, action) {
         if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
 
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
+
+        // King safety: throw if our king is left in check after this move.
+        let enemies = state.players
+            .filter(|p| p.team != player.team)
+            .map(|p| p.color);
+        if enemies.len() == 0 {
+            enemies = state.players
+                .filter(|p| p.color != player_color)
+                .map(|p| p.color);
+        }
+        if is_in_check(new_board, player_color, enemies) {
+            throw "move leaves king in check";
+        }
 
         // Check for king capture → game over
         for p in state.players {

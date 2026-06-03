@@ -127,10 +127,9 @@ fn register_builtins(engine: &mut Engine) {
 }
 
 fn register_engine_helpers(engine: &mut Engine) {
-    // Custom pieces map — empty by default; scripts that define custom pieces
-    // via their own logic can use engine::pseudo_moves with the component
-    // piece type names directly.
-    let custom_pieces = std::collections::HashMap::new();
+    // Custom pieces map — empty until Phase 3 (piece builder) is implemented.
+    let custom_pieces: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
 
     let cp_attacked = custom_pieces.clone();
     let cp_pseudo = custom_pieces.clone();
@@ -168,53 +167,17 @@ fn register_engine_helpers(engine: &mut Engine) {
         },
     );
 
-    // is_king_in_check(state, from, to, player) — checks if the move leaves the
-    // moving player's king in check. Uses team info from state.players to identify enemies.
-    // Fallback: if all players share the same team, all other colors are treated as enemies.
-    // NOTE: Only simulates a simple from→to relocation. Does not simulate castling,
-    // en passant, or other special moves.
+    // is_in_check(board, king_color, enemy_colors) — pure check detection on the current board.
+    // No simulation: the caller (script) is responsible for applying the move first.
+    // enemy_colors is an array of color strings.
     engine.register_fn(
-        "is_king_in_check",
-        move |state: rhai::Map, from: Coords, to: Coords, player: PlayerId| -> bool {
-            let Some(board_dyn) = state.get("board") else { return false; };
-            let Some(board) = board_dyn.clone().try_cast::<BoardState>() else { return false; };
-
-            // Collect (color, team) for all players
-            let all_players: Vec<(String, i32)> = state
-                .get("players")
-                .and_then(|v| v.clone().try_cast::<rhai::Array>())
-                .unwrap_or_default()
+        "is_in_check",
+        move |board: BoardState, king_color: String, enemy_colors: rhai::Array| -> bool {
+            let colors: Vec<String> = enemy_colors
                 .into_iter()
-                .filter_map(|p| {
-                    let m = p.try_cast::<rhai::Map>()?;
-                    let color = m.get("color")?.clone().into_string().ok()?;
-                    let team = m
-                        .get("team")
-                        .and_then(|v| v.as_int().ok())
-                        .unwrap_or(0) as i32;
-                    Some((color, team))
-                })
+                .filter_map(|v| v.into_string().ok())
                 .collect();
-
-            // Enemies = different team; if all share the same team, fall back to all other colors
-            let mut enemy_colors: Vec<String> = all_players
-                .iter()
-                .filter(|(c, t)| c != &player.color && *t != player.team)
-                .map(|(c, _)| c.clone())
-                .collect();
-            if enemy_colors.is_empty() {
-                enemy_colors = all_players
-                    .iter()
-                    .filter(|(c, _)| c != &player.color)
-                    .map(|(c, _)| c.clone())
-                    .collect();
-            }
-
-            let Some(from_bc) = from.as_board_coords() else { return false; };
-            let Some(to_bc) = to.as_board_coords() else { return false; };
-            let mut temp = board.clone();
-            game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
-            game::engine_builtins::is_king_in_check(&temp, &player.color, &enemy_colors, &cp_legal)
+            game::engine_builtins::is_in_check(&board, &king_color, &colors, &cp_legal)
         },
     );
 

@@ -32,7 +32,7 @@ fn coords(row: i32, col: i32) -> Coords {
 
 #[test]
 fn test_simple_chess_init_board_has_standard_pieces() {
-    let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
+    let engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     let state = engine.state();
     let board = state_board(&state);
 
@@ -74,7 +74,7 @@ fn test_simple_chess_initial_turn_is_white() {
 
 #[test]
 fn test_simple_chess_initial_game_not_over() {
-    let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
+    let engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     assert!(!engine.is_game_over());
 }
 

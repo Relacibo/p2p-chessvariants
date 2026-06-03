@@ -43,14 +43,6 @@ pub fn get_pseudo_move_dests(
     }
 }
 
-/// Apply a move on a temporary board copy (for legality checking).
-pub fn apply_move_to_board(board: &mut BoardState, from: &BoardCoords, to: &BoardCoords) {
-    if let Some(piece) = board.get_piece(from).cloned() {
-        board.set_piece(to, Some(piece));
-        board.set_piece(from, None);
-    }
-}
-
 /// Return true if `coords` is attacked by any piece of `by_color`.
 pub fn is_square_attacked(
     board: &BoardState,
@@ -92,7 +84,7 @@ pub fn is_square_attacked(
 ///
 /// `enemy_colors` lists all colors that attack the king (players on opposing teams).
 /// If `enemy_colors` is empty, the king is never considered in check.
-pub fn is_king_in_check(
+pub fn is_in_check(
     board: &BoardState,
     king_color: &str,
     enemy_colors: &[String],

@@ -18,16 +18,19 @@ fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.color != state.turn { return []; }
 
-    let pa = [];
+    let candidates = [];
     for r in 0..8 { for c in 0..8 {
         let piece = engine::board::get(state.board, Coords(r, c));
         if piece != () && piece.color == player.color {
             let from = Coords(r, c);
             let dests = moves_for_piece(state.board, from, piece.type, player.color);
-            for to in dests { if !is_king_in_check(state, from, to, player) { pa.push(Move(from, to)); } }
+            for to in dests { candidates.push(Move(from, to)); }
         }
     }}
-    pa
+    candidates.filter(|m| {
+        try { handle_action(state, player, m); true }
+        catch(err) { false }
+    })
 }
 fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
@@ -44,6 +47,11 @@ fn handle_action(state, player, action) {
         let dst = engine::board::get(state.board, action.to);
         if dst != () && dst.color == player_color { throw "own piece"; }
         let b = engine::board::move_piece(state.board, action.from, action.to);
+        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color);
+        if enemies.len() == 0 {
+            enemies = state.players.filter(|p| p.color != player_color).map(|p| p.color);
+        }
+        if is_in_check(b, player_color, enemies) { throw "leaves king in check"; }
         for p in state.players {
             let kings = engine::board::find(b, Piece(p.color, "king"));
             if kings.len() == 0 {
