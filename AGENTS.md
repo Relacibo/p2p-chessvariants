@@ -20,7 +20,7 @@ Run `yarn lint:ts` after TypeScript changes, `yarn lint:rust` after Rust changes
 - `src/api/` — API definitions, WebRTC services, Bebop schemas
 - `src/gamelogicOld/` — Legacy game logic (reference only, do not modify)
 - `specs/` — API specifications (single source of truth for interfaces)
-  - `scripting-api.md` — Rhai scripting API v2 (`on_move`, `get_ui`, UI elements, handler model)
+  - `scripting-api.md` — Rhai scripting API v2 (`on_move`, `derive_ui`, UI elements, handler model)
 
 ## Code Style
 
@@ -58,14 +58,14 @@ export default function MyPageView() {
 
 ## Game UI Architecture
 
-**All UI elements returned by `get_ui()` belong in the PixiJS canvas, not as HTML/Mantine overlays.**
+**All UI elements returned by `derive_ui()` belong in the PixiJS canvas, not as HTML/Mantine overlays.**
 
 - `src/features/chessboard/PixiBoard.ts` (`rebuildReservePiles`, `rebuildUiElements`) — renders `reserve_pile`, `piece_picker`, `button`, `banner` inside PixiJS
 - `src/features/chessboard/PixiChessboard.tsx` — React↔PixiJS bridge, passes `uiMap` to the board
 - `src/features/chessboard/PieceSelectionDialog.tsx` — **DEPRECATED**: currently renders `piece_picker` as HTML overlay; must be migrated into `PixiBoard.ts`
 - `DevBoardView.tsx` — must derive piece picker state from `uiMap` (already correct) but delegate ALL rendering to PixiJS (no HTML overlays)
 
-**When implementing a new `get_ui` element type (or fixing rendering of existing ones):**
+**When implementing a new `derive_ui` element type (or fixing rendering of existing ones):**
 - The visual representation lives in `PixiBoard.ts` (PixiJS sprites/graphics)
 - Interaction (clicks/taps) is handled via PixiJS `pointerdown` events, NOT React `onClick`
 - `DevBoardView.tsx` only wires the result (submits actions), never renders UI elements itself

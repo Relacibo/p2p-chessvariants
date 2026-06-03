@@ -182,7 +182,7 @@ fn is_game_over(state, all_valid_moves) {
     !has_moves
 }
 
-fn get_ui(state, player) {
+fn derive_ui(state, player) {
     let ui = #{};
     let rkey = reserve_key(player.color, player.board);
     if rkey in state.reserves && state.reserves[rkey].len > 0 {

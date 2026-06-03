@@ -91,7 +91,7 @@ export type AllowedPlayerCount =
   | number[]
   | { min: number; max: number; step?: number };
 
-// ─── v2 UI Element types (from getUiJson / submitAction result) ──
+// ─── v2 UI Element types (from deriveUiJson / submitAction result) ──
 
 /** A clickable button. */
 export interface WasmUiButton {

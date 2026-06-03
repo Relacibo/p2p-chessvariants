@@ -297,7 +297,7 @@ fn handle_action(state, player, action) {
     state
 }
 
-fn get_ui(state, player) {
+fn derive_ui(state, player) {
     // Promotion piece picker
     if "promotion_pending" in state && state.promotion_pending != () {
         let pp = state.promotion_pending;

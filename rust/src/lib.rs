@@ -638,11 +638,11 @@ impl ChessvariantEngine {
     }
 
     /// Fetch the UI for a player without changing state (poll / page refresh).
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = getUiJson))]
-    pub fn get_ui_json_js(&self, player_json: String) -> Result<String, CvError> {
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = deriveUiJson))]
+    pub fn derive_ui_json_js(&self, player_json: String) -> Result<String, CvError> {
         let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
         let player = player_ref_to_player_id(&self.game_state, &player_ref);
-        let ui = self.run_get_ui(&player)?;
+        let ui = self.run_derive_ui(&player)?;
         Ok(serde_json::to_string(&serde_json::json!({ "ui": ui }))?)
     }
 
@@ -700,8 +700,8 @@ impl ChessvariantEngine {
         // Check game_over from state.outcome (set by script's handle_action)
         let game_over = self.extract_outcome_from_state();
 
-        // Call get_ui(new_state, player)
-        let ui = self.run_get_ui(player)?;
+        // Call derive_ui(new_state, player)
+        let ui = self.run_derive_ui(player)?;
 
         // Serialize board state so the frontend can render immediately
         let board = self.get_normalized_board()?;
@@ -883,13 +883,13 @@ impl ChessvariantEngine {
         Ok(rhai::serde::from_dynamic(&board_dyn)?)
     }
 
-    /// Call `get_ui(state, player)`, serialize to JSON (no closures / no caching).
-    fn run_get_ui(&self, player: &PlayerId) -> Result<serde_json::Value, CvError> {
+    /// Call `derive_ui(state, player)`, serialize to JSON (no closures / no caching).
+    fn run_derive_ui(&self, player: &PlayerId) -> Result<serde_json::Value, CvError> {
         let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.ast,
-            "get_ui",
+            "derive_ui",
             (self.game_state.clone(), Dynamic::from(player.clone())),
         );
         let ui_map = match result {
@@ -1131,7 +1131,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
         let id = id_immutable.to_string();
         if json_map.contains_key(&id) {
             return Err(CvError::Internal(format!(
-                "duplicate UI element ID '{}' in get_ui return value",
+                "duplicate UI element ID '{}' in derive_ui return value",
                 id
             )));
         }

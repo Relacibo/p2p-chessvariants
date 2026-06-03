@@ -398,7 +398,7 @@ export function DevBoardView() {
           pa.player.board === ref.board && pa.player.color === ref.color
         );
         setValidMoves(entry?.moves ?? []);
-        const uiResult = await proxy.getUiJson(p) as { ui: WasmUiMap };
+        const uiResult = await proxy.deriveUiJson(p) as { ui: WasmUiMap };
         const ui = (uiResult.ui ?? null) as WasmUiMap | null;
         setUiElements(ui);
       } else {
@@ -676,7 +676,7 @@ export function DevBoardView() {
         />
       )}
 
-      {/* ── Piece selection is rendered inside the PixiJS board via get_ui ── */}
+      {/* ── Piece selection is rendered inside the PixiJS board via derive_ui ── */}
 
       {/* ── Dev gear button — only shown when drawer is closed (drawer has its own close X) ── */}
       {!drawerOpen && (

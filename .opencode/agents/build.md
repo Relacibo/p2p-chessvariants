@@ -24,9 +24,9 @@ The Rhai scripting API is defined in `specs/scripting-api.md`. This document is 
 implementing engine features, script functions, or Wasm endpoints. Key constraints:
 
 - **`on_move(state, player, from, to, piece) → state`** — mandatory, typed move handler.
-- **`get_ui(state, player) → #{}`** — returns UI as map of `Button`, `Banner`, `ReservePile`.
+- **`derive_ui(state, player) → #{}`** — returns UI as map of `Button`, `Banner`, `ReservePile`.
 - **Handler closures** — `on_click` and `on_select` are stored by the engine, stripped from JSON.
-- **Engine discards handlers** after every state change, re-fetches via `get_ui`.
+- **Engine discards handlers** after every state change, re-fetches via `derive_ui`.
 - **No `handle_event`, `on_select`, `on_drop`, `on("name", handler)`** — these do not exist in v2.
 
 ## Code Style to Follow
@@ -36,14 +36,14 @@ implementing engine features, script functions, or Wasm endpoints. Key constrain
 
 ## Game UI Architecture (CRITICAL)
 
-**All UI elements returned by `get_ui()` belong in the PixiJS canvas, not as HTML/Mantine overlays.**
+**All UI elements returned by `derive_ui()` belong in the PixiJS canvas, not as HTML/Mantine overlays.**
 
 - `src/features/chessboard/PixiBoard.ts` — the ONLY place to render `piece_picker`, `button`, `banner`, `reserve_pile`
 - `src/features/chessboard/PixiChessboard.tsx` — React↔PixiJS bridge, passes `uiMap` to `PixiBoard`
 - `src/features/chessboard/PieceSelectionDialog.tsx` — **DEPRECATED**: HTML overlay, must be migrated into `PixiBoard.ts`
-- `DevBoardView.tsx` — wire results (submit actions), never render `get_ui` elements itself
+- `DevBoardView.tsx` — wire results (submit actions), never render `derive_ui` elements itself
 
-**Rules when touching `get_ui` elements:**
+**Rules when touching `derive_ui` elements:**
 - Render sprites/graphics in `PixiBoard.ts`, use PixiJS `pointerdown` events (NOT React `onClick`)
 - Never implement UI overlays as React/Mantine components (no new `PieceSelectionDialog`-style code)
 

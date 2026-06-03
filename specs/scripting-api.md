@@ -341,7 +341,7 @@ fn handle_action(state, player, action) {
 
 **Game-over:** Set `state.outcome` before returning. Engine reads it when `is_game_over` returns `true`.
 
-### `get_ui(state, player)`
+### `derive_ui(state, player)`
 
 ```
 (#{}, Player) -> #{}
@@ -351,7 +351,7 @@ fn handle_action(state, player, action) {
 Pure function of `state` and `player`.
 
 ```rhai
-fn get_ui(state, player) {
+fn derive_ui(state, player) {
     let ui = #{};
 
     // "Summon" button: available once per game, lets the player spawn a pawn
@@ -429,7 +429,7 @@ Interact(element_id)
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `"interact"` | Discriminator |
-| `element_id` | string | Matches key in `get_ui` return map |
+| `element_id` | string | Matches key in `derive_ui` return map |
 
 Emitted when the user clicks a `Button` UI element. **Not** returned by `valid_moves`.
 
@@ -446,7 +446,7 @@ No payload. Emitted when the user dismisses a `PiecePicker` without selecting.
 
 ## 3. UI Element Types
 
-Returned by `get_ui` as values in the element map. Pure data — no closures.
+Returned by `derive_ui` as values in the element map. Pure data — no closures.
 
 ### `Button`
 
@@ -501,7 +501,7 @@ Dragging/clicking a reserve piece produces `Move(ReserveCoords(i), to)` when the
 
 The frontend renders a modal/dialog listing the pieces.
 Clicking a piece emits `SelectPiece(piece)`. Dismissing emits `Cancel()`.
-Shown when present in `get_ui`; hidden when absent.
+Shown when present in `derive_ui`; hidden when absent.
 
 ---
 
@@ -537,7 +537,7 @@ player submits (player_json, action_json)
 handle_action(state, player, action) → new_state
   │
   ├─ cached_valid_moves = None   [invalidate]
-  ├─ get_ui(new_state, player) → serialize to JSON
+  ├─ derive_ui(new_state, player) → serialize to JSON
   │
   ▼
 Return { board_state, ui, game_over: null? } to frontend
@@ -591,8 +591,8 @@ engine.validMovesForPlayerJson(player_json) → string
 ### UI Refresh
 
 ```
-engine.getUiJson(player_json) → string
-// Calls get_ui(state, player). Does not modify state or cache.
+engine.deriveUiJson(player_json) → string
+// Calls derive_ui(state, player). Does not modify state or cache.
 ```
 
 ---
@@ -699,7 +699,7 @@ The UI additionally provides a **rotate button** in the side panel that cycles t
 |-----------|-------------|
 | Move is legal | Engine validates: cached `valid_moves` fresh → action must be in list. Cache stale → `valid_moves(state, player)` called via Rhai; move must be in returned list. |
 | Non-Move actions are state-consistent | Script validates state conditions in `handle_action`. Engine passes them through. |
-| UI element IDs unique | Engine throws on duplicate keys in `get_ui` return. |
+| UI element IDs unique | Engine throws on duplicate keys in `derive_ui` return. |
 | State immutability | Engine never mutates state map. Script owns all transitions. |
 | Deterministic replay | `handle_action` is pure: same `(player, action)` → same state. |
 | Game-over is terminal | Once `is_game_over` returns `true`, engine reads `state.outcome` and stops calling script functions. |

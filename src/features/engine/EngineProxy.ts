@@ -108,7 +108,7 @@ export class EngineProxy {
   }
 
   validMovesJson()  { return this.call<unknown>("validMovesJson"); }
-  getUiJson(p: string){ return this.call<{ ui: unknown }>("getUiJson", { player: p }); }
+  deriveUiJson(p: string){ return this.call<{ ui: unknown }>("deriveUiJson", { player: p }); }
   boardStateJson()    { return this.call<unknown>("boardStateJson"); }
   playersJson()       { return this.call<unknown[]>("playersJson"); }
   variantConfigJson() { return this.call<unknown>("variantConfigJson"); }

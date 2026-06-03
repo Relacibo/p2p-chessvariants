@@ -17,7 +17,7 @@
 interface WorkerRequest {
   id: number;
   type:
-    | "init" | "submitAction" | "validMovesJson" | "getUiJson"
+    | "init" | "submitAction" | "validMovesJson" | "deriveUiJson"
     | "boardStateJson" | "playersJson" | "variantConfigJson" | "stateJson";
   payload?: unknown;
 }
@@ -118,8 +118,8 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
       case "validMovesJson":
         ok(id, JSON.parse(need().validMovesAllJson()).validMoves);
         break;
-      case "getUiJson":
-        ok(id, JSON.parse(need().getUiJson((payload as { player: string }).player)));
+      case "deriveUiJson":
+        ok(id, JSON.parse(need().deriveUiJson((payload as { player: string }).player)));
         break;
       case "boardStateJson":
         ok(id, JSON.parse(need().boardStateJson()));
