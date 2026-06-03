@@ -832,14 +832,17 @@ export class PixiBoard {
 
     const { coords, sl } = hit;
 
-    // Clicking a passive board in overview mode → zoom to it
+    // Clicking any board in overview mode → zoom to it (never make moves)
+    if (this.currentZoomMode === "overview") {
+      this.focusedBoardIndex = sl.boardIndex;
+      this.currentZoomMode = "single";
+      this.applyZoomMode("single", sl.boardIndex);
+      this.rebuildUiButtons(this.state);
+      this.onZoomModeChange?.("single");
+      return;
+    }
+
     if (sl.boardIndex !== this.state.activeBoardIndex) {
-      if (this.currentZoomMode === "overview") {
-        this.focusedBoardIndex = sl.boardIndex;
-        this.currentZoomMode = "single";
-        this.applyZoomMode("single", sl.boardIndex);
-        this.onZoomModeChange?.("single");
-      }
       return;
     }
 
