@@ -63,22 +63,18 @@ fn valid_moves(state, player) {
 
     // Normal piece moves
     // Use board_index=0 for engine queries (single board), but output with player.board
-    for r in 0..8 {
-        for c in 0..8 {
-            let piece = engine::board::get(board, Coords(r, c));
-            if piece != () && piece.color == player.color {
-                let from_local = Coords(r, c);
-                let dests = moves_for_piece(board, from_local, piece.type, player.color);
-                for to_local in dests {
-                    let bt = engine::board::get(board, to_local);
-                    if bt != () && bt.color == player.color { continue; }
-                    // Output with correct board_index for frontend
-                    moves.push(Move(
-                        Coords(r, c, player.board),
-                        Coords(to_local.row, to_local.col, player.board)
-                    ));
-                }
-            }
+    let pieces = engine::board::find_by_color(board, player.color);
+    for entry in pieces {
+        let from_local = entry.coords;
+        let dests = moves_for_piece(board, from_local, entry.piece.type, player.color);
+        for to_local in dests {
+            let bt = engine::board::get(board, to_local);
+            if bt != () && bt.color == player.color { continue; }
+            // Output with correct board_index for frontend
+            moves.push(Move(
+                Coords(from_local.row, from_local.col, player.board),
+                Coords(to_local.row, to_local.col, player.board)
+            ));
         }
     }
 

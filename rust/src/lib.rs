@@ -74,6 +74,7 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("board_set", board::rhai_board_set);
     engine.register_fn("board_move_piece", board::rhai_board_move_piece);
     engine.register_fn("board_find", board::rhai_board_find_piece);
+    engine.register_fn("board_find_by_color", board::rhai_board_find_by_color);
 
     // Equality operators
     engine.register_fn("==", |a: Coords, b: Coords| -> bool { a == b });

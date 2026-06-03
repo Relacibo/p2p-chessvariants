@@ -656,6 +656,7 @@ engine.deriveUiJson(player_json) → string
 | `set` | `(Board, Coords, Piece) -> Board` |
 | `move_piece` | `(Board, Coords, Coords) -> Board` |
 | `find` | `(Board, Piece) -> [Coords]` |
+| `find_by_color` | `(Board, color) -> [#{coords, piece}]` |
 | `rows` | `(Board) -> i32` |
 | `cols` | `(Board) -> i32` |
 | `count` | `(Board) -> i32` |

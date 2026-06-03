@@ -96,6 +96,34 @@ pub fn rhai_board_find_piece(board: BoardState, piece: Piece) -> Array {
     rhai_board_find(board, piece.piece_type_name().to_string(), piece.color_name().to_string())
 }
 
+/// Find all pieces of a given color on the board.
+/// Returns an array of `#{ coords: Coords, piece: Piece }` maps.
+/// Usable in scripts as `engine::board::find_by_color(board, color)`.
+pub fn rhai_board_find_by_color(board: BoardState, color: String) -> Array {
+    let mut result = Array::new();
+
+    for (board_index, cells) in board.boards.iter().enumerate() {
+        for (index, cell) in cells.iter().enumerate() {
+            let Some(piece) = cell else {
+                continue;
+            };
+            if piece.color_name() != color {
+                continue;
+            }
+
+            let row = (index / board.cols as usize) as i32;
+            let col = (index % board.cols as usize) as i32;
+            let coords = Coords::new_board(row, col, board_index as i32);
+            let mut map = rhai::Map::new();
+            map.insert("coords".into(), Dynamic::from(coords));
+            map.insert("piece".into(), Dynamic::from(piece.clone()));
+            result.push(Dynamic::from(map));
+        }
+    }
+
+    result
+}
+
 pub fn rhai_board_rows(board: BoardState) -> i32 {
     board.rows as i32
 }
