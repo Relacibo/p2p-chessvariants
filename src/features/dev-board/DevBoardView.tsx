@@ -220,20 +220,39 @@ export function DevBoardView() {
     return boards.size > 0 ? [...boards] : [currentBoardIndex];
   }, [selectedPlayers, currentBoardIndex]);
 
-  // Derive per-slot orientation from engine players + local overrides.
-  // Use the first player per board to avoid later players overwriting.
+  // Derive per-slot orientation: selected player wins over first-in-array.
   const orientationByBoard = useMemo((): BoardOrientation[] => {
     const count = variantConfig?.board.count ?? 1;
     const arr = new Array<BoardOrientation>(count).fill("normal");
-    const seen = new Set<number>();
-    for (const p of allPlayers) {
-      if (seen.has(p.board)) continue;
-      seen.add(p.board);
-      const override = localOrientationOverride[p.board];
-      arr[p.board] = override ?? p.orientation ?? "normal";
+    const covered = new Set<number>();
+
+    // 1) Selected players determine orientation per board
+    for (const sp of selectedPlayers) {
+      try {
+        const ref = JSON.parse(sp) as PlayerRef;
+        if (covered.has(ref.board)) continue;
+        const cfg = allPlayers.find(p => p.board === ref.board && p.color === ref.color);
+        if (cfg?.orientation) {
+          covered.add(ref.board);
+          arr[ref.board] = cfg.orientation;
+        }
+      } catch { /* skip */ }
     }
+
+    // 2) Fallback: first player per board for unselected boards
+    for (const p of allPlayers) {
+      if (covered.has(p.board)) continue;
+      covered.add(p.board);
+      arr[p.board] = p.orientation ?? "normal";
+    }
+
+    // 3) Local overrides (rotate button) always win
+    for (const [board, override] of Object.entries(localOrientationOverride)) {
+      if (override) arr[Number(board)] = override;
+    }
+
     return arr;
-  }, [allPlayers, variantConfig?.board.count, localOrientationOverride]);
+  }, [allPlayers, selectedPlayers, variantConfig?.board.count, localOrientationOverride]);
 
   // Collect unique orientations from all players + local overrides for cycling.
   const usedOrientations = useMemo((): BoardOrientation[] => {
