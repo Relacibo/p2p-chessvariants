@@ -204,20 +204,20 @@ fn handle_action(state, player, action) {
         }
         // Normal move
         else {
-            new_board = engine::board::move_piece(state.board, from, to);
-
-            // Pawn promotion: set pending instead of auto-promoting
-            let promoting = false;
+            // Pawn promotion: defer the move, set pending only
             if src.type == "pawn" {
                 if (player_color == "white" && to.row == 0) || (player_color == "black" && to.row == 7) {
-                    promoting = true;
+                    // Don't move the pawn yet — SelectPiece or Cancel will resolve.
+                    return merge(state, #{
+                        promotion_pending: #{ from: from, to: to, color: player_color },
+                    });
                 }
             }
 
-            if !promoting {
-                if is_in_check(new_board, player_color, enemies) {
-                    throw "move leaves king in check";
-                }
+            new_board = engine::board::move_piece(state.board, from, to);
+
+            if is_in_check(new_board, player_color, enemies) {
+                throw "move leaves king in check";
             }
 
             // Track en passant square for double pawn push
@@ -249,15 +249,6 @@ fn handle_action(state, player, action) {
                 if to == Coords(0, 7) { new_castling_rights = merge(new_castling_rights, #{ bk: false }); }
                 if to == Coords(0, 0) { new_castling_rights = merge(new_castling_rights, #{ bq: false }); }
             }
-
-            if promoting {
-                return merge(state, #{
-                    board: new_board,
-                    promotion_pending: #{ from: from, to: to, color: player_color },
-                    castling_rights: new_castling_rights,
-                    en_passant: new_en_passant,
-                });
-            }
         }
 
         let next_turn = if player.id == 0 { 1 } else { 0 };
@@ -274,14 +265,33 @@ fn handle_action(state, player, action) {
         if pp == () { throw "no promotion pending"; }
         if pp.color != player_color { throw "not your promotion"; }
 
-        let new_board = engine::board::set(state.board, pp.to, action.piece);
-        let next_turn = if player.id == 0 { 1 } else { 0 };
+        // Move pawn to destination, then replace with chosen piece
+        let new_board = engine::board::move_piece(state.board, pp.from, pp.to);
+        new_board = engine::board::set(new_board, pp.to, action.piece);
 
+        // King safety check after promotion
+        let enemies = state.players
+            .filter(|p| p.team != player.team)
+            .map(|p| p.color);
+        if is_in_check(new_board, player_color, enemies) {
+            throw "promotion leaves king in check";
+        }
+
+        let next_turn = if player.id == 0 { 1 } else { 0 };
         return merge(state, #{
             board: new_board,
             turn: next_turn,
             promotion_pending: (),
         });
+    }
+
+    if action.type == "cancel" {
+        if "promotion_pending" in state && state.promotion_pending != () {
+            let pp = state.promotion_pending;
+            if pp.color != player_color { throw "not your promotion to cancel"; }
+            return merge(state, #{ promotion_pending: () });
+        }
+        throw "nothing to cancel";
     }
 
     state

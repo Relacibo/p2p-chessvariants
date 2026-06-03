@@ -28,7 +28,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EngineProxy } from "../engine/EngineProxy";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
-import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
 import style from "./DevBoardView.module.css";
 import {
@@ -308,21 +307,6 @@ export function DevBoardView() {
     }
     return actions;
   }, [validMovesAll, selectedPlayers, validMoves]);
-
-  // Piece picker dialog — derived from uiMap (get_ui), not from validMoves.
-  const selectablePieces = useMemo(() => {
-    const pieces: WasmPiece[] = [];
-    if (uiElements) {
-      for (const el of Object.values(uiElements)) {
-        if (el.type === "piece_picker") {
-          pieces.push(...el.pieces);
-        }
-      }
-    }
-    return pieces;
-  }, [uiElements]);
-
-  const hasCancel = useMemo(() => selectablePieces.length > 0, [selectablePieces]);
 
   // ── Container resize observer ──
   useEffect(() => {
@@ -686,14 +670,7 @@ export function DevBoardView() {
         />
       )}
 
-      {/* ── Piece selection dialog (auto-spawned from valid_actions) ── */}
-      {selectablePieces.length > 0 && (
-        <PieceSelectionDialog
-          selectablePieces={selectablePieces}
-          hasCancel={hasCancel}
-          onSubmit={handleSubmitAction}
-        />
-      )}
+      {/* ── Piece selection is rendered inside the PixiJS board via get_ui ── */}
 
       {/* ── Dev gear button — only shown when drawer is closed (drawer has its own close X) ── */}
       {!drawerOpen && (

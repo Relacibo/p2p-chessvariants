@@ -102,9 +102,11 @@ export class PixiBoard {
   private dragLayer = new Container();
   private uiOverlay = new Container();
   private slotBtnsLayer = new Container();  // magnifying glass buttons in overview
+  private piecePickerLayer = new Container(); // promotion / piece selection overlay
 
   private pieceSprites = new Map<string, Sprite>();
   private reserveSprites = new Map<string, Sprite>();
+  private piecePickerSprites = new Map<string, Container>();
   private state: SceneState | null = null;
   private slotLayouts: SlotLayout[] = [];
   private selected: WasmBoardCoords | null = null;
@@ -187,6 +189,7 @@ export class PixiBoard {
     this.rootContainer.addChild(this.pieceLayer);
     this.rootContainer.addChild(this.dragLayer);
     this.rootContainer.addChild(this.slotBtnsLayer);
+    app.stage.addChild(this.piecePickerLayer);
 
     app.ticker.add(() => {
       if (this.zoomAnimating) this.stepZoomAnimation();
@@ -230,6 +233,8 @@ export class PixiBoard {
     this.pieceSprites.clear();
     for (const s of this.reserveSprites.values()) s.destroy();
     this.reserveSprites.clear();
+    for (const s of this.piecePickerSprites.values()) s.destroy();
+    this.piecePickerSprites.clear();
     if (this.initDone && this.app) {
       const canvas = this.app.canvas as HTMLCanvasElement;
       canvas.parentNode?.removeChild(canvas);
@@ -298,6 +303,7 @@ export class PixiBoard {
     if (piecesChanged) this.rebuildPieces();
     if (highlightsChanged) this.rebuildHighlights();
     if (reserveChanged) this.rebuildReservePiles();
+    this.rebuildPiecePicker();
     this.rebuildSlotButtons(s);
     this.rebuildUiButtons(s);
   }
@@ -746,6 +752,94 @@ export class PixiBoard {
         }
       }
     }
+  }
+
+  private rebuildPiecePicker(): void {
+    if (!this.state) return;
+    const { uiMap, stageWidth, stageHeight } = this.state;
+
+    // Clear existing
+    for (const c of this.piecePickerSprites.values()) {
+      this.piecePickerLayer.removeChild(c);
+      c.destroy();
+    }
+    this.piecePickerSprites.clear();
+    this.piecePickerLayer.removeChildren();
+
+    // Find piece_picker entries in uiMap
+    const pieces: { color: string; pieceType: string }[] = [];
+    for (const el of Object.values(uiMap)) {
+      if (el.type === "piece_picker") {
+        pieces.push(...el.pieces);
+      }
+    }
+    if (pieces.length === 0) return;
+
+    // Render as overlay at center of stage
+    const pieceSize = Math.min(stageWidth, stageHeight) * 0.1;
+    const totalW = pieces.length * (pieceSize + 12) + 12;
+    const startX = (stageWidth - totalW) / 2;
+    const y = stageHeight * 0.6;
+
+    // Semi-transparent background
+    const bg = new Graphics()
+      .rect(0, 0, stageWidth, stageHeight)
+      .fill({ color: 0x000000, alpha: 0.4 });
+    bg.eventMode = "none";
+    this.piecePickerLayer.addChild(bg);
+
+    // Cancel hint text
+    const cancelText = new Text({
+      text: "(right-click / tap away to cancel)",
+      style: { fontSize: 14, fill: 0xcccccc, fontFamily: "Arial" },
+    });
+    cancelText.anchor.set(0.5, 0);
+    cancelText.position.set(stageWidth / 2, y - pieceSize - 24);
+    this.piecePickerLayer.addChild(cancelText);
+
+    // Piece sprites
+    for (let i = 0; i < pieces.length; i++) {
+      const piece = pieces[i];
+      const url = getPieceImageUrl(piece.color, piece.pieceType);
+      const tex = url ? (this.textureCache.get(url) ?? null) : null;
+      if (!tex) continue;
+
+      const container = new Container();
+      container.position.set(startX + i * (pieceSize + 12) + pieceSize / 2, y);
+
+      const sprite = new Sprite(tex);
+      sprite.anchor.set(0.5, 0);
+      sprite.width = pieceSize;
+      sprite.height = pieceSize;
+      sprite.eventMode = "static";
+      sprite.cursor = "pointer";
+
+      if (PIECE_TINT[piece.color] != null) {
+        sprite.tint = PIECE_TINT[piece.color];
+      }
+
+      const capturedPiece = piece;
+      sprite.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        this.onSubmitAction({ type: "select_piece", piece: capturedPiece });
+      });
+
+      container.addChild(sprite);
+      this.piecePickerLayer.addChild(container);
+      this.piecePickerSprites.set(`picker_${i}`, container);
+    }
+
+    // Cancel: click on background area (not on a piece) sends cancel
+    const cancelBtn = new Graphics()
+      .rect(0, 0, stageWidth, stageHeight)
+      .fill({ color: 0x000000, alpha: 0.001 });
+    cancelBtn.eventMode = "static";
+    cancelBtn.cursor = "default";
+    cancelBtn.on("pointerdown", (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      this.onSubmitAction({ type: "cancel" });
+    });
+    this.piecePickerLayer.addChild(cancelBtn);
   }
 
   private rebuildUiButtons(s: SceneState): void {
