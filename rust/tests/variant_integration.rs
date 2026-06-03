@@ -264,7 +264,11 @@ fn test_chess_pawn_promotion() {
     engine.submit_move("black", coords(4, 7), coords(5, 7)).expect("3... h3");
     engine.submit_move("white", coords(2, 0), coords(1, 1)).expect("4. axb7");
     engine.submit_move("black", coords(0, 1), coords(2, 0)).expect("4... Na6");
-    engine.submit_move("white", coords(1, 1), coords(0, 0)).expect("5. axb8=Q (auto-promote)");
+    engine.submit_move("white", coords(1, 1), coords(0, 0)).expect("5. axb8 (pawn arrives)");
+    // Select queen for promotion
+    engine
+        .submit_select_piece("white", "white", "queen")
+        .expect("5. promote to queen");
 
     let state = engine.state();
     let board = state_board(&state);
@@ -281,6 +285,10 @@ fn test_chess_pawn_promotion() {
         board.get_piece(&BoardCoords::new_board_0(1, 1)).is_none(),
         "b7 should be empty after promotion"
     );
+
+    // Turn should be black after promotion
+    let colors = engine.active_player_colors();
+    assert!(colors.contains(&"black".to_string()), "black should be active after promotion");
 }
 
 // Test 3: Stalemate — shortest known stalemate in 10 moves (Réti stalemate).

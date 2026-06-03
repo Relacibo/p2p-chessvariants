@@ -751,6 +751,21 @@ impl ChessvariantEngine {
         self.submit_action_core(&player, &action)
     }
 
+    /// Submit a piece selection from native Rust code (integration tests).
+    pub fn submit_select_piece(
+        &mut self,
+        player_color: &str,
+        piece_color: &str,
+        piece_type: &str,
+    ) -> Result<serde_json::Value, CvError> {
+        let player = self.find_player_by_color(player_color)?;
+        let action = Action::rhai_select_piece(Piece::rhai_new(
+            piece_color.to_string(),
+            piece_type.to_string(),
+        ));
+        self.submit_action_core(&player, &action)
+    }
+
     /// Find a PlayerId in state.players by color (for test convenience).
     fn find_player_by_color(&self, color: &str) -> Result<PlayerId, CvError> {
         let players_map = self
