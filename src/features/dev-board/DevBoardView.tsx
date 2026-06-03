@@ -46,7 +46,6 @@ import {
 import { useSelector } from "../../app/hooks";
 import { selectAllVariants, VariantEntry } from "../lobby/variantsSlice";
 import {
-  encodeScriptUrl,
   fetchScriptText,
   getGithubBrowseUrl,
 } from "../lobby/scriptUrl";
@@ -113,6 +112,24 @@ function getActingPlayer(
   return selectedPlayers[0] ?? null;
 }
 
+// ─── URL State (single JSON query param) ─────────────────────────────────────
+interface UrlState {
+  script?: string;
+  n?: number;
+  sel?: string[];
+  panel?: number;
+}
+
+function readUrlState(sp: URLSearchParams): UrlState {
+  const raw = sp.get("state");
+  if (!raw) return {};
+  try { return JSON.parse(raw) as UrlState; } catch { return {}; }
+}
+
+function encodeUrlState(s: UrlState): string {
+  return JSON.stringify(s);
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function DevBoardView() {
@@ -121,28 +138,29 @@ export function DevBoardView() {
   const variants = useSelector(selectAllVariants);
   const combobox = useCombobox();
 
+  const initUrl = useMemo(() => readUrlState(searchParams), []);
+
   const [search, setSearch] = useState("");
 
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
-    useDisclosure(searchParams.get("panel") === "1");
+    useDisclosure(initUrl.panel === 1);
 
   const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(
     null
   );
   const [playerCount, setPlayerCount] = useState<number | string>(
-    () => parseInt(searchParams.get("players") || "2", 10) || 2
+    () => initUrl.n ?? 2
   );
   // controllingPlayer is the primary player for submit/sync (first of selectedPlayers).
   const [controllingPlayer, setControllingPlayer] = useState<string>(
-    () => searchParams.get("player") || ""
+    () => initUrl.sel?.[0] ?? ""
   );
   const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
   const [allPlayers, setAllPlayers] = useState<WasmPlayerConfig[]>([]);
-  // selectedPlayers persisted as multiple 'player' query params
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>(() => {
-    const fromUrl = searchParams.getAll("player");
-    return fromUrl.length > 0 ? fromUrl : [];
-  });
+  // selectedPlayers persisted in URL state
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>(
+    () => initUrl.sel ?? []
+  );
   const [localOrientationOverride, setLocalOrientationOverride] = useState<
     Partial<Record<number, BoardOrientation>>
   >({});
@@ -291,17 +309,21 @@ export function DevBoardView() {
     return () => ro.disconnect();
   }, []);
 
-  // ── Sync state to URL search params ──
+  // ── Sync state to URL as single JSON query param ──
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
-    if (playerCount) next.set("players", String(playerCount));
-    if (selectedVariant?.url) next.set("script", encodeScriptUrl(selectedVariant.url));
-    // Persist selectedPlayers as multiple 'player' params
+    const urlState: UrlState = {};
+    if (playerCount) urlState.n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
+    if (selectedVariant?.url) urlState.script = selectedVariant.url;
+    if (selectedPlayers.length > 0) urlState.sel = selectedPlayers;
+    urlState.panel = drawerOpen ? 1 : 0;
+
+    next.set("state", encodeUrlState(urlState));
+    // Clean up old individual params
+    next.delete("script");
+    next.delete("players");
     next.delete("player");
-    for (const p of selectedPlayers) {
-      next.append("player", p);
-    }
-    next.set("panel", drawerOpen ? "1" : "0");
+    next.delete("panel");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerCount, selectedPlayers, drawerOpen, selectedVariant?.url]);
@@ -449,15 +471,15 @@ export function DevBoardView() {
 
   // ── Mount: load from URL query param, or default to first variant ──
   useEffect(() => {
-    const scriptUrl = searchParams.get("script");
+    const urlState = readUrlState(searchParams);
+    const scriptUrl = urlState.script;
     if (scriptUrl) {
       const variant = variants.find((v) => v.url === scriptUrl);
       if (variant) {
         setSelectedVariant(variant);
         if (lastLoadedUrl.current !== scriptUrl) {
           lastLoadedUrl.current = scriptUrl;
-          const n = typeof playerCount === "number" ? playerCount : 2;
-          loadScript(scriptUrl, n);
+          loadScript(scriptUrl, urlState.n ?? 2);
         }
         return;
       }
@@ -467,11 +489,10 @@ export function DevBoardView() {
     if (first && lastLoadedUrl.current !== first.url) {
       lastLoadedUrl.current = first.url;
       setSelectedVariant(first);
-      const n = typeof playerCount === "number" ? playerCount : 2;
-      loadScript(first.url, n);
+      loadScript(first.url, urlState.n ?? 2);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get("script")]);
+  }, [searchParams.get("state")]);
 
   const handleVariantSelect = (url: string) => {
     const variant = variants.find((v) => v.url === url);
