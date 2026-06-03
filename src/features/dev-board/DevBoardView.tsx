@@ -260,35 +260,28 @@ export function DevBoardView() {
     return arr;
   }, [allPlayers, selectedPlayers, variantConfig?.board.count, localOrientationOverride]);
 
-  // Collect unique orientations from all players + local overrides for cycling.
-  const usedOrientations = useMemo((): BoardOrientation[] => {
-    const unique = new Set<BoardOrientation>();
-    for (const p of allPlayers) {
-      unique.add(p.orientation ?? "normal");
-    }
-    for (const o of Object.values(localOrientationOverride)) {
-      if (o) unique.add(o);
-    }
-    const arr = [...unique];
-    return arr.length > 0 ? arr : ["normal"];
-  }, [allPlayers, localOrientationOverride]);
-
   const handleRotateBoard = useCallback(
     (boardIndex: number) => {
+      const clockwiseCycle: BoardOrientation[] = [
+        "normal",
+        "clockwise",
+        "flipped",
+        "counterclockwise",
+      ];
       setLocalOrientationOverride((prev) => {
         const current =
           prev[boardIndex] ??
           allPlayers.find((p) => p.board === boardIndex)?.orientation ??
           "normal";
-        const currentIdx = usedOrientations.indexOf(current);
+        const currentIdx = clockwiseCycle.indexOf(current);
         const nextIdx =
           currentIdx >= 0
-            ? (currentIdx + 1) % usedOrientations.length
+            ? (currentIdx + 1) % clockwiseCycle.length
             : 0;
-        return { ...prev, [boardIndex]: usedOrientations[nextIdx] };
+        return { ...prev, [boardIndex]: clockwiseCycle[nextIdx] };
       });
     },
-    [allPlayers, usedOrientations],
+    [allPlayers],
   );
 
   // Union valid moves from all selected players for display.
