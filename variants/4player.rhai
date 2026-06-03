@@ -38,13 +38,14 @@ fn init(player_count) {
     }
 
     // Green (team 1) — right arm, rows 3..10, cols 11..13
+    // Back rank at col 13 (outer edge), pawns at col 12
     let g_back = [
         Piece("green", "rook"), Piece("green", "knight"), Piece("green", "bishop"),
         Piece("green", "queen"), Piece("green", "king"), Piece("green", "bishop"),
         Piece("green", "knight"), Piece("green", "rook"),
     ];
     for i in 0..g_back.len() {
-        board = engine::board::set(board, Coords(3 + i, 11, 0), g_back[i]);
+        board = engine::board::set(board, Coords(3 + i, 13, 0), g_back[i]);
         board = engine::board::set(board, Coords(3 + i, 12, 0), Piece("green", "pawn"));
     }
 
@@ -60,13 +61,14 @@ fn init(player_count) {
     }
 
     // Blue (team 3) — left arm, rows 3..10, cols 0..2
+    // Back rank at col 0 (outer edge), pawns at col 1
     let b_back = [
         Piece("blue", "rook"), Piece("blue", "knight"), Piece("blue", "bishop"),
         Piece("blue", "queen"), Piece("blue", "king"), Piece("blue", "bishop"),
         Piece("blue", "knight"), Piece("blue", "rook"),
     ];
     for i in 0..b_back.len() {
-        board = engine::board::set(board, Coords(3 + i, 2, 0), b_back[i]);
+        board = engine::board::set(board, Coords(3 + i, 0, 0), b_back[i]);
         board = engine::board::set(board, Coords(3 + i, 1, 0), Piece("blue", "pawn"));
     }
 
