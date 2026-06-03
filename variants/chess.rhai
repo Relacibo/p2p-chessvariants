@@ -305,7 +305,7 @@ fn derive_ui(state, player) {
             return #{
                 promotion: #{
                     type: "piece_picker",
-                    cancel: true,
+                    cancelable: true,
                     title: "Promote pawn to:",
                     pieces: [
                         Piece(pp.color, "queen"),

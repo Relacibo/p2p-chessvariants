@@ -782,7 +782,7 @@ export class PixiBoard {
     let title = "";
     for (const el of pickerEls) {
       pieces.push(...el.pieces);
-      if (el.cancel === false) showCancel = false;
+      if (el.cancelable === false) showCancel = false;
       if (el.title) title = el.title;
     }
     if (pieces.length === 0) return;
