@@ -914,6 +914,10 @@ export class PixiBoard {
     this.dragCopy = dragCopy;
 
     const moveHandler = (ev: PointerEvent) => {
+      // Re-apply hand cursor since PixiJS may reset it on pointermove
+      if (this.app) {
+        (this.app.canvas as HTMLCanvasElement).style.cursor = "grabbing";
+      }
       const world = this.clientToWorld(ev.clientX, ev.clientY);
       if (world) dragCopy.position.set(world.x - sl.tileSize / 2, world.y - sl.tileSize / 2);
     };

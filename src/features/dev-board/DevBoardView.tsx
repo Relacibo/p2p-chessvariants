@@ -156,6 +156,7 @@ export function DevBoardView() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [gameStateJson, setGameStateJson] = useState<object | null>(null);
   const [showGameState, setShowGameState] = useState(false);
+  const [showActionLog, setShowActionLog] = useState(false);
   const [validMovesJsonStr, setValidMovesJsonStr] = useState<string | null>(null);
   const [showValidMoves, setShowValidMoves] = useState(false);
   const [gameOver, setGameOver] = useState<{
@@ -192,21 +193,32 @@ export function DevBoardView() {
   }, [selectedPlayers, currentBoardIndex]);
 
   // Derive per-slot orientation from engine players + local overrides.
+  // Use the first player per board to avoid later players overwriting.
   const orientationByBoard = useMemo((): BoardOrientation[] => {
     const count = variantConfig?.board.count ?? 1;
     const arr = new Array<BoardOrientation>(count).fill("normal");
+    const seen = new Set<number>();
     for (const p of allPlayers) {
+      if (seen.has(p.board)) continue;
+      seen.add(p.board);
       const override = localOrientationOverride[p.board];
       arr[p.board] = override ?? p.orientation ?? "normal";
     }
     return arr;
   }, [allPlayers, variantConfig?.board.count, localOrientationOverride]);
 
-  // Rotate button cycles through orientations actually used across all boards.
+  // Collect unique orientations from all players + local overrides for cycling.
   const usedOrientations = useMemo((): BoardOrientation[] => {
-    const unique = [...new Set(orientationByBoard)];
-    return unique.length > 0 ? unique : ["normal"];
-  }, [orientationByBoard]);
+    const unique = new Set<BoardOrientation>();
+    for (const p of allPlayers) {
+      unique.add(p.orientation ?? "normal");
+    }
+    for (const o of Object.values(localOrientationOverride)) {
+      if (o) unique.add(o);
+    }
+    const arr = [...unique];
+    return arr.length > 0 ? arr : ["normal"];
+  }, [allPlayers, localOrientationOverride]);
 
   const handleRotateBoard = useCallback(
     (boardIndex: number) => {
@@ -744,60 +756,76 @@ export function DevBoardView() {
             clearable
           />
 
-          <Group justify="space-between" align="center">
-            <Text size="sm" fw={600}>
-              Action Log
-            </Text>
-            <Group gap="xs">
+          {/* ── Action Log (collapsible JSON) ── */}
+          <Box>
+            <Group
+              justify="space-between"
+              align="center"
+              style={{ cursor: "pointer" }}
+              onClick={() => setShowActionLog((s) => !s)}
+            >
+              <Group gap="xs">
+                <Text size="sm" fw={600}>
+                  Action Log
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {showActionLog ? "▼" : "▶"}
+                </Text>
+              </Group>
               <ActionIcon
                 variant="subtle"
                 size="sm"
-                onClick={() => setLog([])}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLog([]);
+                }}
                 title="Clear"
               >
                 <IconTrash size="0.85rem" />
               </ActionIcon>
             </Group>
-          </Group>
-          {log.length === 0 && (
-            <Text size="xs" c="dimmed" fs="italic">
-              No actions yet.
-            </Text>
-          )}
-          {log.length > 0 && (
-            <Box
-              style={{
-                maxHeight: 200,
-                overflow: "auto",
-                background: "#1a1b1e",
-                borderRadius: 4,
-                padding: 8,
-              }}
-            >
-              <Text
-                size="xs"
-                component="pre"
+            {showActionLog && (
+              <Box
+                mt={4}
                 style={{
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                  fontFamily: "monospace",
-                  color: "#c9d1d9",
+                  maxHeight: 200,
+                  overflow: "auto",
+                  background: "#1a1b1e",
+                  borderRadius: 4,
+                  padding: 8,
                 }}
               >
-                {JSON.stringify(
-                  [...log].reverse().map((entry) => ({
-                    id: entry.id,
-                    timestamp: entry.timestamp,
-                    player: JSON.parse(entry.player),
-                    action: entry.action,
-                  })),
-                  null,
-                  2
+                {log.length === 0 ? (
+                  <Text size="xs" c="dimmed" fs="italic">
+                    No actions yet.
+                  </Text>
+                ) : (
+                  <Text
+                    size="xs"
+                    component="pre"
+                    style={{
+                      margin: 0,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                      fontFamily: "monospace",
+                      color: "#c9d1d9",
+                    }}
+                  >
+                    {JSON.stringify(
+                      [...log].reverse().map((entry) => ({
+                        id: entry.id,
+                        timestamp: entry.timestamp,
+                        player: JSON.parse(entry.player),
+                        action: entry.action,
+                      })),
+                      null,
+                      2
+                    )}
+                  </Text>
                 )}
-              </Text>
-            </Box>
-          )}
+              </Box>
+            )}
+          </Box>
 
           {/* ── Game State JSON (collapsible) ── */}
           <Box>
