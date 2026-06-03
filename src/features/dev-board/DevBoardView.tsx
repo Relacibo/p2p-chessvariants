@@ -7,10 +7,10 @@ import {
   Group,
   InputBase,
   Loader,
+  MultiSelect,
   NumberInput,
   Paper,
   ScrollArea,
-  Select,
   Stack,
   Text,
   Tooltip,
@@ -33,10 +33,12 @@ import { PieceSelectionDialog } from "../chessboard/PieceSelectionDialog";
 import useConfigureLayout from "../layout/hooks";
 import style from "./DevBoardView.module.css";
 import {
+  BoardOrientation,
   PlayerRef,
   WasmAction,
   WasmBoardState,
   WasmPiece,
+  WasmPlayerConfig,
   WasmPlayerMoves,
   WasmUiMap,
   WasmVariantConfig,
@@ -100,6 +102,18 @@ function actionLabel(a: LogAction): string {
 
 const PLAYER_BADGE_COLORS = ["gray", "dark", "red", "blue"] as const;
 
+const ORIENTATION_CYCLE: BoardOrientation[] = [
+  "normal",
+  "clockwise",
+  "flipped",
+  "counterclockwise",
+];
+
+function nextOrientation(orientation: BoardOrientation): BoardOrientation {
+  const idx = ORIENTATION_CYCLE.indexOf(orientation);
+  return ORIENTATION_CYCLE[(idx + 1) % ORIENTATION_CYCLE.length];
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function DevBoardView() {
@@ -126,9 +140,11 @@ export function DevBoardView() {
     () => searchParams.get("player") || ""
   );
   const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
-  const [allPlayers, setAllPlayers] = useState<
-    { color: string; board: number; team: number }[]
-  >([]);
+  const [allPlayers, setAllPlayers] = useState<WasmPlayerConfig[]>([]);
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [localOrientationOverride, setLocalOrientationOverride] = useState<
+    Partial<Record<number, BoardOrientation>>
+  >({});
 
   const proxyRef = useRef<EngineProxy | null>(null);
   const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(
@@ -168,12 +184,46 @@ export function DevBoardView() {
   }, [controllingPlayer]);
   const currentBoardIndex = playerRef?.board ?? 0;
 
-  const flippedByBoard = useMemo((): boolean[] => {
+  // Derive board indices for all selected controlling players (drag permissions).
+  const activeBoardIndices = useMemo((): number[] => {
+    if (selectedPlayers.length === 0) return [currentBoardIndex];
+    const boards = new Set<number>();
+    for (const p of selectedPlayers) {
+      try {
+        const ref = JSON.parse(p) as PlayerRef;
+        boards.add(ref.board);
+      } catch {
+        /* malformed JSON — skip */
+      }
+    }
+    return boards.size > 0 ? [...boards] : [currentBoardIndex];
+  }, [selectedPlayers, currentBoardIndex]);
+
+  // Derive per-slot orientation from engine players + local overrides.
+  const orientationByBoard = useMemo((): BoardOrientation[] => {
     const count = variantConfig?.board.count ?? 1;
-    const arr = new Array<boolean>(count).fill(false);
-    if (playerRef) arr[playerRef.board] = playerRef.color === "black";
+    const arr = new Array<BoardOrientation>(count).fill("normal");
+    for (const p of allPlayers) {
+      const override = localOrientationOverride[p.board];
+      arr[p.board] = override ?? p.orientation ?? "normal";
+    }
     return arr;
-  }, [variantConfig?.board.count, playerRef]);
+  }, [allPlayers, variantConfig?.board.count, localOrientationOverride]);
+
+  // Rotate button cycles through all 4 orientations for the active board.
+  const handleRotateBoard = useCallback(
+    (boardIndex: number) => {
+      setLocalOrientationOverride((prev) => {
+        const current =
+          prev[boardIndex] ??
+          allPlayers.find((p) => p.board === boardIndex)?.orientation ??
+          "normal";
+        const next = nextOrientation(current);
+        return { ...prev, [boardIndex]: next };
+      });
+    },
+    [allPlayers],
+  );
 
   // Determine if a piece selection dialog should be shown
   const selectablePieces = useMemo(() => {
@@ -213,6 +263,22 @@ export function DevBoardView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerCount, controllingPlayer, drawerOpen]);
 
+  // ── Bidirectional sync: selectedPlayers[0] ↔ controllingPlayer ──
+  useEffect(() => {
+    const primary = selectedPlayers[0] || "";
+    if (primary && primary !== controllingPlayer) {
+      setControllingPlayer(primary);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlayers]);
+
+  useEffect(() => {
+    if (controllingPlayer && !selectedPlayers.includes(controllingPlayer)) {
+      setSelectedPlayers((prev) => [...prev, controllingPlayer]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controllingPlayer]);
+
   // Derive active players from valid_actions all (entries with non-empty actions)
   const deriveActivePlayers = useCallback(
     (allActions: WasmPlayerMoves[]): PlayerRef[] => {
@@ -221,9 +287,12 @@ export function DevBoardView() {
         .map((pa) => ({
           board: pa.player.board,
           color: pa.player.color,
+          orientation: allPlayers.find(
+            (ap) => ap.board === pa.player.board && ap.color === pa.player.color
+          )?.orientation,
         }));
     },
-    []
+    [allPlayers],
   );
 
   const syncState = useCallback(
@@ -232,7 +301,7 @@ export function DevBoardView() {
       const [boardState, allValid, allP] = await Promise.all([
         proxy.boardStateJson() as Promise<WasmBoardState>,
         proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
-        proxy.playersJson() as Promise<{ color: string; board: number; team: number }[]>,
+        proxy.playersJson() as Promise<WasmPlayerConfig[]>,
       ]);
       setBoardState(boardState);
       setValidMovesAll(allValid);
@@ -284,6 +353,8 @@ export function DevBoardView() {
       setValidMoves([]);
       setValidMovesAll([]);
       setUiElements(null);
+      setSelectedPlayers([]);
+      setLocalOrientationOverride({});
       try {
         const script = await fetchScriptText(url);
         const proxy = new EngineProxy();
@@ -296,6 +367,7 @@ export function DevBoardView() {
         const initPlayers = deriveActivePlayers(initialValid);
         const firstPlayer = initPlayers[0] ? JSON.stringify(initPlayers[0]) : "";
         setControllingPlayer(firstPlayer);
+        setSelectedPlayers(firstPlayer ? [firstPlayer] : []);
         setActivePlayers(initPlayers);
         await syncState(proxy, firstPlayer);
       } catch (e: unknown) {
@@ -425,7 +497,7 @@ export function DevBoardView() {
         if (result.board_state) setBoardState(result.board_state as WasmBoardState);
         const extra = result as unknown as Record<string, unknown>;
         if (extra.stateJson) setGameStateJson(extra.stateJson as object);
-        if (extra.players) setAllPlayers(extra.players as { color: string; board: number; team: number }[]);
+        if (extra.players) setAllPlayers(extra.players as WasmPlayerConfig[]);
         if (action.type === "move") {
           addLogEntry(controllingPlayer, { kind: "move", action });
         } else if (action.type === "interact") {
@@ -475,7 +547,9 @@ export function DevBoardView() {
           boardState={boardState}
           validMoves={validMoves}
           activeBoardIndex={currentBoardIndex}
-          flippedByBoard={flippedByBoard}
+          activeBoardIndices={activeBoardIndices}
+          orientationByBoard={orientationByBoard}
+          onRotateBoard={handleRotateBoard}
           onSubmitAction={handleSubmitAction}
           lastAction={lastAction}
           selectedDropPiece={selectedDropPiece}
@@ -622,14 +696,15 @@ export function DevBoardView() {
             Load / Restart
           </Button>
 
-          <Select
-            label="Controlling player (local)"
+          <MultiSelect
+            label="Controlling players (local)"
             data={allPlayers.map((p) => ({
               value: JSON.stringify({ board: p.board, color: p.color }),
               label: `${p.color} ${p.board > 0 ? `(board ${p.board})` : ""}`,
             }))}
-            value={controllingPlayer}
-            onChange={(v) => v != null && setControllingPlayer(v)}
+            value={selectedPlayers}
+            onChange={(values) => setSelectedPlayers(values)}
+            clearable
           />
 
           <Group justify="space-between" align="center">

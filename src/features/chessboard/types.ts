@@ -57,10 +57,13 @@ export interface WasmBoardScriptConfig {
   disabled_rects: WasmDisabledRect[];
 }
 
+export type BoardOrientation = "normal" | "flipped" | "clockwise" | "counterclockwise";
+
 export interface WasmPlayerConfig {
   color: string;
   board: number;
   team: number;
+  orientation?: BoardOrientation;
 }
 
 export interface WasmVariantConfig {
@@ -137,6 +140,7 @@ export interface WasmSubmitActionResult {
 export interface PlayerRef {
   board: number;
   color: string;
+  orientation?: BoardOrientation;
 }
 
 /** Helper: extract a valid default player count from the variant config. */

@@ -38,9 +38,68 @@ All agents (Plan, Build) MUST reference this document.
 #{
     board: Board,
     players: [
-        #{ board: i32, color: string, team: i32 },
+        #{
+            board: i32,
+            color: string,
+            team: i32,
+            // Optional: how this player views the board.
+            // Overrides team orientation. See §7 for values and resolution order.
+            orientation?: string,
+        },
+    ],
+    // Optional: team-level orientation defaults (convenience, may be omitted).
+    teams?: [
+        #{
+            id: i32,
+            orientations: [
+                #{ board: i32, orientation: string },
+            ],
+        },
     ],
     // custom state keys ...
+}
+```
+
+**Orientation values:** `"normal"` | `"flipped"` | `"clockwise"` | `"counterclockwise"`
+
+**Resolution order** (highest wins):
+1. `player.orientation` (if present)
+2. `teams[player.team].orientations` entry matching `board` (if `teams` present)
+3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
+
+**Standard 1v1** — using player-level orientation directly:
+```rhai
+fn init(player_count) {
+    #{
+        board: engine::standard_start_position(),
+        players: [
+            #{ board: 0, color: "white", team: 0, orientation: "normal" },
+            #{ board: 0, color: "black", team: 1, orientation: "flipped" },
+        ],
+        turn: "white",
+    }
+}
+```
+
+**4-player chess** — using team-level orientation:
+```rhai
+fn init(player_count) {
+    #{
+        board: /* ... */,
+        players: [
+            #{ board: 0, color: "north", team: 0 },
+            #{ board: 0, color: "east",  team: 1 },
+            #{ board: 0, color: "south", team: 2 },
+            #{ board: 0, color: "west",  team: 3 },
+        ],
+        teams: [
+            #{ id: 0, orientations: [#{ board: 0, orientation: "normal" }] },
+            #{ id: 1, orientations: [#{ board: 0, orientation: "clockwise" }] },
+            #{ id: 2, orientations: [#{ board: 0, orientation: "flipped" }] },
+            #{ id: 3, orientations: [#{ board: 0, orientation: "counterclockwise" }] },
+        ],
+        turn: "north",
+    }
 }
 ```
 
@@ -486,7 +545,32 @@ engine.getUiJson(player_json) → string
 
 ---
 
-## 6. Safety Guarantees
+## 7. Board Orientation
+
+Each player sees the board from their own perspective. Orientation controls how the PixiJS renderer rotates/flips the board for that player's slot.
+
+| Value | Degrees | Description |
+|-------|---------|-------------|
+| `"normal"` | 0° | Board as-is (row 0 at top) |
+| `"flipped"` | 180° | Upside-down (standard black view in chess) |
+| `"clockwise"` | 90° CW | Rotated clockwise (e.g. east player in 4-player) |
+| `"counterclockwise"` | 90° CCW | Rotated counter-clockwise (e.g. west player in 4-player) |
+
+**Resolution order** (highest wins):
+1. `player.orientation` in `init()` result — per-player explicit override
+2. `teams[player.team].orientations` entry with matching `board` — team-level default
+3. Built-in default: team `0` → `"normal"`, team `1` → `"flipped"`, all others → `"normal"`
+
+The engine exposes resolved orientation via `playersJson()`:
+```json
+[
+  { "board": 0, "color": "white", "team": 0, "orientation": "normal" },
+  { "board": 0, "color": "black", "team": 1, "orientation": "flipped" }
+]
+```
+
+The UI additionally provides a **rotate button** in the side panel that cycles the local view through all four orientations, overriding the script default at runtime (user preference, not persisted).
+
 
 | Guarantee | Enforcement |
 |-----------|-------------|

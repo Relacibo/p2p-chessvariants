@@ -406,6 +406,10 @@ impl ChessvariantEngine {
             None => None,
         };
 
+        let teams_opt: Option<rhai::Array> = players_map
+            .get("teams")
+            .and_then(|v| v.clone().try_cast::<rhai::Array>());
+
         let players: Vec<serde_json::Value> = if let Some(arr) = players_arr {
             arr.iter()
                 .filter_map(|p| {
@@ -422,10 +426,50 @@ impl ChessvariantEngine {
                         .get("team")
                         .and_then(|v| v.as_int().ok())
                         .unwrap_or(0);
+                    let orientation = player_map
+                        .get("orientation")
+                        .and_then(|v| v.clone().into_string().ok())
+                        .or_else(|| {
+                            teams_opt.as_ref().and_then(|teams| {
+                                teams.iter().find_map(|team_entry| {
+                                    let team_map = team_entry.clone().try_cast::<rhai::Map>()?;
+                                    let team_id = team_map
+                                        .get("id")
+                                        .and_then(|v| v.as_int().ok())
+                                        .unwrap_or(0);
+                                    if team_id != team {
+                                        return None;
+                                    }
+
+                                    let orientations = team_map
+                                        .get("orientations")
+                                        .and_then(|v| v.clone().try_cast::<rhai::Array>())?;
+
+                                    orientations.iter().find_map(|orientation_entry| {
+                                        let orientation_map = orientation_entry.clone().try_cast::<rhai::Map>()?;
+                                        let orientation_board = orientation_map
+                                            .get("board")
+                                            .and_then(|v| v.as_int().ok())
+                                            .unwrap_or(0);
+                                        if orientation_board != board {
+                                            return None;
+                                        }
+                                        orientation_map
+                                            .get("orientation")
+                                            .and_then(|v| v.clone().into_string().ok())
+                                    })
+                                })
+                            })
+                        })
+                        .unwrap_or_else(|| match team {
+                            1 => "flipped".to_string(),
+                            _ => "normal".to_string(),
+                        });
                     Some(serde_json::json!({
                         "color": color,
                         "board": board,
-                        "team": team
+                        "team": team,
+                        "orientation": orientation
                     }))
                 })
                 .collect()
@@ -435,11 +479,12 @@ impl ChessvariantEngine {
                 .colors
                 .iter()
                 .enumerate()
-                .map(|(_i, color)| {
+                .map(|(i, color)| {
                     serde_json::json!({
                         "color": color,
                         "board": 0,
-                        "team": 0
+                        "team": 0,
+                        "orientation": if i == 0 { "normal" } else { "flipped" }
                     })
                 })
                 .collect()

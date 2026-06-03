@@ -8,6 +8,7 @@ import {
   Assets,
 } from "pixi.js";
 import {
+  BoardOrientation,
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
@@ -48,12 +49,14 @@ export type ZoomMode = "single" | "overview";
 export interface SceneState {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
-  /** Valid moves for the controlling player only. */
+  /** Valid moves for the selected controlling players. */
   validMoves: WasmAction[];
-  /** Board index of the local controlling player — determines interactivity. */
+  /** Primary board index of the local controlling players — determines zoom target. */
   activeBoardIndex: number;
-  /** Per-slot flip flag (index = boardIndex). */
-  flippedByBoard: boolean[];
+  /** Board indices where the selected local players can interact. */
+  activeBoardIndices: number[];
+  /** Per-slot orientation (index = boardIndex). */
+  orientationByBoard: BoardOrientation[];
   stageWidth: number;
   stageHeight: number;
   pendingMove: PendingMove | null;
@@ -73,7 +76,7 @@ interface SlotLayout {
   // Board tile origin (world coords)
   boardLeft: number;
   boardTop: number;
-  flipped: boolean;
+  orientation: BoardOrientation;
   // Reserve column (world coords)
   reserveLeft: number;
   reserveTop: number;
@@ -251,7 +254,7 @@ export class PixiBoard {
       prev.stageHeight !== s.stageHeight ||
       prev.boardState.rows !== s.boardState.rows ||
       prev.boardState.cols !== s.boardState.cols ||
-      prev.flippedByBoard !== s.flippedByBoard ||
+      prev.orientationByBoard !== s.orientationByBoard ||
       prev.variantConfig.board.count !== s.variantConfig.board.count ||
       prev.uiMap !== s.uiMap;
 
@@ -260,7 +263,8 @@ export class PixiBoard {
       prev?.boardState !== s.boardState ||
       prev?.pendingMove !== s.pendingMove ||
       prev?.validMoves !== s.validMoves ||
-      prev?.activeBoardIndex !== s.activeBoardIndex;
+      prev?.activeBoardIndex !== s.activeBoardIndex ||
+      prev?.activeBoardIndices !== s.activeBoardIndices;
 
     const highlightsChanged =
       piecesChanged ||
@@ -306,7 +310,14 @@ export class PixiBoard {
   }
 
   private computeSlotLayouts(s: SceneState): SlotLayout[] {
-    const { stageWidth: W, stageHeight: H, variantConfig, boardState, flippedByBoard, uiMap } = s;
+    const {
+      stageWidth: W,
+      stageHeight: H,
+      variantConfig,
+      boardState,
+      orientationByBoard,
+      uiMap,
+    } = s;
     const boardCount = variantConfig.board.count;
     const { rows, cols } = boardState;
     const gap = Math.round(W * SLOT_GAP_RATIO);
@@ -321,15 +332,20 @@ export class PixiBoard {
 
     const layouts: SlotLayout[] = [];
     for (let i = 0; i < boardCount; i++) {
+      const orientation = orientationByBoard[i] ?? "normal";
+      const rotated = orientation === "clockwise" || orientation === "counterclockwise";
       const hasReserve = reserveForBoard.has(i);
       const reserveW = hasReserve ? Math.max(60, Math.round(W * RESERVE_PANEL_RATIO)) : 0;
       const boardAreaW = W - reserveW - (hasReserve ? 12 : 0);
       const tileSize = Math.max(
         16,
-        Math.min(Math.floor(boardAreaW / cols), Math.floor((H - 16) / rows))
+        Math.min(
+          Math.floor(boardAreaW / (rotated ? rows : cols)),
+          Math.floor((H - 16) / (rotated ? cols : rows))
+        )
       );
-      const boardW = tileSize * cols;
-      const boardH = tileSize * rows;
+      const boardW = tileSize * (rotated ? rows : cols);
+      const boardH = tileSize * (rotated ? cols : rows);
       const slotOriginX = i * slotStride;
       const boardLeft = slotOriginX + Math.floor((boardAreaW - boardW) / 2);
       const boardTop = Math.floor((H - boardH) / 2);
@@ -343,7 +359,7 @@ export class PixiBoard {
         boardH,
         boardLeft,
         boardTop,
-        flipped: flippedByBoard[i] ?? false,
+        orientation,
         reserveLeft: slotOriginX + boardAreaW + 12,
         reserveTop: Math.round(H * 0.1),
         reserveW,
@@ -362,10 +378,29 @@ export class PixiBoard {
 
   /** Logical (row, col) → world-space pixel top-left for a given slot. */
   private toWorld(row: number, col: number, sl: SlotLayout): { x: number; y: number } {
-    return {
-      x: sl.boardLeft + col * sl.tileSize,
-      y: sl.boardTop + (sl.flipped ? sl.rows - 1 - row : row) * sl.tileSize,
-    };
+    const { boardLeft, boardTop, tileSize, rows, cols, orientation } = sl;
+    switch (orientation) {
+      case "flipped":
+        return {
+          x: boardLeft + (cols - 1 - col) * tileSize,
+          y: boardTop + (rows - 1 - row) * tileSize,
+        };
+      case "clockwise":
+        return {
+          x: boardLeft + (rows - 1 - row) * tileSize,
+          y: boardTop + col * tileSize,
+        };
+      case "counterclockwise":
+        return {
+          x: boardLeft + row * tileSize,
+          y: boardTop + (cols - 1 - col) * tileSize,
+        };
+      default:
+        return {
+          x: boardLeft + col * tileSize,
+          y: boardTop + row * tileSize,
+        };
+    }
   }
 
   /** World-space pixel → board coords (null if outside all boards). */
@@ -373,11 +408,30 @@ export class PixiBoard {
     for (const sl of this.slotLayouts) {
       const relX = wx - sl.boardLeft;
       const relY = wy - sl.boardTop;
-      const rawCol = Math.floor(relX / sl.tileSize);
-      const rawRow = Math.floor(relY / sl.tileSize);
-      if (rawCol < 0 || rawCol >= sl.cols || rawRow < 0 || rawRow >= sl.rows) continue;
-      const row = sl.flipped ? sl.rows - 1 - rawRow : rawRow;
-      return { coords: mkBoardCoords(row, rawCol, sl.boardIndex), sl };
+      if (relX < 0 || relX >= sl.boardW || relY < 0 || relY >= sl.boardH) continue;
+      const px = Math.floor(relX / sl.tileSize);
+      const py = Math.floor(relY / sl.tileSize);
+      let row: number;
+      let col: number;
+      switch (sl.orientation) {
+        case "flipped":
+          col = sl.cols - 1 - px;
+          row = sl.rows - 1 - py;
+          break;
+        case "clockwise":
+          row = sl.rows - 1 - px;
+          col = py;
+          break;
+        case "counterclockwise":
+          row = px;
+          col = sl.cols - 1 - py;
+          break;
+        default:
+          col = px;
+          row = py;
+          break;
+      }
+      return { coords: mkBoardCoords(row, col, sl.boardIndex), sl };
     }
     return null;
   }
@@ -519,7 +573,7 @@ export class PixiBoard {
 
   private rebuildPieces(): void {
     if (!this.state) return;
-    const { validMoves, activeBoardIndex } = this.state;
+    const { validMoves, activeBoardIndices } = this.state;
     const disabled = this.disabledSet();
 
     const pickable = new Set<string>();
@@ -541,7 +595,7 @@ export class PixiBoard {
             piece,
             x,
             y,
-            canDrag: sl.boardIndex === activeBoardIndex &&
+            canDrag: activeBoardIndices.includes(sl.boardIndex) &&
               pickable.has(`${sl.boardIndex},${row},${col}`),
             sl,
           });

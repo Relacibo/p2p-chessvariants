@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PixiBoard, SceneState, ZoomMode } from "./PixiBoard";
 import type {
+  BoardOrientation,
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
@@ -20,10 +21,13 @@ export type PixiChessboardProps = {
   variantConfig: WasmVariantConfig;
   boardState: WasmBoardState;
   validMoves: WasmAction[];
-  /** Board index of the local controlling player — determines interactivity. */
+  /** Primary board index of the local controlling player — determines zoom target. */
   activeBoardIndex: number;
-  /** Per-slot flip flag (index = boardIndex). Defaults to [false]. */
-  flippedByBoard?: boolean[];
+  /** Board indices where the selected local players can interact. */
+  activeBoardIndices?: number[];
+  /** Per-slot orientation (index = boardIndex). Defaults to ["normal"]. */
+  orientationByBoard?: BoardOrientation[];
+  onRotateBoard?: (boardIndex: number) => void;
   onSubmitAction: (action: WasmAction) => void;
   lastAction?: WasmAction;
   selectedDropPiece?: WasmPiece | null;
@@ -42,7 +46,9 @@ export function PixiChessboard({
   boardState,
   validMoves,
   activeBoardIndex,
-  flippedByBoard = [false],
+  activeBoardIndices = [activeBoardIndex],
+  orientationByBoard = ["normal"],
+  onRotateBoard,
   onSubmitAction,
   lastAction,
   selectedDropPiece = null,
@@ -68,7 +74,8 @@ export function PixiChessboard({
     boardState,
     validMoves,
     activeBoardIndex,
-    flippedByBoard,
+    activeBoardIndices,
+    orientationByBoard,
     stageWidth: sw,
     stageHeight: sh,
     pendingMove: pendingMove ?? null,
@@ -125,7 +132,8 @@ export function PixiChessboard({
       boardState,
       validMoves,
       activeBoardIndex,
-      flippedByBoard,
+      activeBoardIndices,
+      orientationByBoard,
       stageWidth: sw,
       stageHeight: sh,
       pendingMove: pendingMove ?? null,
@@ -138,7 +146,8 @@ export function PixiChessboard({
     boardState,
     validMoves,
     activeBoardIndex,
-    flippedByBoard,
+    activeBoardIndices,
+    orientationByBoard,
     sw,
     sh,
     pendingMove,
@@ -160,28 +169,68 @@ export function PixiChessboard({
       style={{ position: "relative", width: sw, height: sh }}
     >
       {/* PixiJS appends its canvas here after init() */}
-      {variantConfig.board.count > 1 && (
+      {/* Side panel: game controls — rendered as HTML overlay right of the board */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 36,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      >
         <button
-          onClick={toggleZoom}
-          title={zoomMode === "single" ? "Zoom out (overview)" : "Zoom in (single board)"}
+          title="Rotate board"
+          onClick={() => onRotateBoard?.(activeBoardIndex)}
           style={{
-            position: "absolute",
-            bottom: 8,
-            right: 8,
-            zIndex: 10,
-            padding: "4px 8px",
-            fontSize: 18,
+            pointerEvents: "all",
             background: "rgba(0,0,0,0.55)",
             color: "#fff",
             border: "none",
             borderRadius: 6,
+            width: 28,
+            height: 28,
+            fontSize: 16,
             cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             lineHeight: 1,
           }}
         >
-          {zoomMode === "single" ? "⊟" : "⊞"}
+          ↻
         </button>
-      )}
+        {variantConfig.board.count > 1 && (
+          <button
+            onClick={toggleZoom}
+            title={zoomMode === "single" ? "Zoom out (overview)" : "Zoom in (single board)"}
+            style={{
+              pointerEvents: "all",
+              background: "rgba(0,0,0,0.55)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              width: 28,
+              height: 28,
+              fontSize: 16,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 1,
+            }}
+          >
+            {zoomMode === "single" ? "⊟" : "⊞"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
