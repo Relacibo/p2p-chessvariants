@@ -301,6 +301,7 @@ export class PixiBoard {
   setZoomMode(mode: ZoomMode): void {
     this.currentZoomMode = mode;
     this.applyZoomMode(mode, this.focusedBoardIndex);
+    if (this.state) this.rebuildUiButtons(this.state);
     this.onZoomModeChange?.(mode);
   }
 
