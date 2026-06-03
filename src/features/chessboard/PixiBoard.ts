@@ -764,10 +764,12 @@ export class PixiBoard {
     const isOverview = this.currentZoomMode === "overview";
     const isOnOtherBoard = hasMultiBoard && !isOverview &&
       this.focusedBoardIndex !== (this.state?.activeBoardIndex ?? 0);
-    // Show ⊟ (zoom-out) or ⌂ (home) depending on context
-    const showZoomOut = hasMultiBoard && !isOverview && !isOnOtherBoard;
+    // ⊟ (zoom-out) always when multi-board and not overview
+    const showZoomOut = hasMultiBoard && !isOverview;
+    // ⌂ (home) on other boards or in overview
     const showHome = hasMultiBoard && (isOverview || isOnOtherBoard);
-    const totalH = (showZoomOut || showHome) ? btnH * 2 + gap : btnH;
+    const sideButtons = (showZoomOut ? 1 : 0) + (showHome ? 1 : 0);
+    const totalH = sideButtons > 0 ? btnH * (1 + sideButtons) + gap * (sideButtons - 1) : btnH;
     const startY = Math.round((s.stageHeight - totalH) / 2);
     const btnX = s.stageWidth - btnW - rightMargin;
 
@@ -801,35 +803,40 @@ export class PixiBoard {
       this.uiOverlay.addChild(container);
     }
 
-    // ── Zoom / Home button ──
-    if (showZoomOut || showHome) {
-      const container = new Container();
-      container.eventMode = "static";
-      container.cursor = "pointer";
-
+    // Helper to create a side button
+    const addSideBtn = (text: string, y: number, onClick: () => void) => {
+      const c = new Container();
+      c.eventMode = "static";
+      c.cursor = "pointer";
       const bg = new Graphics();
       bg.roundRect(0, 0, btnW, btnH, radius);
       bg.fill({ color: bgColor, alpha: bgAlpha });
-      container.addChild(bg);
-
-      const label = new Text({ text: showHome ? "⌂" : "⊟", style: textStyle });
-      label.anchor.set(0.5);
-      label.position.set(btnW / 2, btnH / 2);
-      container.addChild(label);
-
-      container.position.set(btnX, startY + btnH + gap);
-      container.on("pointerdown", (e: FederatedPointerEvent) => {
+      c.addChild(bg);
+      const t = new Text({ text, style: textStyle });
+      t.anchor.set(0.5);
+      t.position.set(btnW / 2, btnH / 2);
+      c.addChild(t);
+      c.position.set(btnX, y);
+      c.on("pointerdown", (e: FederatedPointerEvent) => {
         e.stopPropagation();
-        if (showHome) {
-          // Return to primary board
-          this.focusedBoardIndex = this.state?.activeBoardIndex ?? 0;
-          this.setZoomMode("single");
-          this.onReturnHome?.();
-        } else {
-          this.setZoomMode("overview");
-        }
+        onClick();
       });
-      this.uiOverlay.addChild(container);
+      this.uiOverlay.addChild(c);
+    };
+
+    // ── ⊟  Zoom-out ──
+    if (showZoomOut) {
+      addSideBtn("⊟", startY + btnH + gap, () => this.setZoomMode("overview"));
+    }
+
+    // ── ⌂  Home ──
+    if (showHome) {
+      const homeY = showZoomOut ? startY + (btnH + gap) * 2 : startY + btnH + gap;
+      addSideBtn("⌂", homeY, () => {
+        this.focusedBoardIndex = this.state?.activeBoardIndex ?? 0;
+        this.setZoomMode("single");
+        this.onReturnHome?.();
+      });
     }
   }
 
@@ -838,8 +845,9 @@ export class PixiBoard {
     this.slotBtnsLayer.removeChildren();
     if (this.currentZoomMode !== "overview" || s.variantConfig.board.count <= 1) return;
 
-    const btnW = 28;
+    const btnW = 36;
     const btnH = 28;
+    const btnGapFromBoard = 16;
     const radius = 6;
     const bgColor = 0x000000;
     const bgAlpha = 0.55;
@@ -854,7 +862,7 @@ export class PixiBoard {
     for (const sl of this.slotLayouts) {
       const slotWidth = sl.slotRight - sl.slotLeft;
       const btnX = sl.slotLeft + Math.round((slotWidth - btnW) / 2);
-      const btnY = sl.boardTop + sl.boardH + 8;
+      const btnY = sl.boardTop + sl.boardH + btnGapFromBoard;
 
       const c = new Container();
       c.eventMode = "static";
