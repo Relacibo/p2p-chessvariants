@@ -125,7 +125,7 @@ fn valid_moves(state, player) {
                 let from = Coords(r, c);
                 let dests = moves_for_piece(state.board, from, piece.type, player.color);
                 for to in dests {
-                    if is_legal(state.board, from, to, player.color) {
+                    if engine::is_king_in_check(state, from, to, player) {
                         moves.push(Move(from, to));
                     }
                 }
@@ -162,7 +162,7 @@ fn valid_moves(state, player) {
 fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
     for entry in all_valid_moves {
-        if entry.moves.len() > 0 { return false; }
+        if entry.moves.len > 0 { return false; }
     }
     true
 }
@@ -173,7 +173,7 @@ Or **specific variant** — current player has no moves:
 ```rhai
 fn is_game_over(state, all_valid_moves) {
     for entry in all_valid_moves {
-        if entry.player.color == state.turn && entry.moves.len() == 0 {
+        if entry.player.color == state.turn && entry.moves.len == 0 {
             return true;
         }
     }
@@ -259,7 +259,7 @@ fn get_ui(state, player) {
     }
 
     // Reserve pile
-    if state.reserve != () && state.reserve[player.color].len() > 0 {
+    if state.reserve != () && state.reserve[player.color].len > 0 {
         ui.reserve = #{ type: "reserve_pile", pieces: state.reserve[player.color] };
     }
 
@@ -404,8 +404,8 @@ new ChessvariantEngine(script, player_count)
 player submits (player_json, action_json)
   │
   ├─ action is Move AND cached_valid_moves is None?
-  │   → engine::is_legal(board, from, to, color)  [Rust, no script call]
-  │   → illegal? → reject
+  │   → call valid_moves(state, player) via Rhai
+  │   → move not in returned list? → reject
   │
   ├─ action is Move AND cached_valid_moves is Some?
   │   → action must be in player's moves list
@@ -512,7 +512,7 @@ engine.getUiJson(player_json) → string
 |----------|-----------|---------|
 | `is_square_attacked` | `(Board, Coords, color) -> bool` | Square attacked by pieces of color? |
 | `pseudo_moves` | `(Board, Coords, piece_type, color) -> [Coords]` | Pseudo-moves for any piece type |
-| `is_legal` | `(Board, Coords, Coords, color) -> bool` | Would move leave own king in check? |
+| `is_king_in_check` | `(State, Coords, Coords, Player) -> bool` | Would move leave own king in check? (uses team info from state) |
 | `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess |
 
@@ -574,7 +574,7 @@ The UI additionally provides a **rotate button** in the side panel that cycles t
 
 | Guarantee | Enforcement |
 |-----------|-------------|
-| Move is legal | Engine validates: cached `valid_moves` fresh → action must be in list. Cache stale → Rust `is_legal` check before `handle_action`. |
+| Move is legal | Engine validates: cached `valid_moves` fresh → action must be in list. Cache stale → `valid_moves(state, player)` called via Rhai; move must be in returned list. |
 | Non-Move actions are state-consistent | Script validates state conditions in `handle_action`. Engine passes them through. |
 | UI element IDs unique | Engine throws on duplicate keys in `get_ui` return. |
 | State immutability | Engine never mutates state map. Script owns all transitions. |
