@@ -101,6 +101,7 @@ export class PixiBoard {
   private pieceLayer = new Container();
   private dragLayer = new Container();
   private uiOverlay = new Container();
+  private slotBtnsLayer = new Container();  // magnifying glass buttons in overview
 
   private pieceSprites = new Map<string, Sprite>();
   private reserveSprites = new Map<string, Sprite>();
@@ -185,6 +186,7 @@ export class PixiBoard {
     this.rootContainer.addChild(this.reserveLayer);
     this.rootContainer.addChild(this.pieceLayer);
     this.rootContainer.addChild(this.dragLayer);
+    this.rootContainer.addChild(this.slotBtnsLayer);
 
     app.ticker.add(() => {
       if (this.zoomAnimating) this.stepZoomAnimation();
@@ -296,13 +298,17 @@ export class PixiBoard {
     if (piecesChanged) this.rebuildPieces();
     if (highlightsChanged) this.rebuildHighlights();
     if (reserveChanged) this.rebuildReservePiles();
+    this.rebuildSlotButtons(s);
     this.rebuildUiButtons(s);
   }
 
   setZoomMode(mode: ZoomMode): void {
     this.currentZoomMode = mode;
     this.applyZoomMode(mode, this.focusedBoardIndex);
-    if (this.state) this.rebuildUiButtons(this.state);
+    if (this.state) {
+      this.rebuildUiButtons(this.state);
+      this.rebuildSlotButtons(this.state);
+    }
     this.onZoomModeChange?.(mode);
   }
 
@@ -823,6 +829,52 @@ export class PixiBoard {
     }
   }
 
+  /** Magnifying glass buttons under each board in overview mode. */
+  private rebuildSlotButtons(s: SceneState): void {
+    this.slotBtnsLayer.removeChildren();
+    if (this.currentZoomMode !== "overview" || s.variantConfig.board.count <= 1) return;
+
+    const btnW = 32;
+    const btnH = 22;
+    const radius = 4;
+    const bgColor = 0x333333;
+    const bgAlpha = 0.75;
+
+    for (const sl of this.slotLayouts) {
+      const slotWidth = sl.slotRight - sl.slotLeft;
+      const btnX = sl.slotLeft + Math.round((slotWidth - btnW) / 2);
+      const btnY = sl.boardTop + sl.boardH + 12;
+
+      const c = new Container();
+      c.eventMode = "static";
+      c.cursor = "pointer";
+
+      const bg = new Graphics();
+      bg.roundRect(0, 0, btnW, btnH, radius);
+      bg.fill({ color: bgColor, alpha: bgAlpha });
+      c.addChild(bg);
+
+      const label = new Text({
+        text: "🔍",
+        style: new TextStyle({ fontSize: 14, fontFamily: "sans-serif" }),
+      });
+      label.anchor.set(0.5);
+      label.position.set(btnW / 2, btnH / 2);
+      c.addChild(label);
+
+      c.position.set(btnX, btnY);
+      c.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        this.focusedBoardIndex = sl.boardIndex;
+        this.currentZoomMode = "single";
+        this.applyZoomMode("single", sl.boardIndex);
+        this.rebuildUiButtons(this.state!);
+        this.onZoomModeChange?.("single");
+      });
+      this.slotBtnsLayer.addChild(c);
+    }
+  }
+
   // ─── Interaction ───────────────────────────────────────────────────────────
 
   private handleBoardPointerDown(wx: number, wy: number): void {
@@ -839,15 +891,8 @@ export class PixiBoard {
 
     const { coords, sl } = hit;
 
-    // Clicking any board in overview mode → zoom to it (never make moves)
-    if (this.currentZoomMode === "overview") {
-      this.focusedBoardIndex = sl.boardIndex;
-      this.currentZoomMode = "single";
-      this.applyZoomMode("single", sl.boardIndex);
-      this.rebuildUiButtons(this.state);
-      this.onZoomModeChange?.("single");
-      return;
-    }
+    // Overview mode: no clicks on the board itself (use 🔍 buttons below)
+    if (this.currentZoomMode === "overview") return;
 
     if (sl.boardIndex !== this.state.activeBoardIndex) {
       return;
