@@ -23,12 +23,11 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
-import { notifications } from "@mantine/notifications";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { EngineProxy } from "../engine/EngineProxy";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import useConfigureLayout from "../layout/hooks";
+import { useChessGame } from "../chessboard/useChessGame";
 import style from "./DevBoardView.module.css";
 import {
   BoardOrientation,
@@ -44,10 +43,7 @@ import {
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
 import { selectAllVariants, VariantEntry } from "../lobby/variantsSlice";
-import {
-  fetchScriptText,
-  getGithubBrowseUrl,
-} from "../lobby/scriptUrl";
+import { getGithubBrowseUrl } from "../lobby/scriptUrl";
 
 // ─── Log entry ───────────────────────────────────────────────────────────────
 
@@ -58,27 +54,11 @@ type LogAction =
 interface LogEntry {
   id: number;
   timestamp: string;
-  player: string;
+  player: number;
   action: LogAction;
 }
 
 let logSeq = 0;
-
-function extractErrorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === "string") return e;
-  if (e && typeof e === "object") {
-    const obj = e as Record<string, unknown>;
-    if (typeof obj.message === "string") return obj.message;
-    if (typeof obj.error === "string") return obj.error;
-    // Try meaningful toString (not the default [object Object])
-    if (typeof obj.toString === "function" &&
-        obj.toString !== Object.prototype.toString) {
-      return obj.toString();
-    }
-  }
-  try { return JSON.stringify(e, null, 2); } catch { return String(e); }
-}
 
 /** Determine which selected player should act based on the piece being moved. */
 function getActingPlayer(
@@ -154,8 +134,28 @@ export function DevBoardView() {
   const [controllingPlayer, setControllingPlayer] = useState<string>(
     () => initUrl.sel?.[0] ?? ""
   );
-  const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
-  const [allPlayers, setAllPlayers] = useState<WasmPlayerConfig[]>([]);
+  // ── Engine state managed by useChessGame hook ──
+  const {
+    proxyRef,
+    boardState,
+    validMoves,
+    validMovesAll,
+    uiElements,
+    allPlayers,
+    activePlayers,
+    gameOver,
+    pendingMove,
+    selectedDropPiece,
+    lastAction,
+    variantConfig,
+    loading,
+    setPendingMove,
+    setSelectedDropPiece,
+    syncState,
+    loadScript: loadScriptRaw,
+    handleSubmitAction: handleSubmitActionRaw,
+  } = useChessGame();
+
   // selectedPlayers persisted in URL state
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>(
     () => initUrl.sel ?? []
@@ -164,34 +164,13 @@ export function DevBoardView() {
     Partial<Record<number, BoardOrientation>>
   >({});
 
-  const proxyRef = useRef<EngineProxy | null>(null);
   const lastLoadedUrl = useRef<string | null>(null);
-  const [variantConfig, setVariantConfig] = useState<WasmVariantConfig | null>(
-    null
-  );
-  const [boardState, setBoardState] = useState<WasmBoardState | null>(null);
-  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
-  const [validMoves, setValidMoves] = useState<WasmAction[]>([]);
-
-  const [validMovesAll, setValidMovesAll] = useState<WasmPlayerMoves[]>([]);
-
-  const [uiElements, setUiElements] = useState<WasmUiMap | null>(null);
-  const [lastAction, setLastAction] = useState<WasmAction | undefined>();
-  const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(
-    null
-  );
   const [log, setLog] = useState<LogEntry[]>([]);
   const [gameStateJson, setGameStateJson] = useState<object | null>(null);
   const [showGameState, setShowGameState] = useState(false);
   const [showActionLog, setShowActionLog] = useState(false);
   const [validMovesJsonStr, setValidMovesJsonStr] = useState<string | null>(null);
   const [showValidMoves, setShowValidMoves] = useState(false);
-  const [gameOver, setGameOver] = useState<{
-    type: "winner" | "winners" | "draw";
-    player?: number;
-    players?: number[];
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
@@ -334,7 +313,22 @@ export function DevBoardView() {
     const urlState: UrlState = {};
     if (playerCount) urlState.n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
     if (selectedVariant?.url) urlState.script = selectedVariant.url;
-    if (selectedPlayers.length > 0) urlState.sel = selectedPlayers;
+    if (selectedPlayers.length > 0) {
+      // Store player IDs in URL instead of full JSON structs
+      urlState.sel = selectedPlayers
+        .map((p) => {
+          try {
+            const ref = JSON.parse(p) as PlayerRef;
+            const player = allPlayers.find(
+              (ap) => ap.board === ref.board && ap.color === ref.color
+            );
+            return player != null ? String(player.id) : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter((id): id is string => id != null);
+    }
     urlState.panel = drawerOpen ? 1 : 0;
 
     next.set("dev", encodeUrlState(urlState));
@@ -346,7 +340,7 @@ export function DevBoardView() {
     next.delete("panel");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerCount, selectedPlayers, drawerOpen, selectedVariant?.url]);
+  }, [playerCount, selectedPlayers, drawerOpen, selectedVariant?.url, allPlayers]);
 
   // ── Bidirectional sync: selectedPlayers[0] ↔ controllingPlayer ──
   useEffect(() => {
@@ -364,60 +358,16 @@ export function DevBoardView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controllingPlayer]);
 
-  // Derive active players from valid_actions all (entries with non-empty actions)
-  const deriveActivePlayers = useCallback(
-    (allActions: WasmPlayerMoves[]): PlayerRef[] => {
-      return allActions
-        .filter((pa) => pa.moves.length > 0)
-        .map((pa) => ({
-          board: pa.player.board,
-          color: pa.player.color,
-          orientation: allPlayers.find(
-            (ap) => ap.board === pa.player.board && ap.color === pa.player.color
-          )?.orientation,
-        }));
-    },
-    [allPlayers],
-  );
-
-  const syncState = useCallback(
-    async (proxy: EngineProxy, player?: string) => {
-      const p = player ?? controllingPlayer;
-      const [boardState, allValid, allP] = await Promise.all([
-        proxy.boardStateJson() as Promise<WasmBoardState>,
-        proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
-        proxy.playersJson() as Promise<WasmPlayerConfig[]>,
-      ]);
-      setBoardState(boardState);
-      setValidMovesAll(allValid);
-      setActivePlayers(deriveActivePlayers(allValid));
-      setAllPlayers(allP);
-      if (p) {
-        const ref: PlayerRef = JSON.parse(p);
-        const entry = allValid.find(pa =>
-          pa.player.board === ref.board && pa.player.color === ref.color
-        );
-        setValidMoves(entry?.moves ?? []);
-        const uiResult = await proxy.deriveUiJson(p) as { ui: WasmUiMap };
-        const ui = (uiResult.ui ?? null) as WasmUiMap | null;
-        setUiElements(ui);
-      } else {
-        setValidMoves([]);
-        setUiElements(null);
-      }
-    },
-    [controllingPlayer, deriveActivePlayers],
-  );
-
+  // ── Logging ──
   const addLogEntry = useCallback(
-    (player: string, action: LogAction) => {
+    (playerId: number, action: LogAction) => {
       const id = ++logSeq;
       setLog((prev) => [
         ...prev,
         {
           id,
           timestamp: new Date().toLocaleTimeString(),
-          player,
+          player: playerId,
           action,
         },
       ]);
@@ -425,67 +375,43 @@ export function DevBoardView() {
     []
   );
 
+  // ── loadScript: delegate to hook, then restore Dev-specific URL state ──
   const loadScript = useCallback(
     async (url: string, numPlayers: number) => {
-      proxyRef.current?.terminate();
-      proxyRef.current = null;
-      notifications.clean();
-      setLoading(true);
       setLog([]);
-      setLastAction(undefined);
-      setSelectedDropPiece(null);
-      setVariantConfig(null);
-      setBoardState(null);
-      setValidMoves([]);
-      setValidMovesAll([]);
-      setUiElements(null);
-      // Capture URL selection before clearing (it gets synced away)
       const urlPreselection = readUrlState(searchParams).sel;
-      setSelectedPlayers([]);
       setLocalOrientationOverride({});
-      try {
-        const script = await fetchScriptText(url);
-        const proxy = new EngineProxy();
-        const init = await proxy.init(script, numPlayers);
-        proxyRef.current = proxy;
-        setVariantConfig(init.variantConfig as WasmVariantConfig);
-        setBoardState(init.boardState as WasmBoardState);
-        const initialValid = init.validMoves as WasmPlayerMoves[];
-        setValidMovesAll(initialValid);
-        const initPlayers = deriveActivePlayers(initialValid);
-        const firstPlayer = initPlayers[0] ? JSON.stringify(initPlayers[0]) : "";
-        setControllingPlayer(firstPlayer);
-        setActivePlayers(initPlayers);
-        await syncState(proxy, firstPlayer);
-        // Restore selected players: URL preselection wins over default "all"
-        if (urlPreselection && urlPreselection.length > 0) {
-          setSelectedPlayers(urlPreselection);
-        } else {
-          // No URL selection — default to all players
-          try {
-            const allP = (await proxy.playersJson()) as WasmPlayerConfig[];
-            setSelectedPlayers(
-              allP.map((p) =>
-                JSON.stringify({ board: p.board, color: p.color })
-              )
-            );
-          } catch {
-            setSelectedPlayers(firstPlayer ? [firstPlayer] : []);
-          }
+      await loadScriptRaw(url, numPlayers);
+
+      // Restore selected players from URL + set controlling player
+      const proxy = proxyRef.current;
+      if (proxy) {
+        const [allValid, allP] = await Promise.all([
+          proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
+          proxy.playersJson() as Promise<WasmPlayerConfig[]>,
+        ]);
+        // Set controllingPlayer to first active player
+        const active = allValid
+          .filter((pa) => pa.moves.length > 0)
+          .map((pa) => ({ board: pa.player.board, color: pa.player.color }));
+        if (active.length > 0) {
+          setControllingPlayer(JSON.stringify(active[0]));
         }
-      } catch (e: unknown) {
-        notifications.show({
-          title: "Load failed",
-          message: extractErrorMessage(e),
-          color: "red",
-          withBorder: true,
-          autoClose: false,
-        });
-      } finally {
-        setLoading(false);
+        // Restore selected players from URL
+        if (urlPreselection && urlPreselection.length > 0) {
+          const idSet = new Set(urlPreselection.map(Number));
+          const restored = allP
+            .filter((p) => idSet.has(p.id))
+            .map((p) => JSON.stringify({ board: p.board, color: p.color }));
+          setSelectedPlayers(restored.length > 0 ? restored : urlPreselection);
+        } else {
+          setSelectedPlayers(
+            allP.map((p) => JSON.stringify({ board: p.board, color: p.color }))
+          );
+        }
       }
     },
-    [syncState, deriveActivePlayers],
+    [loadScriptRaw, proxyRef, searchParams],
   );
 
   // ── Sync when controlling player changes ──
@@ -540,32 +466,7 @@ export function DevBoardView() {
     closeDrawer();
   };
 
-  // ── Register progressive Phase 2 callbacks on the current proxy ──
-  useEffect(() => {
-    const proxy = proxyRef.current;
-    if (!proxy) return;
-    // Phase 2a: local player's valid_moves (fast, updates highlights)
-    proxy.onValidMoves = (payload) => {
-      const lm = payload.validMoves;
-      setValidMoves((lm.moves ?? []) as WasmAction[]);
-    };
-    // Phase 2c: all validMoves for all players + game_over result
-    proxy.onGameOver = (payload) => {
-      const va = payload.validMoves as WasmPlayerMoves[];
-      setValidMovesAll(va);
-      setActivePlayers(deriveActivePlayers(va));
-      if (payload.gameOver) {
-        setGameOver(payload.gameOver as typeof gameOver);
-      }
-    };
-    return () => {
-      proxy.onValidMoves = null;
-      proxy.onGameOver = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proxyRef.current, controllingPlayer]);
-
-  // ── Submit an action via submitAction ──
+  // ── Submit an action: resolve actor → log → delegate to hook ──
   const handleSubmitAction = useCallback(
     async (action: WasmAction) => {
       const proxy = proxyRef.current;
@@ -579,58 +480,31 @@ export function DevBoardView() {
       const actingPlayer = actor ?? controllingPlayer ?? selectedPlayers[0];
       if (!actingPlayer) return;
 
-      try {
-        // Phase 1: board state + ui + game_over — arrives immediately
-        const result = await proxy.submitAction(
-          actingPlayer,
-          JSON.stringify(action),
-          actingPlayer,
-        );
-        if (result.error) {
-          notifications.show({
-            title: "Action failed",
-            message: extractErrorMessage(result.error),
-            color: "red",
-            withBorder: true,
-            autoClose: false,
-          });
-          // Force a boardState identity change to clear optimistic prediction
-          setBoardState(prev => prev ? { ...prev } : null);
-          setPendingMove(null);
-          return;
-        }
-        // ── Render board immediately ──
-        setUiElements(result.ui as WasmUiMap);
-        setLastAction(action);
-        setSelectedDropPiece(null);
-        // Clear optimistic prediction in the same batch as the real board state
-        // so React renders them together (one Konva repaint instead of two).
-        setPendingMove(null);
-        if (result.board_state) setBoardState(result.board_state as WasmBoardState);
-        const extra = result as unknown as Record<string, unknown>;
-        if (extra.stateJson) setGameStateJson(extra.stateJson as object);
-        if (extra.players) setAllPlayers(extra.players as WasmPlayerConfig[]);
-        if (action.type === "move") {
-          addLogEntry(actingPlayer, { kind: "move", action });
-        } else if (action.type === "interact") {
-          addLogEntry(actingPlayer, { kind: "ui", elementId: action.elementId });
-        } else if (action.type === "select_piece") {
-          addLogEntry(actingPlayer, { kind: "ui", elementId: "select_piece", piece: action.piece });
-        } else if (action.type === "cancel") {
-          addLogEntry(actingPlayer, { kind: "ui", elementId: "cancel" });
-        }
-        // Phase 2: valid_actions arrive asynchronously via proxy.onValidMoves
-      } catch (e: unknown) {
-        notifications.show({
-          title: "Action failed",
-          message: extractErrorMessage(e),
-          color: "red",
-          withBorder: true,
-          autoClose: false,
-        });
+      // Resolve acting player's numeric ID for logging
+      const actingPlayerRef = (() => {
+        try { return JSON.parse(actingPlayer) as PlayerRef; } catch { return null; }
+      })();
+      const actingPlayerId = actingPlayerRef
+        ? (allPlayers.find(
+            (ap) => ap.board === actingPlayerRef.board && ap.color === actingPlayerRef.color
+          )?.id ?? -1)
+        : -1;
+
+      // Optimistic log entries
+      if (action.type === "move") {
+        addLogEntry(actingPlayerId, { kind: "move", action });
+      } else if (action.type === "interact") {
+        addLogEntry(actingPlayerId, { kind: "ui", elementId: action.elementId });
+      } else if (action.type === "select_piece") {
+        addLogEntry(actingPlayerId, { kind: "ui", elementId: "select_piece", piece: action.piece });
+      } else if (action.type === "cancel") {
+        addLogEntry(actingPlayerId, { kind: "ui", elementId: "cancel" });
       }
+
+      // Delegate engine interaction to the hook
+      await handleSubmitActionRaw(actingPlayer, action);
     },
-    [controllingPlayer, selectedPlayers, boardState, addLogEntry, deriveActivePlayers],
+    [proxyRef, selectedPlayers, boardState, allPlayers, controllingPlayer, addLogEntry, handleSubmitActionRaw],
   );
 
   const filteredVariants = variants.filter((v) =>
@@ -806,7 +680,7 @@ export function DevBoardView() {
             label="Controlling players (local)"
             data={allPlayers.map((p) => ({
               value: JSON.stringify({ board: p.board, color: p.color }),
-              label: `${p.color} ${p.board > 0 ? `(board ${p.board})` : ""}`,
+              label: p.name || String(p.id),
             }))}
             value={selectedPlayers}
             onChange={(values) => setSelectedPlayers(values)}
@@ -874,7 +748,7 @@ export function DevBoardView() {
                       [...log].reverse().map((entry) => ({
                         id: entry.id,
                         timestamp: entry.timestamp,
-                        player: JSON.parse(entry.player),
+                        player: entry.player,
                         action: entry.action,
                       })),
                       null,
@@ -949,7 +823,11 @@ export function DevBoardView() {
                 if (!showValidMoves && !validMovesJsonStr) {
                   // Fetch on first expand
                   void proxyRef.current?.validMovesJson().then(v => {
-                    setValidMovesJsonStr(JSON.stringify(v, null, 2));
+                    const mapped = (v as WasmPlayerMoves[]).map(pm => ({
+                      player: pm.player.id,
+                      moves: pm.moves,
+                    }));
+                    setValidMovesJsonStr(JSON.stringify(mapped, null, 2));
                   }).catch((e) => console.error("[dev] validMovesJson failed", e));
                 }
                 setShowValidMoves((s) => !s);
