@@ -34,6 +34,19 @@ implementing engine features, script functions, or Wasm endpoints. Key constrain
 - **TypeScript**: camelCase, Prettier (2-space indentation), functional components with hooks
 - All code comments, variable names, and documentation are in **English**
 
+## Game UI Architecture (CRITICAL)
+
+**All UI elements returned by `get_ui()` belong in the PixiJS canvas, not as HTML/Mantine overlays.**
+
+- `src/features/chessboard/PixiBoard.ts` — the ONLY place to render `piece_picker`, `button`, `banner`, `reserve_pile`
+- `src/features/chessboard/PixiChessboard.tsx` — React↔PixiJS bridge, passes `uiMap` to `PixiBoard`
+- `src/features/chessboard/PieceSelectionDialog.tsx` — **DEPRECATED**: HTML overlay, must be migrated into `PixiBoard.ts`
+- `DevBoardView.tsx` — wire results (submit actions), never render `get_ui` elements itself
+
+**Rules when touching `get_ui` elements:**
+- Render sprites/graphics in `PixiBoard.ts`, use PixiJS `pointerdown` events (NOT React `onClick`)
+- Never implement UI overlays as React/Mantine components (no new `PieceSelectionDialog`-style code)
+
 ## Error Handling
 
 **Never silence errors.** Do not write empty `catch` blocks, `.catch(() => {})`, or `catch { /* ignore */ }`.
