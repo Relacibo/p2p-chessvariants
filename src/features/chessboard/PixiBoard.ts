@@ -768,8 +768,11 @@ export class PixiBoard {
     const showZoomOut = hasMultiBoard && !isOverview;
     // ⌂ (home) on other boards or in overview
     const showHome = hasMultiBoard && (isOverview || isOnOtherBoard);
-    const sideButtons = (showZoomOut ? 1 : 0) + (showHome ? 1 : 0);
-    const totalH = sideButtons > 0 ? btnH * (1 + sideButtons) + gap * (sideButtons - 1) : btnH;
+    // ◀ ▶ navigation in single mode with multi-board
+    const showNav = hasMultiBoard && !isOverview;
+    const sideButtons = (showZoomOut ? 1 : 0) + (showHome ? 1 : 0) + (showNav ? 2 : 0);
+    const totalBtnCount = 1 + sideButtons; // ↻ always present
+    const totalH = totalBtnCount * btnH + sideButtons * gap;
     const startY = Math.round((s.stageHeight - totalH) / 2);
     const btnX = s.stageWidth - btnW - rightMargin;
 
@@ -836,6 +839,30 @@ export class PixiBoard {
         this.focusedBoardIndex = this.state?.activeBoardIndex ?? 0;
         this.setZoomMode("single");
         this.onReturnHome?.();
+      });
+    }
+
+    // ── < >  Board navigation (single mode, multi-board, not overview) ──
+    if (hasMultiBoard && !isOverview) {
+      const boardCount = s.variantConfig.board.count;
+      const navBaseY = (showHome || showZoomOut)
+        ? startY + (btnH + gap) * (sideButtons + 1)
+        : startY + btnH + gap;
+
+      addSideBtn("◀", navBaseY, () => {
+        const prev = this.focusedBoardIndex <= 0 ? boardCount - 1 : this.focusedBoardIndex - 1;
+        this.focusedBoardIndex = prev;
+        this.applyZoomMode("single", prev);
+        this.rebuildUiButtons(this.state!);
+        this.rebuildSlotButtons(this.state!);
+      });
+
+      addSideBtn("▶", navBaseY + btnH + gap, () => {
+        const next = this.focusedBoardIndex >= boardCount - 1 ? 0 : this.focusedBoardIndex + 1;
+        this.focusedBoardIndex = next;
+        this.applyZoomMode("single", next);
+        this.rebuildUiButtons(this.state!);
+        this.rebuildSlotButtons(this.state!);
       });
     }
   }
