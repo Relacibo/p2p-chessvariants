@@ -47,6 +47,18 @@ let engine: EngineInstance | null = null;
 function ok(id: number, result: unknown) { postMessage({ id, result }); }
 function err(id: number, message: string) { postMessage({ id, error: message }); }
 
+function formatError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    if (typeof obj.message === "string") return obj.message;
+    if (typeof obj.error === "string") return obj.error;
+    try { return JSON.stringify(e, null, 2); } catch { /* fall through */ }
+  }
+  return String(e);
+}
+
 function need(): EngineInstance {
   if (!engine) throw new Error("Engine not initialised");
   return engine;
@@ -125,6 +137,6 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         err(id, `Unknown message type: ${type}`);
     }
   } catch (e: unknown) {
-    err(id, e instanceof Error ? e.message : String(e));
+    err(id, formatError(e));
   }
 };
