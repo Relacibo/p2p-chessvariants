@@ -764,17 +764,9 @@ export class PixiBoard {
     const isOverview = this.currentZoomMode === "overview";
     const isOnOtherBoard = hasMultiBoard && !isOverview &&
       this.focusedBoardIndex !== (this.state?.activeBoardIndex ?? 0);
-    // ⊟ (zoom-out) always when multi-board and not overview
     const showZoomOut = hasMultiBoard && !isOverview;
-    // ⌂ (home) on other boards or in overview
     const showHome = hasMultiBoard && (isOverview || isOnOtherBoard);
-    // ◀ ▶ navigation in single mode with multi-board
     const showNav = hasMultiBoard && !isOverview;
-    const sideButtons = (showZoomOut ? 1 : 0) + (showHome ? 1 : 0) + (showNav ? 2 : 0);
-    const totalBtnCount = 1 + sideButtons; // ↻ always present
-    const totalH = totalBtnCount * btnH + sideButtons * gap;
-    const startY = Math.round((s.stageHeight - totalH) / 2);
-    const btnX = s.stageWidth - btnW - rightMargin;
 
     const textStyle = new TextStyle({
       fontSize: 16,
@@ -782,32 +774,12 @@ export class PixiBoard {
       fontFamily: "sans-serif",
     });
 
-    // ── Rotate button ──
-    {
-      const container = new Container();
-      container.eventMode = "static";
-      container.cursor = "pointer";
+    const btnX = s.stageWidth - btnW - rightMargin;
+    // 5 fixed slots, ⌂ at center. Hidden buttons leave empty space.
+    const centerY = Math.round(s.stageHeight / 2);
+    const slotY = (slot: number) => centerY + (slot - 2) * (btnH + gap);
 
-      const bg = new Graphics();
-      bg.roundRect(0, 0, btnW, btnH, radius);
-      bg.fill({ color: bgColor, alpha: bgAlpha });
-      container.addChild(bg);
-
-      const label = new Text({ text: "↻", style: textStyle });
-      label.anchor.set(0.5);
-      label.position.set(btnW / 2, btnH / 2);
-      container.addChild(label);
-
-      container.position.set(btnX, startY);
-      container.on("pointerdown", (e: FederatedPointerEvent) => {
-        e.stopPropagation();
-        this.onRotateBoard?.(this.focusedBoardIndex);
-      });
-      this.uiOverlay.addChild(container);
-    }
-
-    // Helper to create a side button
-    const addSideBtn = (text: string, y: number, onClick: () => void) => {
+    const addBtn = (text: string, slot: number, onClick: () => void) => {
       const c = new Container();
       c.eventMode = "static";
       c.cursor = "pointer";
@@ -819,7 +791,7 @@ export class PixiBoard {
       t.anchor.set(0.5);
       t.position.set(btnW / 2, btnH / 2);
       c.addChild(t);
-      c.position.set(btnX, y);
+      c.position.set(btnX, slotY(slot));
       c.on("pointerdown", (e: FederatedPointerEvent) => {
         e.stopPropagation();
         onClick();
@@ -827,37 +799,41 @@ export class PixiBoard {
       this.uiOverlay.addChild(c);
     };
 
-    // ── ⊟  Zoom-out ──
-    if (showZoomOut) {
-      addSideBtn("⊟", startY + btnH + gap, () => this.setZoomMode("overview"));
+    // Slot 0: ↻  Rotate (hidden in overview)
+    if (!isOverview) {
+      addBtn("↻", 0, () => this.onRotateBoard?.(this.focusedBoardIndex));
     }
 
-    // ── ⌂  Home ──
+    // Slot 1: ⊟  Zoom-out (single mode, multi-board)
+    if (showZoomOut) {
+      addBtn("⊟", 1, () => this.setZoomMode("overview"));
+    }
+
+    // Slot 2: ⌂  Home (overview or on other board)
     if (showHome) {
-      const homeY = showZoomOut ? startY + (btnH + gap) * 2 : startY + btnH + gap;
-      addSideBtn("⌂", homeY, () => {
+      addBtn("⌂", 2, () => {
         this.focusedBoardIndex = this.state?.activeBoardIndex ?? 0;
         this.setZoomMode("single");
         this.onReturnHome?.();
       });
     }
 
-    // ── < >  Board navigation (single mode, multi-board, not overview) ──
-    if (hasMultiBoard && !isOverview) {
+    // Slot 3: ◀  Prev board (single mode, multi-board)
+    if (showNav) {
       const boardCount = s.variantConfig.board.count;
-      const navBaseY = (showHome || showZoomOut)
-        ? startY + (btnH + gap) * (sideButtons + 1)
-        : startY + btnH + gap;
-
-      addSideBtn("◀", navBaseY, () => {
+      addBtn("◀", 3, () => {
         const prev = this.focusedBoardIndex <= 0 ? boardCount - 1 : this.focusedBoardIndex - 1;
         this.focusedBoardIndex = prev;
         this.applyZoomMode("single", prev);
         this.rebuildUiButtons(this.state!);
         this.rebuildSlotButtons(this.state!);
       });
+    }
 
-      addSideBtn("▶", navBaseY + btnH + gap, () => {
+    // Slot 4: ▶  Next board (single mode, multi-board)
+    if (showNav) {
+      const boardCount = s.variantConfig.board.count;
+      addBtn("▶", 4, () => {
         const next = this.focusedBoardIndex >= boardCount - 1 ? 0 : this.focusedBoardIndex + 1;
         this.focusedBoardIndex = next;
         this.applyZoomMode("single", next);
