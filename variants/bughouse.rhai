@@ -60,12 +60,12 @@ fn valid_moves(state, player) {
     let board = state.board[player.board];
     let moves = [];
 
-    // Normal piece moves
+    // Normal piece moves — board is single BoardState, use Coords(r, c) not (r, c, player.board)
     for r in 0..8 {
         for c in 0..8 {
-            let piece = engine::board::get(board, Coords(r, c, player.board));
+            let piece = engine::board::get(board, Coords(r, c));
             if piece != () && piece.color == player.color {
-                let from = Coords(r, c, player.board);
+                let from = Coords(r, c);
                 let dests = moves_for_piece(board, from, piece.type, player.color);
                 for to in dests {
                     let bt = engine::board::get(board, to);
@@ -76,15 +76,15 @@ fn valid_moves(state, player) {
         }
     }
 
-    // Reserve drops
+    // Reserve drops — target coords also use board_index 0 on the individual board
     let rkey = reserve_key(player.color, player.board);
     if rkey in state.reserves && state.reserves[rkey].len() > 0 {
         for r in 0..8 {
             for c in 0..8 {
-                let p = engine::board::get(board, Coords(r, c, player.board));
+                let p = engine::board::get(board, Coords(r, c));
                 if p == () {
                     for i in 0..state.reserves[rkey].len() {
-                        moves.push(Move(ReserveCoords(i), Coords(r, c, player.board)));
+                        moves.push(Move(ReserveCoords(i), Coords(r, c)));
                     }
                 }
             }
@@ -121,15 +121,18 @@ fn handle_action(state, player, action) {
             }
             state.reserves[rkey] = new_res;
         } else {
-            // Normal move
-            let src = engine::board::get(board, action.from);
+            // Normal move — action coords have board_index, normalize to 0
+            // since state.board[brd] is a single BoardState
+            let from = Coords(action.from.row, action.from.col);
+            let to = Coords(action.to.row, action.to.col);
+            let src = engine::board::get(board, from);
             if src == () { throw "no piece at source"; }
             if src.color != col { throw "not your piece"; }
 
-            let dst = engine::board::get(board, action.to);
+            let dst = engine::board::get(board, to);
             if dst != () && dst.color == col { throw "cannot capture own piece"; }
 
-            state.board[brd] = engine::board::move_piece(board, action.from, action.to);
+            state.board[brd] = engine::board::move_piece(board, from, to);
 
             // Captured piece goes to partner's reserve
             if dst != () {
