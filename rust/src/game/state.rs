@@ -208,18 +208,19 @@ impl BoardCoords {
     }
 }
 
-/// Canonical player identifier: `{board, color, team}`.
+/// Canonical player identifier.
 ///
 /// Scripts use:
-///   `Player("white")`        → board 0, color "white", team 0
-///   `Player(1, "white")`     → board 1, color "white", team 0
+///   `Player(id)`            → minimal player
+///   `Player(id, name)`      → with display name
+///   `Player(id, name, home_board)` → with home board
 ///
-/// The `team` field is populated automatically from `state.players` after
-/// `init()` returns. Equality is registered so `.contains()` works on
-/// arrays of PlayerId.
+/// The engine does not bind a player to a specific board or color —
+/// those are variant-defined and belong in `state.players` (Rhai map).
+/// Equality is registered so `.contains()` works on arrays of Player.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
 #[serde(rename_all = "camelCase")]
-pub struct PlayerId {
+pub struct Player {
     /// Canonical player identifier — unique, assigned by script in init().
     #[rhai_type(readonly)]
     pub id: i32,
@@ -229,26 +230,18 @@ pub struct PlayerId {
     /// Home board — default board when pressing "home". Defaults to 0.
     #[rhai_type(readonly)]
     pub home_board: i32,
-    /// Board index this player is on (legacy, kept for compat).
-    #[rhai_type(readonly)]
-    pub board: i32,
-    /// Color this player controls.
-    #[rhai_type(readonly)]
-    pub color: String,
     /// Team index — populated from state.players after init(). Defaults to 0.
     #[rhai_type(readonly)]
     pub team: i32,
 }
 
-impl PlayerId {
-    /// Primary constructor: `Player(id)`.  Board/color resolved from state.players later.
+impl Player {
+    /// Primary constructor: `Player(id)`.
     pub fn new_by_id(id: i32) -> Self {
         Self {
             id,
             name: String::new(),
             home_board: 0,
-            board: 0,
-            color: String::new(),
             team: 0,
         }
     }
@@ -259,8 +252,6 @@ impl PlayerId {
             id,
             name,
             home_board: 0,
-            board: 0,
-            color: String::new(),
             team: 0,
         }
     }
@@ -271,45 +262,7 @@ impl PlayerId {
             id,
             name,
             home_board,
-            board: 0,
-            color: String::new(),
             team: 0,
-        }
-    }
-
-    /// Short constructor: board defaults to 0, team to 0 (backward compat).
-    pub fn new_short(color: String) -> Self {
-        Self {
-            id: 0,
-            name: String::new(),
-            home_board: 0,
-            board: 0,
-            color,
-            team: 0,
-        }
-    }
-
-    /// Full constructor: board and color explicitly (backward compat).
-    pub fn new_board_color(board: i32, color: String) -> Self {
-        Self {
-            id: 0,
-            name: String::new(),
-            home_board: 0,
-            board,
-            color,
-            team: 0,
-        }
-    }
-
-    /// Create a PlayerId with a known team value.
-    pub fn with_team(board: i32, color: String, team: i32) -> Self {
-        Self {
-            id: 0,
-            name: String::new(),
-            home_board: 0,
-            board,
-            color,
-            team,
         }
     }
 }

@@ -95,8 +95,6 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Player", Player::new_by_id);
     engine.register_fn("Player", Player::new_by_id_name);
     engine.register_fn("Player", Player::new_full);
-    engine.register_fn("Player", Player::new_short);
-    engine.register_fn("Player", Player::new_board_color);
     engine.register_fn("Move", Action::rhai_move);
     engine.register_fn("SelectPiece", Action::rhai_select_piece);
     engine.register_fn("Interact", Action::rhai_interact);
@@ -316,8 +314,6 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> Player {
                             id: pid,
                             name,
                             home_board,
-                            board,
-                            color,
                             team,
                         };
                     }
@@ -327,6 +323,29 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> Player {
     }
     // Fallback
     Player::new_by_id(0)
+}
+
+/// Look up a player's full Rhai map from state.players by id.
+fn get_player_map(state: &Dynamic, player_id: i32) -> Dynamic {
+    if let Some(map) = state.read_lock::<rhai::Map>() {
+        if let Some(arr) = map
+            .get("players")
+            .cloned()
+            .and_then(|v: Dynamic| v.try_cast::<rhai::Array>())
+        {
+            for p in arr {
+                if let Some(m) = p.clone().try_cast::<rhai::Map>() {
+                    if m.get("id")
+                        .and_then(|v| v.as_int().ok())
+                        .unwrap_or(-1) as i32 == player_id
+                    {
+                        return Dynamic::from(m);
+                    }
+                }
+            }
+        }
+    }
+    Dynamic::from(rhai::Map::new())
 }
 
 /// Convert a Rhai Map (and nested values) to a serde_json::Value.
@@ -691,7 +710,7 @@ impl ChessvariantEngine {
             "handle_action",
             (
                 self.game_state.clone(),
-                Dynamic::from(player.clone()),
+                get_player_map(&self.game_state, player.id),
                 Dynamic::from(action.clone()),
             ),
         )?;
@@ -771,8 +790,6 @@ impl ChessvariantEngine {
                             id: pid,
                             name,
                             home_board,
-                            board,
-                            color: c,
                             team,
                         });
                     }
@@ -796,7 +813,14 @@ impl ChessvariantEngine {
             Ok((all_moves, _)) => all_moves
                 .iter()
                 .filter(|pm| !pm.moves.is_empty())
-                .map(|pm| pm.player.color.clone())
+                .map(|pm| {
+                    let player_map = get_player_map(&self.game_state, pm.player.id);
+                    player_map
+                        .read_lock::<rhai::Map>()
+                        .and_then(|m| m.get("color").cloned())
+                        .and_then(|v: Dynamic| v.into_string().ok())
+                        .unwrap_or_default()
+                })
                 .collect(),
             Err(_) => vec![],
         }
@@ -891,7 +915,7 @@ impl ChessvariantEngine {
             &mut scope,
             &self.ast,
             "derive_ui",
-            (self.game_state.clone(), Dynamic::from(player.clone())),
+            (self.game_state.clone(), get_player_map(&self.game_state, player.id)),
         );
         let ui_map = match result {
             Ok(v) => v
@@ -918,7 +942,7 @@ impl ChessvariantEngine {
             "valid_moves",
             (
                 self.game_state.clone(),
-                Dynamic::from(player.clone()),
+                get_player_map(&self.game_state, player.id),
             ),
         );
         let actions_dyn = match result {
@@ -998,8 +1022,6 @@ impl ChessvariantEngine {
                     id: pid,
                     name,
                     home_board,
-                    board,
-                    color,
                     team,
                 })
             })
@@ -1032,7 +1054,7 @@ impl ChessvariantEngine {
         let mut scope = Scope::new();
         let entries: rhai::Array = all_moves.iter().map(|pm| {
             let mut entry = rhai::Map::new();
-            entry.insert("player".into(), Dynamic::from(pm.player.clone()));
+            entry.insert("player".into(), get_player_map(&self.game_state, pm.player.id));
             let moves_arr: rhai::Array = pm.moves.iter().map(|m| Dynamic::from(m.clone())).collect();
             entry.insert("moves".into(), Dynamic::from(moves_arr));
             Dynamic::from(entry)
