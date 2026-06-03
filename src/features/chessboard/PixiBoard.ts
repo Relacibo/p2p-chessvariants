@@ -3,6 +3,7 @@ import {
   Container,
   FederatedPointerEvent,
   Graphics,
+  Rectangle,
   Sprite,
   Text,
   TextStyle,
@@ -107,6 +108,7 @@ export class PixiBoard {
 
   private pieceSprites = new Map<string, Sprite>();
   private reserveSprites = new Map<string, Sprite>();
+  private reserveCards = new Map<string, Graphics>();
   private piecePickerSprites = new Map<string, Container>();
   private state: SceneState | null = null;
   private slotLayouts: SlotLayout[] = [];
@@ -686,11 +688,18 @@ export class PixiBoard {
     if (!this.state) return;
     const { uiMap, selectedDropPiece } = this.state;
 
+    // Clear sprites
     for (const sprite of this.reserveSprites.values()) {
       this.reserveLayer.removeChild(sprite);
       sprite.destroy();
     }
     this.reserveSprites.clear();
+    // Clear card backgrounds
+    for (const card of this.reserveCards.values()) {
+      this.reserveLayer.removeChild(card);
+      card.destroy();
+    }
+    this.reserveCards.clear();
 
     // Group reserve piles by board index
     const pilesByBoard = new Map<number, { elementId: string; pile: WasmUiReservePile }[]>();
@@ -702,6 +711,11 @@ export class PixiBoard {
       pilesByBoard.get(boardIdx)!.push({ elementId, pile });
     }
 
+    // Card style — matching piece picker panel design
+    const cardColor = 0x1a1a1a;
+    const cardAlpha = 0.92;
+    const cardRadius = 12;
+
     for (const [boardIdx, piles] of pilesByBoard) {
       const sl = this.getSlotForBoard(boardIdx);
       if (!sl || sl.reserveW <= 0) continue;
@@ -710,7 +724,25 @@ export class PixiBoard {
         sl.tileSize * 0.85,
         sl.reserveW - RESERVE_PADDING * 2
       );
-      let yOffset = sl.reserveTop;
+
+      // Count total pieces to compute card height
+      let totalPieces = 0;
+      for (const { pile } of piles) totalPieces += pile.pieces.length;
+      if (totalPieces === 0) continue;
+
+      const cardH = totalPieces * pieceTileSize + (totalPieces + 3) * RESERVE_PADDING;
+      const cardX = sl.reserveLeft;
+      const cardY = Math.max(0, sl.reserveTop - RESERVE_PADDING);
+
+      // Draw card background — same style as piece picker
+      const card = new Graphics()
+        .roundRect(cardX, cardY, sl.reserveW, cardH, cardRadius)
+        .fill({ color: cardColor, alpha: cardAlpha });
+      card.eventMode = "none";
+      this.reserveLayer.addChild(card);
+      this.reserveCards.set(`card_${boardIdx}`, card);
+
+      let yOffset = cardY + RESERVE_PADDING * 2;
 
       for (const { elementId, pile } of piles) {
         for (let idx = 0; idx < pile.pieces.length; idx++) {
@@ -774,7 +806,10 @@ export class PixiBoard {
         pickerEls.push(el as WasmUiPiecePicker);
       }
     }
-    if (pickerEls.length === 0) return;
+    if (pickerEls.length === 0) {
+      this.piecePickerLayer.eventMode = "none";
+      return;
+    }
 
     // Merge pieces from all picker entries; use first non-default cancel/title
     const pieces: { color: string; pieceType: string }[] = [];
@@ -785,76 +820,33 @@ export class PixiBoard {
       if (el.cancelable === false) showCancel = false;
       if (el.title) title = el.title;
     }
-    if (pieces.length === 0) return;
+    if (pieces.length === 0) {
+      this.piecePickerLayer.eventMode = "none";
+      return;
+    }
 
-    // Render as overlay at center of stage
+    this.piecePickerLayer.eventMode = "static";
+
+    // Layout constants
     const pieceSize = Math.min(stageWidth, stageHeight) * 0.1;
-    const totalW = pieces.length * (pieceSize + 12) + 12;
-    const startX = (stageWidth - totalW) / 2;
-    const y = stageHeight * 0.6;
+    const cardPadding = 16;
+    const itemGap = 6;
+    const titleHeight = title ? 28 : 0;
+    const cancelHintHeight = showCancel ? 22 : 0;
+    const cardW = pieces.length * pieceSize + (pieces.length - 1) * itemGap + 2 * cardPadding;
+    const cardH = cardPadding + titleHeight + cancelHintHeight + pieceSize + cardPadding;
+    const cardX = (stageWidth - cardW) / 2;
+    const cardY = (stageHeight - cardH) / 2;
 
-    // Semi-transparent background
+    // Semi-transparent fullscreen backdrop
     const bg = new Graphics()
       .rect(0, 0, stageWidth, stageHeight)
       .fill({ color: 0x000000, alpha: 0.4 });
     bg.eventMode = "none";
     this.piecePickerLayer.addChild(bg);
 
-    // Title text above pieces
-    if (title) {
-      const titleText = new Text({
-        text: title,
-        style: { fontSize: 18, fill: 0xffffff, fontFamily: "Arial", fontWeight: "bold" },
-      });
-      titleText.anchor.set(0.5, 1);
-      titleText.position.set(stageWidth / 2, y - pieceSize - 36);
-      this.piecePickerLayer.addChild(titleText);
-    }
-
-    // Cancel hint (only when cancelable)
-    if (showCancel) {
-      const cancelText = new Text({
-        text: "(right-click / tap away to cancel)",
-        style: { fontSize: 14, fill: 0xcccccc, fontFamily: "Arial" },
-      });
-      cancelText.anchor.set(0.5, 0);
-      cancelText.position.set(stageWidth / 2, y - pieceSize - 24);
-      this.piecePickerLayer.addChild(cancelText);
-    }
-
-    // Piece sprites
-    for (let i = 0; i < pieces.length; i++) {
-      const piece = pieces[i];
-      const url = getPieceImageUrl(piece.color, piece.pieceType);
-      const tex = url ? (this.textureCache.get(url) ?? null) : null;
-      if (!tex) continue;
-
-      const container = new Container();
-      container.position.set(startX + i * (pieceSize + 12) + pieceSize / 2, y);
-
-      const sprite = new Sprite(tex);
-      sprite.anchor.set(0.5, 0);
-      sprite.width = pieceSize;
-      sprite.height = pieceSize;
-      sprite.eventMode = "static";
-      sprite.cursor = "pointer";
-
-      if (PIECE_TINT[piece.color] != null) {
-        sprite.tint = PIECE_TINT[piece.color];
-      }
-
-      const capturedPiece = piece;
-      sprite.on("pointerdown", (e: FederatedPointerEvent) => {
-        e.stopPropagation();
-        this.onSubmitAction({ type: "select_piece", piece: capturedPiece });
-      });
-
-      container.addChild(sprite);
-      this.piecePickerLayer.addChild(container);
-      this.piecePickerSprites.set(`picker_${i}`, container);
-    }
-
-    // Cancel: click on background area sends cancel (only when cancelable)
+    // Cancel: click on background area sends cancel (only when cancelable).
+    // Added BEFORE pieces so pieces sit on top and receive events first.
     if (showCancel) {
       const cancelBtn = new Graphics()
         .rect(0, 0, stageWidth, stageHeight)
@@ -866,6 +858,73 @@ export class PixiBoard {
         this.onSubmitAction({ type: "cancel" });
       });
       this.piecePickerLayer.addChild(cancelBtn);
+    }
+
+    // Card background
+    const card = new Graphics()
+      .roundRect(cardX, cardY, cardW, cardH, 12)
+      .fill({ color: 0x1a1a1a, alpha: 0.92 });
+    card.eventMode = "none";
+    this.piecePickerLayer.addChild(card);
+
+    // Title text
+    let currentY = cardY + cardPadding;
+    if (title) {
+      const titleText = new Text({
+        text: title,
+        style: { fontSize: 16, fill: 0xffffff, fontFamily: "Arial", fontWeight: "bold" },
+      });
+      titleText.anchor.set(0.5, 0);
+      titleText.position.set(stageWidth / 2, currentY);
+      currentY += titleHeight;
+      this.piecePickerLayer.addChild(titleText);
+    }
+
+    // Cancel hint
+    if (showCancel) {
+      const cancelText = new Text({
+        text: "right-click / tap away to cancel",
+        style: { fontSize: 11, fill: 0x999999, fontFamily: "Arial" },
+      });
+      cancelText.anchor.set(0.5, 0);
+      cancelText.position.set(stageWidth / 2, currentY);
+      currentY += cancelHintHeight;
+      this.piecePickerLayer.addChild(cancelText);
+    }
+
+    // Piece sprites
+    const piecesStartX = cardX + cardPadding;
+    for (let i = 0; i < pieces.length; i++) {
+      const piece = pieces[i];
+      const url = getPieceImageUrl(piece.color, piece.pieceType);
+      const tex = url ? (this.textureCache.get(url) ?? null) : null;
+      if (!tex) continue;
+
+      const container = new Container();
+      container.position.set(piecesStartX + i * (pieceSize + itemGap), currentY);
+      container.eventMode = "static";
+      container.cursor = "pointer";
+      container.hitArea = new Rectangle(0, 0, pieceSize, pieceSize);
+
+      const sprite = new Sprite(tex);
+      sprite.anchor.set(0, 0);
+      sprite.width = pieceSize;
+      sprite.height = pieceSize;
+      sprite.eventMode = "none";
+
+      if (PIECE_TINT[piece.color] != null) {
+        sprite.tint = PIECE_TINT[piece.color];
+      }
+
+      const capturedPiece = piece;
+      container.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        this.onSubmitAction({ type: "select_piece", piece: capturedPiece });
+      });
+
+      container.addChild(sprite);
+      this.piecePickerLayer.addChild(container);
+      this.piecePickerSprites.set(`picker_${i}`, container);
     }
   }
 
