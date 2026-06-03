@@ -60,23 +60,28 @@ fn valid_moves(state, player) {
     let board = state.board[player.board];
     let moves = [];
 
-    // Normal piece moves — board is single BoardState, use Coords(r, c) not (r, c, player.board)
+    // Normal piece moves
+    // Use board_index=0 for engine queries (single board), but output with player.board
     for r in 0..8 {
         for c in 0..8 {
             let piece = engine::board::get(board, Coords(r, c));
             if piece != () && piece.color == player.color {
-                let from = Coords(r, c);
-                let dests = moves_for_piece(board, from, piece.type, player.color);
-                for to in dests {
-                    let bt = engine::board::get(board, to);
+                let from_local = Coords(r, c);
+                let dests = moves_for_piece(board, from_local, piece.type, player.color);
+                for to_local in dests {
+                    let bt = engine::board::get(board, to_local);
                     if bt != () && bt.color == player.color { continue; }
-                    moves.push(Move(from, to));
+                    // Output with correct board_index for frontend
+                    moves.push(Move(
+                        Coords(r, c, player.board),
+                        Coords(to_local.row, to_local.col, player.board)
+                    ));
                 }
             }
         }
     }
 
-    // Reserve drops — target coords also use board_index 0 on the individual board
+    // Reserve drops
     let rkey = reserve_key(player.color, player.board);
     if rkey in state.reserves && state.reserves[rkey].len() > 0 {
         for r in 0..8 {
@@ -84,7 +89,7 @@ fn valid_moves(state, player) {
                 let p = engine::board::get(board, Coords(r, c));
                 if p == () {
                     for i in 0..state.reserves[rkey].len() {
-                        moves.push(Move(ReserveCoords(i), Coords(r, c)));
+                        moves.push(Move(ReserveCoords(i), Coords(r, c, player.board)));
                     }
                 }
             }
@@ -109,10 +114,11 @@ fn handle_action(state, player, action) {
                 throw "invalid reserve index";
             }
             let piece = state.reserves[rkey][action.from.index];
-            let target = engine::board::get(board, action.to);
+            let to = Coords(action.to.row, action.to.col);
+            let target = engine::board::get(board, to);
             if target != () { throw "destination occupied"; }
 
-            state.board[brd] = engine::board::set(board, action.to, piece);
+            state.board[brd] = engine::board::set(board, to, piece);
 
             // Remove from reserve
             let new_res = [];
