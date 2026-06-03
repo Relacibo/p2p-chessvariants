@@ -50,11 +50,6 @@ pub struct ChessvariantEngine {
     ast: AST,
     pub(crate) game_state: Dynamic,
     pub(crate) variant_config: VariantConfig,
-    /// Fully computed valid_moves for all players + game_over result.
-    /// Set to None after every handle_action (cache invalidation).
-    pub(crate) cached_valid_moves: Option<(Vec<PlayerMoves>, Option<serde_json::Value>)>,
-    /// Partial accumulation during progressive Phase 2 (2a then 2b).
-    partial_moves: Vec<PlayerMoves>,
 }
 
 // ─── Builtin Registration ────────────────────────────────────────────────────
@@ -402,18 +397,12 @@ impl ChessvariantEngine {
         register_engine_helpers(&mut engine, piece_defs);
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
-        let mut cv_engine = ChessvariantEngine {
+        let cv_engine = ChessvariantEngine {
             engine,
             ast,
             game_state,
             variant_config,
-            cached_valid_moves: None,
-            partial_moves: Vec::new(),
         };
-
-        // Compute valid_moves for all players and cache the result
-        let (all_moves, game_over) = cv_engine.compute_valid_moves_all()?;
-        cv_engine.cached_valid_moves = Some((all_moves, game_over));
 
         Ok(cv_engine)
     }
@@ -608,7 +597,6 @@ impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesAllJson))]
     pub fn valid_moves_all_json(&mut self) -> Result<String, CvError> {
         let (all_moves, game_over) = self.compute_valid_moves_all()?;
-        self.cached_valid_moves = Some((all_moves.clone(), game_over.clone()));
         Ok(serde_json::to_string(&serde_json::json!({
             "validMoves": all_moves,
             "gameOver": game_over,
@@ -616,18 +604,11 @@ impl ChessvariantEngine {
     }
 
     /// Compute valid_moves for a single player (Phase 2a — local player first).
-    /// Accumulates result into partial cache. The engine does not store a
-    /// completed cache until `validMovesAllJson` is called.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesForPlayerJson))]
     pub fn valid_moves_for_player_json(&mut self, player_json: String) -> Result<String, CvError> {
         let player_ref: PlayerRef = serde_json::from_str(&player_json)?;
         let player = player_ref_to_player_id(&self.game_state, &player_ref);
         let moves = self.compute_valid_moves_for_player(&player)?;
-        // Accumulate into partial cache
-        self.partial_moves.push(PlayerMoves {
-            player: player.clone(),
-            moves: moves.clone(),
-        });
         Ok(serde_json::to_string(&serde_json::json!({
             "player": player,
             "moves": moves,
@@ -693,10 +674,8 @@ impl ChessvariantEngine {
         player: &PlayerId,
         action: &Action,
     ) -> Result<serde_json::Value, CvError> {
-        // If cached_valid_moves is None (e.g. before first computation or after another
-        // action invalidated it), validate Move actions by calling valid_moves via Rhai.
-        // This ensures custom variant legality rules are always respected.
-        if self.cached_valid_moves.is_none() && action.kind == "move" {
+        // Validate Move actions by calling valid_moves via Rhai.
+        if action.kind == "move" {
             let legal_moves = self.compute_valid_moves_for_player(player)?;
             if !legal_moves.iter().any(|m| m == action) {
                 return Err(CvError::Internal("illegal move".into()));
@@ -717,9 +696,6 @@ impl ChessvariantEngine {
         )?;
 
         self.game_state = new_state;
-        // Invalidate cached valid_moves — frontend will recompute via Phase 2
-        self.cached_valid_moves = None;
-        self.partial_moves.clear();
 
         // Check game_over from state.outcome (set by script's handle_action)
         let game_over = self.extract_outcome_from_state();
@@ -813,34 +789,26 @@ impl ChessvariantEngine {
         self.game_state.clone()
     }
 
-    /// Get the colors of currently active players from cached valid_moves (for tests).
-    /// Recomputes valid_moves if cache is empty.
+    /// Get the colors of currently active players (for tests).
     pub fn active_player_colors(&mut self) -> Vec<String> {
-        if self.cached_valid_moves.is_none() {
-            if let Ok((all_moves, game_over)) = self.compute_valid_moves_all() {
-                self.cached_valid_moves = Some((all_moves, game_over));
-            }
+        match self.compute_valid_moves_all() {
+            Ok((all_moves, _)) => all_moves
+                .iter()
+                .filter(|pm| !pm.moves.is_empty())
+                .map(|pm| pm.player.color.clone())
+                .collect(),
+            Err(_) => vec![],
         }
-        self.cached_valid_moves
-            .as_ref()
-            .map(|(v, _)| {
-                v.iter()
-                    .filter(|pm| !pm.moves.is_empty())
-                    .map(|pm| pm.player.color.clone())
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
-    /// Check if the game is over by examining cached valid_moves (for tests).
-    pub fn is_game_over(&self) -> bool {
-        if let Some((_, ref go)) = self.cached_valid_moves {
-            go.is_some()
-        } else {
-            self.game_state
+    /// Check if the game is over (for tests).
+    pub fn is_game_over(&mut self) -> bool {
+        match self.compute_valid_moves_all() {
+            Ok((_, Some(_))) => true,
+            _ => self.game_state
                 .read_lock::<rhai::Map>()
                 .map(|m| m.contains_key("outcome"))
-                .unwrap_or(false)
+                .unwrap_or(false),
         }
     }
 
@@ -1042,18 +1010,9 @@ impl ChessvariantEngine {
     fn compute_valid_moves_all(&mut self) -> Result<(Vec<PlayerMoves>, Option<serde_json::Value>), CvError> {
         let player_ids = self.get_player_ids()?;
         let mut result: Vec<PlayerMoves> = Vec::new();
-        // Merge any already-computed partial moves (from Phase 2a)
-        let mut partial: std::collections::HashMap<String, Vec<Action>> =
-            self.partial_moves.drain(..)
-                .map(|pm| (Self::player_key(&pm.player), pm.moves))
-                .collect();
 
         for pid in &player_ids {
-            let moves = if let Some(cached) = partial.remove(&Self::player_key(pid)) {
-                cached
-            } else {
-                self.compute_valid_moves_for_player(pid)?
-            };
+            let moves = self.compute_valid_moves_for_player(pid)?;
             result.push(PlayerMoves {
                 player: pid.clone(),
                 moves,
@@ -1062,15 +1021,8 @@ impl ChessvariantEngine {
 
         // Call is_game_over(state, all_valid_moves)
         let game_over = self.call_is_game_over(&result);
-        // Clear partial cache for next cycle
-        self.partial_moves.clear();
 
         Ok((result, game_over))
-    }
-
-    /// Build a stable string key from a PlayerId.
-    fn player_key(pid: &PlayerId) -> String {
-        format!("b{}:{}", pid.board, pid.color)
     }
 
     /// Call `is_game_over(state, all_valid_moves)` → returns game_over JSON or None.

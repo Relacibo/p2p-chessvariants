@@ -34,7 +34,24 @@ fn init(player_count) {
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.id != state.turn { return []; }
-    [Move(Coords(0,0), Coords(0,0))]  // any move validates
+
+    let candidates = [];
+    for r in 0..8 {
+        for c in 0..8 {
+            let from = Coords(r, c);
+            let piece = engine::board::get(state.board, from);
+            if piece != () && piece.color == player.color {
+                let dests = pseudo_moves(state.board, from);
+                for to in dests {
+                    candidates.push(Move(from, to));
+                }
+            }
+        }
+    }
+    candidates.filter(|m| {
+        try { handle_action(state, player, m); true }
+        catch(err) { false }
+    })
 }
 
 fn is_game_over(state, all_valid_moves) {

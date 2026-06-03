@@ -74,7 +74,7 @@ fn test_simple_chess_initial_turn_is_white() {
 
 #[test]
 fn test_simple_chess_initial_game_not_over() {
-    let engine = make_engine("tests/scripts/simple_chess.rhai", 2);
+    let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
     assert!(!engine.is_game_over());
 }
 
