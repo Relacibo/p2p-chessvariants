@@ -420,6 +420,8 @@ export function DevBoardView() {
       setValidMoves([]);
       setValidMovesAll([]);
       setUiElements(null);
+      // Capture URL selection before clearing (it gets synced away)
+      const urlPreselection = readUrlState(searchParams).sel;
       setSelectedPlayers([]);
       setLocalOrientationOverride({});
       try {
@@ -436,16 +438,21 @@ export function DevBoardView() {
         setControllingPlayer(firstPlayer);
         setActivePlayers(initPlayers);
         await syncState(proxy, firstPlayer);
-        // After initial sync, select all players by default
-        try {
-          const allP = (await proxy.playersJson()) as WasmPlayerConfig[];
-          setSelectedPlayers(
-            allP.map((p) =>
-              JSON.stringify({ board: p.board, color: p.color })
-            )
-          );
-        } catch {
-          setSelectedPlayers(firstPlayer ? [firstPlayer] : []);
+        // Restore selected players: URL preselection wins over default "all"
+        if (urlPreselection && urlPreselection.length > 0) {
+          setSelectedPlayers(urlPreselection);
+        } else {
+          // No URL selection — default to all players
+          try {
+            const allP = (await proxy.playersJson()) as WasmPlayerConfig[];
+            setSelectedPlayers(
+              allP.map((p) =>
+                JSON.stringify({ board: p.board, color: p.color })
+              )
+            );
+          } catch {
+            setSelectedPlayers(firstPlayer ? [firstPlayer] : []);
+          }
         }
       } catch (e: unknown) {
         notifications.show({
@@ -636,6 +643,7 @@ export function DevBoardView() {
           activeBoardIndices={activeBoardIndices}
           orientationByBoard={orientationByBoard}
           onRotateBoard={handleRotateBoard}
+          onReturnHome={() => setLocalOrientationOverride({})}
           onSubmitAction={handleSubmitAction}
           lastAction={lastAction}
           selectedDropPiece={selectedDropPiece}

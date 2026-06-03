@@ -23,6 +23,7 @@ export type PixiChessboardProps = {
   /** Per-slot orientation (index = boardIndex). Defaults to ["normal"]. */
   orientationByBoard?: BoardOrientation[];
   onRotateBoard?: (boardIndex: number) => void;
+  onReturnHome?: () => void;
   onSubmitAction: (action: WasmAction) => void;
   lastAction?: WasmAction;
   selectedDropPiece?: WasmPiece | null;
@@ -44,6 +45,7 @@ export function PixiChessboard({
   activeBoardIndices = [activeBoardIndex],
   orientationByBoard = ["normal"],
   onRotateBoard,
+  onReturnHome,
   onSubmitAction,
   lastAction,
   selectedDropPiece = null,
@@ -90,6 +92,8 @@ export function PixiChessboard({
   onSelectReservePieceRef.current = onSelectReservePiece;
   const onRotateBoardRef = useRef(onRotateBoard);
   onRotateBoardRef.current = onRotateBoard;
+  const onReturnHomeRef = useRef(onReturnHome);
+  onReturnHomeRef.current = onReturnHome;
 
   // ── Mount / unmount ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -103,6 +107,7 @@ export function PixiChessboard({
     board.onSelectReservePiece = (piece, elementId) =>
       onSelectReservePieceRef.current?.(piece, elementId);
     board.onRotateBoard = (boardIndex) => onRotateBoardRef.current?.(boardIndex);
+    board.onReturnHome = () => onReturnHomeRef.current?.();
     boardRef.current = board;
 
     board

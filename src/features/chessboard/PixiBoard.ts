@@ -130,6 +130,7 @@ export class PixiBoard {
   onSelectReservePiece: ((piece: WasmPiece, elementId: string) => void) | undefined;
   onZoomModeChange: ((mode: ZoomMode) => void) | undefined;
   onRotateBoard: ((boardIndex: number) => void) | undefined;
+  onReturnHome: (() => void) | undefined; // fires when ⌂ is clicked in overview
 
   constructor(
     onSubmitAction: (action: WasmAction) => void,
@@ -791,7 +792,9 @@ export class PixiBoard {
       bg.fill({ color: bgColor, alpha: bgAlpha });
       container.addChild(bg);
 
-      const zoomLabel = this.currentZoomMode === "single" ? "⊟" : "⊞";
+      // ⊟ = zoom out to overview, ⌂ = return home (restore active board + orientation)
+      const isOverview = this.currentZoomMode === "overview";
+      const zoomLabel = isOverview ? "⌂" : "⊟";
       const label = new Text({ text: zoomLabel, style: textStyle });
       label.anchor.set(0.5);
       label.position.set(btnW / 2, btnH / 2);
@@ -800,8 +803,13 @@ export class PixiBoard {
       container.position.set(btnX, startY + btnH + gap);
       container.on("pointerdown", (e: FederatedPointerEvent) => {
         e.stopPropagation();
-        const next: ZoomMode = this.currentZoomMode === "single" ? "overview" : "single";
-        this.setZoomMode(next);
+        if (isOverview) {
+          // Return to primary board
+          this.setZoomMode("single");
+          this.onReturnHome?.();
+        } else {
+          this.setZoomMode("overview");
+        }
       });
       this.uiOverlay.addChild(container);
     }
