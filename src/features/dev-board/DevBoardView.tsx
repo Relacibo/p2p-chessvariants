@@ -121,7 +121,7 @@ interface UrlState {
 }
 
 function readUrlState(sp: URLSearchParams): UrlState {
-  const raw = sp.get("state");
+  const raw = sp.get("dev");
   if (!raw) return {};
   try { return JSON.parse(raw) as UrlState; } catch { return {}; }
 }
@@ -318,8 +318,9 @@ export function DevBoardView() {
     if (selectedPlayers.length > 0) urlState.sel = selectedPlayers;
     urlState.panel = drawerOpen ? 1 : 0;
 
-    next.set("state", encodeUrlState(urlState));
+    next.set("dev", encodeUrlState(urlState));
     // Clean up old individual params
+    next.delete("state");
     next.delete("script");
     next.delete("players");
     next.delete("player");
@@ -492,7 +493,7 @@ export function DevBoardView() {
       loadScript(first.url, urlState.n ?? 2);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get("state")]);
+  }, [searchParams.get("dev")]);
 
   const handleVariantSelect = (url: string) => {
     const variant = variants.find((v) => v.url === url);
