@@ -127,13 +127,17 @@ export function DevBoardView() {
   const [playerCount, setPlayerCount] = useState<number | string>(
     () => parseInt(searchParams.get("players") || "2", 10) || 2
   );
-  // controllingPlayer is stored as a JSON string: '{"board":0,"color":"white"}'
+  // controllingPlayer is the primary player for submit/sync (first of selectedPlayers).
   const [controllingPlayer, setControllingPlayer] = useState<string>(
     () => searchParams.get("player") || ""
   );
   const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
   const [allPlayers, setAllPlayers] = useState<WasmPlayerConfig[]>([]);
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  // selectedPlayers persisted as multiple 'player' query params
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>(() => {
+    const fromUrl = searchParams.getAll("player");
+    return fromUrl.length > 0 ? fromUrl : [];
+  });
   const [localOrientationOverride, setLocalOrientationOverride] = useState<
     Partial<Record<number, BoardOrientation>>
   >({});
@@ -285,13 +289,15 @@ export function DevBoardView() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
     if (playerCount) next.set("players", String(playerCount));
-    if (controllingPlayer) next.set("player", controllingPlayer);
-    else next.delete("player");
+    // Persist selectedPlayers as multiple 'player' params
+    next.delete("player");
+    for (const p of selectedPlayers) {
+      next.append("player", p);
+    }
     next.set("panel", drawerOpen ? "1" : "0");
     setSearchParams(next, { replace: true });
-    // Don't run on mount — only when values change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerCount, controllingPlayer, drawerOpen]);
+  }, [playerCount, selectedPlayers, drawerOpen]);
 
   // ── Bidirectional sync: selectedPlayers[0] ↔ controllingPlayer ──
   useEffect(() => {
