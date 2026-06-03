@@ -98,7 +98,7 @@ fn pieces() {
 
 ```rhai
 // 2-arg form reads piece type and color from the board automatically:
-let dests = engine::pseudo_moves(state.board, from);
+let dests = pseudo_moves(state.board, from);
 
 // 4-arg form lets you specify piece type and color explicitly (also works):
 let dests = engine::pseudo_moves(state.board, from, "empress", player.color);
@@ -119,6 +119,12 @@ let dests = engine::pseudo_moves(state.board, from, "empress", player.color);
     board: Board,
     players: [
         #{
+            // Player identity — id is the canonical reference
+            id: i32,                // Required: unique player identifier
+            name?: string,          // Optional: display name (e.g. "Alice")
+            home_board?: i32,       // Optional: default board when pressing "home" (default 0)
+
+            // Game role — which board, color, and team this player controls
             board: i32,
             color: string,
             team: i32,
@@ -153,8 +159,8 @@ fn init(player_count) {
     #{
         board: engine::standard_start_position(),
         players: [
-            #{ board: 0, color: "white", team: 0, orientation: "normal" },
-            #{ board: 0, color: "black", team: 1, orientation: "flipped" },
+            #{ id: 0, name: "White", board: 0, color: "white", team: 0, orientation: "normal" },
+            #{ id: 1, name: "Black", board: 0, color: "black", team: 1, orientation: "flipped" },
         ],
         turn: "white",
     }
@@ -167,10 +173,10 @@ fn init(player_count) {
     #{
         board: /* ... */,
         players: [
-            #{ board: 0, color: "north", team: 0 },
-            #{ board: 0, color: "east",  team: 1 },
-            #{ board: 0, color: "south", team: 2 },
-            #{ board: 0, color: "west",  team: 3 },
+            #{ id: 0, name: "North", board: 0, color: "north", team: 0 },
+            #{ id: 1, name: "East",  board: 0, color: "east",  team: 1 },
+            #{ id: 2, name: "South", board: 0, color: "south", team: 2 },
+            #{ id: 3, name: "West",  board: 0, color: "west",  team: 3 },
         ],
         teams: [
             #{ id: 0, orientations: [#{ board: 0, orientation: "normal" }] },
@@ -205,7 +211,7 @@ fn valid_moves(state, player) {
             let from = Coords(r, c);
             let piece = engine::board::get(state.board, from);
             if piece != () && piece.color == player.color {
-                let dests = engine::pseudo_moves(state.board, from);
+                let dests = pseudo_moves(state.board, from);
                 for to in dests {
                     candidates.push(Move(from, to));
                 }
@@ -235,8 +241,8 @@ fn valid_moves(state, player) {
 
 ```rhai
 [
-    #{ player: #{ board: 0, color: "white", team: 0 }, moves: [Move, Move] },
-    #{ player: #{ board: 0, color: "black", team: 0 }, moves: [] },
+    #{ player: #{ id: 0, board: 0, color: "white", team: 0 }, moves: [Move, Move] },
+    #{ player: #{ id: 1, board: 0, color: "black", team: 1 }, moves: [] },
 ]
 ```
 
@@ -327,7 +333,7 @@ fn handle_action(state, player, action) {
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `state` | `#{}` | Current game state |
-| `player` | `Player` | Submitting player (`.board`, `.color`, `.team`) |
+| `player` | `Player` | Submitting player (`.id`, `.name`, `.home_board`, `.board`, `.color`, `.team`) |
 | `action` | `Action` | See Section 2 |
 
 **Game-over:** Set `state.outcome` before returning. Engine reads it when `is_game_over` returns `true`.
@@ -638,8 +644,11 @@ engine.getUiJson(player_json) → string
 | `Interact(element_id)` | Interact action |
 | `Cancel()` | Cancel action |
 | `Piece(color, type)` | Piece |
-| `Player(color)` | Player by color |
-| `Player(board, color)` | Player by board + color |
+| `Player(id)` | Player by numeric id (preferred) |
+| `Player(id, name)` | Player by id with display name |
+| `Player(id, name, home_board)` | Player with id, name, and home board |
+| `Player(color)` | Player by color (backward compat) |
+| `Player(board, color)` | Player by board + color (backward compat) |
 | `Winner(idx)` | Game outcome |
 | `Winners([colors])` | Game outcome |
 | `Draw()` | Game outcome |
@@ -674,8 +683,8 @@ Each player sees the board from their own perspective. Orientation controls how 
 The engine exposes resolved orientation via `playersJson()`:
 ```json
 [
-  { "board": 0, "color": "white", "team": 0, "orientation": "normal" },
-  { "board": 0, "color": "black", "team": 1, "orientation": "flipped" }
+  { "id": 0, "name": "White", "board": 0, "color": "white", "team": 0, "home_board": 0, "orientation": "normal" },
+  { "id": 1, "name": "Black", "board": 0, "color": "black", "team": 1, "home_board": 0, "orientation": "flipped" }
 ]
 ```
 

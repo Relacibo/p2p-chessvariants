@@ -212,7 +212,7 @@ export function DevBoardView() {
     for (const p of selectedPlayers) {
       try {
         const ref = JSON.parse(p) as PlayerRef;
-        boards.add(ref.board);
+        if (ref.board != null) boards.add(ref.board);
       } catch {
         /* malformed JSON — skip */
       }
@@ -232,7 +232,7 @@ export function DevBoardView() {
     if (firstSel) {
       try {
         const ref = JSON.parse(firstSel) as PlayerRef;
-        const cfg = allPlayers.find(p => p.board === ref.board && p.color === ref.color);
+        const cfg = allPlayers.find(p => p.board === (ref.board ?? 0) && p.color === (ref.color ?? ''));
         if (cfg) controllingTeam = cfg.team;
       } catch { /* skip */ }
     }

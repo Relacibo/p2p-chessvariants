@@ -75,10 +75,10 @@ fn init(player_count) {
     #{
         board: board,
         players: [
-            #{ board: 0, color: "yellow", team: 0 },
-            #{ board: 0, color: "green",  team: 1 },
-            #{ board: 0, color: "red",    team: 2 },
-            #{ board: 0, color: "blue",   team: 3 },
+            #{ id: 0, name: "Yellow", board: 0, color: "yellow", team: 0 },
+            #{ id: 1, name: "Green",  board: 0, color: "green",  team: 1 },
+            #{ id: 2, name: "Red",    board: 0, color: "red",    team: 2 },
+            #{ id: 3, name: "Blue",   board: 0, color: "blue",   team: 3 },
         ],
         teams: [
             #{ id: 0, orientations: [#{ board: 0, orientation: "flipped" }] },

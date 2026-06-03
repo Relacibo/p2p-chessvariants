@@ -202,8 +202,19 @@ impl BoardCoords {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerId {
+    /// Canonical player identifier — unique, assigned by script in init().
+    #[rhai_type(readonly)]
+    pub id: i32,
+    /// Optional display name (e.g. "Alice").
+    #[rhai_type(readonly)]
+    pub name: String,
+    /// Home board — default board when pressing "home". Defaults to 0.
+    #[rhai_type(readonly)]
+    pub home_board: i32,
+    /// Board index this player is on (legacy, kept for compat).
     #[rhai_type(readonly)]
     pub board: i32,
+    /// Color this player controls.
     #[rhai_type(readonly)]
     pub color: String,
     /// Team index — populated from state.players after init(). Defaults to 0.
@@ -212,18 +223,60 @@ pub struct PlayerId {
 }
 
 impl PlayerId {
-    /// Short constructor: board defaults to 0, team to 0.
+    /// Primary constructor: `Player(id)`.  Board/color resolved from state.players later.
+    pub fn new_by_id(id: i32) -> Self {
+        Self {
+            id,
+            name: String::new(),
+            home_board: 0,
+            board: 0,
+            color: String::new(),
+            team: 0,
+        }
+    }
+
+    /// `Player(id, name)` — with display name.
+    pub fn new_by_id_name(id: i32, name: String) -> Self {
+        Self {
+            id,
+            name,
+            home_board: 0,
+            board: 0,
+            color: String::new(),
+            team: 0,
+        }
+    }
+
+    /// `Player(id, name, home_board)` — full constructor.
+    pub fn new_full(id: i32, name: String, home_board: i32) -> Self {
+        Self {
+            id,
+            name,
+            home_board,
+            board: 0,
+            color: String::new(),
+            team: 0,
+        }
+    }
+
+    /// Short constructor: board defaults to 0, team to 0 (backward compat).
     pub fn new_short(color: String) -> Self {
         Self {
+            id: 0,
+            name: String::new(),
+            home_board: 0,
             board: 0,
             color,
             team: 0,
         }
     }
 
-    /// Full constructor: board and color explicitly. Team defaults to 0.
-    pub fn new_full(board: i32, color: String) -> Self {
+    /// Full constructor: board and color explicitly (backward compat).
+    pub fn new_board_color(board: i32, color: String) -> Self {
         Self {
+            id: 0,
+            name: String::new(),
+            home_board: 0,
             board,
             color,
             team: 0,
@@ -233,6 +286,9 @@ impl PlayerId {
     /// Create a PlayerId with a known team value.
     pub fn with_team(board: i32, color: String, team: i32) -> Self {
         Self {
+            id: 0,
+            name: String::new(),
+            home_board: 0,
             board,
             color,
             team,

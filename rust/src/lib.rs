@@ -24,11 +24,16 @@ pub mod rhai_rust_error;
 // Re-exports for integration tests and external consumers
 pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, PlayerId};
 
-/// Player reference across WASM boundary. JSON: `{"board":0,"color":"white"}`
-#[derive(Deserialize, Serialize, Debug, Clone)]
+/// Player reference across WASM boundary.
+/// Preferred: `{"id":0}`.  Backward compat: `{"board":0,"color":"white"}`.
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub(crate) struct PlayerRef {
-    board: i64,
-    color: String,
+    #[serde(default)]
+    id: Option<i64>,
+    #[serde(default)]
+    board: Option<i64>,
+    #[serde(default)]
+    color: Option<String>,
 }
 
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
@@ -81,18 +86,21 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("==", |a: BoardCoords, b: BoardCoords| -> bool { a == b });
     engine.register_fn("!=", |a: BoardCoords, b: BoardCoords| -> bool { a != b });
     engine.register_fn("==", |a: PlayerId, b: PlayerId| -> bool {
-        a.board == b.board && a.color == b.color
+        a.id == b.id
     });
     engine.register_fn("!=", |a: PlayerId, b: PlayerId| -> bool {
-        a.board != b.board || a.color != b.color
+        a.id != b.id
     });
 
     // ── Global constructors (remain bare, not namespaced) ──
     engine.register_fn("Coords", Coords::new_board_0);
     engine.register_fn("Coords", Coords::new_board);
     engine.register_fn("ReserveCoords", Coords::new_reserve);
-    engine.register_fn("Player", PlayerId::new_short);
+    engine.register_fn("Player", PlayerId::new_by_id);
+    engine.register_fn("Player", PlayerId::new_by_id_name);
     engine.register_fn("Player", PlayerId::new_full);
+    engine.register_fn("Player", PlayerId::new_short);
+    engine.register_fn("Player", PlayerId::new_board_color);
     engine.register_fn("Move", Action::rhai_move);
     engine.register_fn("SelectPiece", Action::rhai_select_piece);
     engine.register_fn("Interact", Action::rhai_interact);
@@ -251,9 +259,9 @@ fn load_piece_defs(
 
 // ─── Player ID helpers ───────────────────────────────────────────────────────
 
-/// Convert a PlayerRef to PlayerId. Reads team from state.players.
+/// Convert a PlayerRef to PlayerId. Reads all player fields from state.players.
+/// Supports both `{"id": N}` (preferred) and `{"board": N, "color": "..."}` (backward compat).
 fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
-    // Read team from state.players
     if let Some(players_map_lock) = state.read_lock::<rhai::Map>() {
         if let Some(arr) = players_map_lock
             .get("players")
@@ -262,36 +270,67 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> PlayerId {
         {
             for p in arr {
                 if let Some(m) = p.clone().try_cast::<rhai::Map>() {
-                    let color = m
-                        .get("color")
+                    let pid: i32 = m
+                        .get("id")
                         .cloned()
-                        .and_then(|v: rhai::Dynamic| v.into_string().ok())
-                        .unwrap_or_default();
+                        .and_then(|v: rhai::Dynamic| v.as_int().ok())
+                        .map(|v| v as i32)
+                        .unwrap_or(0);
                     let board: i32 = m
                         .get("board")
                         .cloned()
                         .and_then(|v: rhai::Dynamic| v.as_int().ok())
                         .map(|v| v as i32)
                         .unwrap_or(0);
-                    if color == pref.color && board == pref.board as i32 {
+                    let color: String = m
+                        .get("color")
+                        .cloned()
+                        .and_then(|v: rhai::Dynamic| v.into_string().ok())
+                        .unwrap_or_default();
+
+                    let matches = if let Some(ref_id) = pref.id {
+                        // ID-based lookup (preferred)
+                        pid == ref_id as i32
+                    } else {
+                        // Board+color lookup (backward compat)
+                        let ref_board = pref.board.unwrap_or(0) as i32;
+                        let ref_color = pref.color.as_deref().unwrap_or("");
+                        board == ref_board && color == ref_color
+                    };
+
+                    if matches {
                         let team: i32 = m
                             .get("team")
                             .cloned()
                             .and_then(|v: rhai::Dynamic| v.as_int().ok())
                             .map(|v| v as i32)
                             .unwrap_or(0);
-                        return PlayerId::with_team(
-                            pref.board as i32,
-                            pref.color.clone(),
+                        let name: String = m
+                            .get("name")
+                            .cloned()
+                            .and_then(|v: rhai::Dynamic| v.into_string().ok())
+                            .unwrap_or_default();
+                        let home_board: i32 = m
+                            .get("home_board")
+                            .cloned()
+                            .and_then(|v: rhai::Dynamic| v.as_int().ok())
+                            .map(|v| v as i32)
+                            .unwrap_or(0);
+                        return PlayerId {
+                            id: pid,
+                            name,
+                            home_board,
+                            board,
+                            color,
                             team,
-                        );
+                        };
                     }
                 }
             }
         }
     }
-    // Fallback: team 0
-    PlayerId::with_team(pref.board as i32, pref.color.clone(), 0)
+    // Fallback
+    PlayerId::new_by_id(0)
 }
 
 /// Convert a Rhai Map (and nested values) to a serde_json::Value.
@@ -513,6 +552,9 @@ impl ChessvariantEngine {
                             _ => "normal".to_string(),
                         });
                     Some(serde_json::json!({
+                        "id": player_map.get("id").and_then(|v| v.as_int().ok()).unwrap_or(0),
+                        "name": player_map.get("name").cloned().and_then(|v: Dynamic| v.into_string().ok()).unwrap_or_default(),
+                        "home_board": player_map.get("home_board").and_then(|v| v.as_int().ok()).unwrap_or(0),
                         "color": color,
                         "board": board,
                         "team": team,
@@ -528,6 +570,9 @@ impl ChessvariantEngine {
                 .enumerate()
                 .map(|(i, color)| {
                     serde_json::json!({
+                        "id": i as i32,
+                        "name": "",
+                        "home_board": 0,
                         "color": color,
                         "board": 0,
                         "team": 0,
@@ -718,11 +763,6 @@ impl ChessvariantEngine {
             .and_then(|v: Dynamic| v.try_cast::<rhai::Array>())
             .unwrap_or_default();
         for p in arr {
-            if let Some(pid) = p.clone().try_cast::<PlayerId>() {
-                if pid.color == color {
-                    return Ok(pid);
-                }
-            }
             if let Some(m) = p.clone().try_cast::<rhai::Map>() {
                 if let Some(c) = m
                     .get("color")
@@ -730,17 +770,19 @@ impl ChessvariantEngine {
                     .and_then(|v: rhai::Dynamic| v.into_string().ok())
                 {
                     if c == color {
-                        let board = m
-                            .get("board")
-                            .cloned()
-                            .and_then(|v: rhai::Dynamic| v.as_int().ok())
-                            .unwrap_or(0) as i32;
-                        let team = m
-                            .get("team")
-                            .cloned()
-                            .and_then(|v: rhai::Dynamic| v.as_int().ok())
-                            .unwrap_or(0) as i32;
-                        return Ok(PlayerId::with_team(board, c, team));
+                        let pid: i32 = m.get("id").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
+                        let board: i32 = m.get("board").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
+                        let team: i32 = m.get("team").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
+                        let name: String = m.get("name").cloned().and_then(|v: Dynamic| v.into_string().ok()).unwrap_or_default();
+                        let home_board: i32 = m.get("home_board").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
+                        return Ok(PlayerId {
+                            id: pid,
+                            name,
+                            home_board,
+                            board,
+                            color: c,
+                            team,
+                        });
                     }
                 }
             }
@@ -955,7 +997,23 @@ impl ChessvariantEngine {
                     .get("team")
                     .and_then(|v: &Dynamic| v.as_int().ok())
                     .unwrap_or(0) as i32;
+                let pid = player_map
+                    .get("id")
+                    .and_then(|v: &Dynamic| v.as_int().ok())
+                    .unwrap_or(0) as i32;
+                let name: String = player_map
+                    .get("name")
+                    .cloned()
+                    .and_then(|v: Dynamic| v.into_string().ok())
+                    .unwrap_or_default();
+                let home_board = player_map
+                    .get("home_board")
+                    .and_then(|v: &Dynamic| v.as_int().ok())
+                    .unwrap_or(0) as i32;
                 Ok(PlayerId {
+                    id: pid,
+                    name,
+                    home_board,
                     board,
                     color,
                     team,

@@ -17,8 +17,8 @@ fn init(player_count) {
     #{
         board: standard_start_position(),
         players: [
-            #{ board: 0, color: "white", team: 0 },
-            #{ board: 0, color: "black", team: 1 },
+            #{ id: 0, name: "White", board: 0, color: "white", team: 0 },
+            #{ id: 1, name: "Black", board: 0, color: "black", team: 1 },
         ],
         turn: "white",
     }
