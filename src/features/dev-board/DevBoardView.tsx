@@ -32,7 +32,6 @@ import style from "./DevBoardView.module.css";
 import {
   BoardOrientation,
   PendingMove,
-  PlayerRef,
   WasmAction,
   WasmBoardState,
   WasmPiece,
@@ -60,34 +59,12 @@ interface LogEntry {
 
 let logSeq = 0;
 
-/** Determine which selected player should act based on the piece being moved. */
+/** Determine which selected player should act. Returns first selected player. */
 function getActingPlayer(
-  action: WasmAction,
-  boardState: WasmBoardState,
+  _action: WasmAction,
+  _boardState: WasmBoardState,
   selectedPlayers: string[],
 ): string | null {
-  if (action.type === "move" && action.from.type === "board") {
-    const { row, col, boardIndex } = action.from;
-    const board = boardState.boards[boardIndex];
-    if (board) {
-      const idx = row * boardState.cols + col;
-      const piece = board[idx];
-      if (piece) {
-        const found = selectedPlayers.find((p) => {
-          try {
-            const ref = JSON.parse(p) as PlayerRef;
-            return (
-              ref.board === boardIndex &&
-              ref.color === piece.color
-            );
-          } catch {
-            return false;
-          }
-        });
-        if (found) return found;
-      }
-    }
-  }
   return selectedPlayers[0] ?? null;
 }
 
@@ -175,28 +152,38 @@ export function DevBoardView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 
-  // Derive board index and orientation from the controlling player's full identity.
-  const playerRef = useMemo((): PlayerRef | null => {
+  // Derive board index from the controlling player's moves in validMovesAll.
+  const playerRef = useMemo((): number | null => {
     if (!controllingPlayer) return null;
-    try { return JSON.parse(controllingPlayer) as PlayerRef; }
-    catch { return null; }
+    const pid = parseInt(controllingPlayer, 10);
+    return isNaN(pid) ? null : pid;
   }, [controllingPlayer]);
-  const currentBoardIndex = playerRef?.board ?? 0;
+  const currentBoardIndex = useMemo(() => {
+    if (playerRef == null) return 0;
+    const pm = validMovesAll.find(pm2 => pm2.player.id === playerRef);
+    if (pm && pm.moves.length > 0) {
+      const firstM = pm.moves[0] as unknown as { from: { type: string; boardIndex: number } };
+      return firstM.from.boardIndex;
+    }
+    return 0;
+  }, [playerRef, validMovesAll]);
 
   // Derive board indices for all selected controlling players (drag permissions).
   const activeBoardIndices = useMemo((): number[] => {
     if (selectedPlayers.length === 0) return [currentBoardIndex];
     const boards = new Set<number>();
-    for (const p of selectedPlayers) {
-      try {
-        const ref = JSON.parse(p) as PlayerRef;
-        if (ref.board != null) boards.add(ref.board);
-      } catch {
-        /* malformed JSON — skip */
+    const selIds = new Set(selectedPlayers.map(s => parseInt(s, 10)).filter(n => !isNaN(n)));
+    for (const pm of validMovesAll) {
+      if (selIds.has(pm.player.id) && pm.moves.length > 0) {
+        for (const m of pm.moves) {
+          const mv = m as unknown as { from: { type: string; boardIndex: number }; to: unknown };
+          if (mv.from.type === "board") boards.add(mv.from.boardIndex);
+          if (mv.to && (mv.to as { type: string }).type === "board") boards.add((mv.to as { boardIndex: number }).boardIndex);
+        }
       }
     }
     return boards.size > 0 ? [...boards] : [currentBoardIndex];
-  }, [selectedPlayers, currentBoardIndex]);
+  }, [selectedPlayers, currentBoardIndex, validMovesAll]);
 
   // Derive per-slot orientation: selected player's team perspective.
   const orientationByBoard = useMemo((): BoardOrientation[] => {
@@ -208,27 +195,30 @@ export function DevBoardView() {
     let controllingTeam = 0;
     const firstSel = selectedPlayers[0];
     if (firstSel) {
-      try {
-        const ref = JSON.parse(firstSel) as PlayerRef;
-        const cfg = allPlayers.find(p => p.board === (ref.board ?? 0) && p.color === (ref.color ?? ''));
+      const pid = parseInt(firstSel, 10);
+      if (!isNaN(pid)) {
+        const cfg = allPlayers.find(p => p.id === pid);
         if (cfg) controllingTeam = cfg.team;
-      } catch { /* skip */ }
-    }
-
-    // 1) For each board, find player with same team as controlling player
-    for (const p of allPlayers) {
-      if (covered.has(p.board)) continue;
-      if (p.team === controllingTeam) {
-        covered.add(p.board);
-        arr[p.board] = p.orientation ?? "normal";
       }
     }
 
-    // 2) Remaining boards: first player per board
+    // 1) For each board, find player with same team as controlling player
+    //    Use home_board to assign players to boards (each player has a home board)
     for (const p of allPlayers) {
-      if (covered.has(p.board)) continue;
-      covered.add(p.board);
-      arr[p.board] = p.orientation ?? "normal";
+      const b = p.home_board ?? 0;
+      if (covered.has(b)) continue;
+      if (p.team === controllingTeam) {
+        covered.add(b);
+        arr[b] = p.orientation ?? "normal";
+      }
+    }
+
+    // 2) Remaining boards: first player whose home_board matches
+    for (const p of allPlayers) {
+      const b = p.home_board ?? 0;
+      if (covered.has(b)) continue;
+      covered.add(b);
+      arr[b] = p.orientation ?? "normal";
     }
 
     // 3) Local overrides (rotate button) always win
@@ -263,7 +253,7 @@ export function DevBoardView() {
       setLocalOrientationOverride((prev) => {
         const current =
           prev[boardIndex] ??
-          allPlayers.find((p) => p.board === boardIndex)?.orientation ??
+          allPlayers.find((p) => p.home_board === boardIndex)?.orientation ??
           "normal";
         const currentIdx = usedOrientations.indexOf(current);
         const nextIdx =
@@ -314,20 +304,8 @@ export function DevBoardView() {
     if (playerCount) urlState.n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
     if (selectedVariant?.url) urlState.script = selectedVariant.url;
     if (selectedPlayers.length > 0) {
-      // Store player IDs in URL instead of full JSON structs
-      urlState.sel = selectedPlayers
-        .map((p) => {
-          try {
-            const ref = JSON.parse(p) as PlayerRef;
-            const player = allPlayers.find(
-              (ap) => ap.board === ref.board && ap.color === ref.color
-            );
-            return player != null ? String(player.id) : null;
-          } catch {
-            return null;
-          }
-        })
-        .filter((id): id is string => id != null);
+      // Store player IDs in URL
+      urlState.sel = selectedPlayers;
     }
     urlState.panel = drawerOpen ? 1 : 0;
 
@@ -402,11 +380,11 @@ export function DevBoardView() {
           const idSet = new Set(urlPreselection.map(Number));
           const restored = allP
             .filter((p) => idSet.has(p.id))
-            .map((p) => JSON.stringify({ board: p.board, color: p.color }));
+            .map((p) => String(p.id));
           setSelectedPlayers(restored.length > 0 ? restored : urlPreselection);
         } else {
           setSelectedPlayers(
-            allP.map((p) => JSON.stringify({ board: p.board, color: p.color }))
+            allP.map((p) => String(p.id))
           );
         }
       }
@@ -481,14 +459,7 @@ export function DevBoardView() {
       if (!actingPlayer) return;
 
       // Resolve acting player's numeric ID for logging
-      const actingPlayerRef = (() => {
-        try { return JSON.parse(actingPlayer) as PlayerRef; } catch { return null; }
-      })();
-      const actingPlayerId = actingPlayerRef
-        ? (allPlayers.find(
-            (ap) => ap.board === actingPlayerRef.board && ap.color === actingPlayerRef.color
-          )?.id ?? -1)
-        : -1;
+      const actingPlayerId = parseInt(actingPlayer, 10) || -1;
 
       // Optimistic log entries
       if (action.type === "move") {
@@ -679,7 +650,7 @@ export function DevBoardView() {
           <MultiSelect
             label="Controlling players (local)"
             data={allPlayers.map((p) => ({
-              value: JSON.stringify({ board: p.board, color: p.color }),
+              value: String(p.id),
               label: p.name || String(p.id),
             }))}
             value={selectedPlayers}

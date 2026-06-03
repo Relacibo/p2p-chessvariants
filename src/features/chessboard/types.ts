@@ -70,8 +70,6 @@ export interface WasmPlayerConfig {
   id: number;
   name: string;
   home_board: number;
-  color: string;
-  board: number;
   team: number;
   orientation?: BoardOrientation;
 }
