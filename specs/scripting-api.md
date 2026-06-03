@@ -125,7 +125,7 @@ fn valid_moves(state, player) {
                 let from = Coords(r, c);
                 let dests = moves_for_piece(state.board, from, piece.type, player.color);
                 for to in dests {
-                    if engine::is_king_in_check(state, from, to, player) {
+                    if !is_king_in_check(state, from, to, player) {
                         moves.push(Move(from, to));
                     }
                 }
@@ -512,7 +512,7 @@ engine.getUiJson(player_json) → string
 |----------|-----------|---------|
 | `is_square_attacked` | `(Board, Coords, color) -> bool` | Square attacked by pieces of color? |
 | `pseudo_moves` | `(Board, Coords, piece_type, color) -> [Coords]` | Pseudo-moves for any piece type |
-| `is_king_in_check` | `(State, Coords, Coords, Player) -> bool` | Would move leave own king in check? (uses team info from state) |
+| `is_king_in_check` | `(State, Coords, Coords, Player) -> bool` | Would move leave own king in check? Uses team info from `state.players` to identify enemies. **Only simulates a simple from→to relocation** — does not model castling, en passant, or other special moves. |
 | `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess |
 

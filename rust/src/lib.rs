@@ -168,27 +168,53 @@ fn register_engine_helpers(engine: &mut Engine) {
         },
     );
 
-    // engine::is_legal(board, from, to, color) — check protection (king safety)
-    let cp_legal2 = cp_legal.clone();
+    // is_king_in_check(state, from, to, player) — checks if the move leaves the
+    // moving player's king in check. Uses team info from state.players to identify enemies.
+    // Fallback: if all players share the same team, all other colors are treated as enemies.
+    // NOTE: Only simulates a simple from→to relocation. Does not simulate castling,
+    // en passant, or other special moves.
     engine.register_fn(
-        "engine::is_legal",
-        move |board: BoardState, from: Coords, to: Coords, color: String| -> bool {
+        "is_king_in_check",
+        move |state: rhai::Map, from: Coords, to: Coords, player: PlayerId| -> bool {
+            let Some(board_dyn) = state.get("board") else { return false; };
+            let Some(board) = board_dyn.clone().try_cast::<BoardState>() else { return false; };
+
+            // Collect (color, team) for all players
+            let all_players: Vec<(String, i32)> = state
+                .get("players")
+                .and_then(|v| v.clone().try_cast::<rhai::Array>())
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|p| {
+                    let m = p.try_cast::<rhai::Map>()?;
+                    let color = m.get("color")?.clone().into_string().ok()?;
+                    let team = m
+                        .get("team")
+                        .and_then(|v| v.as_int().ok())
+                        .unwrap_or(0) as i32;
+                    Some((color, team))
+                })
+                .collect();
+
+            // Enemies = different team; if all share the same team, fall back to all other colors
+            let mut enemy_colors: Vec<String> = all_players
+                .iter()
+                .filter(|(c, t)| c != &player.color && *t != player.team)
+                .map(|(c, _)| c.clone())
+                .collect();
+            if enemy_colors.is_empty() {
+                enemy_colors = all_players
+                    .iter()
+                    .filter(|(c, _)| c != &player.color)
+                    .map(|(c, _)| c.clone())
+                    .collect();
+            }
+
             let Some(from_bc) = from.as_board_coords() else { return false; };
             let Some(to_bc) = to.as_board_coords() else { return false; };
             let mut temp = board.clone();
             game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
-            !game::engine_builtins::is_king_in_check(&temp, &color, &cp_legal)
-        },
-    );
-    // Also register as bare global for testing
-    engine.register_fn(
-        "is_legal",
-        move |board: BoardState, from: Coords, to: Coords, color: String| -> bool {
-            let Some(from_bc) = from.as_board_coords() else { return false; };
-            let Some(to_bc) = to.as_board_coords() else { return false; };
-            let mut temp = board.clone();
-            game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
-            !game::engine_builtins::is_king_in_check(&temp, &color, &cp_legal2)
+            game::engine_builtins::is_king_in_check(&temp, &player.color, &enemy_colors, &cp_legal)
         },
     );
 
@@ -601,17 +627,13 @@ impl ChessvariantEngine {
         player: &PlayerId,
         action: &Action,
     ) -> Result<serde_json::Value, CvError> {
-        // If cached_valid_moves is None (e.g. before first computation or
-        // after another action invalidated it), validate Move actions
-        // via is_legal (Rust, no script). Non-Move actions always pass.
-        if self.cached_valid_moves.is_none() {
-            match action.kind.as_str() {
-                "move" => {
-                    if !self.is_move_legal(action, &player.color)? {
-                        return Err(CvError::Internal("illegal move".into()));
-                    }
-                }
-                _ => { /* non-Move actions pass through */ }
+        // If cached_valid_moves is None (e.g. before first computation or after another
+        // action invalidated it), validate Move actions by calling valid_moves via Rhai.
+        // This ensures custom variant legality rules are always respected.
+        if self.cached_valid_moves.is_none() && action.kind == "move" {
+            let legal_moves = self.compute_valid_moves_for_player(player)?;
+            if !legal_moves.iter().any(|m| m == action) {
+                return Err(CvError::Internal("illegal move".into()));
             }
         }
 
@@ -872,32 +894,6 @@ impl ChessvariantEngine {
                     .or_else(|| rhai::serde::from_dynamic(&item).ok())
             })
             .collect())
-    }
-
-    /// Validate a Move action via `is_legal` (Rust, no script). Used as
-    /// fallback when the valid_moves cache is stale (None after handle_action).
-    fn is_move_legal(&self, action: &Action, player_color: &str) -> Result<bool, CvError> {
-        let from = action.from.as_ref().ok_or_else(|| {
-            CvError::Internal("move action has no from field".into())
-        })?;
-        let to = action.to.as_ref().ok_or_else(|| {
-            CvError::Internal("move action has no to field".into())
-        })?;
-        let board = self.get_normalized_board()?;
-        let from_bc = from.as_board_coords().ok_or_else(|| {
-            CvError::Internal("invalid from coords".into())
-        })?;
-        let to_bc = to.as_board_coords().ok_or_else(|| {
-            CvError::Internal("invalid to coords".into())
-        })?;
-        let mut temp = board.clone();
-        game::engine_builtins::apply_move_to_board(&mut temp, &from_bc, &to_bc);
-        let empty_custom = std::collections::HashMap::new();
-        Ok(!game::engine_builtins::is_king_in_check(
-            &temp,
-            player_color,
-            &empty_custom,
-        ))
     }
 
     /// Extract all PlayerIds from `state.players`.

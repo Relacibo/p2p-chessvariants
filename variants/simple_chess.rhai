@@ -1,6 +1,6 @@
 // Simple Chess — API v3
 // Uses engine::moves::* for per-piece pseudo-legal move generation.
-// Uses is_legal for check filtering.
+// Uses is_king_in_check for check filtering.
 // Enforces turn order, piece ownership, and king safety in handle_action.
 // Game-over determined by is_game_over().
 
@@ -48,7 +48,7 @@ fn valid_moves(state, player) {
                 let from = Coords(r, c);
                 let dests = moves_for_piece(state.board, from, piece.type, player.color);
                 for to in dests {
-                    if is_legal(state.board, from, to, player.color) {
+                    if !is_king_in_check(state, from, to, player) {
                         pa.push(Move(from, to));
                     }
                 }

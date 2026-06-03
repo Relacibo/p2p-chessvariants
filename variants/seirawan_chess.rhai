@@ -24,14 +24,14 @@ fn valid_moves(state, player) {
         if piece != () && piece.color == player.color {
             let from = Coords(r, c);
             let dests = moves_for_piece(state.board, from, piece.type, player.color);
-            for to in dests { if is_legal(state.board, from, to, player.color) { pa.push(Move(from, to)); } }
+            for to in dests { if !is_king_in_check(state, from, to, player) { pa.push(Move(from, to)); } }
         }
     }}
     pa
 }
 fn is_game_over(state, all_valid_moves) {
     if "outcome" in state { return true; }
-    for entry in all_valid_moves { if entry.moves.len() > 0 { return false; } }
+    for entry in all_valid_moves { if entry.moves.len > 0 { return false; } }
     true
 }
 fn handle_action(state, player, action) {

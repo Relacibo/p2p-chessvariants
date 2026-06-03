@@ -88,19 +88,19 @@ pub fn is_square_attacked(
     false
 }
 
-fn opponent_color(color: &str) -> &'static str {
-    match color {
-        "white" => "black",
-        _ => "white",
-    }
-}
-
-/// Return true if the king of `color` is in check on this board.
+/// Return true if the king of `king_color` is in check on this board.
+///
+/// `enemy_colors` lists all colors that attack the king (players on opposing teams).
+/// If `enemy_colors` is empty, the king is never considered in check.
 pub fn is_king_in_check(
     board: &BoardState,
-    color: &str,
+    king_color: &str,
+    enemy_colors: &[String],
     custom_pieces: &HashMap<String, Vec<String>>,
 ) -> bool {
+    if enemy_colors.is_empty() {
+        return false;
+    }
     for board_idx in 0..board.number_of_boards as i32 {
         for row in 0..board.rows as i32 {
             for col in 0..board.cols as i32 {
@@ -108,13 +108,10 @@ pub fn is_king_in_check(
                 let Some(piece) = board.get_piece(&coords) else {
                     continue;
                 };
-                if piece.color_name() == color && piece.piece_type_name() == "king" {
-                    return is_square_attacked(
-                        board,
-                        &coords,
-                        opponent_color(color),
-                        custom_pieces,
-                    );
+                if piece.color_name() == king_color && piece.piece_type_name() == "king" {
+                    return enemy_colors.iter().any(|ec| {
+                        is_square_attacked(board, &coords, ec, custom_pieces)
+                    });
                 }
             }
         }
