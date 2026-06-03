@@ -1,6 +1,5 @@
 import {
   ActionIcon,
-  Badge,
   Box,
   Button,
   Combobox,
@@ -76,43 +75,35 @@ function extractErrorMessage(e: unknown): string {
   try { return JSON.stringify(e); } catch { return String(e); }
 }
 
-function coordsLabel(c: WasmAction & { from?: unknown; to?: unknown }): string {
-  if ("from" in c && c.from && typeof c.from === "object") {
-    const f = c.from as { type?: string; row?: number; col?: number; index?: number };
-    if (f.type === "board") return `(${f.row},${f.col})`;
-    return `reserve[${f.index}]`;
+/** Determine which selected player should act based on the piece being moved. */
+function getActingPlayer(
+  action: WasmAction,
+  boardState: WasmBoardState,
+  selectedPlayers: string[],
+): string | null {
+  if (action.type === "move" && action.from.type === "board") {
+    const { row, col, boardIndex } = action.from;
+    const board = boardState.boards[boardIndex];
+    if (board) {
+      const idx = row * boardState.cols + col;
+      const piece = board[idx];
+      if (piece) {
+        const found = selectedPlayers.find((p) => {
+          try {
+            const ref = JSON.parse(p) as PlayerRef;
+            return (
+              ref.board === boardIndex &&
+              ref.color === piece.color
+            );
+          } catch {
+            return false;
+          }
+        });
+        if (found) return found;
+      }
+    }
   }
-  return "?";
-}
-
-function actionLabel(a: LogAction): string {
-  if (a.kind === "move" && a.action.type === "move" && a.action.from && a.action.to)
-    return `move ${coordsLabel(a.action as unknown as WasmAction & { from: unknown; to: unknown })}→${(() => {
-      const t = a.action.to as { type?: string; row?: number; col?: number };
-      if (t.type === "board") return `(${t.row},${t.col})`;
-      return `?`;
-    })()}`;
-  if (a.kind === "ui") {
-    const pieceStr = a.piece
-      ? ` (${a.piece.color} ${a.piece.pieceType})`
-      : "";
-    return `ui:${a.elementId}${pieceStr}`;
-  }
-  return "?";
-}
-
-const PLAYER_BADGE_COLORS = ["gray", "dark", "red", "blue"] as const;
-
-const ORIENTATION_CYCLE: BoardOrientation[] = [
-  "normal",
-  "clockwise",
-  "flipped",
-  "counterclockwise",
-];
-
-function nextOrientation(orientation: BoardOrientation): BoardOrientation {
-  const idx = ORIENTATION_CYCLE.indexOf(orientation);
-  return ORIENTATION_CYCLE[(idx + 1) % ORIENTATION_CYCLE.length];
+  return selectedPlayers[0] ?? null;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -211,7 +202,12 @@ export function DevBoardView() {
     return arr;
   }, [allPlayers, variantConfig?.board.count, localOrientationOverride]);
 
-  // Rotate button cycles through all 4 orientations for the active board.
+  // Rotate button cycles through orientations actually used across all boards.
+  const usedOrientations = useMemo((): BoardOrientation[] => {
+    const unique = [...new Set(orientationByBoard)];
+    return unique.length > 0 ? unique : ["normal"];
+  }, [orientationByBoard]);
+
   const handleRotateBoard = useCallback(
     (boardIndex: number) => {
       setLocalOrientationOverride((prev) => {
@@ -219,23 +215,44 @@ export function DevBoardView() {
           prev[boardIndex] ??
           allPlayers.find((p) => p.board === boardIndex)?.orientation ??
           "normal";
-        const next = nextOrientation(current);
-        return { ...prev, [boardIndex]: next };
+        const currentIdx = usedOrientations.indexOf(current);
+        const nextIdx =
+          currentIdx >= 0
+            ? (currentIdx + 1) % usedOrientations.length
+            : 0;
+        return { ...prev, [boardIndex]: usedOrientations[nextIdx] };
       });
     },
-    [allPlayers],
+    [allPlayers, usedOrientations],
   );
+
+  // Union valid moves from all selected players for display.
+  const displayValidMoves = useMemo((): WasmAction[] => {
+    if (selectedPlayers.length <= 1) return validMoves;
+    const selectedSet = new Set(selectedPlayers);
+    const actions: WasmAction[] = [];
+    for (const pm of validMovesAll) {
+      const ref = JSON.stringify({
+        board: pm.player.board,
+        color: pm.player.color,
+      });
+      if (selectedSet.has(ref)) {
+        actions.push(...pm.moves);
+      }
+    }
+    return actions;
+  }, [validMovesAll, selectedPlayers, validMoves]);
 
   // Determine if a piece selection dialog should be shown
   const selectablePieces = useMemo(() => {
-    return validMoves
+    return displayValidMoves
       .filter((a): a is WasmAction & { type: "select_piece" } => a.type === "select_piece")
       .map((a) => a.piece);
-  }, [validMoves]);
+  }, [displayValidMoves]);
 
   const hasCancel = useMemo(
-    () => validMoves.some((a) => a.type === "cancel"),
-    [validMoves],
+    () => displayValidMoves.some((a) => a.type === "cancel"),
+    [displayValidMoves],
   );
 
   // ── Container resize observer ──
@@ -368,9 +385,19 @@ export function DevBoardView() {
         const initPlayers = deriveActivePlayers(initialValid);
         const firstPlayer = initPlayers[0] ? JSON.stringify(initPlayers[0]) : "";
         setControllingPlayer(firstPlayer);
-        setSelectedPlayers(firstPlayer ? [firstPlayer] : []);
         setActivePlayers(initPlayers);
         await syncState(proxy, firstPlayer);
+        // After initial sync, select all players by default
+        try {
+          const allP = (await proxy.playersJson()) as WasmPlayerConfig[];
+          setSelectedPlayers(
+            allP.map((p) =>
+              JSON.stringify({ board: p.board, color: p.color })
+            )
+          );
+        } catch {
+          setSelectedPlayers(firstPlayer ? [firstPlayer] : []);
+        }
       } catch (e: unknown) {
         notifications.show({
           title: "Load failed",
@@ -467,13 +494,22 @@ export function DevBoardView() {
   const handleSubmitAction = useCallback(
     async (action: WasmAction) => {
       const proxy = proxyRef.current;
-      if (!proxy || !controllingPlayer) return;
+      if (!proxy || selectedPlayers.length === 0) return;
+
+      // Determine which player to act as (based on the piece being moved)
+      const actor =
+        boardState && selectedPlayers.length > 0
+          ? getActingPlayer(action, boardState, selectedPlayers)
+          : null;
+      const actingPlayer = actor ?? controllingPlayer ?? selectedPlayers[0];
+      if (!actingPlayer) return;
+
       try {
         // Phase 1: board state + ui + game_over — arrives immediately
         const result = await proxy.submitAction(
-          controllingPlayer,
+          actingPlayer,
           JSON.stringify(action),
-          controllingPlayer,
+          actingPlayer,
         );
         if (result.error) {
           notifications.show({
@@ -500,13 +536,13 @@ export function DevBoardView() {
         if (extra.stateJson) setGameStateJson(extra.stateJson as object);
         if (extra.players) setAllPlayers(extra.players as WasmPlayerConfig[]);
         if (action.type === "move") {
-          addLogEntry(controllingPlayer, { kind: "move", action });
+          addLogEntry(actingPlayer, { kind: "move", action });
         } else if (action.type === "interact") {
-          addLogEntry(controllingPlayer, { kind: "ui", elementId: action.elementId });
+          addLogEntry(actingPlayer, { kind: "ui", elementId: action.elementId });
         } else if (action.type === "select_piece") {
-          addLogEntry(controllingPlayer, { kind: "ui", elementId: "select_piece", piece: action.piece });
+          addLogEntry(actingPlayer, { kind: "ui", elementId: "select_piece", piece: action.piece });
         } else if (action.type === "cancel") {
-          addLogEntry(controllingPlayer, { kind: "ui", elementId: "cancel" });
+          addLogEntry(actingPlayer, { kind: "ui", elementId: "cancel" });
         }
         // Phase 2: valid_actions arrive asynchronously via proxy.onValidMoves
       } catch (e: unknown) {
@@ -519,7 +555,7 @@ export function DevBoardView() {
         });
       }
     },
-    [controllingPlayer, addLogEntry, deriveActivePlayers],
+    [controllingPlayer, selectedPlayers, boardState, addLogEntry, deriveActivePlayers],
   );
 
   const filteredVariants = variants.filter((v) =>
@@ -546,7 +582,7 @@ export function DevBoardView() {
         <Chessboard
           variantConfig={variantConfig}
           boardState={boardState}
-          validMoves={validMoves}
+          validMoves={displayValidMoves}
           activeBoardIndex={currentBoardIndex}
           activeBoardIndices={activeBoardIndices}
           orientationByBoard={orientationByBoard}
@@ -712,55 +748,56 @@ export function DevBoardView() {
             <Text size="sm" fw={600}>
               Action Log
             </Text>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => setLog([])}
-              title="Clear"
-            >
-              <IconTrash size="0.85rem" />
-            </ActionIcon>
+            <Group gap="xs">
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={() => setLog([])}
+                title="Clear"
+              >
+                <IconTrash size="0.85rem" />
+              </ActionIcon>
+            </Group>
           </Group>
-          <ScrollArea h={400} type="auto">
-            {log.length === 0 && (
-              <Text size="xs" c="dimmed" fs="italic">
-                No actions yet.
+          {log.length === 0 && (
+            <Text size="xs" c="dimmed" fs="italic">
+              No actions yet.
+            </Text>
+          )}
+          {log.length > 0 && (
+            <Box
+              style={{
+                maxHeight: 200,
+                overflow: "auto",
+                background: "#1a1b1e",
+                borderRadius: 4,
+                padding: 8,
+              }}
+            >
+              <Text
+                size="xs"
+                component="pre"
+                style={{
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                  fontFamily: "monospace",
+                  color: "#c9d1d9",
+                }}
+              >
+                {JSON.stringify(
+                  [...log].reverse().map((entry) => ({
+                    id: entry.id,
+                    timestamp: entry.timestamp,
+                    player: JSON.parse(entry.player),
+                    action: entry.action,
+                  })),
+                  null,
+                  2
+                )}
               </Text>
-            )}
-            {[...log].reverse().map((entry) => (
-              <Group key={entry.id} gap="xs" mb={4} wrap="nowrap">
-                <Badge
-                  size="xs"
-                  color={
-                    PLAYER_BADGE_COLORS[
-                      activePlayers.findIndex(
-                        (ap) =>
-                          `{"board":${ap.board},"color":"${ap.color}"}` ===
-                          entry.player
-                      )
-                    ] ?? "gray"
-                  }
-                >
-                  {(() => {
-                    const ap = activePlayers.find(
-                      (a) =>
-                        `{"board":${a.board},"color":"${a.color}"}` ===
-                        entry.player
-                    );
-                    return ap
-                      ? `${ap.color}${ap.board > 0 ? ` b${ap.board}` : ""}`
-                      : "?";
-                  })()}
-                </Badge>
-                <Text size="xs" style={{ flex: 1 }}>
-                  {actionLabel(entry.action)}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {entry.timestamp}
-                </Text>
-              </Group>
-            ))}
-          </ScrollArea>
+            </Box>
+          )}
 
           {/* ── Game State JSON (collapsible) ── */}
           <Box>
@@ -830,7 +867,7 @@ export function DevBoardView() {
               }}
             >
               <Text size="sm" fw={600}>
-                Valid Actions
+                Valid Moves
               </Text>
               <Text size="xs" c="dimmed">
                 {showValidMoves ? "▼" : "▶"}

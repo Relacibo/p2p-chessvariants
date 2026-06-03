@@ -4,6 +4,8 @@ import {
   FederatedPointerEvent,
   Graphics,
   Sprite,
+  Text,
+  TextStyle,
   Texture,
   Assets,
 } from "pixi.js";
@@ -97,6 +99,7 @@ export class PixiBoard {
   private reserveLayer = new Container();
   private pieceLayer = new Container();
   private dragLayer = new Container();
+  private uiOverlay = new Container();
 
   private pieceSprites = new Map<string, Sprite>();
   private reserveSprites = new Map<string, Sprite>();
@@ -126,6 +129,7 @@ export class PixiBoard {
   onClearDropPiece: (() => void) | undefined;
   onSelectReservePiece: ((piece: WasmPiece, elementId: string) => void) | undefined;
   onZoomModeChange: ((mode: ZoomMode) => void) | undefined;
+  onRotateBoard: ((boardIndex: number) => void) | undefined;
 
   constructor(
     onSubmitAction: (action: WasmAction) => void,
@@ -173,6 +177,7 @@ export class PixiBoard {
     container.appendChild(canvas);
 
     app.stage.addChild(this.rootContainer);
+    app.stage.addChild(this.uiOverlay);
     this.rootContainer.addChild(this.bgGraphics);
     this.rootContainer.addChild(this.highlightGraphics);
     this.rootContainer.addChild(this.reserveLayer);
@@ -289,6 +294,7 @@ export class PixiBoard {
     if (piecesChanged) this.rebuildPieces();
     if (highlightsChanged) this.rebuildHighlights();
     if (reserveChanged) this.rebuildReservePiles();
+    this.rebuildUiButtons(s);
   }
 
   setZoomMode(mode: ZoomMode): void {
@@ -727,6 +733,79 @@ export class PixiBoard {
     }
   }
 
+  private rebuildUiButtons(s: SceneState): void {
+    this.uiOverlay.removeChildren();
+
+    const btnW = 28;
+    const btnH = 28;
+    const gap = 8;
+    const rightMargin = 4;
+    const bgColor = 0x000000;
+    const bgAlpha = 0.55;
+    const textColor = 0xffffff;
+    const radius = 6;
+
+    const totalH = btnH * 2 + gap;
+    const startY = Math.round((s.stageHeight - totalH) / 2);
+    const btnX = s.stageWidth - btnW - rightMargin;
+
+    const textStyle = new TextStyle({
+      fontSize: 16,
+      fill: textColor,
+      fontFamily: "sans-serif",
+    });
+
+    // ── Rotate button ──
+    {
+      const container = new Container();
+      container.eventMode = "static";
+      container.cursor = "pointer";
+
+      const bg = new Graphics();
+      bg.roundRect(0, 0, btnW, btnH, radius);
+      bg.fill({ color: bgColor, alpha: bgAlpha });
+      container.addChild(bg);
+
+      const label = new Text({ text: "↻", style: textStyle });
+      label.anchor.set(0.5);
+      label.position.set(btnW / 2, btnH / 2);
+      container.addChild(label);
+
+      container.position.set(btnX, startY);
+      container.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        this.onRotateBoard?.(this.focusedBoardIndex);
+      });
+      this.uiOverlay.addChild(container);
+    }
+
+    // ── Zoom button ──
+    {
+      const container = new Container();
+      container.eventMode = "static";
+      container.cursor = "pointer";
+
+      const bg = new Graphics();
+      bg.roundRect(0, 0, btnW, btnH, radius);
+      bg.fill({ color: bgColor, alpha: bgAlpha });
+      container.addChild(bg);
+
+      const zoomLabel = this.currentZoomMode === "single" ? "⊟" : "⊞";
+      const label = new Text({ text: zoomLabel, style: textStyle });
+      label.anchor.set(0.5);
+      label.position.set(btnW / 2, btnH / 2);
+      container.addChild(label);
+
+      container.position.set(btnX, startY + btnH + gap);
+      container.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        const next: ZoomMode = this.currentZoomMode === "single" ? "overview" : "single";
+        this.setZoomMode(next);
+      });
+      this.uiOverlay.addChild(container);
+    }
+  }
+
   // ─── Interaction ───────────────────────────────────────────────────────────
 
   private handleBoardPointerDown(wx: number, wy: number): void {
@@ -821,6 +900,11 @@ export class PixiBoard {
     this.selected = null;
     originSprite.alpha = GHOST_ALPHA;
 
+    // Set hand cursor during drag
+    if (this.app) {
+      (this.app.canvas as HTMLCanvasElement).style.cursor = "grabbing";
+    }
+
     const dragCopy = new Sprite(originSprite.texture);
     dragCopy.width = sl.tileSize;
     dragCopy.height = sl.tileSize;
@@ -839,6 +923,11 @@ export class PixiBoard {
       window.removeEventListener("pointerup", upHandler);
       this.dragPointerMove = null;
       this.dragPointerUp = null;
+
+      // Restore default cursor
+      if (this.app) {
+        (this.app.canvas as HTMLCanvasElement).style.cursor = "";
+      }
 
       this.dragLayer.removeChild(dragCopy);
       dragCopy.destroy();
