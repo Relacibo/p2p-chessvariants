@@ -8,6 +8,10 @@ export interface VariantEntry {
 
 export const OFFICIAL_VARIANTS: VariantEntry[] = [
   {
+    name: "Chess",
+    url: "/variants/chess.rhai",
+  },
+  {
     name: "Simple Chess",
     url: "/variants/simple_chess.rhai",
   },
