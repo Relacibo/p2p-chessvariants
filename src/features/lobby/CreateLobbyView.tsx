@@ -19,17 +19,17 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconBrandGithub,
-  IconCheck,
-  IconCopy,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { useGuestLoginMutation } from "../../api/api";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { selectToken } from "../auth/authSlice";
+import { login, selectToken } from "../auth/authSlice";
 import {
   getGithubBrowseUrl,
   normalizeScriptUrl,
@@ -104,6 +104,10 @@ function CreateLobbyForm() {
   const variants = useSelector(selectAllVariants);
   const isCreating = status.phase === "creating";
 
+  const [guestLogin, { isLoading: isGuestLoggingIn }] =
+    useGuestLoginMutation();
+  const loading = isCreating || isGuestLoggingIn;
+
   const [opened, { open, close }] = useDisclosure(false);
 
   const combobox = useCombobox({
@@ -120,12 +124,21 @@ function CreateLobbyForm() {
   const [search, setSearch] = useState("");
 
   const form = useForm({
-    initialValues: { scriptUrl: "", useServerLobby: !!token, allowGuests: true },
+    initialValues: {
+      scriptUrl: "",
+      useServerLobby: !!token,
+      allowGuests: true,
+      displayName: "",
+    },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
         const result = parseScriptUrl(v.trim());
         if (!result.ok) return scriptUrlErrorMessage(result.error);
+        return null;
+      },
+      displayName: (v) => {
+        if (!token && !v.trim()) return "Display name is required";
         return null;
       },
     },
@@ -173,9 +186,37 @@ function CreateLobbyForm() {
   return (
     <>
       <form
-        onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
+        onSubmit={form.onSubmit(async ({ scriptUrl, useServerLobby, displayName }) => {
           const normalized = normalizeScriptUrl(scriptUrl.trim());
-          dispatch(createLobby(normalized, !!token && useServerLobby, form.values.allowGuests));
+          if (!token) {
+            try {
+              const res = await guestLogin({
+                displayName: displayName.trim(),
+              }).unwrap();
+              dispatch(login({ token: res.token, user: res.user }));
+              dispatch(
+                createLobby(
+                  normalized,
+                  !!token && useServerLobby,
+                  form.values.allowGuests,
+                ),
+              );
+            } catch (e: any) {
+              notifications.show({
+                title: "Error",
+                message: e.message || "Guest login failed",
+                color: "red",
+              });
+            }
+          } else {
+            dispatch(
+              createLobby(
+                normalized,
+                !!token && useServerLobby,
+                form.values.allowGuests,
+              ),
+            );
+          }
         })}
       >
         <Stack>
@@ -246,6 +287,13 @@ function CreateLobbyForm() {
           </Group>
 
           
+          {!token && (
+            <TextInput
+              label="Display Name"
+              placeholder="Guest Player"
+              {...form.getInputProps("displayName")}
+            />
+          )}
           <Tooltip
             label={token ? "" : "Login required for server lobby"}
             disabled={!!token}
@@ -267,8 +315,8 @@ function CreateLobbyForm() {
               {...form.getInputProps("allowGuests", { type: "checkbox" })}
             />
           )}
-          <Button type="submit" loading={isCreating}>
-            Create Lobby
+          <Button type="submit" loading={loading}>
+            {!token ? "Login & Create Lobby" : "Create Lobby"}
           </Button>
         </Stack>
       </form>
