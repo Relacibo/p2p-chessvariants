@@ -3,20 +3,15 @@ fn config() { #{ api_version:1, name:"Bughouse", version:"2.0.0", colors:["white
 
 fn build_piece_defs() { #{ king: [#{ type:"jump",offsets:[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }], queen: [#{ type:"slide",dirs:[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }], rook: [#{ type:"slide",dirs:[[0,1],[0,-1],[1,0],[-1,0]] }], bishop: [#{ type:"slide",dirs:[[1,1],[1,-1],[-1,1],[-1,-1]] }], knight: [#{ type:"jump",offsets:[[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] } }
 fn build_color_piece_defs() {
-    #{ white: #{ pawn: [ #{ type:"jump",offsets:[[-1,0]],cond:"cond_push_empty" }, #{ type:"jump",offsets:[[-2,0]],cond:"cond_double_white" }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],cond:"cond_capture" } ]},
-       black: #{ pawn: [ #{ type:"jump",offsets:[[1,0]],cond:"cond_push_empty" }, #{ type:"jump",offsets:[[2,0]],cond:"cond_double_black" }, #{ type:"jump",offsets:[[1,-1],[1,1]],cond:"cond_capture" } ]} }
+    #{ white: #{ pawn: [ #{ type:"jump",offsets:[[-1,0]] }, #{ type:"jump",offsets:[[-2,0]] }, #{ type:"jump",offsets:[[-1,-1],[-1,1]] } ]},
+       black: #{ pawn: [ #{ type:"jump",offsets:[[1,0]] }, #{ type:"jump",offsets:[[2,0]] }, #{ type:"jump",offsets:[[1,-1],[1,1]] } ]} }
 }
-fn cond_push_empty(s,f,t) { engine::board::get(s.board,t)==() }
-fn cond_double_white(s,f,t) { f.row==6 && engine::board::get(s.board,Coords(f.row-1,f.col))==() && engine::board::get(s.board,t)==() }
-fn cond_double_black(s,f,t) { f.row==1 && engine::board::get(s.board,Coords(f.row+1,f.col))==() && engine::board::get(s.board,t)==() }
-fn cond_capture(s,f,t) { let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color }
-
 fn get_piece_defs(piece, state) { if piece.color in state.color_piece_defs && piece.type in state.color_piece_defs[piece.color] { return state.color_piece_defs[piece.color][piece.type]; } if piece.type in state.piece_defs { return state.piece_defs[piece.type]; } []; }
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }
     let comps = get_piece_defs(piece, state); if comps == () || comps.len == 0 { return []; }
     let dests = [];
-    for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; if comp.cond!=() { raw=switch comp.cond{"cond_push_empty"=>raw.filter(|t|cond_push_empty(state,from,t)),"cond_double_white"=>raw.filter(|t|cond_double_white(state,from,t)),"cond_double_black"=>raw.filter(|t|cond_double_black(state,from,t)),"cond_capture"=>raw.filter(|t|cond_capture(state,from,t)),_=>raw}; } for d in raw { dests.push(d); } }
+    for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; for d in raw { dests.push(d); } }
     dests
 }
 

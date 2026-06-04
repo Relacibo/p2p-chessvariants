@@ -1,47 +1,71 @@
-use rhai::{Array, Dynamic, Map};
+use rhai::CustomType;
+use serde::Serialize;
 
-pub fn rhai_winner(player_index: i32) -> Dynamic {
-    let mut map = Map::new();
-    map.insert("type".into(), Dynamic::from("winner".to_string()));
-    map.insert("player".into(), Dynamic::from(player_index));
-    Dynamic::from(map)
+#[derive(Clone, Debug, CustomType, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameResult {
+    #[serde(rename = "type")]
+    #[rhai_type(name = "type", readonly)]
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[rhai_type(readonly)]
+    pub player: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[rhai_type(readonly)]
+    pub players: Option<Vec<i32>>,
 }
 
-pub fn rhai_winners(players: Array) -> Dynamic {
-    let mut map = Map::new();
-    map.insert("type".into(), Dynamic::from("winners".to_string()));
-    map.insert("players".into(), Dynamic::from(players));
-    Dynamic::from(map)
-}
+impl GameResult {
+    pub fn winner(player: i32) -> Self {
+        Self {
+            kind: "winner".into(),
+            player: Some(player),
+            players: None,
+        }
+    }
 
-pub fn rhai_draw() -> Dynamic {
-    let mut map = Map::new();
-    map.insert("type".into(), Dynamic::from("draw".to_string()));
-    Dynamic::from(map)
+    pub fn winners(players: Vec<i32>) -> Self {
+        Self {
+            kind: "winners".into(),
+            player: None,
+            players: Some(players),
+        }
+    }
+
+    pub fn draw() -> Self {
+        Self {
+            kind: "draw".into(),
+            player: None,
+            players: None,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use rhai::{Dynamic, Map};
-
-    use super::{rhai_draw, rhai_winner, rhai_winners};
+    use super::GameResult;
 
     #[test]
-    fn test_winner_map() {
-        let map = rhai_winner(1).cast::<Map>();
-        assert_eq!(map.get("type").unwrap().clone().cast::<String>(), "winner");
-        assert_eq!(map.get("player").unwrap().clone().cast::<i32>(), 1);
+    fn test_winner() {
+        let result = GameResult::winner(1);
+        assert_eq!(result.kind, "winner");
+        assert_eq!(result.player, Some(1));
+        assert_eq!(result.players, None);
     }
 
     #[test]
-    fn test_draw_map() {
-        let map = rhai_draw().cast::<Map>();
-        assert_eq!(map.get("type").unwrap().clone().cast::<String>(), "draw");
+    fn test_draw() {
+        let result = GameResult::draw();
+        assert_eq!(result.kind, "draw");
+        assert_eq!(result.player, None);
+        assert_eq!(result.players, None);
     }
 
     #[test]
-    fn test_winners_map() {
-        let map = rhai_winners(vec![Dynamic::from(0_i32), Dynamic::from(2_i32)]).cast::<Map>();
-        assert_eq!(map.get("type").unwrap().clone().cast::<String>(), "winners");
+    fn test_winners() {
+        let result = GameResult::winners(vec![0, 2]);
+        assert_eq!(result.kind, "winners");
+        assert_eq!(result.player, None);
+        assert_eq!(result.players, Some(vec![0, 2]));
     }
 }

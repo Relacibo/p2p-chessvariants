@@ -1,7 +1,6 @@
 use error::CvError;
 use game::{
-    actions::Action, board, game_result, piece::Piece, standard, state::Coords,
-    variant_config::VariantConfig,
+    actions::Action, board, piece::Piece, standard, state::Coords, variant_config::VariantConfig,
 };
 use modules::builtins;
 use rhai::{AST, Dynamic, Engine, Scope};
@@ -17,6 +16,7 @@ mod modules;
 pub mod rhai_rust_error;
 
 // Re-exports for integration tests and external consumers
+pub use game::game_result::GameResult;
 pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, Player};
 
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
@@ -47,7 +47,8 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<Piece>()
         .build_type::<game::variant_config::BoardLayoutConfig>()
         .build_type::<Action>()
-        .build_type::<Player>();
+        .build_type::<Player>()
+        .build_type::<GameResult>();
 
     // Coords is an opaque enum — register manually with getters.
     engine
@@ -87,9 +88,9 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Interact", Action::rhai_interact);
     engine.register_fn("Cancel", Action::rhai_cancel);
     engine.register_fn("Piece", Piece::rhai_new);
-    engine.register_fn("Winner", game_result::rhai_winner);
-    engine.register_fn("Winners", game_result::rhai_winners);
-    engine.register_fn("Draw", game_result::rhai_draw);
+    engine.register_fn("Winner", GameResult::winner);
+    engine.register_fn("Winners", GameResult::winners);
+    engine.register_fn("Draw", GameResult::draw);
     engine.register_fn("standard_start_position", standard::standard_start_position);
     engine.register_fn(
         "merge",

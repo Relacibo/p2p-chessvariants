@@ -16,38 +16,15 @@ fn build_piece_defs() {
 
 fn build_color_piece_defs() {
     #{ white: #{ pawn: [
-         #{ type: "jump", offsets: [[-1, 0]], cond: "pawn_push_empty" },
-         #{ type: "jump", offsets: [[-2, 0]], cond: "pawn_double_white" },
-         #{ type: "jump", offsets: [[-1, -1], [-1, 1]], cond: "pawn_capture" },
+         #{ type: "jump", offsets: [[-1, 0]] },
+         #{ type: "jump", offsets: [[-2, 0]] },
+         #{ type: "jump", offsets: [[-1, -1], [-1, 1]] },
     ]},
     black: #{ pawn: [
-         #{ type: "jump", offsets: [[1, 0]], cond: "pawn_push_empty" },
-         #{ type: "jump", offsets: [[2, 0]], cond: "pawn_double_black" },
-         #{ type: "jump", offsets: [[1, -1], [1, 1]], cond: "pawn_capture" },
+         #{ type: "jump", offsets: [[1, 0]] },
+         #{ type: "jump", offsets: [[2, 0]] },
+         #{ type: "jump", offsets: [[1, -1], [1, 1]] },
     ]} }
-}
-
-// Condition functions (called by name from piece definitions)
-fn cond_pawn_push_empty(state, from, to) {
-    engine::board::get(state.board, to) == ()
-}
-
-fn cond_pawn_double_white(state, from, to) {
-    from.row == 6
-    && engine::board::get(state.board, Coords(from.row - 1, from.col)) == ()
-    && engine::board::get(state.board, to) == ()
-}
-
-fn cond_pawn_double_black(state, from, to) {
-    from.row == 1
-    && engine::board::get(state.board, Coords(from.row + 1, from.col)) == ()
-    && engine::board::get(state.board, to) == ()
-}
-
-fn cond_pawn_capture(state, from, to) {
-    let target = engine::board::get(state.board, to);
-    let my = engine::board::get(state.board, from);
-    target == () || target.color != my.color
 }
 
 fn get_piece_defs(piece, state) {
@@ -70,15 +47,7 @@ fn get_pseudo_dests(board, from, state) {
             "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
             _ => [],
         };
-        if comp.cond != () {
-            raw = switch comp.cond {
-                "pawn_push_empty" => raw.filter(|t| cond_pawn_push_empty(state, from, t)),
-                "pawn_double_white" => raw.filter(|t| cond_pawn_double_white(state, from, t)),
-                "pawn_double_black" => raw.filter(|t| cond_pawn_double_black(state, from, t)),
-                "pawn_capture" => raw.filter(|t| cond_pawn_capture(state, from, t)),
-                _ => raw,
-            };
-        }
+
         for d in raw { dests.push(d); }
     }
     dests

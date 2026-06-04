@@ -1,5 +1,7 @@
 #![allow(unused_must_use)]
-use chessvariant_engine::{BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords};
+use chessvariant_engine::{
+    BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords, GameResult,
+};
 use rhai::Dynamic;
 
 fn load_script(relative_path: &str) -> String {
@@ -157,17 +159,9 @@ fn test_king_capture_triggers_game_over() {
     let outcome = engine.outcome();
     assert!(!outcome.is_unit(), "outcome should be set");
 
-    let map = outcome.cast::<rhai::Map>();
-    assert_eq!(
-        map["type"].clone().cast::<String>(),
-        "winner",
-        "result type should be 'winner'"
-    );
-    assert_eq!(
-        map["player"].clone().cast::<i32>(),
-        0,
-        "player index 0 (white) should win"
-    );
+    let result = outcome.cast::<GameResult>();
+    assert_eq!(result.kind, "winner", "result type should be 'winner'");
+    assert_eq!(result.player, Some(0), "player index 0 (white) should win");
 }
 
 #[test]

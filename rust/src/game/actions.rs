@@ -1,4 +1,4 @@
-use rhai::{CustomType, Dynamic};
+use rhai::CustomType;
 use serde::{Deserialize, Serialize};
 
 use super::{piece::Piece, state::Coords};
@@ -14,18 +14,18 @@ pub struct Action {
     #[serde(rename = "type")]
     #[rhai_type(name = "type", get = Self::get_type, readonly)]
     pub kind: String,
-    #[rhai_type(get = Self::get_from, readonly)]
+    #[rhai_type(readonly)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<Coords>,
-    #[rhai_type(get = Self::get_to, readonly)]
+    #[rhai_type(readonly)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<Coords>,
     /// Piece involved (select_piece actions, drops)
-    #[rhai_type(get = Self::get_piece, readonly)]
+    #[rhai_type(readonly)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub piece: Option<Piece>,
     /// UI element ID for interact actions
-    #[rhai_type(get = Self::get_element_id, readonly)]
+    #[rhai_type(readonly)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub element_id: Option<String>,
 }
@@ -78,31 +78,6 @@ impl Action {
     pub fn get_type(&self) -> String {
         self.kind.clone()
     }
-
-    pub fn get_from(&self) -> Dynamic {
-        self.from
-            .clone()
-            .map(Dynamic::from)
-            .unwrap_or(Dynamic::UNIT)
-    }
-
-    pub fn get_to(&self) -> Dynamic {
-        self.to.clone().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
-    }
-
-    pub fn get_piece(&self) -> Dynamic {
-        self.piece
-            .clone()
-            .map(Dynamic::from)
-            .unwrap_or(Dynamic::UNIT)
-    }
-
-    pub fn get_element_id(&self) -> Dynamic {
-        self.element_id
-            .clone()
-            .map(Dynamic::from)
-            .unwrap_or(Dynamic::UNIT)
-    }
 }
 
 #[cfg(test)]
@@ -115,15 +90,13 @@ mod tests {
     fn test_move_action() {
         let action = Action::rhai_move(Coords::new_board_0(1, 2), Coords::new_board_0(3, 4));
         assert_eq!(action.get_type(), "move");
-        let from = action.get_from().cast::<Coords>();
-        assert_eq!(from, Coords::new_board_0(1, 2));
+        assert_eq!(action.from.unwrap(), Coords::new_board_0(1, 2));
     }
 
     #[test]
     fn test_reserve_coords_action() {
         let action = Action::rhai_move(Coords::new_reserve(0), Coords::new_board_0(3, 4));
-        let from = action.get_from().cast::<Coords>();
-        assert_eq!(from, Coords::new_reserve(0));
+        assert_eq!(action.from.unwrap(), Coords::new_reserve(0));
     }
 
     #[test]
@@ -131,7 +104,7 @@ mod tests {
         let piece = Piece::rhai_new("white".into(), "queen".into());
         let action = Action::rhai_select_piece(piece.clone());
         assert_eq!(action.get_type(), "select_piece");
-        let action_piece = action.get_piece().cast::<Piece>();
+        let action_piece = action.piece.unwrap();
         assert_eq!(action_piece.color_name(), "white");
         assert_eq!(action_piece.piece_type_name(), "queen");
     }
@@ -140,17 +113,16 @@ mod tests {
     fn test_interact_action() {
         let action = Action::rhai_interact("draw_offer_btn".into());
         assert_eq!(action.get_type(), "interact");
-        let id = action.get_element_id().cast::<String>();
-        assert_eq!(id, "draw_offer_btn");
+        assert_eq!(action.element_id.unwrap(), "draw_offer_btn");
     }
 
     #[test]
     fn test_cancel_action() {
         let action = Action::rhai_cancel();
         assert_eq!(action.get_type(), "cancel");
-        assert!(action.get_from().is_unit());
-        assert!(action.get_to().is_unit());
-        assert!(action.get_piece().is_unit());
-        assert!(action.get_element_id().is_unit());
+        assert!(action.from.is_none());
+        assert!(action.to.is_none());
+        assert!(action.piece.is_none());
+        assert!(action.element_id.is_none());
     }
 }
