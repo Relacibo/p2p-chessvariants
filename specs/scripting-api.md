@@ -94,8 +94,6 @@ fn init_static(player_count) {
             name?: string,
             home_board?: i32,
             data?: #{},
-            board: i32,
-            color: string,
             team: i32,
             orientation?: string,
         },
@@ -110,7 +108,7 @@ fn init_static(player_count) {
 
 **Resolution order** (highest wins):
 1. `player.orientation` (if present)
-2. `teams[player.team].orientations` entry matching `board` (if `teams` present)
+2. `teams[player.team].orientations` entry matching `player.home_board` (if `teams` present and `home_board` set)
 3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
 
 **Standard 1v1** — using player-level orientation directly:
@@ -119,8 +117,8 @@ fn init(player_count) {
     #{
         board: engine::standard_start_position(),
         players: [
-            #{ id: 0, name: "White", board: 0, color: "white", team: 0, orientation: "normal" },
-            #{ id: 1, name: "Black", board: 0, color: "black", team: 1, orientation: "flipped" },
+            #{ id: 0, name: "White", team: 0, orientation: "normal",  data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, orientation: "flipped", data: #{ color: "black" } },
         ],
         // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
         // NOTE: piece definitions are NOT in state — they come from init_static()
@@ -139,7 +137,7 @@ fn init(player_count) {
 **Mandatory.** Returns all legal `Move` actions for the given player.
 **Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
-The engine passes the player as a map `#{ id, name, color, team, board, orientation? }`.
+The engine passes the player as a map `#{ id, name, team, orientation?, data? }`. Scripts that need color or board assignments store them in `data`.
 
 ```rhai
 fn valid_moves(state, player) {
@@ -151,7 +149,7 @@ fn valid_moves(state, player) {
         for c in 0..8 {
             let from = Coords(r, c);
             let piece = engine::board::get(state.board, from);
-            if piece != () && piece.color == player.color {
+            if piece != () && piece.color == player.data.color {
                 let dests = get_pseudo_dests(state.board, from, state);
                 for to in dests {
                     candidates.push(Move(from, to));
@@ -214,7 +212,7 @@ function is missing — there is no fallback.
 - Turn order, piece ownership, no self-capture
 - **King safety** — use script-level `is_in_check()` after applying the move
 
-The engine passes the player as a map `#{ id, name, color, team, board, orientation? }`.
+The engine passes the player as a map `#{ id, name, team, orientation?, data? }`. Scripts that need color or board assignments store them in `data`.
 
 ```rhai
 fn handle_action(state, player, action) {
@@ -222,15 +220,15 @@ fn handle_action(state, player, action) {
         if state.turn != player.id { throw "not your turn"; }
         let piece = engine::board::get(state.board, action.from);
         if piece == () { throw "no piece at source square"; }
-        if piece.color != player.color { throw "not your piece"; }
+        if piece.color != player.data.color { throw "not your piece"; }
 
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
 
         // King safety
         let enemy_colors = state.players
             .filter(|p| p.team != player.team)
-            .map(|p| p.color);
-        if is_in_check(new_board, player.color, enemy_colors, state) {
+            .map(|p| p.data.color);
+        if is_in_check(new_board, player.data.color, enemy_colors, state) {
             throw "move leaves king in check";
         }
 
