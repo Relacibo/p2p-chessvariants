@@ -370,6 +370,7 @@ Move(from, to)
 | `from` | `Coords` | Board square or `ReserveCoords(i)` |
 | `to` | `Coords` | Destination board square |
 
+Other fields (`piece`, `element_id`) are `()` on `Move` actions.
 Returned by `valid_moves`. Moves are compared by structural equality of their `from` and `to` fields.
 
 ### `SelectPiece`
@@ -383,17 +384,28 @@ SelectPiece(piece)
 | `type` | `"select_piece"` | Discriminator |
 | `piece` | `Piece` | Chosen piece |
 
+Other fields (`from`, `to`, `element_id`) are `()` on `SelectPiece` actions.
+
 ### `Interact`
 
 ```rhai
 Interact(element_id)
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `"interact"` | Discriminator |
+| `element_id` | `String` | UI element identifier |
+
+Other fields (`from`, `to`, `piece`) are `()` on `Interact` actions.
+
 ### `Cancel`
 
 ```rhai
 Cancel()
 ```
+
+All payload fields (`from`, `to`, `piece`, `element_id`) are `()` on `Cancel` actions.
 
 ---
 
@@ -477,7 +489,7 @@ is_game_over(new_state, all_valid_moves) → bool
 
 | Function | Signature |
 |----------|-----------|
-| `get` | `(Board, Coords) -> Piece` |
+| `get` | `(Board, Coords) -> Piece \| ()` |
 | `set` | `(Board, Coords, Piece) -> Board` |
 | `move_piece` | `(Board, Coords, Coords) -> Board` |
 | `find` | `(Board, Piece) -> [Coords]` |
@@ -534,9 +546,21 @@ There is **no** `engine::moves::pawn` function. Pawn movement is defined entirel
 | `Interact(element_id)` | Interact action |
 | `Cancel()` | Cancel action |
 | `Piece(color, type)` | Piece |
-| `Winner(idx)` | Game outcome |
-| `Winners([colors])` | Game outcome |
-| `Draw()` | Game outcome |
+| `Winner(idx)` | Game outcome — returns `GameResult` |
+| `Winners([colors])` | Game outcome — returns `GameResult` |
+| `Draw()` | Game outcome — returns `GameResult` |
+
+#### `GameResult` type
+
+Returned by `Winner()`, `Winners()`, and `Draw()` constructors. Stored in `state.outcome`.
+
+| Field | Type | Available on | Description |
+|-------|------|-------------|-------------|
+| `type` | string | all | `"winner"`, `"winners"`, or `"draw"` |
+| `player` | i32 | `Winner` only | Winning player ID |
+| `players` | [i32] | `Winners` only | Winning player IDs |
+
+Serialized as `{ type, player?, players? }` in JSON output.
 
 Coords is an **opaque Rhai type** with getters: `.type`, `.row`, `.col`, `.board_index`, `.index`.
 
