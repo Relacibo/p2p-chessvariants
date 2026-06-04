@@ -147,7 +147,23 @@ impl Piece {
             .with_fn("Rook", Self::rhai_make_rook)
             .with_fn("Rook", Self::rhai_make_rook_with_data)
             .with_fn("Pawn", Self::rhai_make_pawn)
-            .with_fn("Pawn", Self::rhai_make_pawn_with_data);
+            .with_fn("Pawn", Self::rhai_make_pawn_with_data)
+            .with_indexer_get_set(
+                |p: &mut Piece, key: &str| -> Dynamic {
+                    match &p.data {
+                        Some(data) => data.read_lock::<rhai::Map>()
+                            .and_then(|m| m.get(key).cloned())
+                            .unwrap_or(Dynamic::UNIT),
+                        None => Dynamic::UNIT,
+                    }
+                },
+                |p: &mut Piece, key: &str, value: Dynamic| {
+                    let map = p.data.get_or_insert_with(|| Dynamic::from(rhai::Map::new()));
+                    if let Some(mut m) = map.write_lock::<rhai::Map>() {
+                        m.insert(key.into(), value);
+                    }
+                },
+            );
     }
 
     pub fn set_piece_type_from_string(&mut self, value: String) {
