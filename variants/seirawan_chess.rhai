@@ -56,7 +56,7 @@ fn handle_action(state, player, action) {
             let kings = engine::board::find(b, Piece(p.color, "king"));
             if kings.len == 0 {
                 let oc = if p.color == "white" { "black" } else { "white" };
-                let wi = state.players.filter(|q| q.color == oc).map(|q| q.board)[0];
+                let wi = state.players.filter(|q| q.color == oc).map(|q| q.id)[0];
                 return merge(state, #{ board: b, outcome: Winner(wi) });
             }
         }

@@ -33,6 +33,8 @@ import {
   closeLobby,
   kickPlayer,
   leaveLobby,
+  requestSlot,
+  startGame,
   selectIsHost,
   selectHostUserId,
   selectIsPassiveHostTab,
@@ -42,6 +44,7 @@ import {
   selectLobbyPlayers,
   selectLobbyScriptUrl,
   selectLobbyServerLobbyId,
+  selectPlayerAssignments,
   setLobbyAllowGuests,
 } from "./lobbySlice";
 import { getGithubBrowseUrl } from "./scriptUrl";
@@ -60,8 +63,19 @@ export default function ActiveLobbyView() {
   const hostUserId = useSelector(selectHostUserId);
   const inviteUrl = useSelector(selectInviteUrl);
   const isPassiveHostTab = useSelector(selectIsPassiveHostTab);
+  const playerAssignments = useSelector(selectPlayerAssignments);
   const theme = useMantineTheme();
   const isMobile = useMediaQuery(`(max-width: ${theme.breakpoints.sm})`);
+
+  const mySlot = localUserId != null ? (playerAssignments[localUserId] ?? -1) : -1;
+  const slotCount = players.length;
+  const allPlayersAssigned =
+    players.length > 0 &&
+    players.every((p) => playerAssignments[p.userId] != null);
+  const allPeersConnected = players.every(
+    (p) => p.userId === localUserId || p.connectionStatus === "connected",
+  );
+  const canStartGame = isHost && allPlayersAssigned && allPeersConnected;
 
   const handleGuestToggle = (val: boolean) => {
     if (serverLobbyId) {
@@ -229,11 +243,21 @@ export default function ActiveLobbyView() {
             >
               {players.map((p) => {
                 const isLocalPlayer = p.userId === localUserId;
+                const assignedSlot = playerAssignments[p.userId] ?? -1;
                 return (
                   <List.Item key={p.userId}>
                     <Group justify="space-between" style={{ width: "100%" }}>
                       <Text>{p.name || "Anonymous"}</Text>
                       <Group gap="xs">
+                        {assignedSlot >= 0 ? (
+                          <Badge color="teal" size="sm" variant="filled">
+                            Slot {assignedSlot + 1}
+                          </Badge>
+                        ) : (
+                          <Badge color="gray" size="sm" variant="outline">
+                            No slot
+                          </Badge>
+                        )}
                         {renderConnectionBadge(p.connectionStatus, isLocalPlayer)}
                         {p.userId === hostUserId && (
                           <Badge color="yellow" size="sm" variant="light">
@@ -243,11 +267,6 @@ export default function ActiveLobbyView() {
                         {p.name?.startsWith("Guest ") && (
                           <Badge color="gray" size="sm" variant="outline">
                             Guest
-                          </Badge>
-                        )}
-                        {p.ready && (
-                          <Badge color="green" size="sm">
-                            Ready
                           </Badge>
                         )}
                         {isHost && !isLocalPlayer && (
@@ -274,6 +293,64 @@ export default function ActiveLobbyView() {
             </List>
           </Paper>
         </Box>
+
+        <Box>
+          <Text size="sm" fw={500} mb="xs">
+            Choose your slot
+          </Text>
+          <Group gap="xs">
+            {Array.from({ length: slotCount }, (_, i) => {
+              const holder = Object.entries(playerAssignments).find(
+                ([, s]) => s === i,
+              )?.[0];
+              const takenByOther = holder != null && holder !== localUserId;
+              const isMine = mySlot === i;
+              return (
+                <Button
+                  key={i}
+                  size="xs"
+                  variant={isMine ? "filled" : takenByOther ? "outline" : "light"}
+                  color={isMine ? "teal" : takenByOther ? "gray" : "blue"}
+                  disabled={takenByOther}
+                  onClick={() => dispatch(requestSlot(isMine ? -1 : i))}
+                  title={
+                    takenByOther
+                      ? `Taken by ${players.find((p) => p.userId === holder)?.name ?? "someone"}`
+                      : isMine
+                        ? "Click to unclaim"
+                        : `Claim slot ${i + 1}`
+                  }
+                >
+                  Slot {i + 1}
+                </Button>
+              );
+            })}
+            {slotCount === 0 && (
+              <Text c="dimmed" size="sm" fs="italic">
+                Waiting for players to join...
+              </Text>
+            )}
+          </Group>
+        </Box>
+
+        <Group justify="center" mt="sm">
+          {isHost && (
+            <Button
+              color="green"
+              disabled={!canStartGame}
+              title={
+                !allPlayersAssigned
+                  ? "All players must choose a slot"
+                  : !allPeersConnected
+                    ? "Wait for all players to connect"
+                    : "Start the game"
+              }
+              onClick={() => dispatch(startGame())}
+            >
+              Start Game
+            </Button>
+          )}
+        </Group>
 
         <Group justify="center" mt="sm">
           {isHost ? (

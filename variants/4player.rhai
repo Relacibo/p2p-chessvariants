@@ -141,7 +141,7 @@ fn handle_action(state, player, action) {
             let kings = engine::board::find(state.board, Piece(p.color, "king"));
             if kings.len == 0 {
                 let survivors = state.players.filter(|q| q.color != p.color);
-                state.outcome = Winners(survivors.map(|q| q.board));
+                state.outcome = Winners(survivors.map(|q| q.id));
                 return state;
             }
         }

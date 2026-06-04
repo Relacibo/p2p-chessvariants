@@ -11,6 +11,13 @@ pub const BUILTIN_PIECE_NAMES: &[&str] = &["pawn", "rook", "knight", "bishop", "
 pub enum MoveComponent {
     Slide { dirs: Vec<(i32, i32)> },
     Jump { offsets: Vec<(i32, i32)>, board_delta: i32 },
+    /// Pawn-style movement: forward non-capture push (with optional double push from start
+    /// line) plus diagonal captures perpendicular to the movement direction.
+    ///
+    /// `dir` must be one of `(-1,0)`, `(1,0)`, `(0,-1)`, `(0,1)`.
+    /// `start_line` is the absolute row index (when `dir.0 != 0`) or column index
+    /// (when `dir.1 != 0`) from which the double push is allowed. `-1` disables it.
+    PawnPush { dir: (i32, i32), start_line: i32 },
 }
 
 #[derive(Debug, Clone)]
@@ -25,6 +32,10 @@ pub type PieceDefinitionMap = HashMap<String, PieceDefinition>;
 
 // ─── Intermediate serde structs ───────────────────────────────────────────────
 
+fn default_start_line() -> i64 {
+    -1
+}
+
 #[derive(Debug, Deserialize)]
 struct ScriptMoveComponent {
     #[serde(rename = "type")]
@@ -35,6 +46,12 @@ struct ScriptMoveComponent {
     offsets: Vec<Vec<i64>>,
     #[serde(default)]
     target_board_delta: i64,
+    /// For `pawn_push`: forward direction as `[dr, dc]`.
+    #[serde(default)]
+    dir: Vec<i64>,
+    /// For `pawn_push`: row (or col) index where double push is allowed; -1 = disabled.
+    #[serde(default = "default_start_line")]
+    start_line: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,8 +101,27 @@ fn parse_component(sc: ScriptMoveComponent) -> Result<MoveComponent, CvError> {
                 board_delta: sc.target_board_delta as i32,
             })
         }
+        "pawn_push" => {
+            if sc.dir.len() != 2 {
+                return Err(CvError::Internal(
+                    "pawn_push component requires `dir: [dr, dc]`".into(),
+                ));
+            }
+            let dr = sc.dir[0] as i32;
+            let dc = sc.dir[1] as i32;
+            if !matches!((dr, dc), (-1, 0) | (1, 0) | (0, -1) | (0, 1)) {
+                return Err(CvError::Internal(format!(
+                    "pawn_push `dir` must be one of [-1,0], [1,0], [0,-1], [0,1]; got [{},{}]",
+                    dr, dc
+                )));
+            }
+            Ok(MoveComponent::PawnPush {
+                dir: (dr, dc),
+                start_line: sc.start_line as i32,
+            })
+        }
         unknown => Err(CvError::Internal(format!(
-            "unknown move component type '{}' (expected 'slide' or 'jump')",
+            "unknown move component type '{}' (expected 'slide', 'jump', or 'pawn_push')",
             unknown
         ))),
     }

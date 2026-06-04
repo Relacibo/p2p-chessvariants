@@ -6,14 +6,18 @@
 
 import {
   GameMessage,
+  GameStart,
   LobbyInfo,
   LobbyJoin,
   LobbyKick,
   LobbyLeave,
   P2PMsg,
   Player,
+  PlayerAssignment,
   PlayerJoined,
   PlayerLeft,
+  SlotAssigned,
+  SlotRequest,
 } from "./bebop/generated";
 import * as webrtcService from "./webrtcService";
 
@@ -38,6 +42,10 @@ export type P2PLobbyCallbacks = {
   onLobbyClosed: () => void;
   onKicked: () => void;
   onHeartbeat?: (lobbyId: string) => void;
+  onGameStart?: (info: { assignments: Array<{ userId: string; playerConfigId: number }>; playerCount: number }) => void;
+  /** Host only: called when a peer requests a slot. Returns whether host accepted the request. */
+  onSlotRequest?: (fromUserId: string, slotIndex: number) => boolean;
+  onSlotAssigned?: (userId: string, slotIndex: number) => void;
 };
 
 let myUserId: string | null = null;
@@ -56,6 +64,12 @@ let bestStateTimestamp = 0n;
 
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAY_MS = 3000;
+
+// ── In-game message buffer ──────────────────────────────────────────────────
+// Messages arriving before ArenaView has registered its listener are buffered
+// and flushed when setGameMessageListener is called.
+let gameMessageListener: ((fromUserId: string, payload: Uint8Array) => void) | null = null;
+const gameMessageBuffer: Array<{ fromUserId: string; payload: Uint8Array }> = [];
 
 export function initP2PLobby(
   userId: string,
@@ -117,6 +131,8 @@ export function resetP2PLobby(): void {
   callbacks = null;
   players = [];
   currentHostId = null;
+  gameMessageListener = null;
+  gameMessageBuffer.length = 0;
 }
 
 export function sendLobbyJoin(toUserId: string): void {
@@ -148,11 +164,55 @@ export function broadcastGameMessage(payload: Uint8Array<ArrayBuffer>): void {
   webrtcService.sendToAll(msg);
 }
 
+/**
+ * Register a listener for incoming in-game messages.
+ * Messages received before this is called are buffered and flushed immediately.
+ * Pass null to deregister (e.g. on ArenaView unmount).
+ */
+export function setGameMessageListener(
+  fn: ((fromUserId: string, payload: Uint8Array) => void) | null,
+): void {
+  gameMessageListener = fn;
+  if (fn && gameMessageBuffer.length > 0) {
+    for (const msg of gameMessageBuffer) {
+      fn(msg.fromUserId, msg.payload);
+    }
+    gameMessageBuffer.length = 0;
+  }
+}
+
+/** Send a slot request to the host (peer → host). SlotIndex -1 = unclaim. */
+export function sendSlotRequest(hostUserId: string, slotIndex: number): void {
+  const msg = P2PMsg.encode({ tag: 10, value: SlotRequest({ slotIndex }) });
+  webrtcService.sendToPeer(hostUserId, msg);
+}
+
+/** Host: broadcast a confirmed slot assignment to all peers. SlotIndex -1 = unassigned. */
+export function broadcastSlotAssigned(userId: string, slotIndex: number): void {
+  const msg = P2PMsg.encode({ tag: 11, value: SlotAssigned({ userId, slotIndex }) });
+  webrtcService.sendToAll(msg);
+}
+
+/** Host: broadcast game start to all peers. */
+export function broadcastGameStart(
+  assignments: Array<{ userId: string; playerConfigId: number }>,
+  playerCount: number,
+): void {
+  const bebopAssignments: PlayerAssignment[] = assignments.map((a) =>
+    PlayerAssignment({ userId: a.userId, playerConfigId: a.playerConfigId }),
+  );
+  const msg = P2PMsg.encode({
+    tag: 9,
+    value: GameStart({ assignments: bebopAssignments, playerCount }),
+  });
+  webrtcService.sendToAll(msg);
+}
+
 function handleMessage(
   fromUserId: string,
   msg: ReturnType<typeof P2PMsg.decode>,
 ): void {
-  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",6:"LobbyLeave",7:"GameMessage",8:"LobbyKick"};
+  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",6:"LobbyLeave",7:"GameMessage",8:"LobbyKick",9:"GameStart",10:"SlotRequest",11:"SlotAssigned"};
   console.log(`[p2p] received ${tagNames[msg.tag] ?? `tag=${msg.tag}`} from ${fromUserId.slice(0, 8)} (isHost=${isHost})`);
   switch (msg.tag) {
     case 1:
@@ -175,15 +235,34 @@ function handleMessage(
         handlePlayerLeft({ userId: fromUserId });
       }
       break;
-    case 7:
-      callbacks?.onGameMessage(
-        fromUserId,
-        (msg.value as GameMessage).payload ?? new Uint8Array(),
-      );
+    case 7: {
+      const payload = (msg.value as GameMessage).payload ?? new Uint8Array();
+      callbacks?.onGameMessage(fromUserId, payload);
+      if (gameMessageListener) {
+        gameMessageListener(fromUserId, payload);
+      } else {
+        gameMessageBuffer.push({ fromUserId, payload });
+      }
       break;
+    }
     case 8:
       if (currentHostId === fromUserId) {
         handleLobbyKick(msg.value as LobbyKick);
+      }
+      break;
+    case 9:
+      if (currentHostId === fromUserId) {
+        handleGameStart(msg.value as GameStart);
+      }
+      break;
+    case 10:
+      if (isHost) {
+        handleSlotRequest(fromUserId, msg.value as SlotRequest);
+      }
+      break;
+    case 11:
+      if (currentHostId === fromUserId) {
+        handleSlotAssigned(msg.value as SlotAssigned);
       }
       break;
   }
@@ -360,4 +439,27 @@ export function leaveLobby(): void {
   const msg = P2PMsg.encode({ tag: 6, value: LobbyLeave({}) });
   webrtcService.sendToAll(msg);
   resetP2PLobby();
+}
+
+function handleGameStart(gs: GameStart): void {
+  const assignments = (gs.assignments ?? []).map((a: PlayerAssignment) => ({
+    userId: a.userId ?? "",
+    playerConfigId: a.playerConfigId ?? 0,
+  }));
+  const playerCount = gs.playerCount ?? 0;
+  callbacks?.onGameStart?.({ assignments, playerCount });
+}
+
+function handleSlotRequest(fromUserId: string, req: SlotRequest): void {
+  const slotIndex = req.slotIndex ?? -1;
+  // Delegate to the host callback for validation; if it returns false, ignore.
+  const accepted = callbacks?.onSlotRequest?.(fromUserId, slotIndex) ?? false;
+  if (!accepted) return;
+  broadcastSlotAssigned(fromUserId, slotIndex);
+}
+
+function handleSlotAssigned(msg: SlotAssigned): void {
+  const userId = msg.userId ?? "";
+  const slotIndex = msg.slotIndex ?? -1;
+  callbacks?.onSlotAssigned?.(userId, slotIndex);
 }

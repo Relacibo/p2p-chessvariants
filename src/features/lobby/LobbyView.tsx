@@ -221,6 +221,15 @@ export default function LobbyView() {
     }
   }, [dispatch, lobbyStatus.phase, navigate]);
 
+  useEffect(() => {
+    if (lobbyStatus.phase === "game_started") {
+      const dest = serverLobbyId
+        ? `/game/${serverLobbyId}`
+        : `/game/local`;
+      navigate(dest, { replace: true });
+    }
+  }, [lobbyStatus.phase, navigate, serverLobbyId]);
+
   const handleGuestJoin = async (values: { displayName: string }) => {
     try {
       const res = await guestLogin(values).unwrap();

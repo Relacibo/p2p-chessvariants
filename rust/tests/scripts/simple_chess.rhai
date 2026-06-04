@@ -102,7 +102,7 @@ fn handle_action(state, player, action) {
                 let opponent_color = if p.color == "white" { "black" } else { "white" };
                 let winner_idx = state.players
                     .filter(|q| q.color == opponent_color)
-                    .map(|q| q.board)[0];
+                    .map(|q| q.id)[0];
                 return merge(state, #{
                     board: new_board,
                     outcome: Winner(winner_idx),

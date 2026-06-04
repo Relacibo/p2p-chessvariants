@@ -26,6 +26,7 @@ export type LobbyStatus =
   | { phase: "active" }
   | { phase: "closed" }
   | { phase: "kicked" }
+  | { phase: "game_started"; playerCount: number }
   | { phase: "error"; message: string };
 
 export type LobbyInvite = {
@@ -47,6 +48,8 @@ export type LobbyState = {
   allowGuests: boolean;
   players: LobbyPlayer[];
   pendingInvite: LobbyInvite | null;
+  /** Maps userId → WasmPlayerConfig.id (0-indexed slot). -1 means unassigned. */
+  playerAssignments: Record<string, number>;
 };
 
 function logLobbyWarning(context: string, err: unknown): void {
@@ -72,6 +75,7 @@ const initialState: LobbyState = {
   allowGuests: true,
   players: [],
   pendingInvite: null,
+  playerAssignments: {},
 };
 
 export const {
@@ -97,6 +101,8 @@ export const {
     _playerConnectionChanged,
     _lobbyInviteReceived,
     _clearPendingInvite,
+    _slotAssigned,
+    _gameStarted,
   },
   reducer,
 } = createSlice({
@@ -145,6 +151,7 @@ export const {
       state.hostPeerSessionId = null;
       state.allowGuests = true;
       state.players = [];
+      state.playerAssignments = {};
     },
     _setKicked: (state) => {
       state.status = { phase: "kicked" };
@@ -158,6 +165,7 @@ export const {
       state.hostPeerSessionId = null;
       state.allowGuests = true;
       state.players = [];
+      state.playerAssignments = {};
     },
     _setLocalUserId: (state, action: PayloadAction<string>) => {
       state.localUserId = action.payload;
@@ -177,7 +185,9 @@ export const {
       }
     },
     _playerLeft: (state, action: PayloadAction<string>) => {
-      state.players = state.players.filter((p) => p.userId !== action.payload);
+      const userId = action.payload;
+      state.players = state.players.filter((p) => p.userId !== userId);
+      delete state.playerAssignments[userId];
     },
     _playerConnectionChanged: (
       state,
@@ -196,6 +206,37 @@ export const {
     },
     _clearPendingInvite: (state) => {
       state.pendingInvite = null;
+    },
+    _slotAssigned: (
+      state,
+      action: PayloadAction<{ userId: string; slotIndex: number }>,
+    ) => {
+      const { userId, slotIndex } = action.payload;
+      if (slotIndex === -1) {
+        delete state.playerAssignments[userId];
+      } else {
+        // Evict any prior holder of this slot.
+        for (const uid of Object.keys(state.playerAssignments)) {
+          if (state.playerAssignments[uid] === slotIndex) {
+            delete state.playerAssignments[uid];
+          }
+        }
+        state.playerAssignments[userId] = slotIndex;
+      }
+    },
+    _gameStarted: (
+      state,
+      action: PayloadAction<{
+        assignments: Array<{ userId: string; playerConfigId: number }>;
+        playerCount: number;
+      }>,
+    ) => {
+      const { assignments, playerCount } = action.payload;
+      state.playerAssignments = {};
+      for (const { userId, playerConfigId } of assignments) {
+        state.playerAssignments[userId] = playerConfigId;
+      }
+      state.status = { phase: "game_started", playerCount };
     },
   },
 });
@@ -248,6 +289,37 @@ async function _applyTurnCredentials(token: string): Promise<void> {
   } catch (err) {
     console.warn("[turn] Could not apply TURN credentials:", err);
   }
+}
+
+/** Host-only callbacks wired to Redux state for slot assignment and game start. */
+function _makeHostGameCallbacks(
+  dispatch: LobbyDispatch,
+  getState: () => RootState,
+): Pick<
+  import("../../api/p2pLobbyService").P2PLobbyCallbacks,
+  "onGameStart" | "onSlotRequest" | "onSlotAssigned"
+> {
+  return {
+    onSlotRequest: (fromUserId, slotIndex) => {
+      const assignments = getState().lobby.playerAssignments;
+      // Allow unclaiming (-1) always.
+      if (slotIndex !== -1) {
+        // Reject if another user already holds this slot.
+        const holder = Object.entries(assignments).find(
+          ([, s]) => s === slotIndex,
+        )?.[0];
+        if (holder && holder !== fromUserId) return false;
+      }
+      dispatch(_slotAssigned({ userId: fromUserId, slotIndex }));
+      return true;
+    },
+    onSlotAssigned: (slotUserId, slotIndex) => {
+      dispatch(_slotAssigned({ userId: slotUserId, slotIndex }));
+    },
+    onGameStart: ({ assignments, playerCount }) => {
+      dispatch(_gameStarted({ assignments, playerCount }));
+    },
+  };
 }
 
 export function createLobby(
@@ -354,6 +426,7 @@ export function createLobby(
               }
             });
           },
+          ..._makeHostGameCallbacks(dispatch, getState),
         },
       );
 
@@ -488,6 +561,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
                   }
                 });
               },
+              ..._makeHostGameCallbacks(dispatch, getState),
             },
           );
         }
@@ -501,6 +575,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       });
       _initP2PAsJoiner(
         dispatch,
+        getState,
         user.id,
         user.displayName ?? user.id,
         lobbyId,
@@ -545,6 +620,7 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
     });
     _initP2PAsJoiner(
       dispatch,
+      getState,
       user.id,
       user.displayName ?? user.id,
       null,
@@ -556,6 +632,7 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
 
 function _initP2PAsJoiner(
   dispatch: LobbyDispatch,
+  getState: () => RootState,
   userId: string,
   displayName: string,
   lobbyId: string | null,
@@ -612,6 +689,12 @@ function _initP2PAsJoiner(
           message: "You were kicked from the lobby.",
           color: "red",
         });
+      },
+      onGameStart: ({ assignments, playerCount }) => {
+        dispatch(_gameStarted({ assignments, playerCount }));
+      },
+      onSlotAssigned: (slotUserId, slotIndex) => {
+        dispatch(_slotAssigned({ userId: slotUserId, slotIndex }));
       },
     },
   );
@@ -717,6 +800,7 @@ export function becomeActiveHost(): AppThunk<Promise<void>> {
               }
             });
           },
+          ..._makeHostGameCallbacks(dispatch, getState),
         },
       );
       dispatch(_setMyPeerId(myPeerId));
@@ -786,5 +870,54 @@ export const selectIsPassiveHostTab = (state: RootState): boolean => {
     isHost && !!hostPeerSessionId && !!myPeerId && hostPeerSessionId !== myPeerId
   );
 };
+
+export const selectPlayerAssignments = (state: RootState) =>
+  state.lobby.playerAssignments;
+
+/**
+ * Request a slot (playerConfigId) in the upcoming game.
+ * Host validates and broadcasts the assignment; non-host sends a request to the host.
+ * slotIndex -1 to unclaim.
+ */
+export function requestSlot(slotIndex: number): AppThunk {
+  return (_dispatch, getState) => {
+    const state = getState().lobby;
+    const { localUserId, hostUserId, isHost } = state;
+    if (!localUserId) return;
+    if (isHost) {
+      // Host assigns itself directly without a request round-trip.
+      const assignments = state.playerAssignments;
+      if (slotIndex !== -1) {
+        const holder = Object.entries(assignments).find(
+          ([, s]) => s === slotIndex,
+        )?.[0];
+        if (holder && holder !== localUserId) return; // slot taken
+      }
+      _dispatch(_slotAssigned({ userId: localUserId, slotIndex }));
+      p2pLobbyService.broadcastSlotAssigned(localUserId, slotIndex);
+    } else {
+      if (!hostUserId) return;
+      p2pLobbyService.sendSlotRequest(hostUserId, slotIndex);
+    }
+  };
+}
+
+/**
+ * Host-only: start the game. Broadcasts GameStart to all peers and transitions
+ * local state to game_started.
+ */
+export function startGame(): AppThunk {
+  return (_dispatch, getState) => {
+    const state = getState().lobby;
+    if (!state.isHost) return;
+    const { playerAssignments, players } = state;
+    const playerCount = players.length;
+    const assignments = Object.entries(playerAssignments).map(
+      ([userId, playerConfigId]) => ({ userId, playerConfigId }),
+    );
+    p2pLobbyService.broadcastGameStart(assignments, playerCount);
+    _dispatch(_gameStarted({ assignments, playerCount }));
+  };
+}
 
 export default reducer;
