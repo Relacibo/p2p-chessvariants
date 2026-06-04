@@ -45,13 +45,6 @@ import {
   createLobby,
   selectLobbyStatus,
 } from "./lobbySlice";
-import GuestAuthView from "./GuestAuthView";
-
-type PendingCreate = {
-  scriptUrl: string;
-  useServerLobby: boolean;
-  allowGuests: boolean;
-};
 
 function AddCustomVariantModal({
   opened,
@@ -109,10 +102,6 @@ function CreateLobbyForm() {
   const variants = useSelector(selectAllVariants);
   const isCreating = status.phase === "creating";
 
-  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(
-    null,
-  );
-
   const [opened, { open, close }] = useDisclosure(false);
 
   const combobox = useCombobox({
@@ -129,12 +118,21 @@ function CreateLobbyForm() {
   const [search, setSearch] = useState("");
 
   const form = useForm({
-    initialValues: { scriptUrl: "", useServerLobby: !!token, allowGuests: true },
+    initialValues: {
+      scriptUrl: "",
+      useServerLobby: !!token,
+      allowGuests: true,
+      displayName: "",
+    },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
         const result = parseScriptUrl(v.trim());
         if (!result.ok) return scriptUrlErrorMessage(result.error);
+        return null;
+      },
+      displayName: (v) => {
+        if (!token && !v.trim()) return "Display name is required";
         return null;
       },
     },
@@ -148,33 +146,6 @@ function CreateLobbyForm() {
       prevToken.current = token;
     }
   }, [token, form]);
-
-  // Show login/guest screen after submitting without token
-  if (pendingCreate) {
-    return (
-      <Stack>
-        <Group>
-          <Button variant="subtle" onClick={() => setPendingCreate(null)}>
-            ← Back
-          </Button>
-        </Group>
-        <GuestAuthView
-          title="Create Lobby"
-          guestLabel="Create as Guest"
-          dividerLabel="or continue as guest"
-          onSuccess={() =>
-            dispatch(
-              createLobby(
-                pendingCreate.scriptUrl,
-                pendingCreate.useServerLobby,
-                pendingCreate.allowGuests,
-              ),
-            )
-          }
-        />
-      </Stack>
-    );
-  }
 
   const filteredVariants = variants.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase().trim())
@@ -209,24 +180,19 @@ function CreateLobbyForm() {
   return (
     <>
       <form
-        onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
-          const normalized = normalizeScriptUrl(scriptUrl.trim());
-          if (!token) {
-            setPendingCreate({
-              scriptUrl: normalized,
-              useServerLobby: !!token && useServerLobby,
-              allowGuests: form.values.allowGuests,
-            });
-          } else {
+        onSubmit={form.onSubmit(
+          ({ scriptUrl, useServerLobby, displayName }) => {
+            const normalized = normalizeScriptUrl(scriptUrl.trim());
             dispatch(
               createLobby(
                 normalized,
                 !!token && useServerLobby,
                 form.values.allowGuests,
+                displayName.trim() || undefined,
               ),
             );
-          }
-        })}
+          },
+        )}
       >
         <Stack>
           <Group align="flex-end">
@@ -295,7 +261,13 @@ function CreateLobbyForm() {
             </Tooltip>
           </Group>
 
-
+          {!token && (
+            <TextInput
+              label="Display Name"
+              placeholder="Guest Player"
+              {...form.getInputProps("displayName")}
+            />
+          )}
           <Tooltip
             label={token ? "" : "Login required for server lobby"}
             disabled={!!token}

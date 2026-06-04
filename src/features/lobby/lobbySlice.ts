@@ -326,18 +326,22 @@ export function createLobby(
   scriptUrl: string,
   useServerLobby: boolean = false,
   allowGuests: boolean = true,
+  guestDisplayName?: string,
 ): AppThunk<Promise<void>> {
   return async (dispatch, getState) => {
     const token = selectToken(getState());
-    if (!token) {
-      dispatch(_setError("Login required to create a lobby"));
+    const authUser = selectUser(getState());
+
+    // Server lobbies require authentication
+    if (useServerLobby && (!token || !authUser)) {
+      dispatch(_setError("Login required to create a server lobby"));
       return;
     }
-    const user = selectUser(getState());
-    if (!user) {
-      dispatch(_setError("User not found"));
-      return;
-    }
+
+    // For P2P lobbies, allow guest creation without token
+    const effectiveUserId: string = authUser?.id ?? crypto.randomUUID();
+    const effectiveDisplayName: string =
+      authUser?.displayName ?? guestDisplayName ?? "Guest";
 
     dispatch(_setCreating());
     dispatch(_setScriptUrl(scriptUrl));
@@ -350,7 +354,7 @@ export function createLobby(
           api.endpoints.createLobby.initiate({
             scriptUrl,
             allowGuests,
-            hostPeerSessionId: getOrCreatePeerId(user.id),
+            hostPeerSessionId: getOrCreatePeerId(authUser!.id),
             minPlayers: scriptConfig.minPlayers,
             maxPlayers: scriptConfig.maxPlayers,
           }),
@@ -359,18 +363,20 @@ export function createLobby(
         dispatch(_setServerLobbyId(lobbyId));
       }
 
-      dispatch(_setLocalUserId(user.id));
-      dispatch(_setHostUserId(user.id));
+      dispatch(_setLocalUserId(effectiveUserId));
+      dispatch(_setHostUserId(effectiveUserId));
       dispatch(
         _playerJoined({
-          userId: user.id,
-          name: user.displayName ?? null,
+          userId: effectiveUserId,
+          name: effectiveDisplayName,
           ready: false,
           connectionStatus: "self",
         }),
       );
 
-      await _applyTurnCredentials(token);
+      if (token) {
+        await _applyTurnCredentials(token);
+      }
 
       if (useServerLobby && lobbyId) {
         const capturedLobbyId = lobbyId;
@@ -386,8 +392,8 @@ export function createLobby(
       }
 
       p2pLobbyService.initP2PLobby(
-        user.id,
-        user.displayName ?? user.id,
+        effectiveUserId,
+        effectiveDisplayName,
         true,
         lobbyId,
         scriptUrl,
@@ -400,7 +406,7 @@ export function createLobby(
                 name: player.displayName,
                 ready: false,
                 connectionStatus: getInitialConnectionStatus(
-                  user.id,
+                  effectiveUserId,
                   player.userId,
                 ),
               }),
@@ -431,8 +437,8 @@ export function createLobby(
       );
 
       dispatch(_setIsHost(true));
-      dispatch(_setMyPeerId(getOrCreatePeerId(user.id)));
-      dispatch(_setHostPeerSessionId(getOrCreatePeerId(user.id)));
+      dispatch(_setMyPeerId(getOrCreatePeerId(effectiveUserId)));
+      dispatch(_setHostPeerSessionId(getOrCreatePeerId(effectiveUserId)));
       dispatch(_setActive());
       notifications.show({
         title: "Lobby created!",
