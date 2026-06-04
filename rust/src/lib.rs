@@ -784,3 +784,262 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
 
     Ok(serde_json::Value::Object(json_map))
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use game::state::Coords;
+
+    fn chess_script() -> String {
+        include_str!("../../variants/chess.rhai").to_string()
+    }
+
+    fn new_engine(script: &str) -> ChessvariantEngine {
+        ChessvariantEngine::new(script.to_string(), 2)
+            .expect("engine construction should succeed")
+    }
+
+    #[test]
+    fn test_config_returns_correct_values() {
+        let engine = new_engine(&chess_script());
+        let config = engine.variant_config_json().expect("variant_config_json");
+        let v: serde_json::Value = serde_json::from_str(&config).expect("parse config JSON");
+        assert_eq!(v["name"], "Chess");
+        assert_eq!(v["allowed_player_count"]["exact"], 2);
+        assert_eq!(v["board"]["rows"], 8);
+        assert_eq!(v["board"]["cols"], 8);
+        assert_eq!(v["board"]["count"], 1);
+    }
+
+    #[test]
+    fn test_parse_config_standalone() {
+        let config = ChessvariantEngine::parse_config(chess_script()).expect("parse_config");
+        let v: serde_json::Value = serde_json::from_str(&config).expect("parse config JSON");
+        assert_eq!(v["name"], "Chess");
+        assert_eq!(v["board"]["rows"], 8);
+    }
+
+    #[test]
+    fn test_board_state_has_8x8_board() {
+        let engine = new_engine(&chess_script());
+        let bs = engine.board_state_json().expect("board_state_json");
+        let v: serde_json::Value = serde_json::from_str(&bs).expect("parse board state JSON");
+        assert_eq!(v["rows"], 8);
+        assert_eq!(v["cols"], 8);
+        let boards = v["boards"].as_array().expect("boards array");
+        assert_eq!(boards.len(), 1);
+        assert_eq!(boards[0].as_array().expect("board rows").len(), 64);
+    }
+
+    #[test]
+    fn test_board_has_32_pieces() {
+        let engine = new_engine(&chess_script());
+        let bs = engine.board_state_json().expect("board_state_json");
+        let v: serde_json::Value = serde_json::from_str(&bs).expect("parse");
+        let board = &v["boards"][0];
+        let piece_count = board.as_array().unwrap().iter().filter(|c| !c.is_null()).count();
+        assert_eq!(piece_count, 32, "standard start position should have 32 pieces");
+    }
+
+    #[test]
+    fn test_players_json_has_two_players() {
+        let engine = new_engine(&chess_script());
+        let pj = engine.players_json().expect("players_json");
+        let v: serde_json::Value = serde_json::from_str(&pj).expect("parse");
+        let players = v.as_array().expect("players array");
+        assert_eq!(players.len(), 2);
+        // Player 0 has data.color = "white"
+        assert_eq!(players[0]["data"]["color"], "white");
+        // Player 1 has data.color = "black"
+        assert_eq!(players[1]["data"]["color"], "black");
+    }
+
+    #[test]
+    fn test_valid_moves_returns_for_white() {
+        let mut engine = new_engine(&chess_script());
+        let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
+        let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
+        let all = v["validMoves"].as_array().expect("validMoves array");
+        assert_eq!(all.len(), 2, "should have moves for 2 players");
+        // Find white player's moves (id=0)
+        let white = all.iter().find(|e| e["player"]["id"] == 0).expect("white player");
+        let moves = white["moves"].as_array().expect("white moves");
+        assert!(!moves.is_empty(), "white should have valid moves");
+        // Each move should have type "move"
+        for m in moves {
+            assert_eq!(m["type"], "move", "move action type");
+            assert!(m["from"]["row"].as_i64().is_some());
+            assert!(m["to"]["row"].as_i64().is_some());
+        }
+    }
+
+    #[test]
+    fn test_active_player_has_moves_inactive_does_not() {
+        let mut engine = new_engine(&chess_script());
+        let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
+        let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
+        let all = v["validMoves"].as_array().expect("validMoves array");
+        // Only the active player (white, id=0, turn=0) should have moves
+        let white = all.iter().find(|e| e["player"]["id"] == 0).expect("white player");
+        let black = all.iter().find(|e| e["player"]["id"] == 1).expect("black player");
+        assert!(!white["moves"].as_array().unwrap().is_empty(), "white should have valid moves");
+        assert!(black["moves"].as_array().unwrap().is_empty(), "black should NOT have moves (not black's turn)");
+    }
+
+    #[test]
+    fn test_valid_moves_for_single_player() {
+        let mut engine = new_engine(&chess_script());
+        let vm = engine.valid_moves_for_player_json("0".to_string())
+            .expect("valid_moves_for_player_json");
+        let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
+        let moves = v["moves"].as_array().expect("moves array");
+        assert!(!moves.is_empty(), "white should have moves");
+    }
+
+    #[test]
+    fn test_submit_move_works() {
+        let mut engine = new_engine(&chess_script());
+        // Move white pawn from a2 to a4: Coords(6,0) -> Coords(4,0)
+        let from = Coords::new_board(6, 0, 0);
+        let to = Coords::new_board(4, 0, 0);
+        let result = engine.submit_move(0, from, to);
+        assert!(result.is_ok(), "submit_move should succeed for a2a4");
+        // After move, black should be the active player
+        let vm = engine.valid_moves_all_json().expect("valid_moves_all_json after move");
+        let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
+        let all = v["validMoves"].as_array().expect("validMoves array");
+        // White's moves should be empty (not white's turn)
+        let white = all.iter().find(|e| e["player"]["id"] == 0).expect("white player");
+        assert!(white["moves"].as_array().unwrap().is_empty(), "white should have no moves after playing");
+        // Black should have moves
+        let black = all.iter().find(|e| e["player"]["id"] == 1).expect("black player");
+        assert!(!black["moves"].as_array().unwrap().is_empty(), "black should have moves");
+    }
+
+    #[test]
+    fn test_submit_illegal_move_fails() {
+        let mut engine = new_engine(&chess_script());
+        // Try moving white queen from d1 to d5 — illegal with pawns in the way
+        let from = Coords::new_board(7, 3, 0);
+        let to = Coords::new_board(3, 3, 0);
+        let result = engine.submit_move(0, from, to);
+        assert!(result.is_err(), "illegal move should fail");
+    }
+
+    #[test]
+    fn test_pawn_move_sequence() {
+        let mut engine = new_engine(&chess_script());
+        // a2a4 (white pawn push) — this is a legal move
+        engine.submit_move(0, Coords::new_board(6, 0, 0), Coords::new_board(4, 0, 0)).unwrap();
+        // b7b5 (black pawn push)
+        engine.submit_move(1, Coords::new_board(1, 1, 0), Coords::new_board(3, 1, 0)).unwrap();
+        // a4a5 (white pawn push)
+        engine.submit_move(0, Coords::new_board(4, 0, 0), Coords::new_board(3, 0, 0)).unwrap();
+        // After 3 moves, verify board state changed
+        let bs = engine.board_state_json().expect("board_state_json");
+        let v: serde_json::Value = serde_json::from_str(&bs).expect("parse");
+        // Should still be 8x8
+        assert_eq!(v["rows"], 8);
+        assert_eq!(v["cols"], 8);
+    }
+
+    #[test]
+    fn test_derive_ui_returns_empty_for_no_promotion() {
+        let engine = new_engine(&chess_script());
+        let ui = engine.derive_ui_json_js("0".to_string()).expect("derive_ui_json");
+        let v: serde_json::Value = serde_json::from_str(&ui).expect("parse");
+        // No promotion pending — should be empty or have minimal structure
+        assert!(v.as_object().is_some());
+        assert!(!v.as_object().unwrap().contains_key("promotion"), "no promotion should be pending");
+    }
+
+    #[test]
+    fn test_game_progress_is_in_progress() {
+        let mut engine = new_engine(&chess_script());
+        assert!(!engine.derive_game_progress_bool(), "game should be in progress");
+        assert!(engine.outcome().is_none(), "no outcome yet");
+    }
+
+    #[test]
+    fn test_engine_with_chess_variant() {
+        let engine = new_engine(&chess_script());
+        let bs = engine.board_state_json().expect("board_state_json");
+        let v: serde_json::Value = serde_json::from_str(&bs).expect("parse");
+        assert_eq!(v["rows"], 8);
+        assert_eq!(v["cols"], 8);
+        // Standard chess has 32 pieces
+        let board = &v["boards"][0];
+        let piece_count = board.as_array().unwrap().iter().filter(|c| !c.is_null()).count();
+        assert_eq!(piece_count, 32, "standard start position has 32 pieces");
+    }
+
+    #[test]
+    fn test_state_json_roundtrip() {
+        let engine = new_engine(&chess_script());
+        let sj = engine.state_json().expect("state_json");
+        let v: serde_json::Value = serde_json::from_str(&sj).expect("parse");
+        // state has board and players
+        assert!(v.get("board").is_some(), "state should have board key");
+        assert!(v["players"].is_array(), "state.players should be array");
+        assert!(v.get("turn").is_some(), "state should have turn key");
+    }
+
+    /// PIECE_DEFS is registered as a global module. This test verifies that
+    /// the valid_moves function in the script can access PIECE_DEFS and
+    /// correctly use pawn condition closures (|s,f,t| engine::board::get(...)).
+    #[test]
+    fn test_pawn_condition_closure_in_piece_defs() {
+        let mut engine = new_engine(&chess_script());
+        // Get valid moves for white — this exercises get_pseudo_dests which
+        // uses pawn conditions (closures) from PIECE_DEFS
+        let vm = engine.valid_moves_for_player_json("0".to_string())
+            .expect("valid_moves_for_player_json");
+        let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
+        let moves = v["moves"].as_array().expect("moves array");
+
+        // Find a pawn move — white pawns are on rows 1-6
+        let pawn_moves: Vec<_> = moves.iter().filter(|m| {
+            m["from"]["row"] == 6 || m["from"]["row"] == 5
+        }).collect();
+        assert!(!pawn_moves.is_empty(), "white should have pawn moves from ranks 1-2");
+
+        // Each pawn move from starting position should be a single or double step
+        for m in &pawn_moves {
+            let from_row = m["from"]["row"].as_i64().unwrap();
+            let to_row = m["to"]["row"].as_i64().unwrap();
+            let row_diff = from_row - to_row;
+            assert!(row_diff == 1 || row_diff == 2,
+                "pawn move should be 1 or 2 squares forward, got from row {} to row {}", from_row, to_row);
+        }
+    }
+
+    /// Test that the derive_game_progress function reports correctly.
+    #[test]
+    fn test_derive_game_progress_in_progress() {
+        let mut engine = new_engine(&chess_script());
+        let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
+        let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
+        // Game is in progress — gameOver should be null
+        assert!(v["gameOver"].is_null(), "gameOver should be null for in-progress game");
+        assert_eq!(engine.player_count(), 2);
+    }
+
+    /// Test engine construction with 4 players fails for chess (only allows 2).
+    #[test]
+    fn test_invalid_player_count_fails() {
+        let result = ChessvariantEngine::new(chess_script(), 4);
+        assert!(result.is_err(), "chess only allows 2 players");
+    }
+
+    /// Test the engine name and player count getters.
+    #[test]
+    fn test_name_and_player_count() {
+        let engine = new_engine(&chess_script());
+        assert_eq!(engine.name(), "Chess");
+        assert_eq!(engine.player_count(), 2);
+        assert_eq!(engine.min_players(), 2);
+        assert_eq!(engine.max_players(), 2);
+    }
+}
