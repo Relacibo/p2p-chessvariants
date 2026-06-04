@@ -31,6 +31,12 @@ Run `yarn lint:ts` after TypeScript changes, `yarn lint:rust` after Rust changes
 ### Rust
 - Follow standard Rust conventions (clippy warnings resolved, `rustfmt`)
 - Use `Result<T, CvError>` for fallible operations; prefer `?` over `unwrap`/`expect`
+- **Never return sentinel values** (e.g. `Player::new_by_id(0)`, empty `Dynamic`). Use `Option<T>` or `Result<T>`.
+- **Use `let else { return/continue }`** only for early exits where `?` is not available (e.g. pattern destructuring in loops).
+- **Prefer `?`** over `let Some(x) = y else { return None }` when the function returns `Option` or `Result`.
+- **No backward compat** — strictly ID-based lookups, no board+color fallbacks.
+- **Rhai → JSON**: Use `serde_json::to_value(&dynamic)` via Rhai's built-in `serde` feature. No manual type-dispatch (`if value.is::<Map>() else if value.is::<Array>() ...`).
+- **DRY helpers** for Rhai map access: extract `player_field_i32(map, key)` instead of repeating `.get().and_then().as_int().ok().unwrap_or(0)`.
 - Rhai integration: register functions via `Engine::register_fn`, not `Engine::register_custom_operator` unless needed
 - Custom types exposed to Rhai via `#[derive(Clone)]` and `Engine::register_type::<T>()`
 

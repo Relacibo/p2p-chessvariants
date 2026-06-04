@@ -52,7 +52,7 @@ export default function ArenaView() {
   // This ref is updated before passing to the hook so the initial load uses it.
   const localPlayerRefJson = useMemo<string | null>(() => {
     if (localPlayerConfigId == null) return null;
-    return JSON.stringify({ id: localPlayerConfigId });
+    return String(localPlayerConfigId);
   }, [localPlayerConfigId]);
 
   // Broadcast a submitted action to all peers.
