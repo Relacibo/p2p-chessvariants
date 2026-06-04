@@ -133,7 +133,6 @@ pub fn pawn_dests_generic(
     result
 }
 
-
 /// Pseudo-legal rook destinations. Takes references to avoid board clones.
 pub(crate) fn rook_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
     slides(board, from, &[(1, 0), (-1, 0), (0, 1), (0, -1)], color)
@@ -236,11 +235,7 @@ pub fn jumps(
     for (dr, dc) in offsets {
         push_if_targetable(
             board,
-            BoardCoords::new(
-                from.row + dr,
-                from.col + dc,
-                from.board_index + board_delta,
-            ),
+            BoardCoords::new(from.row + dr, from.col + dc, from.board_index + board_delta),
             color,
             &mut result,
         );
@@ -353,8 +348,8 @@ mod tests {
     use rhai::{Array, Dynamic};
 
     use super::{
-        rhai_bishop_moves, rhai_jump, rhai_king_moves, rhai_knight_moves,
-        rhai_pawn_push, rhai_queen_moves, rhai_rook_moves, rhai_slide,
+        rhai_bishop_moves, rhai_jump, rhai_king_moves, rhai_knight_moves, rhai_pawn_push,
+        rhai_queen_moves, rhai_rook_moves, rhai_slide,
     };
     use crate::game::{
         board::rhai_board_set,
@@ -489,9 +484,7 @@ mod tests {
     fn make_offsets(pairs: &[(i32, i32)]) -> Array {
         pairs
             .iter()
-            .map(|(r, c)| {
-                Dynamic::from_array(vec![Dynamic::from_int(*r), Dynamic::from_int(*c)])
-            })
+            .map(|(r, c)| Dynamic::from_array(vec![Dynamic::from_int(*r), Dynamic::from_int(*c)]))
             .collect()
     }
 
@@ -499,8 +492,14 @@ mod tests {
     fn test_generic_jump_knight_moves() {
         let board = BoardState::board_empty(8, 8);
         let offsets = make_offsets(&[
-            (2, 1), (2, -1), (-2, 1), (-2, -1),
-            (1, 2), (1, -2), (-1, 2), (-1, -2),
+            (2, 1),
+            (2, -1),
+            (-2, 1),
+            (-2, -1),
+            (1, 2),
+            (1, -2),
+            (-1, 2),
+            (-1, -2),
         ]);
         let moves = coords_set(rhai_jump(
             board,
@@ -716,10 +715,11 @@ mod tests {
         let board = BoardState::board_empty(8, 8);
         // start_line = -1 → always single push only.
         let from = crate::game::state::BoardCoords::new(6, 4, 0);
-        let moves: BTreeSet<(i32, i32)> = super::pawn_dests_generic(&board, &from, (-1, 0), -1, "x")
-            .into_iter()
-            .map(|c| (c.row, c.col))
-            .collect();
+        let moves: BTreeSet<(i32, i32)> =
+            super::pawn_dests_generic(&board, &from, (-1, 0), -1, "x")
+                .into_iter()
+                .map(|c| (c.row, c.col))
+                .collect();
         assert_eq!(moves, BTreeSet::from([(5, 4)]));
     }
 }

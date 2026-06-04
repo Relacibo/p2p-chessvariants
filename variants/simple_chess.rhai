@@ -19,7 +19,7 @@ fn build_color_piece_defs() {
          #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
              let target = engine::board::get(s.board, t);
              let my = engine::board::get(s.board, f);
-             target != () && target.color != my.color
+             target == () || target.color != my.color
          } },
     ]},
     black: #{ pawn: [
@@ -28,7 +28,7 @@ fn build_color_piece_defs() {
          #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
              let target = engine::board::get(s.board, t);
              let my = engine::board::get(s.board, f);
-             target != () && target.color != my.color
+             target == () || target.color != my.color
          } },
     ]} }
 }
@@ -93,6 +93,7 @@ fn handle_action(state, player, action) {
     if action.type == "move" {
         let src = engine::board::get(state.board, action.from); if src == () { throw "no piece at source square"; } if src.color != player_color { throw "that piece does not belong to you"; }
         let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
+        let dc = action.to.col - action.from.col; if src.type == "pawn" && dc != 0 && dst == () { throw "pawn cannot move diagonally to empty square"; }
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
         let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color); if enemies.len == 0 { enemies = state.players.filter(|p| p.color != player_color).map(|p| p.color); }
         if is_in_check(new_board, player_color, enemies, state) { throw "move leaves king in check"; }

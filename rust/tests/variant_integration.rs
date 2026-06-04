@@ -204,15 +204,33 @@ fn test_smoke_seirawan_chess_config_and_init() {
 fn test_chess_ruy_lopez_kingside_castling() {
     let mut engine = make_engine("tests/scripts/chess.rhai", 2);
 
-    engine.submit_move("white", coords(6, 4), coords(4, 4)).expect("1. e4");
-    engine.submit_move("black", coords(1, 4), coords(3, 4)).expect("1... e5");
-    engine.submit_move("white", coords(7, 6), coords(5, 5)).expect("2. Nf3");
-    engine.submit_move("black", coords(0, 1), coords(2, 2)).expect("2... Nc6");
-    engine.submit_move("white", coords(7, 5), coords(3, 1)).expect("3. Bb5");
-    engine.submit_move("black", coords(1, 0), coords(2, 0)).expect("3... a6");
-    engine.submit_move("white", coords(3, 1), coords(4, 0)).expect("4. Ba4");
-    engine.submit_move("black", coords(0, 6), coords(2, 5)).expect("4... Nf6");
-    engine.submit_move("white", coords(7, 4), coords(7, 6)).expect("5. O-O");
+    engine
+        .submit_move("white", coords(6, 4), coords(4, 4))
+        .expect("1. e4");
+    engine
+        .submit_move("black", coords(1, 4), coords(3, 4))
+        .expect("1... e5");
+    engine
+        .submit_move("white", coords(7, 6), coords(5, 5))
+        .expect("2. Nf3");
+    engine
+        .submit_move("black", coords(0, 1), coords(2, 2))
+        .expect("2... Nc6");
+    engine
+        .submit_move("white", coords(7, 5), coords(3, 1))
+        .expect("3. Bb5");
+    engine
+        .submit_move("black", coords(1, 0), coords(2, 0))
+        .expect("3... a6");
+    engine
+        .submit_move("white", coords(3, 1), coords(4, 0))
+        .expect("4. Ba4");
+    engine
+        .submit_move("black", coords(0, 6), coords(2, 5))
+        .expect("4... Nf6");
+    engine
+        .submit_move("white", coords(7, 4), coords(7, 6))
+        .expect("5. O-O");
 
     let state = engine.state();
     let board = state_board(&state);
@@ -256,15 +274,33 @@ fn test_chess_ruy_lopez_kingside_castling() {
 fn test_chess_pawn_promotion() {
     let mut engine = make_engine("tests/scripts/chess.rhai", 2);
 
-    engine.submit_move("white", coords(6, 0), coords(4, 0)).expect("1. a4");
-    engine.submit_move("black", coords(1, 7), coords(3, 7)).expect("1... h5");
-    engine.submit_move("white", coords(4, 0), coords(3, 0)).expect("2. a5");
-    engine.submit_move("black", coords(3, 7), coords(4, 7)).expect("2... h4");
-    engine.submit_move("white", coords(3, 0), coords(2, 0)).expect("3. a6");
-    engine.submit_move("black", coords(4, 7), coords(5, 7)).expect("3... h3");
-    engine.submit_move("white", coords(2, 0), coords(1, 1)).expect("4. axb7");
-    engine.submit_move("black", coords(0, 1), coords(2, 0)).expect("4... Na6");
-    engine.submit_move("white", coords(1, 1), coords(0, 0)).expect("5. axb8 (pawn arrives)");
+    engine
+        .submit_move("white", coords(6, 0), coords(4, 0))
+        .expect("1. a4");
+    engine
+        .submit_move("black", coords(1, 7), coords(3, 7))
+        .expect("1... h5");
+    engine
+        .submit_move("white", coords(4, 0), coords(3, 0))
+        .expect("2. a5");
+    engine
+        .submit_move("black", coords(3, 7), coords(4, 7))
+        .expect("2... h4");
+    engine
+        .submit_move("white", coords(3, 0), coords(2, 0))
+        .expect("3. a6");
+    engine
+        .submit_move("black", coords(4, 7), coords(5, 7))
+        .expect("3... h3");
+    engine
+        .submit_move("white", coords(2, 0), coords(1, 1))
+        .expect("4. axb7");
+    engine
+        .submit_move("black", coords(0, 1), coords(2, 0))
+        .expect("4... Na6");
+    engine
+        .submit_move("white", coords(1, 1), coords(0, 0))
+        .expect("5. axb8 (pawn arrives)");
     // Select queen for promotion
     engine
         .submit_select_piece("white", "white", "queen")
@@ -288,7 +324,10 @@ fn test_chess_pawn_promotion() {
 
     // Turn should be black after promotion
     let colors = engine.active_player_colors();
-    assert!(colors.contains(&"black".to_string()), "black should be active after promotion");
+    assert!(
+        colors.contains(&"black".to_string()),
+        "black should be active after promotion"
+    );
 }
 
 // Test 3: Stalemate — shortest known stalemate in 10 moves (Réti stalemate).
@@ -308,29 +347,70 @@ fn test_chess_pawn_promotion() {
 fn test_chess_stalemate() {
     let mut engine = make_engine("tests/scripts/chess.rhai", 2);
 
-    engine.submit_move("white", coords(6, 4), coords(5, 4)).expect("1. e3");
-    engine.submit_move("black", coords(1, 0), coords(3, 0)).expect("1... a5");
-    engine.submit_move("white", coords(7, 3), coords(3, 7)).expect("2. Qh5");
-    engine.submit_move("black", coords(0, 0), coords(2, 0)).expect("2... Ra6");
-    engine.submit_move("white", coords(3, 7), coords(3, 0)).expect("3. Qxa5");
-    engine.submit_move("black", coords(1, 7), coords(3, 7)).expect("3... h5");
-    engine.submit_move("white", coords(3, 0), coords(1, 2)).expect("4. Qxc7");
-    engine.submit_move("black", coords(2, 0), coords(2, 7)).expect("4... Rah6");
-    engine.submit_move("white", coords(6, 7), coords(4, 7)).expect("5. h4");
-    engine.submit_move("black", coords(1, 5), coords(2, 5)).expect("5... f6");
-    engine.submit_move("white", coords(1, 2), coords(1, 3)).expect("6. Qxd7+");
-    engine.submit_move("black", coords(0, 4), coords(1, 5)).expect("6... Kf7");
-    engine.submit_move("white", coords(1, 3), coords(1, 1)).expect("7. Qxb7");
-    engine.submit_move("black", coords(0, 3), coords(5, 3)).expect("7... Qd3");
-    engine.submit_move("white", coords(1, 1), coords(0, 1)).expect("8. Qxb8");
-    engine.submit_move("black", coords(5, 3), coords(1, 7)).expect("8... Qh7");
-    engine.submit_move("white", coords(0, 1), coords(0, 2)).expect("9. Qxc8");
-    engine.submit_move("black", coords(1, 5), coords(2, 6)).expect("9... Kg6");
-    engine.submit_move("white", coords(0, 2), coords(2, 4)).expect("10. Qe6");
+    engine
+        .submit_move("white", coords(6, 4), coords(5, 4))
+        .expect("1. e3");
+    engine
+        .submit_move("black", coords(1, 0), coords(3, 0))
+        .expect("1... a5");
+    engine
+        .submit_move("white", coords(7, 3), coords(3, 7))
+        .expect("2. Qh5");
+    engine
+        .submit_move("black", coords(0, 0), coords(2, 0))
+        .expect("2... Ra6");
+    engine
+        .submit_move("white", coords(3, 7), coords(3, 0))
+        .expect("3. Qxa5");
+    engine
+        .submit_move("black", coords(1, 7), coords(3, 7))
+        .expect("3... h5");
+    engine
+        .submit_move("white", coords(3, 0), coords(1, 2))
+        .expect("4. Qxc7");
+    engine
+        .submit_move("black", coords(2, 0), coords(2, 7))
+        .expect("4... Rah6");
+    engine
+        .submit_move("white", coords(6, 7), coords(4, 7))
+        .expect("5. h4");
+    engine
+        .submit_move("black", coords(1, 5), coords(2, 5))
+        .expect("5... f6");
+    engine
+        .submit_move("white", coords(1, 2), coords(1, 3))
+        .expect("6. Qxd7+");
+    engine
+        .submit_move("black", coords(0, 4), coords(1, 5))
+        .expect("6... Kf7");
+    engine
+        .submit_move("white", coords(1, 3), coords(1, 1))
+        .expect("7. Qxb7");
+    engine
+        .submit_move("black", coords(0, 3), coords(5, 3))
+        .expect("7... Qd3");
+    engine
+        .submit_move("white", coords(1, 1), coords(0, 1))
+        .expect("8. Qxb8");
+    engine
+        .submit_move("black", coords(5, 3), coords(1, 7))
+        .expect("8... Qh7");
+    engine
+        .submit_move("white", coords(0, 1), coords(0, 2))
+        .expect("9. Qxc8");
+    engine
+        .submit_move("black", coords(1, 5), coords(2, 6))
+        .expect("9... Kg6");
+    engine
+        .submit_move("white", coords(0, 2), coords(2, 4))
+        .expect("10. Qe6");
 
     // Populate the valid-moves cache so is_game_over can be checked
     let active = engine.active_player_colors();
-    assert!(active.is_empty(), "no player should have legal moves after stalemate");
+    assert!(
+        active.is_empty(),
+        "no player should have legal moves after stalemate"
+    );
     assert!(engine.is_game_over(), "game should be over (stalemate)");
 
     // Black king must still be on the board (not captured — this is stalemate, not checkmate)

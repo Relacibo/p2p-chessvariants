@@ -30,10 +30,7 @@ pub enum Coords {
         board_index: i32,
     },
     #[serde(rename = "reserve")]
-    Reserve {
-        index: i32,
-        board_index: i32,
-    },
+    Reserve { index: i32, board_index: i32 },
 }
 
 impl Coords {
@@ -119,16 +116,16 @@ impl From<BoardCoords> for Coords {
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct BoardState {
-    pub rows: u32,
-    pub cols: u32,
-    pub number_of_boards: u32,
+    pub rows: i32,
+    pub cols: i32,
+    pub number_of_boards: i32,
     pub boards: Vec<Vec<Option<Piece>>>,
 }
 
 impl BoardState {
-    pub fn new(rows: u32, cols: u32, number_of_boards: u32) -> Self {
-        let cell_count = rows as usize * cols as usize;
-        let boards = vec![vec![None; cell_count]; number_of_boards as usize];
+    pub fn new(rows: i32, cols: i32, number_of_boards: i32) -> Self {
+        let cell_count = rows.max(0) as usize * cols.max(0) as usize;
+        let boards = vec![vec![None; cell_count]; number_of_boards.max(0) as usize];
         Self {
             rows,
             cols,
@@ -138,18 +135,16 @@ impl BoardState {
     }
 
     pub fn board_empty(rows: i32, cols: i32) -> Self {
-        let rows = rows.max(0) as u32;
-        let cols = cols.max(0) as u32;
-        Self::new(rows, cols, 1)
+        Self::new(rows.max(0), cols.max(0), 1)
     }
 
     pub(crate) fn flat_index(&self, coords: &BoardCoords) -> Option<usize> {
         if coords.row < 0
             || coords.col < 0
             || coords.board_index < 0
-            || coords.row >= self.rows as i32
-            || coords.col >= self.cols as i32
-            || coords.board_index as usize >= self.boards.len()
+            || coords.row >= self.rows
+            || coords.col >= self.cols
+            || coords.board_index >= self.number_of_boards
         {
             return None;
         }
@@ -179,7 +174,7 @@ impl BoardState {
             return false;
         };
         board[index] = piece;
-        self.number_of_boards = self.boards.len() as u32;
+        self.number_of_boards = self.boards.len() as i32;
         true
     }
 }

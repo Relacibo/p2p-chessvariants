@@ -113,10 +113,7 @@ mod tests {
 
     #[test]
     fn test_move_action() {
-        let action = Action::rhai_move(
-            Coords::new_board_0(1, 2),
-            Coords::new_board_0(3, 4),
-        );
+        let action = Action::rhai_move(Coords::new_board_0(1, 2), Coords::new_board_0(3, 4));
         assert_eq!(action.get_type(), "move");
         let from = action.get_from().cast::<Coords>();
         assert_eq!(from, Coords::new_board_0(1, 2));
@@ -124,10 +121,7 @@ mod tests {
 
     #[test]
     fn test_reserve_coords_action() {
-        let action = Action::rhai_move(
-            Coords::new_reserve(0),
-            Coords::new_board_0(3, 4),
-        );
+        let action = Action::rhai_move(Coords::new_reserve(0), Coords::new_board_0(3, 4));
         let from = action.get_from().cast::<Coords>();
         assert_eq!(from, Coords::new_reserve(0));
     }

@@ -15,7 +15,7 @@ fn cond_double_yellow(s,f,t) { f.row==1 && engine::board::get(s.board,Coords(f.r
 fn cond_double_green(s,f,t) { f.col==12 && engine::board::get(s.board,Coords(f.row,f.col-1))==() && engine::board::get(s.board,t)==() }
 fn cond_double_red(s,f,t) { f.row==12 && engine::board::get(s.board,Coords(f.row-1,f.col))==() && engine::board::get(s.board,t)==() }
 fn cond_double_blue(s,f,t) { f.col==1 && engine::board::get(s.board,Coords(f.row,f.col+1))==() && engine::board::get(s.board,t)==() }
-fn cond_capture(s,f,t) { let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x!=()&&x.color!=y.color }
+fn cond_capture(s,f,t) { let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color }
 
 fn get_piece_defs(piece, state) { if piece.color in state.color_piece_defs && piece.type in state.color_piece_defs[piece.color] { return state.color_piece_defs[piece.color][piece.type]; } if piece.type in state.piece_defs { return state.piece_defs[piece.type]; } []; }
 

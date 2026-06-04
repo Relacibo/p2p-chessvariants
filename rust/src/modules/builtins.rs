@@ -32,6 +32,9 @@ pub fn create_board_submodule() -> Module {
         .set_into_module(&mut m, board::rhai_board_move_piece);
     FuncRegistration::new("find")
         .with_purity(true)
+        .set_into_module(&mut m, board::rhai_board_find);
+    FuncRegistration::new("find")
+        .with_purity(true)
         .set_into_module(&mut m, board::rhai_board_find_piece);
     FuncRegistration::new("find_by_color")
         .with_purity(true)

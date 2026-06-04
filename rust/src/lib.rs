@@ -123,7 +123,10 @@ fn register_engine_helpers(engine: &mut Engine) {
             result
         },
     );
-    engine.register_fn("engine::standard_start_position", standard::standard_start_position);
+    engine.register_fn(
+        "engine::standard_start_position",
+        standard::standard_start_position,
+    );
 }
 
 // ─── Rhai Map helpers ────────────────────────────────────────────────────────
@@ -189,8 +192,7 @@ fn get_player_map(state: &Dynamic, player_id: i32) -> Option<Dynamic> {
 /// Convert any `Dynamic` to `serde_json::Value` via Rhai's built-in serde support.
 /// Falls back to a debug string for un-serializable custom types.
 fn dynamic_to_json(value: &rhai::Dynamic) -> serde_json::Value {
-    serde_json::to_value(value)
-        .unwrap_or_else(|_| serde_json::Value::String(format!("{value:?}")))
+    serde_json::to_value(value).unwrap_or_else(|_| serde_json::Value::String(format!("{value:?}")))
 }
 
 fn player_to_json_value(player: &Player) -> serde_json::Value {
@@ -213,8 +215,9 @@ impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new(script_content: String, player_count: i32) -> Result<ChessvariantEngine, CvError> {
         let mut engine = Engine::new();
-        let ast = engine.compile(&script_content)?;
         register_builtins(&mut engine);
+
+        let ast = engine.compile(&script_content)?;
 
         let mut scope = Scope::new();
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
@@ -368,7 +371,9 @@ impl ChessvariantEngine {
                 .collect(),
         );
         let Some(obj) = json.as_object_mut() else {
-            return Err(CvError::Internal("state_json: result is not an object".into()));
+            return Err(CvError::Internal(
+                "state_json: result is not an object".into(),
+            ));
         };
         let board_json = self.board_state_json()?;
         let board_value: serde_json::Value = serde_json::from_str(&board_json)?;
@@ -620,16 +625,15 @@ impl ChessvariantEngine {
             .ok_or_else(|| CvError::Internal("board array element is not a BoardState".into()))?;
         let mut boards: Vec<Vec<Option<Piece>>> = first.boards.clone();
         for elem in &arr[1..] {
-            let b: BoardState = elem
-                .clone()
-                .try_cast::<BoardState>()
-                .ok_or_else(|| CvError::Internal("board array element is not a BoardState".into()))?;
+            let b: BoardState = elem.clone().try_cast::<BoardState>().ok_or_else(|| {
+                CvError::Internal("board array element is not a BoardState".into())
+            })?;
             boards.extend(b.boards);
         }
         Ok(BoardState {
             rows: first.rows,
             cols: first.cols,
-            number_of_boards: boards.len() as u32,
+            number_of_boards: boards.len() as i32,
             boards,
         })
     }
@@ -642,8 +646,9 @@ impl ChessvariantEngine {
             "derive_ui",
             (
                 self.game_state.clone(),
-                get_player_map(&self.game_state, player.id)
-                    .ok_or_else(|| CvError::Internal(format!("player {} not found for derive_ui", player.id)))?,
+                get_player_map(&self.game_state, player.id).ok_or_else(|| {
+                    CvError::Internal(format!("player {} not found for derive_ui", player.id))
+                })?,
             ),
         );
         let ui_map = match result {
@@ -658,15 +663,16 @@ impl ChessvariantEngine {
     }
 
     fn compute_valid_moves_for_player(&mut self, player: &Player) -> Result<Vec<Action>, CvError> {
-        let mut scope = Scope::new();
+        let mut tmp_scope = rhai::Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
-            &mut scope,
+            &mut tmp_scope,
             &self.ast,
             "valid_moves",
             (
                 self.game_state.clone(),
-                get_player_map(&self.game_state, player.id)
-                    .ok_or_else(|| CvError::Internal(format!("player {} not found for valid_moves", player.id)))?,
+                get_player_map(&self.game_state, player.id).ok_or_else(|| {
+                    CvError::Internal(format!("player {} not found for valid_moves", player.id))
+                })?,
             ),
         );
         let actions_dyn = match result {

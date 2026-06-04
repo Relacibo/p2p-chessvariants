@@ -83,7 +83,11 @@ pub fn rhai_board_find(board: BoardState, piece_type: String, color: String) -> 
 
             let row = (index / board.cols as usize) as i32;
             let col = (index % board.cols as usize) as i32;
-            result.push(Dynamic::from(Coords::new_board(row, col, board_index as i32)));
+            result.push(Dynamic::from(Coords::new_board(
+                row,
+                col,
+                board_index as i32,
+            )));
         }
     }
 
@@ -93,7 +97,11 @@ pub fn rhai_board_find(board: BoardState, piece_type: String, color: String) -> 
 /// Overload: find all squares containing the given `Piece` value.
 /// Convenience for scripts that call `board_find(board, Piece(color, type))`.
 pub fn rhai_board_find_piece(board: BoardState, piece: Piece) -> Array {
-    rhai_board_find(board, piece.piece_type_name().to_string(), piece.color_name().to_string())
+    rhai_board_find(
+        board,
+        piece.piece_type_name().to_string(),
+        piece.color_name().to_string(),
+    )
 }
 
 /// Find all pieces of a given color on the board.
@@ -125,11 +133,11 @@ pub fn rhai_board_find_by_color(board: BoardState, color: String) -> Array {
 }
 
 pub fn rhai_board_rows(board: BoardState) -> i32 {
-    board.rows as i32
+    board.rows
 }
 
 pub fn rhai_board_cols(board: BoardState) -> i32 {
-    board.cols as i32
+    board.cols
 }
 
 pub fn rhai_board_count(board: BoardState) -> i32 {
@@ -272,11 +280,8 @@ mod tests {
             Coords::new_board_0(4, 4),
             Dynamic::from(piece.clone()),
         );
-        let board = rhai_board_move_piece(
-            board,
-            Coords::new_board_0(4, 4),
-            Coords::new_board_0(2, 5),
-        );
+        let board =
+            rhai_board_move_piece(board, Coords::new_board_0(4, 4), Coords::new_board_0(2, 5));
         assert!(rhai_board_get(board.clone(), Coords::new_board_0(4, 4)).is_unit());
         assert_eq!(
             rhai_board_get(board, Coords::new_board_0(2, 5)).cast::<Piece>(),

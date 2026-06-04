@@ -15,7 +15,7 @@ fn build_color_piece_defs() {
 fn cond_push_empty(s,f,t) { engine::board::get(s.board,t)==() }
 fn cond_double_white(s,f,t) { f.row==6 && engine::board::get(s.board,Coords(f.row-1,f.col))==() && engine::board::get(s.board,t)==() }
 fn cond_double_black(s,f,t) { f.row==1 && engine::board::get(s.board,Coords(f.row+1,f.col))==() && engine::board::get(s.board,t)==() }
-fn cond_capture(s,f,t) { let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x!=()&&x.color!=y.color }
+fn cond_capture(s,f,t) { let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color }
 
 fn get_piece_defs(piece, state) { if piece.color in state.color_piece_defs && piece.type in state.color_piece_defs[piece.color] { return state.color_piece_defs[piece.color][piece.type]; } if piece.type in state.piece_defs { return state.piece_defs[piece.type]; } []; }
 

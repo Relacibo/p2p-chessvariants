@@ -47,9 +47,7 @@ fn cond_pawn_double_black(state, from, to) {
 fn cond_pawn_capture(state, from, to) {
     let target = engine::board::get(state.board, to);
     let my = engine::board::get(state.board, from);
-    if target != () && target.color != my.color { return true; }
-    if state.en_passant != () && to == state.en_passant { return true; }
-    false
+    target == () || target.color != my.color
 }
 
 fn get_piece_defs(piece, state) {
