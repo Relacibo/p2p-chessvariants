@@ -1,6 +1,6 @@
 use error::CvError;
 use game::{
-    actions::Action, board, piece::Piece, standard, state::Coords,
+    board, standard, state::Coords,
     variant_config::VariantConfig,
 };
 use modules::builtins;
@@ -17,7 +17,9 @@ mod modules;
 pub mod rhai_rust_error;
 
 // Re-exports for integration tests and external consumers
+pub use game::actions::Action;
 pub use game::game_progress::GameProgress;
+pub use game::piece::Piece;
 pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, Player, State};
 
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
@@ -498,6 +500,29 @@ impl ChessvariantEngine {
         let player = resolve_player(&self.game_state, player_id)?;
         let action = Action::rhai_move(from, to);
         self.submit_action_core(&player, &action)
+    }
+
+    /// Submit a select_piece action by player ID (for promotion / gating tests).
+    pub fn submit_select_piece(
+        &mut self,
+        player_id: i32,
+        color: &str,
+        piece_type: &str,
+    ) -> Result<serde_json::Value, CvError> {
+        let player = resolve_player(&self.game_state, player_id)?;
+        let piece = Piece::rhai_new(color.to_string(), piece_type.to_string());
+        let action = Action::rhai_select_piece(piece);
+        self.submit_action_core(&player, &action)
+    }
+
+    /// Returns the IDs of players who currently have legal moves.
+    pub fn active_player_ids(&mut self) -> Result<Vec<i32>, CvError> {
+        let (all_moves, _) = self.compute_valid_moves_all()?;
+        Ok(all_moves
+            .iter()
+            .filter(|pm| !pm.moves.is_empty())
+            .map(|pm| pm.player.id)
+            .collect())
     }
 
     /// Returns `true` when the game has reached a terminal state.

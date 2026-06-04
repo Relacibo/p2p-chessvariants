@@ -69,9 +69,10 @@ export type BoardOrientation = "normal" | "flipped" | "clockwise" | "countercloc
 export interface WasmPlayerConfig {
   id: number;
   name: string;
-  home_board: number;
+  home_board?: number;
   team: number;
   orientation?: BoardOrientation;
+  data?: Record<string, unknown>;
 }
 
 export interface WasmVariantConfig {
@@ -131,7 +132,7 @@ export type WasmUiMap = Record<string, WasmUiElementNode>;
 
 /** A player's valid moves entry from `validMovesJson()`. */
 export interface WasmPlayerMoves {
-  player: { id: number; name: string; home_board: number; board: number; color: string; team: number };
+  player: { id: number; name: string; homeBoard: number; team: number };
   moves: WasmAction[];
 }
 
@@ -148,11 +149,9 @@ export interface WasmSubmitActionResult {
   board_state: WasmBoardState;
 }
 
-/** A player reference: `{ id }` (preferred) or `{ board, color }` (backward compat). */
+/** A player reference for the active player list. */
 export interface PlayerRef {
-  id?: number;
-  board?: number;
-  color?: string;
+  id: number;
   orientation?: BoardOrientation;
 }
 

@@ -34,7 +34,12 @@ fn valid_moves(state, player) {
     candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
-fn derive_game_progress(state, all_valid_moves) { InProgress() }
+fn derive_game_progress(state, all_valid_moves) {
+    let outcome = state["outcome"];
+    if outcome != () { return outcome; }
+    for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } }
+    Draw()
+}
 
 fn handle_action(state, player, action) {
     let player_color = player.data.color; if state["turn"] != player.id { throw "not your turn"; }

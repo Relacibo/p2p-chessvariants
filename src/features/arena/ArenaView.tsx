@@ -171,7 +171,7 @@ export default function ArenaView() {
     if (localPlayer) {
       for (const ap of allPlayers) {
         if (ap.team === localPlayer.team) {
-          arr[ap.home_board] = ap.orientation ?? "normal";
+          arr[ap.home_board ?? 0] = ap.orientation ?? "normal";
         }
       }
     }

@@ -2,7 +2,6 @@
 use chessvariant_engine::{
     BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords, GameProgress,
 };
-use rhai::Dynamic;
 
 fn load_script(relative_path: &str) -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -64,8 +63,8 @@ fn test_chess_basic_init_board_has_standard_pieces() {
 #[test]
 fn test_chess_basic_initial_turn_is_white() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
-    let active = engine.active_player_colors();
-    assert_eq!(active, vec!["white".to_string()]);
+    let active = engine.active_player_ids().expect("active_player_ids");
+    assert_eq!(active, vec![0]);
 }
 
 #[test]
@@ -78,7 +77,7 @@ fn test_chess_basic_initial_game_not_over() {
 fn test_chess_basic_pawn_e2_e4() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
     engine
-        .submit_move("white", coords(6, 4), coords(4, 4))
+        .submit_move(0, coords(6, 4), coords(4, 4))
         .expect("white pawn e2→e4 should succeed");
 
     let _state = engine.state();
@@ -98,43 +97,43 @@ fn test_chess_basic_turn_alternates() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
 
     engine
-        .submit_move("white", coords(6, 4), coords(4, 4))
+        .submit_move(0, coords(6, 4), coords(4, 4))
         .unwrap();
-    let active = engine.active_player_colors();
-    assert_eq!(active, vec!["black".to_string()]);
+    let active = engine.active_player_ids().expect("active_player_ids");
+    assert_eq!(active, vec![1]);
 
     engine
-        .submit_move("black", coords(1, 4), coords(3, 4))
+        .submit_move(1, coords(1, 4), coords(3, 4))
         .unwrap();
-    let active = engine.active_player_colors();
-    assert_eq!(active, vec!["white".to_string()]);
+    let active = engine.active_player_ids().expect("active_player_ids");
+    assert_eq!(active, vec![0]);
 }
 
 #[test]
 fn test_chess_basic_wrong_turn_rejected() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
-    let result = engine.submit_move("black", coords(1, 4), coords(3, 4));
+    let result = engine.submit_move(1, coords(1, 4), coords(3, 4));
     assert!(result.is_err(), "should reject wrong-turn move");
 }
 
 #[test]
 fn test_chess_basic_cannot_move_opponents_piece() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
-    let result = engine.submit_move("white", coords(1, 4), coords(3, 4));
+    let result = engine.submit_move(0, coords(1, 4), coords(3, 4));
     assert!(result.is_err(), "should reject moving opponent's piece");
 }
 
 #[test]
 fn test_chess_basic_cannot_move_from_empty_square() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
-    let result = engine.submit_move("white", coords(4, 4), coords(3, 4));
+    let result = engine.submit_move(0, coords(4, 4), coords(3, 4));
     assert!(result.is_err(), "should reject move from empty square");
 }
 
 #[test]
 fn test_chess_basic_cannot_capture_own_piece() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
-    let result = engine.submit_move("white", coords(7, 0), coords(7, 1));
+    let result = engine.submit_move(0, coords(7, 0), coords(7, 1));
     assert!(result.is_err(), "should reject capturing own piece");
 }
 
@@ -145,7 +144,7 @@ fn test_king_capture_triggers_game_over() {
     let mut engine = make_engine("tests/scripts/king_capture.rhai", 2);
 
     engine
-        .submit_move("white", coords(1, 4), coords(0, 4))
+        .submit_move(0, coords(1, 4), coords(0, 4))
         .expect("king capture should succeed");
 
     assert!(engine.derive_game_progress_bool(), "game should be over");
@@ -164,7 +163,7 @@ fn test_king_capture_game_not_over_after_non_king_move() {
     let mut engine = make_engine("tests/scripts/king_capture.rhai", 2);
 
     engine
-        .submit_move("white", coords(1, 4), coords(2, 4))
+        .submit_move(0, coords(1, 4), coords(2, 4))
         .unwrap();
 
     assert!(
@@ -194,31 +193,31 @@ fn test_chess_ruy_lopez_kingside_castling() {
     let mut engine = make_engine("tests/scripts/chess.rhai", 2);
 
     engine
-        .submit_move("white", coords(6, 4), coords(4, 4))
+        .submit_move(0, coords(6, 4), coords(4, 4))
         .expect("1. e4");
     engine
-        .submit_move("black", coords(1, 4), coords(3, 4))
+        .submit_move(1, coords(1, 4), coords(3, 4))
         .expect("1... e5");
     engine
-        .submit_move("white", coords(7, 6), coords(5, 5))
+        .submit_move(0, coords(7, 6), coords(5, 5))
         .expect("2. Nf3");
     engine
-        .submit_move("black", coords(0, 1), coords(2, 2))
+        .submit_move(1, coords(0, 1), coords(2, 2))
         .expect("2... Nc6");
     engine
-        .submit_move("white", coords(7, 5), coords(3, 1))
+        .submit_move(0, coords(7, 5), coords(3, 1))
         .expect("3. Bb5");
     engine
-        .submit_move("black", coords(1, 0), coords(2, 0))
+        .submit_move(1, coords(1, 0), coords(2, 0))
         .expect("3... a6");
     engine
-        .submit_move("white", coords(3, 1), coords(4, 0))
+        .submit_move(0, coords(3, 1), coords(4, 0))
         .expect("4. Ba4");
     engine
-        .submit_move("black", coords(0, 6), coords(2, 5))
+        .submit_move(1, coords(0, 6), coords(2, 5))
         .expect("4... Nf6");
     engine
-        .submit_move("white", coords(7, 4), coords(7, 6))
+        .submit_move(0, coords(7, 4), coords(7, 6))
         .expect("5. O-O");
 
     let _state = engine.state();
@@ -264,35 +263,35 @@ fn test_chess_pawn_promotion() {
     let mut engine = make_engine("tests/scripts/chess.rhai", 2);
 
     engine
-        .submit_move("white", coords(6, 0), coords(4, 0))
+        .submit_move(0, coords(6, 0), coords(4, 0))
         .expect("1. a4");
     engine
-        .submit_move("black", coords(1, 7), coords(3, 7))
+        .submit_move(1, coords(1, 7), coords(3, 7))
         .expect("1... h5");
     engine
-        .submit_move("white", coords(4, 0), coords(3, 0))
+        .submit_move(0, coords(4, 0), coords(3, 0))
         .expect("2. a5");
     engine
-        .submit_move("black", coords(3, 7), coords(4, 7))
+        .submit_move(1, coords(3, 7), coords(4, 7))
         .expect("2... h4");
     engine
-        .submit_move("white", coords(3, 0), coords(2, 0))
+        .submit_move(0, coords(3, 0), coords(2, 0))
         .expect("3. a6");
     engine
-        .submit_move("black", coords(4, 7), coords(5, 7))
+        .submit_move(1, coords(4, 7), coords(5, 7))
         .expect("3... h3");
     engine
-        .submit_move("white", coords(2, 0), coords(1, 1))
+        .submit_move(0, coords(2, 0), coords(1, 1))
         .expect("4. axb7");
     engine
-        .submit_move("black", coords(0, 1), coords(2, 0))
+        .submit_move(1, coords(0, 1), coords(2, 0))
         .expect("4... Na6");
     engine
-        .submit_move("white", coords(1, 1), coords(0, 0))
+        .submit_move(0, coords(1, 1), coords(0, 0))
         .expect("5. axb8 (pawn arrives)");
     // Select queen for promotion
     engine
-        .submit_select_piece("white", "white", "queen")
+        .submit_select_piece(0, "white", "queen")
         .expect("5. promote to queen");
 
     let _state = engine.state();
@@ -312,9 +311,9 @@ fn test_chess_pawn_promotion() {
     );
 
     // Turn should be black after promotion
-    let colors = engine.active_player_colors();
+    let active = engine.active_player_ids().expect("active_player_ids");
     assert!(
-        colors.contains(&"black".to_string()),
+        active.contains(&1),
         "black should be active after promotion"
     );
 }
@@ -337,65 +336,65 @@ fn test_chess_stalemate() {
     let mut engine = make_engine("tests/scripts/chess.rhai", 2);
 
     engine
-        .submit_move("white", coords(6, 4), coords(5, 4))
+        .submit_move(0, coords(6, 4), coords(5, 4))
         .expect("1. e3");
     engine
-        .submit_move("black", coords(1, 0), coords(3, 0))
+        .submit_move(1, coords(1, 0), coords(3, 0))
         .expect("1... a5");
     engine
-        .submit_move("white", coords(7, 3), coords(3, 7))
+        .submit_move(0, coords(7, 3), coords(3, 7))
         .expect("2. Qh5");
     engine
-        .submit_move("black", coords(0, 0), coords(2, 0))
+        .submit_move(1, coords(0, 0), coords(2, 0))
         .expect("2... Ra6");
     engine
-        .submit_move("white", coords(3, 7), coords(3, 0))
+        .submit_move(0, coords(3, 7), coords(3, 0))
         .expect("3. Qxa5");
     engine
-        .submit_move("black", coords(1, 7), coords(3, 7))
+        .submit_move(1, coords(1, 7), coords(3, 7))
         .expect("3... h5");
     engine
-        .submit_move("white", coords(3, 0), coords(1, 2))
+        .submit_move(0, coords(3, 0), coords(1, 2))
         .expect("4. Qxc7");
     engine
-        .submit_move("black", coords(2, 0), coords(2, 7))
+        .submit_move(1, coords(2, 0), coords(2, 7))
         .expect("4... Rah6");
     engine
-        .submit_move("white", coords(6, 7), coords(4, 7))
+        .submit_move(0, coords(6, 7), coords(4, 7))
         .expect("5. h4");
     engine
-        .submit_move("black", coords(1, 5), coords(2, 5))
+        .submit_move(1, coords(1, 5), coords(2, 5))
         .expect("5... f6");
     engine
-        .submit_move("white", coords(1, 2), coords(1, 3))
+        .submit_move(0, coords(1, 2), coords(1, 3))
         .expect("6. Qxd7+");
     engine
-        .submit_move("black", coords(0, 4), coords(1, 5))
+        .submit_move(1, coords(0, 4), coords(1, 5))
         .expect("6... Kf7");
     engine
-        .submit_move("white", coords(1, 3), coords(1, 1))
+        .submit_move(0, coords(1, 3), coords(1, 1))
         .expect("7. Qxb7");
     engine
-        .submit_move("black", coords(0, 3), coords(5, 3))
+        .submit_move(1, coords(0, 3), coords(5, 3))
         .expect("7... Qd3");
     engine
-        .submit_move("white", coords(1, 1), coords(0, 1))
+        .submit_move(0, coords(1, 1), coords(0, 1))
         .expect("8. Qxb8");
     engine
-        .submit_move("black", coords(5, 3), coords(1, 7))
+        .submit_move(1, coords(5, 3), coords(1, 7))
         .expect("8... Qh7");
     engine
-        .submit_move("white", coords(0, 1), coords(0, 2))
+        .submit_move(0, coords(0, 1), coords(0, 2))
         .expect("9. Qxc8");
     engine
-        .submit_move("black", coords(1, 5), coords(2, 6))
+        .submit_move(1, coords(1, 5), coords(2, 6))
         .expect("9... Kg6");
     engine
-        .submit_move("white", coords(0, 2), coords(2, 4))
+        .submit_move(0, coords(0, 2), coords(2, 4))
         .expect("10. Qe6");
 
     // Populate the valid-moves cache so is_game_over can be checked
-    let active = engine.active_player_colors();
+    let active = engine.active_player_ids().expect("active_player_ids");
     assert!(
         active.is_empty(),
         "no player should have legal moves after stalemate"
