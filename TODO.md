@@ -117,3 +117,40 @@ cd rust && cargo test --lib          # Unit-Tests (sollten alle grün sein)
 cd rust && cargo test                # Integration-Tests (nach Script-Fixes grün)
 yarn lint:rust                       # Clippy/Rustfmt
 ```
+
+---
+
+## 5. Lib.rs Refactoring (Done) & Broken Integration Tests
+
+### Was wurde gemacht
+- **`PlayerRef` entfernt** → `i32` als Player-ID über WASM. Die `PlayerRef`-Struct mit
+  board+color backward compat ist weg. Frontend sendet jetzt `"0"` statt `"{\"id\":0}"`.
+- **`player_ref_to_player_id`** → **`pub fn resolve_player(state, id) -> Result<Player>`**
+  mit `?`-Operator, kein sentinel `Player::new_by_id(0)` mehr.
+- **`rhai_dynamic_to_json` + `rhai_map_to_json`** → **`fn dynamic_to_json(&Dynamic) -> Value`**
+  via `serde_json::to_value(value)` (Rhai's serde feature). Rekursiv, kein manuelles
+  Type-Dispatch mehr.
+- **`get_player_map`** → `Option<Dynamic>` mit `?`-Operator, kein leeres Map als Fallback.
+- **`state_json`** → `let else` + `?` statt 3-fach `if let`.
+- **`extract_outcome_from_state`** → 40 Zeilen auf 6 reduziert, delegiert an `dynamic_to_json`.
+- **Orientation-Resolution** extrahiert in `fn resolve_orientation`.
+- **`player_field_i32` / `player_field_string` / `player_from_map`** DRY helpers.
+- **AGENTS.md** um Rust-Styleguide ergänzt (no sentinel values, `?` prefer over `let else`,
+  no manual type-dispatch für JSON, no backward compat).
+- **Frontend**: `ArenaView.tsx` sendet `String(id)` statt `JSON.stringify({id: id})`.
+
+### Gebrochene Integration-Tests (7 von 15)
+```
+test_simple_chess_pawn_e2_e4          — Internal("illegal move")
+test_simple_chess_turn_alternates     — Internal("illegal move")
+test_simple_chess_initial_turn_is_white — Internal("illegal move")
+test_simple_chess_initial_game_not_over — Internal("illegal move")
+test_chess_ruy_lopez_kingside_castling — Internal("illegal move")
+test_chess_stalemate                  — Internal("illegal move")
+test_chess_pawn_promotion             — Internal("illegal move")
+```
+- **Ursache**: `compute_valid_moves_for_player` findet keine legalen Moves.
+  Vermutlich schon vor dem Refactoring gebrochen (andere Agent-Änderungen).
+  `cargo check` kompiliert clean, das Refactoring selbst ist nicht die Ursache.
+- **Debug-Ansatz**: `compute_valid_moves_for_player` debuggen — prüfen ob
+  `valid_moves` aus dem Rhai-Script korrekt aufgerufen wird und Moves zurückgibt.
