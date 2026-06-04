@@ -5,6 +5,7 @@ import {
   Button,
   Checkbox,
   Combobox,
+  Divider,
   Group,
   Input,
   InputBase,
@@ -27,6 +28,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useGuestLoginMutation } from "../../api/api";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { login, selectToken } from "../auth/authSlice";
@@ -47,6 +49,12 @@ import {
   createLobby,
   selectLobbyStatus,
 } from "./lobbySlice";
+
+type PendingCreate = {
+  scriptUrl: string;
+  useServerLobby: boolean;
+  allowGuests: boolean;
+};
 
 function AddCustomVariantModal({
   opened,
@@ -97,6 +105,78 @@ function AddCustomVariantModal({
   );
 }
 
+/** Login / guest-login screen shown after user clicks "Create Lobby" without being logged in. */
+function CreateLobbyAuthScreen({
+  pending,
+  onBack,
+}: {
+  pending: PendingCreate;
+  onBack: () => void;
+}) {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [guestLogin, { isLoading: isGuestLoggingIn }] =
+    useGuestLoginMutation();
+
+  const guestForm = useForm({
+    initialValues: { displayName: "" },
+    validate: {
+      displayName: (v) =>
+        v.trim().length > 0 ? null : "Display name is required",
+    },
+  });
+
+  const loginRedirect = `/auth/login?redirect=${encodeURIComponent(location.pathname)}`;
+
+  const handleGuestCreate = async (values: { displayName: string }) => {
+    try {
+      const res = await guestLogin(values).unwrap();
+      dispatch(login({ token: res.token, user: res.user }));
+      dispatch(
+        createLobby(
+          pending.scriptUrl,
+          pending.useServerLobby,
+          pending.allowGuests,
+        ),
+      );
+    } catch (e: any) {
+      notifications.show({
+        title: "Error",
+        message: e.message || "Guest login failed",
+        color: "red",
+      });
+    }
+  };
+
+  return (
+    <Stack>
+      <Group>
+        <Button variant="subtle" onClick={onBack}>
+          ← Back
+        </Button>
+      </Group>
+      <Button variant="default" onClick={() => navigate(loginRedirect)}>
+        Login with account
+      </Button>
+      <Divider label="or continue as guest" labelPosition="center" />
+      <form onSubmit={guestForm.onSubmit(handleGuestCreate)}>
+        <Stack>
+          <TextInput
+            label="Display Name"
+            placeholder="Guest Player"
+            {...guestForm.getInputProps("displayName")}
+          />
+          <Group>
+            <Button type="submit" loading={isGuestLoggingIn}>
+              Create as Guest
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Stack>
+  );
+}
+
 function CreateLobbyForm() {
   const dispatch = useDispatch();
   const status = useSelector(selectLobbyStatus);
@@ -104,9 +184,9 @@ function CreateLobbyForm() {
   const variants = useSelector(selectAllVariants);
   const isCreating = status.phase === "creating";
 
-  const [guestLogin, { isLoading: isGuestLoggingIn }] =
-    useGuestLoginMutation();
-  const loading = isCreating || isGuestLoggingIn;
+  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(
+    null,
+  );
 
   const [opened, { open, close }] = useDisclosure(false);
 
@@ -124,12 +204,7 @@ function CreateLobbyForm() {
   const [search, setSearch] = useState("");
 
   const form = useForm({
-    initialValues: {
-      scriptUrl: "",
-      useServerLobby: !!token,
-      allowGuests: true,
-      displayName: "",
-    },
+    initialValues: { scriptUrl: "", useServerLobby: !!token, allowGuests: true },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
@@ -137,14 +212,10 @@ function CreateLobbyForm() {
         if (!result.ok) return scriptUrlErrorMessage(result.error);
         return null;
       },
-      displayName: (v) => {
-        if (!token && !v.trim()) return "Display name is required";
-        return null;
-      },
     },
   });
 
-  
+
   const prevToken = React.useRef(token);
   React.useEffect(() => {
     if (!!token !== !!prevToken.current) {
@@ -152,6 +223,16 @@ function CreateLobbyForm() {
       prevToken.current = token;
     }
   }, [token, form]);
+
+  // Show login/guest screen after submitting without token
+  if (pendingCreate) {
+    return (
+      <CreateLobbyAuthScreen
+        pending={pendingCreate}
+        onBack={() => setPendingCreate(null)}
+      />
+    );
+  }
 
   const filteredVariants = variants.filter((v) =>
     v.name.toLowerCase().includes(search.toLowerCase().trim())
@@ -186,28 +267,14 @@ function CreateLobbyForm() {
   return (
     <>
       <form
-        onSubmit={form.onSubmit(async ({ scriptUrl, useServerLobby, displayName }) => {
+        onSubmit={form.onSubmit(({ scriptUrl, useServerLobby }) => {
           const normalized = normalizeScriptUrl(scriptUrl.trim());
           if (!token) {
-            try {
-              const res = await guestLogin({
-                displayName: displayName.trim(),
-              }).unwrap();
-              dispatch(login({ token: res.token, user: res.user }));
-              dispatch(
-                createLobby(
-                  normalized,
-                  !!token && useServerLobby,
-                  form.values.allowGuests,
-                ),
-              );
-            } catch (e: any) {
-              notifications.show({
-                title: "Error",
-                message: e.message || "Guest login failed",
-                color: "red",
-              });
-            }
+            setPendingCreate({
+              scriptUrl: normalized,
+              useServerLobby: !!token && useServerLobby,
+              allowGuests: form.values.allowGuests,
+            });
           } else {
             dispatch(
               createLobby(
@@ -286,14 +353,7 @@ function CreateLobbyForm() {
             </Tooltip>
           </Group>
 
-          
-          {!token && (
-            <TextInput
-              label="Display Name"
-              placeholder="Guest Player"
-              {...form.getInputProps("displayName")}
-            />
-          )}
+
           <Tooltip
             label={token ? "" : "Login required for server lobby"}
             disabled={!!token}
@@ -307,7 +367,7 @@ function CreateLobbyForm() {
               />
             </div>
           </Tooltip>
-          
+
           {form.values.useServerLobby && (
             <Checkbox
               label="Allow unauthenticated players"
@@ -315,8 +375,8 @@ function CreateLobbyForm() {
               {...form.getInputProps("allowGuests", { type: "checkbox" })}
             />
           )}
-          <Button type="submit" loading={loading}>
-            {!token ? "Login & Create Lobby" : "Create Lobby"}
+          <Button type="submit" loading={isCreating}>
+            Create Lobby
           </Button>
         </Stack>
       </form>
@@ -335,7 +395,6 @@ export default function CreateLobbyView() {
   return (
     <Paper p="md" shadow="xs">
       <Stack>
-        <Title order={3}>Create Lobby</Title>
         {status.phase === "error" && (
           <Alert
             icon={<IconAlertCircle size="1rem" />}
@@ -345,6 +404,7 @@ export default function CreateLobbyView() {
             {status.message}
           </Alert>
         )}
+        {status.phase === "idle" && <Title order={3}>Create Lobby</Title>}
         <CreateLobbyForm />
       </Stack>
     </Paper>
