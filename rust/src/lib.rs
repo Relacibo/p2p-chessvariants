@@ -134,100 +134,13 @@ fn register_builtins(engine: &mut Engine) {
 
     // ── Namespaced modules (static, no config dependency) ──
     engine.register_static_module("engine::board", Rc::new(builtins::create_board_submodule()));
+    engine.register_static_module("engine::moves", Rc::new(builtins::create_moves_submodule()));
     engine.register_static_module("log", Rc::new(builtins::create_log_module()));
 }
 
-fn register_engine_helpers(
-    engine: &mut Engine,
-    piece_defs: std::sync::Arc<game::piece_definition::PieceDefinitionMap>,
-) {
-    let cp_attacked = std::sync::Arc::clone(&piece_defs);
-            let cp_pseudo_4arg_a = std::sync::Arc::clone(&piece_defs);
-    let cp_pseudo_4arg_b = std::sync::Arc::clone(&piece_defs);
-    let cp_legal = std::sync::Arc::clone(&piece_defs);
+// ── Namespaced helpers ──────────────────────────────────────────────────────
 
-    engine.register_fn(
-        "is_square_attacked",
-        move |board: BoardState,
-              coords: Coords,
-              by_color: String|
-              -> bool {
-            let Some(bc) = coords.as_board_coords() else {
-                return false;
-            };
-            game::engine_builtins::is_square_attacked(&board, &bc, &by_color, &cp_attacked)
-        },
-    );
-
-    // 4-arg form: kept for backward compatibility with scripts that pass piece_type/color explicitly.
-    engine.register_fn(
-        "pseudo_moves",
-        move |board: BoardState,
-              from: Coords,
-              piece_type: String,
-              color: String|
-              -> rhai::Array {
-            let Some(bc) = from.as_board_coords() else {
-                return rhai::Array::new();
-            };
-            game::engine_builtins::get_pseudo_move_dests(
-                &board,
-                &bc,
-                &piece_type,
-                &color,
-                &cp_pseudo_4arg_a,
-            )
-            .into_iter()
-            .map(|c| Dynamic::from(Coords::from(c)))
-            .collect()
-        },
-    );
-
-    // 2-arg form: reads piece from board automatically.
-    // Registered globally (not with `engine::` prefix) because Rhai 1.x cannot
-    // resolve `engine::function` when `engine::board` / `engine::moves` are
-    // also registered as static modules.
-    engine.register_fn(
-        "pseudo_moves",
-        move |board: BoardState, from: Coords| -> rhai::Array {
-            let Some(bc) = from.as_board_coords() else {
-                return rhai::Array::new();
-            };
-            let Some(piece) = board.get_piece(&bc) else {
-                return rhai::Array::new();
-            };
-            let piece_type = piece.piece_type_name().to_string();
-            let color = piece.color_name().to_string();
-            game::engine_builtins::get_pseudo_move_dests(
-                &board,
-                &bc,
-                &piece_type,
-                &color,
-                &cp_pseudo_4arg_b,
-            )
-            .into_iter()
-            .map(|c| Dynamic::from(Coords::from(c)))
-            .collect()
-        },
-    );
-
-    // is_in_check(board, king_color, enemy_colors) — pure check detection on the current board.
-    // No simulation: the caller (script) is responsible for applying the move first.
-    // enemy_colors is an array of color strings.
-    engine.register_fn(
-        "is_in_check",
-        move |board: BoardState, king_color: String, enemy_colors: rhai::Array| -> bool {
-            let colors: Vec<String> = enemy_colors
-                .into_iter()
-                .filter_map(|v| v.into_string().ok())
-                .collect();
-            game::engine_builtins::is_in_check(&board, &king_color, &colors, &cp_legal)
-        },
-    );
-
-    // moves sub-module
-    engine.register_static_module("engine::moves", Rc::new(builtins::create_moves_submodule()));
-    // Utilities on engine:: namespace
+fn register_engine_helpers(engine: &mut Engine) {
     engine.register_fn(
         "engine::merge",
         |base: rhai::Map, updates: rhai::Map| -> rhai::Map {
@@ -237,27 +150,6 @@ fn register_engine_helpers(
         },
     );
     engine.register_fn("engine::standard_start_position", standard::standard_start_position);
-}
-
-// ─── Piece definition loader ──────────────────────────────────────────────────
-
-/// Call `fn pieces()` from the script if it exists and parse the result.
-/// Only `ErrorFunctionNotFound` is swallowed; all other errors propagate.
-fn load_piece_defs(
-    engine: &Engine,
-    ast: &rhai::AST,
-    scope: &mut rhai::Scope,
-) -> Result<game::piece_definition::PieceDefinitionMap, CvError> {
-    match engine.call_fn::<Dynamic>(scope, ast, "pieces", ()) {
-        Ok(dynamic) => game::piece_definition::parse_pieces_dynamic(dynamic),
-        Err(e) => {
-            if let rhai::EvalAltResult::ErrorFunctionNotFound(_, _) = *e {
-                Ok(game::piece_definition::PieceDefinitionMap::new())
-            } else {
-                Err(CvError::RhaiEvalAlt(e))
-            }
-        }
-    }
 }
 
 // ─── Player ID helpers ───────────────────────────────────────────────────────
@@ -435,11 +327,9 @@ impl ChessvariantEngine {
             )));
         }
 
-        // Call pieces() if present (optional). Only swallow ErrorFunctionNotFound.
-        let piece_defs = load_piece_defs(&engine, &ast, &mut scope)?;
-        let piece_defs = std::sync::Arc::new(piece_defs);
-
-        register_engine_helpers(&mut engine, piece_defs);
+        // Piece definitions and all game rules are now in the script.
+        // The engine only provides unbiased geometry helpers in engine::moves.
+        register_engine_helpers(&mut engine);
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
         let cv_engine = ChessvariantEngine {
@@ -1131,37 +1021,9 @@ impl ChessvariantEngine {
         if outcome.is_unit() {
             return None;
         }
-        if let Some(outcome_map) = outcome.clone().try_cast::<rhai::Map>() {
-            let mut json = serde_json::Map::new();
-            for (k, v) in outcome_map.iter() {
-                let val: serde_json::Value = if let Some(s) = v.clone().into_string().ok() {
-                    serde_json::Value::String(s)
-                } else if let Ok(n) = v.as_int() {
-                    serde_json::json!(n)
-                } else if let Some(arr) = v.clone().try_cast::<rhai::Array>() {
-                    let items: Vec<serde_json::Value> = arr
-                        .iter()
-                        .filter_map(|d| {
-                            if let Ok(n) = d.as_int() {
-                                Some(serde_json::json!(n))
-                            } else {
-                                d.clone().into_string().ok().map(serde_json::Value::String)
-                            }
-                        })
-                        .collect();
-                    serde_json::Value::Array(items)
-                } else {
-                    continue;
-                };
-                json.insert(k.to_string(), val);
-            }
-            return Some(serde_json::Value::Object(json));
-        }
-        // Fallback: try converting the string representation
-        outcome
-            .into_string()
-            .ok()
-            .map(|s| serde_json::Value::String(s))
+        // Use the recursive rhai→json converter for the outcome value.
+        let json = rhai_dynamic_to_json(&outcome);
+        Some(json)
     }
 
     /// Check if the script defines a function by trying to call it.

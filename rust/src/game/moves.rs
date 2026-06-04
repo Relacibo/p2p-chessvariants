@@ -133,22 +133,6 @@ pub fn pawn_dests_generic(
     result
 }
 
-/// Pseudo-legal pawn destinations. Takes references to avoid board clones.
-/// Determines direction from `color`: `"white"` moves up (row -1), `"black"` moves down
-/// (row +1). Returns empty for other colors — use `pawn_dests_generic` instead.
-pub(crate) fn pawn_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
-    let dir = match color {
-        "white" => (-1, 0),
-        "black" => (1, 0),
-        _ => return Vec::new(),
-    };
-    let start_line = if color == "white" {
-        board.rows as i32 - 2
-    } else {
-        1
-    };
-    pawn_dests_generic(board, from, dir, start_line, color)
-}
 
 /// Pseudo-legal rook destinations. Takes references to avoid board clones.
 pub(crate) fn rook_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
@@ -266,11 +250,41 @@ pub fn jumps(
 
 // ── Rhai-facing wrappers (take ownership as required by Rhai's type system) ───
 
-pub fn rhai_pawn_moves(board: BoardState, from: Coords, color: String) -> Array {
+/// Parse a Rhai `Dynamic` that represents a `[dr, dc]` pair into `(i32, i32)`.
+fn parse_delta(d: &Dynamic) -> Option<(i32, i32)> {
+    if d.is_array() {
+        let arr = d.as_array_ref().ok()?;
+        if arr.len() >= 2 {
+            let r = arr[0].as_int().ok()? as i32;
+            let c = arr[1].as_int().ok()? as i32;
+            return Some((r, c));
+        }
+    }
+    None
+}
+
+/// Generic jump (leaper) callable from Rhai scripts.
+/// `offsets` is an array of `[dr, dc]` pairs, e.g. `[[-1,0], [-1,-1], [-1,1]]`.
+/// Only squares that are in-bounds and not occupied by a piece of the same `color`
+/// are returned.
+pub fn rhai_jump(board: BoardState, from: Coords, offsets: Array, color: String) -> Array {
     let Some(from) = from.as_board_coords() else {
         return Array::new();
     };
-    to_array(pawn_dests(&board, &from, &color))
+    let offsets: Vec<(i32, i32)> = offsets.iter().filter_map(parse_delta).collect();
+    to_array(jumps(&board, &from, &offsets, &color, 0))
+}
+
+/// Generic slide (rider) callable from Rhai scripts.
+/// `dirs` is an array of `[dr, dc]` direction vectors, e.g. `[[0,1],[1,0],[-1,0],[0,-1]]`.
+/// Rays in each direction stop before a piece of the same `color` and include
+/// the first enemy piece encountered.
+pub fn rhai_slide(board: BoardState, from: Coords, dirs: Array, color: String) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    let dirs: Vec<(i32, i32)> = dirs.iter().filter_map(parse_delta).collect();
+    to_array(slides(&board, &from, &dirs, &color))
 }
 
 /// Generic pawn push callable from Rhai scripts.
@@ -339,8 +353,8 @@ mod tests {
     use rhai::{Array, Dynamic};
 
     use super::{
-        pawn_dests_generic, rhai_bishop_moves, rhai_king_moves, rhai_knight_moves,
-        rhai_pawn_moves, rhai_pawn_push, rhai_queen_moves, rhai_rook_moves,
+        rhai_bishop_moves, rhai_jump, rhai_king_moves, rhai_knight_moves,
+        rhai_pawn_push, rhai_queen_moves, rhai_rook_moves, rhai_slide,
     };
     use crate::game::{
         board::rhai_board_set,
@@ -418,57 +432,6 @@ mod tests {
     }
 
     #[test]
-    fn test_pawn_white_single_push() {
-        let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_pawn_moves(
-            board,
-            Coords::new_board_0(5, 4),
-            "white".into(),
-        ));
-        assert!(moves.contains(&(4, 4)));
-    }
-
-    #[test]
-    fn test_pawn_white_double_push_from_start() {
-        let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_pawn_moves(
-            board,
-            Coords::new_board_0(6, 4),
-            "white".into(),
-        ));
-        assert!(moves.contains(&(5, 4)));
-        assert!(moves.contains(&(4, 4)));
-    }
-
-    #[test]
-    fn test_pawn_white_capture() {
-        let board = BoardState::board_empty(8, 8);
-        let board = rhai_board_set(
-            board,
-            Coords::new_board_0(5, 5),
-            Dynamic::from(Piece::rhai_make_knight("black".into())),
-        );
-        let moves = coords_set(rhai_pawn_moves(
-            board,
-            Coords::new_board_0(6, 4),
-            "white".into(),
-        ));
-        assert!(moves.contains(&(5, 5)));
-    }
-
-    #[test]
-    fn test_pawn_black_moves() {
-        let board = BoardState::board_empty(8, 8);
-        let moves = coords_set(rhai_pawn_moves(
-            board,
-            Coords::new_board_0(1, 4),
-            "black".into(),
-        ));
-        assert!(moves.contains(&(2, 4)));
-        assert!(moves.contains(&(3, 4)));
-    }
-
-    #[test]
     fn test_bishop_moves() {
         let board = BoardState::board_empty(8, 8);
         let moves = coords_set(rhai_bishop_moves(
@@ -519,6 +482,108 @@ mod tests {
         let board = BoardState::board_empty(8, 8);
         let moves = rhai_rook_moves(board, Coords::new_reserve(0), "white".into());
         assert!(moves.is_empty());
+    }
+
+    // ── rhai_jump (generic leaper) ────────────────────────────────────────────
+
+    fn make_offsets(pairs: &[(i32, i32)]) -> Array {
+        pairs
+            .iter()
+            .map(|(r, c)| {
+                Dynamic::from_array(vec![Dynamic::from_int(*r), Dynamic::from_int(*c)])
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_generic_jump_knight_moves() {
+        let board = BoardState::board_empty(8, 8);
+        let offsets = make_offsets(&[
+            (2, 1), (2, -1), (-2, 1), (-2, -1),
+            (1, 2), (1, -2), (-1, 2), (-1, -2),
+        ]);
+        let moves = coords_set(rhai_jump(
+            board,
+            Coords::new_board_0(3, 3),
+            offsets,
+            "white".into(),
+        ));
+        assert_eq!(moves.len(), 8);
+        assert!(moves.contains(&(5, 4)));
+        assert!(moves.contains(&(1, 2)));
+    }
+
+    #[test]
+    fn test_generic_jump_blocked_by_own_piece() {
+        let board = BoardState::board_empty(8, 8);
+        let board = rhai_board_set(
+            board,
+            Coords::new_board_0(2, 2),
+            Dynamic::from(Piece::rhai_make_pawn("white".into())),
+        );
+        let offsets = make_offsets(&[(-1, -1)]);
+        let moves = coords_set(rhai_jump(
+            board,
+            Coords::new_board_0(3, 3),
+            offsets,
+            "white".into(),
+        ));
+        // Own piece at (2,2) blocks the jump
+        assert!(!moves.contains(&(2, 2)));
+    }
+
+    #[test]
+    fn test_generic_jump_captures_enemy() {
+        let board = BoardState::board_empty(8, 8);
+        let board = rhai_board_set(
+            board,
+            Coords::new_board_0(2, 2),
+            Dynamic::from(Piece::rhai_make_pawn("black".into())),
+        );
+        let offsets = make_offsets(&[(-1, -1)]);
+        let moves = coords_set(rhai_jump(
+            board,
+            Coords::new_board_0(3, 3),
+            offsets,
+            "white".into(),
+        ));
+        assert!(moves.contains(&(2, 2)));
+    }
+
+    // ── rhai_slide (generic rider) ────────────────────────────────────────────
+
+    #[test]
+    fn test_generic_slide_rook_moves() {
+        let board = BoardState::board_empty(8, 8);
+        let dirs = make_offsets(&[(1, 0), (-1, 0), (0, 1), (0, -1)]);
+        let moves = coords_set(rhai_slide(
+            board,
+            Coords::new_board_0(3, 3),
+            dirs,
+            "white".into(),
+        ));
+        assert_eq!(moves.len(), 14);
+        assert!(moves.contains(&(3, 0)));
+        assert!(moves.contains(&(7, 3)));
+    }
+
+    #[test]
+    fn test_generic_slide_blocked_by_own_piece() {
+        let board = BoardState::board_empty(8, 8);
+        let board = rhai_board_set(
+            board,
+            Coords::new_board_0(3, 5),
+            Dynamic::from(Piece::rhai_make_pawn("white".into())),
+        );
+        let dirs = make_offsets(&[(0, 1)]);
+        let moves = coords_set(rhai_slide(
+            board,
+            Coords::new_board_0(3, 3),
+            dirs,
+            "white".into(),
+        ));
+        assert!(!moves.contains(&(3, 5)));
+        assert!(!moves.contains(&(3, 6)));
     }
 
     // ── pawn_dests_generic / rhai_pawn_push ───────────────────────────────────

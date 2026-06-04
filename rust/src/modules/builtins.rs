@@ -2,14 +2,11 @@
 //!
 //! Provides:
 //!   - `engine::board::*` — board operations and movement primitives (static)
-//!   - `engine::moves::*` — pseudo-legal move generators (static)
+//!   - `engine::moves::*` — pure-geometry move generators (static)
 //!   - `log::*` — logging module
 //!
-//! Config-dependent helpers (`is_square_attacked`, `pseudo_moves`, `is_legal`)
-//! are registered directly in `lib.rs::register_engine_helpers`.
-//!
-//! Constructors (Coords, Player, Piece, Move, SelectPiece, Interact, etc.)
-//! remain global.
+//! All piece-specific rules (pawn direction, capture conditions, en passant, etc.)
+//! are defined in Rhai scripts. The engine only provides unbiased geometry helpers.
 
 use rhai::{FuncRegistration, Module};
 
@@ -73,9 +70,18 @@ pub fn create_board_submodule() -> Module {
 pub fn create_moves_submodule() -> Module {
     let mut m = Module::new();
 
-    FuncRegistration::new("pawn")
+    // Generic geometry helpers — the script composes these with conditions.
+    FuncRegistration::new("jump")
         .with_purity(true)
-        .set_into_module(&mut m, move_gen::rhai_pawn_moves);
+        .set_into_module(&mut m, move_gen::rhai_jump);
+    FuncRegistration::new("slide")
+        .with_purity(true)
+        .set_into_module(&mut m, move_gen::rhai_slide);
+    FuncRegistration::new("pawn_push")
+        .with_purity(true)
+        .set_into_module(&mut m, move_gen::rhai_pawn_push);
+
+    // Convenience per-type helpers (optional sugar for standard pieces).
     FuncRegistration::new("rook")
         .with_purity(true)
         .set_into_module(&mut m, move_gen::rhai_rook_moves);

@@ -1,4 +1,4 @@
-# Chess Variant Scripting API v1
+# Chess Variant Scripting API v2
 
 **Single Source of Truth** for the Rhai scripting interface.
 All agents (Plan, Build) MUST reference this document.
@@ -26,82 +26,143 @@ All agents (Plan, Build) MUST reference this document.
 | `allowed_player_count` | i32, [i32], or #{min,max,step?} | YES | Player count constraint |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 
-### `pieces()`
+### Piece Definitions — Script-Only
 
-```
-() -> [#{}]
-```
+> **v2 change**: Piece definitions are entirely script-defined. The engine provides **only unbiased geometry helpers** (`engine::moves::jump`, `engine::moves::slide`, `engine::moves::pawn_push`, and the per-type convenience wrappers `engine::moves::rook`, `::knight`, `::bishop`, `::queen`, `::king`). There is no `pieces()` function recognized by the engine, no `PieceDefinitionMap`, and no `pseudo_moves()` engine function.
 
-**Optional.** Called once at engine startup (after `config()`, before `init()`). Defines custom piece types stored in the engine — never serialized into game state. Both peers derive them from the same script, so they never need to be transmitted.
+Scripts define piece movement using a **two-level map structure**:
 
-Each piece must have a unique `name` that does not shadow a built-in piece type (`pawn`, `rook`, `knight`, `bishop`, `queen`, `king`).
+- **Type-level** (`PIECE_DEFS`): color-independent components (king, queen, rook, bishop, knight)
+- **Color-specific** (`COLOR_PIECE_DEFS`): per-color components (pawns with color-dependent direction)
 
-#### `Parts` — union of existing piece types
+These maps are populated by builder functions called from `init()` and stored in the game state:
 
 ```rhai
-fn pieces() {
-    [
-        // empress = rook + knight
-        #{ name: "empress",  parts: ["rook", "knight"] },
-        // princess = bishop + knight
-        #{ name: "princess", parts: ["bishop", "knight"] },
-    ]
+fn build_piece_defs() {
+    #{
+        king: [
+            #{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] },
+        ],
+        queen: [
+            #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] },
+        ],
+        rook: [
+            #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] },
+        ],
+        bishop: [
+            #{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] },
+        ],
+        knight: [
+            #{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] },
+        ],
+    }
+}
+
+fn build_color_piece_defs() {
+    #{
+        white: #{
+            pawn: [
+                // Single forward push — target must be empty
+                #{ type: "jump", offsets: [[-1, 0]],
+                   condition: |state, from, to|
+                       engine::board::get(state.board, to) == ()
+                },
+                // Double forward push — from start line, both squares empty
+                #{ type: "jump", offsets: [[-2, 0]],
+                   condition: |state, from, to|
+                       from.row == 6
+                       && engine::board::get(state.board, Coords(from.row - 1, from.col)) == ()
+                       && engine::board::get(state.board, to) == ()
+                },
+                // Diagonal captures — enemy piece or en passant
+                #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
+                   condition: |state, from, to| {
+                       let target = engine::board::get(state.board, to);
+                       let my     = engine::board::get(state.board, from);
+                       let is_enemy = (target != () && target.color != my.color);
+                       let is_ep    = (state.en_passant != () && to == state.en_passant);
+                       is_enemy || is_ep
+                   }
+                },
+            ],
+        },
+        black: #{
+            pawn: [
+                #{ type: "jump", offsets: [[1, 0]],
+                   condition: |state, from, to|
+                       engine::board::get(state.board, to) == ()
+                },
+                // ... double push and captures with opposite direction
+            ],
+        },
+    }
 }
 ```
 
-`parts` lists any combination of built-in piece names and other custom piece names. Pseudo-moves are the union of all component types. Cycles are rejected at startup.
+#### Component types and `condition` closures
 
-#### `Components` — explicit movement rules
+Each component is an object map with fields:
+
+| field | type | required | description |
+|-------|------|----------|-------------|
+| `type` | string | YES | `"jump"` or `"slide"` |
+| `offsets` | `[[i32,i32]]` | for `"jump"` | Leap offset pairs |
+| `dirs` | `[[i32,i32]]` | for `"slide"` | Ray direction vectors |
+| `condition` | closure `\|state,from,to\| -> bool` | NO | Pseudo-legal constraint filter |
+
+**Conditions** are Rhai closures that receive the game state, source coordinate, and destination. They are called by the script's `get_pseudo_dests()` function to filter pseudo-legal destinations. Conditions can access `engine::board::get` and any state keys (e.g., `state.en_passant`).
+
+#### Required script helpers
+
+Every variant script must implement (or copy) these helper functions:
 
 ```rhai
-fn pieces() {
-    [
-        // lance: slides forward only (white = up = row -1)
-        #{
-            name: "lance",
-            components: [
-                #{ type: "slide", dirs: [[-1, 0]] }
-            ]
-        },
-
-        // ferz: jumps one step diagonally
-        #{
-            name: "ferz",
-            components: [
-                #{ type: "jump", offsets: [[1,1],[1,-1],[-1,1],[-1,-1]] }
-            ]
-        },
-
-        // teleporter knight: jumps to knight offsets on board 1
-        #{
-            name: "phantom_knight",
-            components: [
-                #{
-                    type: "jump",
-                    offsets: [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]],
-                    target_board_delta: 1   // lands on board index + 1
-                }
-            ]
-        },
-    ]
+// Lookup: tries color-specific then type-level
+fn get_piece_defs(piece, state) {
+    if piece.color in state.color_piece_defs && piece.type in state.color_piece_defs[piece.color] {
+        return state.color_piece_defs[piece.color][piece.type];
+    }
+    if piece.type in state.piece_defs { return state.piece_defs[piece.type]; }
+    [];
 }
-```
 
-#### Component types
+// Generate pseudo-legal destinations using geometry helpers + conditions
+fn get_pseudo_dests(board, from, state) {
+    let piece = engine::board::get(board, from);
+    if piece == () { return []; }
+    let comps = get_piece_defs(piece, state);
+    if comps == () || comps.len == 0 { return []; }
+    let dests = [];
+    for comp in comps {
+        let raw = switch comp.type {
+            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color),
+            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
+            _ => [],
+        };
+        if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
+        for d in raw { dests.push(d); }
+    }
+    dests
+}
 
-| type | required fields | optional fields | description |
-|------|----------------|-----------------|-------------|
-| `slide` | `dirs: [[dr,dc],…]` | — | Ray in each direction. Stops at first occupied square (can capture enemy, blocked by own). Board stays the same. |
-| `jump` | `offsets: [[dr,dc],…]` | `target_board_delta: i32` (default `0`) | Fixed offset, ignores blocking pieces. Destination board = `from.board_index + target_board_delta`. Out-of-range board indices are silently filtered. |
+// Attack detection
+fn sq_attacked_by(board, square, enemy_colors, state) {
+    if enemy_colors == () || enemy_colors.len == 0 { return false; }
+    for r in 0..board.rows { for c in 0..board.cols {
+        let pos = Coords(r, c); let piece = engine::board::get(board, pos);
+        if piece != () && enemy_colors.contains(piece.color) {
+            let dests = get_pseudo_dests(board, pos, state);
+            for d in dests { if d == square { return true; } }
+        }
+    }}
+    false
+}
 
-#### Using custom pieces in scripts
-
-```rhai
-// 2-arg form reads piece type and color from the board automatically:
-let dests = pseudo_moves(state.board, from);
-
-// 4-arg form lets you specify piece type and color explicitly (also works):
-let dests = engine::pseudo_moves(state.board, from, "empress", player.color);
+fn is_in_check(board, king_color, enemy_colors, state) {
+    let king_pos = engine::board::find(board, Piece(king_color, "king"));
+    if king_pos == () || king_pos.len == 0 { return false; }
+    sq_attacked_by(board, king_pos[0], enemy_colors, state)
+}
 ```
 
 ---
@@ -117,32 +178,21 @@ let dests = engine::pseudo_moves(state.board, from, "empress", player.color);
 ```rhai
 #{
     board: Board,
+    piece_defs: #{/* from build_piece_defs() */},
+    color_piece_defs: #{/* from build_color_piece_defs() */},
     players: [
         #{
-            // Player identity — id is the canonical reference
-            id: i32,                // Required: unique player identifier
-            name?: string,          // Optional: display name (e.g. "Alice")
-            home_board?: i32,       // Optional: default board when pressing "home" (default 0)
-            data?: #{},             // Optional: arbitrary script-defined metadata (available as Rhai value)
-
-            // Game role — which board, color, and team this player controls
+            id: i32,
+            name?: string,
+            home_board?: i32,
+            data?: #{},
             board: i32,
             color: string,
             team: i32,
-            // Optional: how this player views the board.
-            // Overrides team orientation. See §7 for values and resolution order.
             orientation?: string,
         },
     ],
-    // Optional: team-level orientation defaults (convenience, may be omitted).
-    teams?: [
-        #{
-            id: i32,
-            orientations: [
-                #{ board: i32, orientation: string },
-            ],
-        },
-    ],
+    teams?: [ #{ id: i32, orientations: [ #{ board: i32, orientation: string } ] } ],
     // custom state keys ...
 }
 ```
@@ -163,32 +213,34 @@ fn init(player_count) {
             #{ id: 0, name: "White", board: 0, color: "white", team: 0, orientation: "normal" },
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1, orientation: "flipped" },
         ],
+        piece_defs: build_piece_defs(),
+        color_piece_defs: build_color_piece_defs(),
         // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
     }
 }
 ```
 
-**4-player chess** — using team-level orientation:
+**4-player chess** — each color gets its own pawn direction:
 ```rhai
-fn init(player_count) {
+fn build_color_piece_defs() {
     #{
-        board: /* ... */,
-        players: [
-            #{ id: 0, name: "North", board: 0, color: "north", team: 0 },
-            #{ id: 1, name: "East",  board: 0, color: "east",  team: 1 },
-            #{ id: 2, name: "South", board: 0, color: "south", team: 2 },
-            #{ id: 3, name: "West",  board: 0, color: "west",  team: 3 },
-        ],
-        teams: [
-            #{ id: 0, orientations: [#{ board: 0, orientation: "normal" }] },
-            #{ id: 1, orientations: [#{ board: 0, orientation: "clockwise" }] },
-            #{ id: 2, orientations: [#{ board: 0, orientation: "flipped" }] },
-            #{ id: 3, orientations: [#{ board: 0, orientation: "counterclockwise" }] },
-        ],
-        // Variant-defined keys: e.g. turn: 0, turn_order, …
+        yellow: #{ pawn: [
+            #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+            #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
+            #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
+        ]},
+        green:  #{ pawn: [
+            #{ type: "jump", offsets: [[0,-1]], condition: ... },
+            #{ type: "jump", offsets: [[0,-2]], condition: ... },
+            #{ type: "jump", offsets: [[-1,-1],[1,-1]], condition: ... },
+        ]},
+        red:    #{ pawn: [ /* moves north */ ] },
+        blue:   #{ pawn: [ /* moves east */ ] },
     }
 }
 ```
+
+---
 
 ### `valid_moves(state, player_id)`
 
@@ -199,14 +251,11 @@ fn init(player_count) {
 **Mandatory.** Returns all legal `Move` actions for the given player (identified by `player_id`).
 **Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
-The script looks up the player from `state.players` by id:
-
 ```rhai
 fn valid_moves(state, player_id) {
     if "outcome" in state { return []; }
     let player = state.players.find(|p| p.id == player_id);
-    // Variant-defined turn check, e.g.:
-    // if player_id != state.turn { return []; }
+    if player_id != state.turn { return []; }
 
     let candidates = [];
     for r in 0..8 {
@@ -214,7 +263,7 @@ fn valid_moves(state, player_id) {
             let from = Coords(r, c);
             let piece = engine::board::get(state.board, from);
             if piece != () && piece.color == player.color {
-                let dests = pseudo_moves(state.board, from);
+                let dests = get_pseudo_dests(state.board, from, state);
                 for to in dests {
                     candidates.push(Move(from, to));
                 }
@@ -229,6 +278,7 @@ fn valid_moves(state, player_id) {
 }
 ```
 
+- Uses script-level `get_pseudo_dests()` instead of engine `pseudo_moves()`.
 - Returns `[]` if the player has no legal moves.
 
 ### `is_game_over(state, all_valid_moves)`
@@ -237,18 +287,7 @@ fn valid_moves(state, player_id) {
 (#{}, [ #{ player: Player, moves: [Move] } ]) -> bool
 ```
 
-**Mandatory.** Called after `valid_moves` has been computed for **all** players — even when every player has an empty moves array (stalemate / game-over scenarios).
-
-`all_valid_moves` is an array where each entry has the player and their legal moves:
-
-```rhai
-[
-    #{ player: #{ id: 0, board: 0, color: "white", team: 0 }, moves: [Move, Move] },
-    #{ player: #{ id: 1, board: 0, color: "black", team: 1 }, moves: [] },
-]
-```
-
-**Typical implementation** — all players have no moves:
+**Mandatory.** Called after `valid_moves` has been computed for **all** players.
 
 ```rhai
 fn is_game_over(state, all_valid_moves) {
@@ -260,24 +299,6 @@ fn is_game_over(state, all_valid_moves) {
 }
 ```
 
-Or **specific variant** — current player has no moves:
-
-```rhai
-fn is_game_over(state, all_valid_moves) {
-    for entry in all_valid_moves {
-        // Variant-defined: check if current player has no moves
-        // if entry.player.id == state.turn && entry.moves.len == 0 {
-            return true;
-        }
-    }
-    false
-}
-```
-
-- Returns `true` → engine reads `state.outcome` for the result.
-- Returns `false` → game continues.
-- Outcome constructors: `Winner(idx)`, `Winners(["color",...])`, `Draw()` — set by `handle_action`.
-
 ### `handle_action(state, player_id, action)`
 
 ```
@@ -287,59 +308,40 @@ fn is_game_over(state, all_valid_moves) {
 **Mandatory.** The single action reducer. Dispatches on `action.type`.
 
 **Contract:** `handle_action` is responsible for ALL legality enforcement:
-- Turn order (whose turn it is)
-- Piece ownership (player can only move own pieces)
-- No self-capture
-- **King safety** — after applying the move, throw if the acting player's king is now in check
-
-Throwing from `handle_action` signals an illegal action. `valid_moves` uses this to filter candidates (try/catch pattern).
+- Turn order, piece ownership, no self-capture
+- **King safety** — use script-level `is_in_check()` after applying the move
 
 ```rhai
 fn handle_action(state, player_id, action) {
     let player = state.players.find(|p| p.id == player_id);
     if action.type == "move" {
-        // Variant-defined turn check, e.g.:
-        // if state.turn != player_id { throw "not your turn"; }
+        if state.turn != player_id { throw "not your turn"; }
         let piece = engine::board::get(state.board, action.from);
         if piece == () { throw "no piece at source square"; }
         if piece.color != player.color { throw "not your piece"; }
 
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
 
-        // King safety: throw if own king is left in check
+        // King safety
         let enemy_colors = state.players
             .filter(|p| p.team != player.team)
             .map(|p| p.color);
-        if is_in_check(new_board, player.color, enemy_colors) {
+        if is_in_check(new_board, player.color, enemy_colors, state) {
             throw "move leaves king in check";
         }
 
         state.board = new_board;
-        state.turn = if state.turn == "white" { "black" } else { "white" };
-    }
-    if action.type == "interact" && action.element_id == "summon_btn" {
-        // Example: "Summon" button places a pawn in the center of the board.
-        let spawn = Coords(3, 3); // d5-ish
-        state.board = engine::board::set(state.board, spawn, Piece(player.color, "pawn"));
-        state.summoned = true;
+        state.turn = /* next player */;
     }
     if action.type == "select_piece" {
         // action.piece — user picked from PiecePicker UI element
     }
     if action.type == "cancel" {
-        // user dismissed PiecePicker without selecting — abort pending sequence
+        // user dismissed PiecePicker without selecting
     }
     state
 }
 ```
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `#{}` | Current game state |
-| `player_id` | i32 | Submitting player's id — look up from `state.players` |
-| `action` | `Action` | See Section 2 |
-
-**Game-over:** Set `state.outcome` before returning. Engine reads it when `is_game_over` returns `true`.
 
 ### `derive_ui(state, player_id)`
 
@@ -349,43 +351,6 @@ fn handle_action(state, player_id, action) {
 
 **Optional** (returns `#{}` if absent). Returns UI elements for the given player.
 Pure function of `state` and `player_id`.
-
-```rhai
-fn derive_ui(state, player_id) {
-    let player = state.players.find(|p| p.id == player_id);
-    let ui = #{};
-
-    // "Summon" button: available once per game, lets the player spawn a pawn
-    // in the center. Pressing it emits Interact("summon_btn").
-    // Variant-defined turn check for UI, e.g.:
-    // if player.id == state.turn && !state.summoned {
-        ui.summon_btn = #{ type: "button", label: "Summon Pawn" };
-    }
-
-    // PiecePicker for promotion
-    if state.pending == "promotion" {
-        ui.promo_pick = #{
-            type: "piece_picker",
-            pieces: [
-                Piece(player.color, "queen"),
-                Piece(player.color, "rook"),
-                Piece(player.color, "bishop"),
-                Piece(player.color, "knight"),
-            ],
-        };
-    }
-
-    // Reserve pile
-    if state.reserve != () && state.reserve[player.color].len > 0 {
-        ui.reserve = #{ type: "reserve_pile", pieces: state.reserve[player.color] };
-    }
-
-    ui
-}
-```
-
-- Called after every `handle_action` and on UI refresh.
-- Element IDs must be unique; engine throws on duplicates.
 
 ---
 
@@ -402,12 +367,10 @@ Move(from, to)
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `"move"` | Discriminator |
-| `from` | `Coords` | Board square or `ReserveCoords(i)`. Access via `.type`, `.row`, `.col`, `.board_index`, `.index` getters. |
-| `to` | `Coords` | Destination board square (always a board coordinate) |
+| `from` | `Coords` | Board square or `ReserveCoords(i)` |
+| `to` | `Coords` | Destination board square |
 
-Returned by `valid_moves`. Reserve drops use `from = ReserveCoords(i)`.
-
-Moves are compared by structural equality of their `from` and `to` fields.
+Returned by `valid_moves`. Moves are compared by structural equality of their `from` and `to` fields.
 
 ### `SelectPiece`
 
@@ -420,21 +383,11 @@ SelectPiece(piece)
 | `type` | `"select_piece"` | Discriminator |
 | `piece` | `Piece` | Chosen piece |
 
-Emitted by the frontend when the user picks from a `PiecePicker` UI element.
-**Not** returned by `valid_moves`. Script must validate state conditions in `handle_action`.
-
 ### `Interact`
 
 ```rhai
 Interact(element_id)
 ```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | `"interact"` | Discriminator |
-| `element_id` | string | Matches key in `derive_ui` return map |
-
-Emitted when the user clicks a `Button` UI element. **Not** returned by `valid_moves`.
 
 ### `Cancel`
 
@@ -442,122 +395,28 @@ Emitted when the user clicks a `Button` UI element. **Not** returned by `valid_m
 Cancel()
 ```
 
-No payload. Emitted when the user dismisses a `PiecePicker` without selecting.
-**Not** returned by `valid_moves`.
-
 ---
 
 ## 3. UI Element Types
 
-Returned by `derive_ui` as values in the element map. Every element has a `type` discriminator. Pure data — no closures.
-
 ### `Button`
-
 ```rhai
 #{ type: "button", label: string, disabled?: bool }
 ```
 
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `type` | `"button"` | YES | — |
-| `label` | string | YES | — |
-| `disabled` | bool | NO | `false` |
-
-Clicking an enabled button emits `Interact(element_id)`. A disabled button is rendered greyed out and ignores clicks.
-
 ### `Banner`
-
 ```rhai
 #{ type: "banner", text: string, style?: "info" | "warning" | "error" }
 ```
 
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `type` | `"banner"` | YES | — |
-| `text` | string | YES | — |
-| `style` | string | NO | `"info"` |
-
-Non-interactive. Rendered as a colored bar with the text. Style controls background color.
-
 ### `ReservePile`
-
 ```rhai
 #{ type: "reserve_pile", pieces: [Piece, ...], board_index?: i32 }
 ```
 
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `type` | `"reserve_pile"` | YES | — |
-| `pieces` | [Piece] | YES | — |
-| `board_index` | i32 | NO | `0` |
-
-Dragging/clicking a reserve piece emits `Move(ReserveCoords(i), to)` when the target is a valid board square. `board_index` controls which board slot the pile is anchored to.
-
 ### `PiecePicker`
-
 ```rhai
 #{ type: "piece_picker", pieces: [Piece, ...], cancelable?: bool, title?: string }
-```
-
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `type` | `"piece_picker"` | YES | — |
-| `pieces` | [Piece] | YES | — |
-| `cancelable` | bool | NO | `true` |
-| `title` | string | NO | — |
-
-The frontend renders an overlay listing the pieces as selectable sprites.
-
-- Clicking a piece emits `SelectPiece(piece)`.
-- If `cancelable` is `true`, a cancel affordance is shown; dismissing or tapping the cancel area emits `Cancel()`.
-- If `cancelable` is `false`, the picker is mandatory — no dismiss possible. Use for forced choices like pawn promotion where the player must pick a piece.
-
-Shown when present in `derive_ui`; hidden when absent.
-
-#### Example: forced promotion picker (no cancel)
-
-```rhai
-fn derive_ui(state, player_id) {
-    let player = state.players.find(|p| p.id == player_id);
-    if "promotion_pending" in state && state.promotion_pending != () {
-        let pp = state.promotion_pending;
-        if pp.color == player.color {
-            return #{
-                promotion: #{
-                    type: "piece_picker",
-                    cancelable: false,
-                    title: "Promote pawn to:",
-                    pieces: [
-                        Piece(pp.color, "queen"),
-                        Piece(pp.color, "rook"),
-                        Piece(pp.color, "bishop"),
-                        Piece(pp.color, "knight"),
-                    ],
-                },
-            };
-        }
-    }
-    #{}
-}
-```
-
-#### Example: optional summon picker (cancel allowed)
-
-```rhai
-fn derive_ui(state, player_id) {
-    let player = state.players.find(|p| p.id == player_id);
-    if player_id == state.turn && !state.summoned {
-        ui.summon_btn = #{ type: "button", label: "Summon Piece" };
-    }
-    if "summon_pending" in state {
-        result.choose_piece = #{
-            type: "piece_picker",
-            cancelable: true,
-            pieces: [Piece(player.color, "knight"), Piece(player.color, "bishop")],
-        };
-    }
-    result
-}
 ```
 
 ---
@@ -569,8 +428,6 @@ fn derive_ui(state, player_id) {
 ```
 new ChessvariantEngine(script, player_count)
 → calls config() → validates api_version=1
-→ calls pieces() (optional — absent fn silently skipped, errors propagate)
-→ registers engine helpers with custom piece definitions
 → calls init() → returns engine
 ```
 
@@ -596,53 +453,20 @@ Return { board_state, ui, game_over: null? } to frontend
 ```
 
 ### Phase 2a — local player first
-
 ```
-valid_moves(new_state, local_player_id)  → [Move, ...]
-  → postMessage { _phase: "validMoves", player, moves } to frontend
+valid_moves(new_state, local_player_id) → [Move, ...]
 ```
 
 ### Phase 2b — remaining players
-
 ```
 for each player in state.players except local:
     valid_moves(new_state, player.id) → [Move, ...]
 ```
 
 ### Phase 2c — game over check
-
 ```
 all_valid_moves = collected from Phase 2a + 2b
 is_game_over(new_state, all_valid_moves) → bool
-  │
-  ├─ true  → read new_state.outcome
-  │          → postMessage { _phase: "gameOver", result: { type, player? } }
-  │
-  └─ false → game continues
-```
-
-### State Queries
-
-```
-engine.boardStateJson()    → string
-engine.playersJson()       → string
-engine.variantConfigJson() → string
-engine.name()              → string
-engine.stateJson()         → string
-```
-
-### Valid Moves Poll
-
-```
-engine.validMovesForPlayerJson(player_json) → string
-// Computes valid_moves for a single player (Phase 2a caller).
-```
-
-### UI Refresh
-
-```
-engine.deriveUiJson(player_json) → string
-// Calls derive_ui(state, player_id). Does not modify state.
 ```
 
 ---
@@ -665,27 +489,38 @@ engine.deriveUiJson(player_json) → string
 | `xray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` |
 | `jump` | `(Board, Coords, [[i32,i32]]) -> [{coords, piece}]` |
 
-### `engine::moves` — Pseudo-Legal Move Generators
+### `engine::moves` — Pure-Geometry Move Generators
+
+The engine provides **unbiased geometry helpers**. All piece-specific rules (pawn direction, capture conditions, en passant) are defined in the script via conditions.
+
+#### Generic helpers (composable by scripts)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `jump` | `(Board, Coords, [[i32,i32]], color) -> [Coords]` | Generic leaper. Returns in-bounds destination squares not occupied by a same-colored piece. No blocking — each offset is independent. |
+| `slide` | `(Board, Coords, [[i32,i32]], color) -> [Coords]` | Generic rider. Rays in each direction, stops before same-colored piece, includes first enemy. |
+| `pawn_push` | `(Board, Coords, color, dr, dc, start_line) -> [Coords]` | Convenience: forward single/double push + diagonal captures perpendicular to `(dr,dc)`. `start_line=-1` disables double push. |
+
+#### Per-type convenience wrappers (optional sugar)
 
 | Function | Signature |
 |----------|-----------|
-| `pawn` | `(Board, Coords, color) -> [Coords]` |
 | `rook` | `(Board, Coords, color) -> [Coords]` |
 | `knight` | `(Board, Coords, color) -> [Coords]` |
 | `bishop` | `(Board, Coords, color) -> [Coords]` |
 | `queen` | `(Board, Coords, color) -> [Coords]` |
 | `king` | `(Board, Coords, color) -> [Coords]` |
 
+There is **no** `engine::moves::pawn` function. Pawn movement is defined entirely in the script via components with conditions.
+
 ### `engine` — Helpers
 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
-| `is_square_attacked` | `(Board, Coords, color) -> bool` | Square attacked by pieces of color? |
-| `pseudo_moves` | `(Board, Coords) -> [Coords]` | Pseudo-moves for piece at coords (reads piece from board) |
-| `pseudo_moves` | `(Board, Coords, piece_type, color) -> [Coords]` | Pseudo-moves with explicit type and color |
-| `is_in_check` | `(Board, king_color, [enemy_color]) -> bool` | Is the king of `king_color` currently in check? Pure board scan — caller must apply any move first. |
-| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow merge |
+| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow map merge |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess |
+
+> **Removed in v2**: `pseudo_moves` (both forms), `is_square_attacked`, `is_in_check`, `pieces()` — all replaced by script-side equivalents using the generic geometry helpers.
 
 ### `engine` — Constructors
 
@@ -699,42 +534,11 @@ engine.deriveUiJson(player_json) → string
 | `Interact(element_id)` | Interact action |
 | `Cancel()` | Cancel action |
 | `Piece(color, type)` | Piece |
-| `Player(id)` | Player by numeric id (preferred) |
-| `Player(id, name)` | Player by id with display name |
-| `Player(id, name, home_board)` | Player with id, name, and home board |
-| `Player(id, name, home_board, data)` | Player with arbitrary script data |
-| `Player(color)` | Player by color (backward compat) |
-| `Player(board, color)` | Player by board + color (backward compat) |
 | `Winner(idx)` | Game outcome |
 | `Winners([colors])` | Game outcome |
 | `Draw()` | Game outcome |
 
-Player has an optional `data` field (like `Piece.data`) for script-defined metadata:
-
-```rhai
-let p = Player(0, "Alice", 0, #{ score: 42 });
-// p.data  →  #{ score: 42 }
-```
-
-The `data` field is extracted from `state.players` Rhai map entries if a `data` key is present, and is included in `validMovesForPlayerJson` and `validMovesAllJson` output.
-
-Coords is an **opaque Rhai type** with the following getter properties:
-
-| Property | Type | Board | Reserve |
-|----------|------|-------|---------|
-| `coords.type` | string | `"board"` | `"reserve"` |
-| `coords.row` | i32 | row | 0 |
-| `coords.col` | i32 | column | 0 |
-| `coords.board_index` | i32 | board index | 0 |
-| `coords.index` | i32 | 0 | reserve slot index |
-
-JSON serialization (tagged enum):
-```json
-// Board square
-{ "type": "board", "row": 1, "col": 2, "boardIndex": 0 }
-// Reserve slot
-{ "type": "reserve", "index": 0, "boardIndex": 0 }
-```
+Coords is an **opaque Rhai type** with getters: `.type`, `.row`, `.col`, `.board_index`, `.index`.
 
 ### `log`
 
@@ -747,32 +551,18 @@ JSON serialization (tagged enum):
 
 ---
 
-## 7. Board Orientation
-
-Each player sees the board from their own perspective. Orientation controls how the PixiJS renderer rotates/flips the board for that player's slot.
+## 6. Board Orientation
 
 | Value | Degrees | Description |
 |-------|---------|-------------|
 | `"normal"` | 0° | Board as-is (row 0 at top) |
-| `"flipped"` | 180° | Upside-down (standard black view in chess) |
-| `"clockwise"` | 90° CW | Rotated clockwise (e.g. east player in 4-player) |
-| `"counterclockwise"` | 90° CCW | Rotated counter-clockwise (e.g. west player in 4-player) |
+| `"flipped"` | 180° | Upside-down |
+| `"clockwise"` | 90° CW | Rotated clockwise |
+| `"counterclockwise"` | 90° CCW | Rotated counter-clockwise |
 
-**Resolution order** (highest wins):
-1. `player.orientation` in `init()` result — per-player explicit override
-2. `teams[player.team].orientations` entry with matching `board` — team-level default
-3. Built-in default: team `0` → `"normal"`, team `1` → `"flipped"`, all others → `"normal"`
+---
 
-The engine exposes resolved orientation via `playersJson()`:
-```json
-[
-  { "id": 0, "name": "White", "board": 0, "color": "white", "team": 0, "home_board": 0, "orientation": "normal" },
-  { "id": 1, "name": "Black", "board": 0, "color": "black", "team": 1, "home_board": 0, "orientation": "flipped" }
-]
-```
-
-The UI additionally provides a **rotate button** in the side panel that cycles the local view through all four orientations, overriding the script default at runtime (user preference, not persisted).
-
+## 7. Guarantees
 
 | Guarantee | Enforcement |
 |-----------|-------------|
@@ -782,3 +572,4 @@ The UI additionally provides a **rotate button** in the side panel that cycles t
 | State immutability | Engine never mutates state map. Script owns all transitions. |
 | Deterministic replay | `handle_action` is pure: same `(player, action)` → same state. |
 | Game-over is terminal | Once `is_game_over` returns `true`, engine reads `state.outcome` and stops calling script functions. |
+| Piece definitions are script-owned | Engine provides only unbiased geometry helpers. All piece rules, conditions, and direction are in the script. |
