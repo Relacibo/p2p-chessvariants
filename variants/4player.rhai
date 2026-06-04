@@ -37,23 +37,23 @@ fn init(player_count) {
     for i in 0..rb.len{board=engine::board::set(board,Coords(13,3+i,0),rb[i]);board=engine::board::set(board,Coords(12,3+i,0),Piece("red","pawn"))}
     let bb=[Piece("blue","rook"),Piece("blue","knight"),Piece("blue","bishop"),Piece("blue","queen"),Piece("blue","king"),Piece("blue","bishop"),Piece("blue","knight"),Piece("blue","rook")];
     for i in 0..bb.len{board=engine::board::set(board,Coords(3+i,0,0),bb[i]);board=engine::board::set(board,Coords(3+i,1,0),Piece("blue","pawn"))}
-    #{ board: board, players: [#{id:0,name:"Yellow",board:0,color:"yellow",team:0},#{id:1,name:"Green",board:0,color:"green",team:1},#{id:2,name:"Red",board:0,color:"red",team:2},#{id:3,name:"Blue",board:0,color:"blue",team:3}], teams: [#{id:0,orientations:[#{board:0,orientation:"flipped"}]},#{id:1,orientations:[#{board:0,orientation:"clockwise"}]},#{id:2,orientations:[#{board:0,orientation:"normal"}]},#{id:3,orientations:[#{board:0,orientation:"counterclockwise"}]}], turn:2, turn_order:[2,3,0,1] }
+     #{ board: board, players: [#{id:0,name:"Yellow",team:0,data:#{color:"yellow"}},#{id:1,name:"Green",team:1,data:#{color:"green"}},#{id:2,name:"Red",team:2,data:#{color:"red"}},#{id:3,name:"Blue",team:3,data:#{color:"blue"}}], teams: [#{id:0,orientations:[#{board:0,orientation:"flipped"}]},#{id:1,orientations:[#{board:0,orientation:"clockwise"}]},#{id:2,orientations:[#{board:0,orientation:"normal"}]},#{id:3,orientations:[#{board:0,orientation:"counterclockwise"}]}], turn:2, turn_order:[2,3,0,1] }
 }
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; } if player.id != state.turn { return []; }
     let moves = [];
-    for r in 0..14 { for c in 0..14 { let piece = engine::board::get(state.board, Coords(r, c)); if piece != () && piece.color == player.color { let from = Coords(r, c); let dests = get_pseudo_dests(state.board, from, state); for to in dests { let bt = engine::board::get(state.board, to); if bt != () && bt.color == player.color { continue; } moves.push(Move(from, to)); } } } }
+    for r in 0..14 { for c in 0..14 { let piece = engine::board::get(state.board, Coords(r, c)); if piece != () && piece.color == player.data.color { let from = Coords(r, c); let dests = get_pseudo_dests(state.board, from, state); for to in dests { let bt = engine::board::get(state.board, to); if bt != () && bt.color == player.data.color { continue; } moves.push(Move(from, to)); } } } }
     moves
 }
 
 fn handle_action(state, player, action) {
     if state.turn != player.id { throw `not ${player.id}'s turn`; }
     if action.type == "move" {
-        let src = engine::board::get(state.board, action.from); if src == () { throw "no piece there"; } if src.color != player.color { throw "not yours"; }
-        let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player.color { throw "own piece"; }
+        let src = engine::board::get(state.board, action.from); if src == () { throw "no piece there"; } if src.color != player.data.color { throw "not yours"; }
+        let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player.data.color { throw "own piece"; }
         state.board = engine::board::move_piece(state.board, action.from, action.to);
-        for p in state.players { let kings = engine::board::find(state.board, Piece(p.color, "king")); if kings.len == 0 { let survivors = state.players.filter(|q| q.color != p.color); state.outcome = Winner(survivors[0].team); return state; } }
+        for p in state.players { let kings = engine::board::find(state.board, Piece(p.data.color, "king")); if kings.len == 0 { let survivors = state.players.filter(|q| q.data.color != p.data.color); state.outcome = Winner(survivors[0].team); return state; } }
         let idx = state.turn_order.index_of(player.id); state.turn = state.turn_order[(idx + 1) % 4];
     }
     state

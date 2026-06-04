@@ -26,24 +26,24 @@ fn get_pseudo_dests(board, from, state) {
 
 fn init(player_count) {
     let b0=standard_start_position();let b1=standard_start_position();
-    #{ board:[b0,b1], players:[#{id:0,name:"White A",board:0,color:"white",team:0,orientation:"normal"},#{id:1,name:"Black A",board:0,color:"black",team:1,orientation:"flipped"},#{id:2,name:"White B",board:1,color:"white",team:1,orientation:"normal"},#{id:3,name:"Black B",board:1,color:"black",team:0,orientation:"flipped"}], reserves:#{w0:[],b0:[],w1:[],b1:[]}, turn_order:[[0,1],[2,3]], current_turn:[0,2] }
+     #{ board:[b0,b1], players:[#{id:0,name:"White A",team:0,orientation:"normal",data:#{color:"white",board:0}},#{id:1,name:"Black A",team:1,orientation:"flipped",data:#{color:"black",board:0}},#{id:2,name:"White B",team:1,orientation:"normal",data:#{color:"white",board:1}},#{id:3,name:"Black B",team:0,orientation:"flipped",data:#{color:"black",board:1}}], reserves:#{w0:[],b0:[],w1:[],b1:[]}, turn_order:[[0,1],[2,3]], current_turn:[0,2] }
 }
 
 fn reserve_key(color, board_idx) { color[0].to_string() + board_idx.to_string() }
 fn partner_key(color, board_idx) { let pboard = if board_idx == 0 { 1 } else { 0 }; let pcolor = if color == "white" { "black" } else { "white" }; reserve_key(pcolor, pboard) }
 
 fn valid_moves(state, player) {
-    if "outcome" in state { return []; } let current = state.current_turn[player.board]; if player.id != current { return []; }
-    let board = state.board[player.board]; let moves = []; let cond_state = #{ board: board };
-    let pieces = engine::board::find_by_color(board, player.color);
-    for entry in pieces { let from_local = entry.coords; let dests = get_pseudo_dests(board, from_local, cond_state); for to_local in dests { let bt = engine::board::get(board, to_local); if bt != () && bt.color == player.color { continue; } moves.push(Move(Coords(from_local.row,from_local.col,player.board),Coords(to_local.row,to_local.col,player.board))); } }
-    let rkey = reserve_key(player.color, player.board);
-    if rkey in state.reserves && state.reserves[rkey].len > 0 { for r in 0..8 { for c in 0..8 { let p = engine::board::get(board, Coords(r,c)); if p == () { for i in 0..state.reserves[rkey].len { moves.push(Move(ReserveCoords(i),Coords(r,c,player.board))); } } } } }
+    if "outcome" in state { return []; } let current = state.current_turn[player.data.board]; if player.id != current { return []; }
+    let board = state.board[player.data.board]; let moves = []; let cond_state = #{ board: board };
+    let pieces = engine::board::find_by_color(board, player.data.color);
+    for entry in pieces { let from_local = entry.coords; let dests = get_pseudo_dests(board, from_local, cond_state); for to_local in dests { let bt = engine::board::get(board, to_local); if bt != () && bt.color == player.data.color { continue; } moves.push(Move(Coords(from_local.row,from_local.col,player.data.board),Coords(to_local.row,to_local.col,player.data.board))); } }
+    let rkey = reserve_key(player.data.color, player.data.board);
+    if rkey in state.reserves && state.reserves[rkey].len > 0 { for r in 0..8 { for c in 0..8 { let p = engine::board::get(board, Coords(r,c)); if p == () { for i in 0..state.reserves[rkey].len { moves.push(Move(ReserveCoords(i),Coords(r,c,player.data.board))); } } } } }
     moves
 }
 
 fn handle_action(state, player, action) {
-    let col = player.color; let brd = player.board; let turn = state.current_turn[brd]; if player.id != turn { throw `player ${player.id} cannot move on board ${brd} — it's player ${turn}'s turn`; }
+    let col = player.data.color; let brd = player.data.board; let turn = state.current_turn[brd]; if player.id != turn { throw `player ${player.id} cannot move on board ${brd} — it's player ${turn}'s turn`; }
     if action.type == "move" {
         let board = state.board[brd];
         if action.from.type == "reserve" {
@@ -57,7 +57,7 @@ fn handle_action(state, player, action) {
             let dst = engine::board::get(board, to); if dst != () && dst.color == col { throw "cannot capture own piece"; }
             state.board[brd] = engine::board::move_piece(board, from, to);
             if dst != () { let pkey = partner_key(col, brd); if !(pkey in state.reserves) { state.reserves[pkey] = []; } state.reserves[pkey].push(dst); }
-            for b in 0..2 { let bb = state.board[b]; for pl in state.players { if pl.board == b { let kings = engine::board::find(bb, Piece(pl.color, "king")); if kings.len == 0 { let other_team = if pl.team == 0 { 1 } else { 0 }; state.outcome = Winner(other_team); return state; } } } }
+            for b in 0..2 { let bb = state.board[b]; for pl in state.players { if pl.data.board == b { let kings = engine::board::find(bb, Piece(pl.data.color, "king")); if kings.len == 0 { let other_team = if pl.team == 0 { 1 } else { 0 }; state.outcome = Winner(other_team); return state; } } } }
         }
         let turn_order = state.turn_order[brd]; let cur_idx = turn_order.index_of(player.id); let next_idx = (cur_idx + 1) % turn_order.len; state.current_turn[brd] = turn_order[next_idx];
     }
@@ -68,6 +68,6 @@ fn derive_game_progress(state, all_valid_moves) { if "outcome" in state { return
 
 fn derive_ui(state, player) {
     let ui = #{};
-    for p in state.players { let rkey = reserve_key(p.color, p.board); if rkey in state.reserves && state.reserves[rkey].len > 0 { ui[`reserve_${rkey}`] = #{ type:"reserve_pile", pieces:state.reserves[rkey], board_index:p.board }; } }
+    for p in state.players { let rkey = reserve_key(p.data.color, p.data.board); if rkey in state.reserves && state.reserves[rkey].len > 0 { ui[`reserve_${rkey}`] = #{ type:"reserve_pile", pieces:state.reserves[rkey], board_index:p.data.board }; } }
     ui
 }

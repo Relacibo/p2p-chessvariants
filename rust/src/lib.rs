@@ -326,52 +326,11 @@ impl ChessvariantEngine {
             .read_lock::<rhai::Map>()
             .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
 
-        let players_arr: Option<rhai::Array> = players_map
+        let players: Vec<serde_json::Value> = players_map
             .get("players")
-            .and_then(|v| v.clone().try_cast::<rhai::Array>());
-
-        let teams_opt: Option<rhai::Array> = players_map
-            .get("teams")
-            .and_then(|v| v.clone().try_cast::<rhai::Array>());
-
-        let players: Vec<serde_json::Value> = if let Some(arr) = players_arr {
-            arr.iter()
-                .filter_map(|p| {
-                    let pm = p.clone().try_cast::<rhai::Map>()?;
-                    let color = player_field_string(&pm, "color");
-                    let board = player_field_i32(&pm, "board");
-                    let team = player_field_i32(&pm, "team");
-                    let orientation = resolve_orientation(&pm, board, team, &teams_opt);
-                    Some(serde_json::json!({
-                        "id": player_field_i32(&pm, "id"),
-                        "name": player_field_string(&pm, "name"),
-                        "home_board": player_field_i32(&pm, "home_board"),
-                        "color": color,
-                        "board": board,
-                        "team": team,
-                        "orientation": orientation,
-                    }))
-                })
-                .collect()
-        } else {
-            // Synthesize from variant config colors
-            self.variant_config
-                .colors
-                .iter()
-                .enumerate()
-                .map(|(i, color)| {
-                    serde_json::json!({
-                        "id": i as i32,
-                        "name": "",
-                        "home_board": 0,
-                        "color": color,
-                        "board": 0,
-                        "team": 0,
-                        "orientation": if i == 0 { "normal" } else { "flipped" }
-                    })
-                })
-                .collect()
-        };
+            .and_then(|v| v.clone().try_cast::<rhai::Array>())
+            .map(|arr| arr.iter().map(|p| dynamic_to_json(p)).collect())
+            .unwrap_or_default();
 
         Ok(serde_json::to_string(&players)?)
     }
@@ -515,74 +474,8 @@ impl ChessvariantEngine {
         }))
     }
 
-    /// Submit a move by player color (for integration tests). 0 = white, 1 = black, …
-    pub fn submit_move(
-        &mut self,
-        player_color: &str,
-        from: Coords,
-        to: Coords,
-    ) -> Result<serde_json::Value, CvError> {
-        let player = self.find_player_by_color(player_color)?;
-        let action = Action::rhai_move(from, to);
-        self.submit_action_core(&player, &action)
-    }
-
-    /// Submit a piece selection by player color (for integration tests).
-    pub fn submit_select_piece(
-        &mut self,
-        player_color: &str,
-        piece_color: &str,
-        piece_type: &str,
-    ) -> Result<serde_json::Value, CvError> {
-        let player = self.find_player_by_color(player_color)?;
-        let action = Action::rhai_select_piece(Piece::rhai_new(
-            piece_color.to_string(),
-            piece_type.to_string(),
-        ));
-        self.submit_action_core(&player, &action)
-    }
-
-    /// Find a player by color (for integration tests).
-    fn find_player_by_color(&self, color: &str) -> Result<Player, CvError> {
-        let map = self
-            .game_state
-            .read_lock::<rhai::Map>()
-            .ok_or_else(|| CvError::Internal("game_state is not a map".into()))?;
-        let arr: rhai::Array = map
-            .get("players")
-            .cloned()
-            .and_then(|v| v.try_cast::<rhai::Array>())
-            .ok_or_else(|| CvError::Internal("state.players not found".into()))?;
-        for p in arr {
-            let Some(m) = p.clone().try_cast::<rhai::Map>() else {
-                continue;
-            };
-            if player_field_string(&m, "color") == color {
-                return Ok(player_from_map(&m));
-            }
-        }
-        Err(CvError::Internal(format!(
-            "player color '{color}' not found"
-        )))
-    }
-
     pub fn state(&self) -> Dynamic {
         self.game_state.clone()
-    }
-
-    pub fn active_player_colors(&mut self) -> Vec<String> {
-        match self.compute_valid_moves_all() {
-            Ok((all_moves, _)) => all_moves
-                .iter()
-                .filter(|pm| !pm.moves.is_empty())
-                .filter_map(|pm| {
-                    let pmap = get_player_map(&self.game_state, pm.player.id)?;
-                    pmap.read_lock::<rhai::Map>()
-                        .and_then(|m| m.get("color")?.clone().into_string().ok())
-                })
-                .collect(),
-            Err(_) => vec![],
-        }
     }
 
     /// Returns `true` when the game has reached a terminal state.
@@ -836,45 +729,6 @@ impl ChessvariantEngine {
 }
 
 // ─── Orientation helper ─────────────────────────────────────────────────────
-
-/// Resolve a player's board orientation. Checks `player.orientation` first,
-/// then falls back to the team's orientation map, then defaults to `"normal"`.
-fn resolve_orientation(
-    player_map: &rhai::Map,
-    board: i32,
-    team: i32,
-    teams_opt: &Option<rhai::Array>,
-) -> String {
-    player_map
-        .get("orientation")
-        .and_then(|v| v.clone().into_string().ok())
-        .or_else(|| {
-            teams_opt.as_ref().and_then(|teams| {
-                teams.iter().find_map(|team_entry| {
-                    let team_map = team_entry.clone().try_cast::<rhai::Map>()?;
-                    let team_id = player_field_i32(&team_map, "id");
-                    if team_id != team {
-                        return None;
-                    }
-                    let orientations = team_map
-                        .get("orientations")
-                        .and_then(|v| v.clone().try_cast::<rhai::Array>())?;
-                    orientations.iter().find_map(|o_entry| {
-                        let o_map = o_entry.clone().try_cast::<rhai::Map>()?;
-                        let o_board = player_field_i32(&o_map, "board");
-                        if o_board != board {
-                            return None;
-                        }
-                        player_field_string(&o_map, "orientation").into()
-                    })
-                })
-            })
-        })
-        .unwrap_or_else(|| match team {
-            1 => "flipped".to_string(),
-            _ => "normal".to_string(),
-        })
-}
 
 // ─── UI Serialization helper ──────────────────────────────────────────────────
 

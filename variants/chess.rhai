@@ -81,15 +81,15 @@ fn is_in_check(board, king_color, enemy_colors, state) {
 
 fn init(player_count) {
     #{ board: standard_start_position(),
-       players: [#{ id: 0, name: "White", board: 0, color: "white", team: 0 },
-                 #{ id: 1, name: "Black", board: 0, color: "black", team: 1 }],
+       players: [#{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
+                 #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } }],
        turn: 0, castling_rights: #{ wk: true, wq: true, bk: true, bq: true }, en_passant: () }
 }
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; }
     if player.id != state.turn { return []; }
-    let color = player.color;
+    let color = player.data.color;
     let candidates = [];
     for r in 0..8 { for c in 0..8 {
         let from = Coords(r, c);
@@ -116,7 +116,7 @@ fn derive_game_progress(state, all_valid_moves) {
 }
 
 fn handle_action(state, player, action) {
-    let player_color = player.color;
+    let player_color = player.data.color;
     if state.turn != player.id { throw `${player.id} is not active — it's ${state.turn}'s turn`; }
 
     if action.type == "move" {
@@ -127,8 +127,8 @@ fn handle_action(state, player, action) {
         let dst = engine::board::get(state.board, to);
         if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
 
-        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color);
-        if enemies.len == 0 { enemies = state.players.filter(|p| p.color != player_color).map(|p| p.color); }
+        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
+        if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player_color).map(|p| p.data.color); }
 
         let dr = to.row - from.row; let dc = to.col - from.col;
         let new_board = (); let new_castling_rights = state.castling_rights; let new_en_passant = ();
@@ -205,7 +205,7 @@ fn handle_action(state, player, action) {
         if pp.color != player_color { throw "not your promotion"; }
         let new_board = engine::board::move_piece(state.board, pp.from, pp.to);
         new_board = engine::board::set(new_board, pp.to, action.piece);
-        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color);
+        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
         if is_in_check(new_board, player_color, enemies, state) { throw "promotion leaves king in check"; }
         let next_turn = if player.id == 0 { 1 } else { 0 };
         return merge(state, #{ board: new_board, turn: next_turn, promotion_pending: () });
@@ -225,7 +225,7 @@ fn handle_action(state, player, action) {
 fn derive_ui(state, player) {
     if "promotion_pending" in state && state.promotion_pending != () {
         let pp = state.promotion_pending;
-        if pp.color == player.color {
+        if pp.color == player.data.color {
             return #{ promotion: #{ type: "piece_picker", cancelable: true, title: "Promote pawn to:",
                pieces: [Piece(pp.color, "queen"), Piece(pp.color, "rook"), Piece(pp.color, "bishop"), Piece(pp.color, "knight")] } };
         }

@@ -33,26 +33,26 @@ fn sq_attacked_by(board,square,enemy_colors,state) {
 
 fn is_in_check(board,king_color,enemy_colors,state) { let k=engine::board::find(board,Piece(king_color,"king"));if k==()||k.len==0 {return false;} sq_attacked_by(board,k[0],enemy_colors,state) }
 
-fn init(player_count) { #{ board: standard_start_position(), players: [#{ id:0,name:"White",board:0,color:"white",team:0 },#{ id:1,name:"Black",board:0,color:"black",team:1 }], turn: 0 } }
+fn init(player_count) { #{ board: standard_start_position(), players: [#{ id:0,name:"White",team:0,data:#{color:"white"} },#{ id:1,name:"Black",team:1,data:#{color:"black"} }], turn: 0 } }
 
 fn valid_moves(state, player) {
     if "outcome" in state { return []; } if player.id != state.turn { return []; }
     let candidates = [];
-    for r in 0..8 { for c in 0..8 { let piece = engine::board::get(state.board, Coords(r, c)); if piece != () && piece.color == player.color { let from = Coords(r, c); let dests = get_pseudo_dests(state.board, from, state); for to in dests { candidates.push(Move(from, to)); } } } }
+    for r in 0..8 { for c in 0..8 { let piece = engine::board::get(state.board, Coords(r, c)); if piece != () && piece.color == player.data.color { let from = Coords(r, c); let dests = get_pseudo_dests(state.board, from, state); for to in dests { candidates.push(Move(from, to)); } } } }
     candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
 fn derive_game_progress(state, all_valid_moves) { if "outcome" in state { return state.outcome; } for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } } Draw() }
 
 fn handle_action(state, player, action) {
-    let player_color = player.color; if state.turn != player.id { throw "not active"; }
+    let player_color = player.data.color; if state.turn != player.id { throw "not active"; }
     if action.type == "move" {
         let src = engine::board::get(state.board, action.from); if src == () { throw "no piece"; } if src.color != player_color { throw "not yours"; }
         let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player_color { throw "own piece"; }
         let b = engine::board::move_piece(state.board, action.from, action.to);
-        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color); if enemies.len == 0 { enemies = state.players.filter(|p| p.color != player_color).map(|p| p.color); }
+        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color); if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player_color).map(|p| p.data.color); }
         if is_in_check(b, player_color, enemies, state) { throw "leaves king in check"; }
-        for p in state.players { let kings = engine::board::find(b, Piece(p.color, "king")); if kings.len == 0 { let oc = if p.color == "white" { "black" } else { "white" }; let wi = state.players.filter(|q| q.color == oc).map(|q| q.id)[0]; let wt = state.players.filter(|q| q.id == wi).map(|q| q.team)[0]; return merge(state, #{ board: b, outcome: Winner(wt) }); } }
+        for p in state.players { let kings = engine::board::find(b, Piece(p.data.color, "king")); if kings.len == 0 { let oc = if p.data.color == "white" { "black" } else { "white" }; let wi = state.players.filter(|q| q.data.color == oc).map(|q| q.id)[0]; let wt = state.players.filter(|q| q.id == wi).map(|q| q.team)[0]; return merge(state, #{ board: b, outcome: Winner(wt) }); } }
         let next = if player.id == 0 { 1 } else { 0 }; return merge(state, #{ board: b, turn: next });
     }
     state
