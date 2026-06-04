@@ -23,7 +23,7 @@ All agents (Plan, Build) MUST reference this document.
 | `name` | string | YES | Variant display name |
 | `version` | string | YES | Variant script version |
 | `colors` | [string] | YES | Player color identifiers |
-| `allowed_player_count` | i32, [i32], or #{min,max,step?} | YES | Player count constraint |
+| `allowed_player_count` | `i32` \| `[i32]` \| `#{min: i32, max: i32, step?: i32}` | YES | Exact count, list of allowed values, or ranged constraint |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 
 ### Piece Definitions — Script-Only
@@ -70,12 +70,12 @@ fn init_static(player_count) {
                        && engine::board::get(s.board, Coords(f.row - 1, f.col)) == ()
                        && engine::board::get(s.board, t) == ()
                 },
-                // Diagonal captures — enemy piece
+                // Diagonal captures — must be enemy piece, not empty
                 #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
                    condition: |s, f, t| {
                        let target = engine::board::get(s.board, t);
                        let my     = engine::board::get(s.board, f);
-                       target == () || target.color != my.color
+                       target != () && target.color != my.color
                    }
                 },
             ],
@@ -90,7 +90,7 @@ fn init_static(player_count) {
 }
 ```
 
-The engine calls `init_static(player_count)` after `init()`, iterates the returned map, and registers each key as a global variable. Script functions access them directly (e.g. `PIECE_DEFS[key]`).
+The engine calls `init_static(player_count)` after `config()` and before `init()`, iterates the returned map, and registers each key as a global variable. Script functions access them directly (e.g. `PIECE_DEFS[key]`).
 
 #### Component types and `condition` closures
 
@@ -159,14 +159,6 @@ fn is_in_check(board, king_color, enemy_colors, state) {
 
 ---
 
-### `init(player_count)`
-
-```
-(i32) -> #{}
-```
-
-**Mandatory.** Returns the initial game state.
-
 ### `init_static(player_count)`
 
 ```
@@ -186,9 +178,34 @@ fn init_static(player_count) {
 }
 ```
 
+**4-player chess** — each color gets its own pawn direction:
+```rhai
+fn init_static(player_count) {
+    #{
+        PIECE_DEFS: #{
+            // ... standard pieces (king, queen, etc.) ...
+            "pawn:yellow": [
+            #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+            #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
+            #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
+        ],
+        "pawn:green": [
+            #{ type: "jump", offsets: [[0,-1]], condition: ... },
+            #{ type: "jump", offsets: [[0,-2]], condition: ... },
+            #{ type: "jump", offsets: [[-1,-1],[1,-1]], condition: ... },
+        ],
+        "pawn:red":    [ /* moves north */ ],
+        "pawn:blue":   [ /* moves east */ ],
+        }
+    }
+}
+```
+
 See [Piece Definitions](#piece-definitions--script-only) for the full PIECE_DEFS schema.
 
 ### `init(player_count)`
+
+**Mandatory.** Returns the initial game state.
 
 ```rhai
 #{
@@ -229,29 +246,6 @@ fn init(player_count) {
         ],
         // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
         // NOTE: piece definitions are NOT in state — they come from init_static()
-    }
-}
-```
-
-**4-player chess** — each color gets its own pawn direction:
-```rhai
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
-            // ... standard pieces (king, queen, etc.) ...
-            "pawn:yellow": [
-            #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-            #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
-            #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
-        ],
-        "pawn:green": [
-            #{ type: "jump", offsets: [[0,-1]], condition: ... },
-            #{ type: "jump", offsets: [[0,-2]], condition: ... },
-            #{ type: "jump", offsets: [[-1,-1],[1,-1]], condition: ... },
-        ],
-        "pawn:red":    [ /* moves north */ ],
-        "pawn:blue":   [ /* moves east */ ],
-        }
     }
 }
 ```
@@ -297,6 +291,8 @@ fn valid_moves(state, player) {
 
 - Uses script-level `get_pseudo_dests()` instead of engine `pseudo_moves()`.
 - Returns `[]` if the player has no legal moves.
+- **Rhai COW semantics:** `handle_action(state, player, m)` receives a copy-on-write clone of `state`; the original `state` in `valid_moves` is never mutated, making the `try/catch` pattern safe.
+- **try/catch caveat:** The `catch` block catches all `throw` calls from `handle_action` (e.g. `"not your turn"`, `"move leaves king in check"`), but also silently swallows any script errors. For debugging, add `log::error(err)` inside the `catch` block during development.
 
 ### `derive_game_progress(state, all_valid_moves)`
 
@@ -481,16 +477,16 @@ new ChessvariantEngine(script, player_count)
 player submits (player_json, action_json)
   │
   ├─ action is Move?
-  │   → call valid_moves(state, player_id) via Rhai
+  │   → call valid_moves(state, player) via Rhai
   │   → move not in returned list? → reject
   │
   ├─ action is non-Move (SelectPiece, Interact, Cancel)?
   │   → pass through unconditionally
   │
   ▼
-handle_action(state, player_id, action) → new_state
+handle_action(state, player, action) → new_state
   │
-  ├─ derive_ui(new_state, player_id) → serialize to JSON
+  ├─ derive_ui(new_state, player) → serialize to JSON
   │
   ▼
 Return { board_state, ui, game_over: null? } to frontend
@@ -498,13 +494,13 @@ Return { board_state, ui, game_over: null? } to frontend
 
 ### Phase 2a — local player first
 ```
-valid_moves(new_state, local_player_id) → [Move, ...]
+valid_moves(new_state, local_player) → [Move, ...]
 ```
 
 ### Phase 2b — remaining players
 ```
 for each player in state.players except local:
-    valid_moves(new_state, player.id) → [Move, ...]
+    valid_moves(new_state, player) → [Move, ...]
 ```
 
 ### Phase 2c — game over check
@@ -532,6 +528,8 @@ derive_game_progress(new_state, all_valid_moves) → GameProgress
 | `ray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` |
 | `xray` | `(Board, Coords, [i32,i32]) -> [{coords, piece}]` |
 | `jump` | `(Board, Coords, [[i32,i32]]) -> [{coords, piece}]` |
+
+> **Note:** `jump`, `ray`, and `xray` in `engine::board` are **trace** functions — they report what is at each square without color filtering. For move generation (filtering out friendly pieces), use `engine::moves::jump` and `engine::moves::slide`.
 
 ### `engine::moves` — Pure-Geometry Move Generators
 
@@ -594,7 +592,7 @@ Returned by `InProgress()`, `Winner()`, and `Draw()` constructors. Stored in `st
 
 `Winner(team_id)` takes a **team ID** (from `state.players[].team`), never a player ID.
 
-Coords is an **opaque Rhai type** with getters: `.type`, `.row`, `.col`, `.board_index`, `.index`.
+Coords is an **opaque Rhai type** with getters: `.type` (`"board"` for board squares, `"reserve"` for `ReserveCoords`), `.row`, `.col`, `.board_index`, `.index`. Board squares: `.row`/`.col` are i32, `.index` returns `()`. `ReserveCoords`: `.index` is i32, `.row`/`.col` return `()`.
 
 ### `log`
 
@@ -622,7 +620,7 @@ Coords is an **opaque Rhai type** with getters: `.type`, `.row`, `.col`, `.board
 
 | Guarantee | Enforcement |
 |-----------|-------------|
-| Move is legal | Engine calls `valid_moves(state, player_id)` via Rhai; move must be in returned list. |
+| Move is legal | Engine calls `valid_moves(state, player)` via Rhai; move must be in returned list. |
 | Non-Move actions are state-consistent | Script validates state conditions in `handle_action`. Engine passes them through. |
 | UI element IDs unique | Engine throws on duplicate keys in `derive_ui` return. |
 | State immutability | Engine never mutates state map. Script owns all transitions. |
