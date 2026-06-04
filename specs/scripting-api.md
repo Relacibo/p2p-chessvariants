@@ -167,11 +167,32 @@ fn is_in_check(board, king_color, enemy_colors, state) {
 
 **Mandatory.** Returns the initial game state.
 
+### `init_static(player_count)`
+
+```
+(i32) -> #{}
+```
+
+**Optional.** Called once after `config()` and before `init()`. Returns a map of key-value pairs that are registered as global variables (via Rhai global module), visible to all subsequent function calls without being stored in game state.
+
+Use this for static data that never changes and should not be serialized to the frontend — primarily `PIECE_DEFS` (piece movement definitions).
+
+```rhai
+fn init_static(player_count) {
+    #{
+        PIECE_DEFS: #{ "king": [...], "pawn:white": [...], ... },
+        // other static data...
+    }
+}
+```
+
+See [Piece Definitions](#piece-definitions--script-only) for the full PIECE_DEFS schema.
+
+### `init(player_count)`
+
 ```rhai
 #{
     board: Board,
-    piece_defs: #{/* from build_piece_defs() */},
-    color_piece_defs: #{/* from build_color_piece_defs() */},
     players: [
         #{
             id: i32,
@@ -185,7 +206,8 @@ fn is_in_check(board, king_color, enemy_colors, state) {
         },
     ],
     teams?: [ #{ id: i32, orientations: [ #{ board: i32, orientation: string } ] } ],
-    // custom state keys ...
+    // custom state keys (turn, en_passant, castling_rights, …)
+    // NOTE: piece definitions are NOT in state — they come from init_static()
 }
 ```
 
@@ -206,7 +228,7 @@ fn init(player_count) {
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1, orientation: "flipped" },
         ],
         // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
-        // NOTE: piece_defs / color_piece_defs are NOT in state — they live in fn PIECE_DEFS() at global scope.
+        // NOTE: piece definitions are NOT in state — they come from init_static()
     }
 }
 ```
@@ -236,20 +258,21 @@ fn init_static(player_count) {
 
 ---
 
-### `valid_moves(state, player_id)`
+### `valid_moves(state, player)`
 
 ```
-(#{}, i32) -> [Move]
+(#{}, #{}) -> [Move]
 ```
 
-**Mandatory.** Returns all legal `Move` actions for the given player (identified by `player_id`).
+**Mandatory.** Returns all legal `Move` actions for the given player.
 **Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
+The engine passes the player as a map `#{ id, name, color, team, board, orientation? }`.
+
 ```rhai
-fn valid_moves(state, player_id) {
+fn valid_moves(state, player) {
     if "outcome" in state { return []; }
-    let player = state.players.find(|p| p.id == player_id);
-    if player_id != state.turn { return []; }
+    if player.id != state.turn { return []; }
 
     let candidates = [];
     for r in 0..8 {
@@ -266,7 +289,7 @@ fn valid_moves(state, player_id) {
     }
 
     candidates.filter(|m| {
-        try { handle_action(state, player_id, m); true }
+        try { handle_action(state, player, m); true }
         catch(err) { false }
     })
 }
@@ -293,10 +316,10 @@ fn is_game_over(state, all_valid_moves) {
 }
 ```
 
-### `handle_action(state, player_id, action)`
+### `handle_action(state, player, action)`
 
 ```
-(#{}, i32, Action) -> #{}
+(#{}, #{}, Action) -> #{}
 ```
 
 **Mandatory.** The single action reducer. Dispatches on `action.type`.
@@ -305,11 +328,12 @@ fn is_game_over(state, all_valid_moves) {
 - Turn order, piece ownership, no self-capture
 - **King safety** — use script-level `is_in_check()` after applying the move
 
+The engine passes the player as a map `#{ id, name, color, team, board, orientation? }`.
+
 ```rhai
-fn handle_action(state, player_id, action) {
-    let player = state.players.find(|p| p.id == player_id);
+fn handle_action(state, player, action) {
     if action.type == "move" {
-        if state.turn != player_id { throw "not your turn"; }
+        if state.turn != player.id { throw "not your turn"; }
         let piece = engine::board::get(state.board, action.from);
         if piece == () { throw "no piece at source square"; }
         if piece.color != player.color { throw "not your piece"; }
@@ -337,14 +361,14 @@ fn handle_action(state, player_id, action) {
 }
 ```
 
-### `derive_ui(state, player_id)`
+### `derive_ui(state, player)`
 
 ```
-(#{}, i32) -> #{}
+(#{}, #{}) -> #{}
 ```
 
 **Optional** (returns `#{}` if absent). Returns UI elements for the given player.
-Pure function of `state` and `player_id`.
+Pure function of `state` and the player map.
 
 ---
 
@@ -434,7 +458,9 @@ All payload fields (`from`, `to`, `piece`, `element_id`) are `()` on `Cancel` ac
 ```
 new ChessvariantEngine(script, player_count)
 → calls config() → validates api_version=1
-→ calls init() → returns engine
+→ calls register_engine_helpers()
+→ calls init_static(player_count) → registers return values as global module
+→ calls init(player_count) → returns engine
 ```
 
 ### Submit Action — Phase 1 (synchronous, immediate)
