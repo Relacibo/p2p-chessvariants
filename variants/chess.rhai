@@ -109,10 +109,10 @@ fn valid_moves(state, player) {
     candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
-fn is_game_over(state, all_valid_moves) {
-    if "outcome" in state { return true; }
-    for entry in all_valid_moves { if entry.moves.len > 0 { return false; } }
-    true
+fn derive_game_progress(state, all_valid_moves) {
+    if "outcome" in state { return state.outcome; }
+    for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } }
+    Draw()
 }
 
 fn handle_action(state, player, action) {

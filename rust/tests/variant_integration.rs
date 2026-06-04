@@ -1,6 +1,6 @@
 #![allow(unused_must_use)]
 use chessvariant_engine::{
-    BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords, GameResult,
+    BoardCoords, BoardState, ChessvariantEngine, GameCoords as Coords, GameProgress,
 };
 use rhai::Dynamic;
 
@@ -77,7 +77,7 @@ fn test_simple_chess_initial_turn_is_white() {
 #[test]
 fn test_simple_chess_initial_game_not_over() {
     let mut engine = make_engine("tests/scripts/simple_chess.rhai", 2);
-    assert!(!engine.is_game_over());
+    assert!(!engine.derive_game_progress_bool());
 }
 
 #[test]
@@ -154,14 +154,15 @@ fn test_king_capture_triggers_game_over() {
         .submit_move("white", coords(1, 4), coords(0, 4))
         .expect("king capture should succeed");
 
-    assert!(engine.is_game_over(), "game should be over");
+    assert!(engine.derive_game_progress_bool(), "game should be over");
 
     let outcome = engine.outcome();
-    assert!(!outcome.is_unit(), "outcome should be set");
-
-    let result = outcome.cast::<GameResult>();
-    assert_eq!(result.kind, "winner", "result type should be 'winner'");
-    assert_eq!(result.player, Some(0), "player index 0 (white) should win");
+    assert!(outcome.is_some(), "outcome should be set");
+    assert_eq!(
+        outcome.unwrap(),
+        GameProgress::Decisive { winning_team: 0 },
+        "winning team should be 0"
+    );
 }
 
 #[test]
@@ -173,7 +174,7 @@ fn test_king_capture_game_not_over_after_non_king_move() {
         .unwrap();
 
     assert!(
-        !engine.is_game_over(),
+        !engine.derive_game_progress_bool(),
         "game should not be over after non-king move"
     );
 }
@@ -405,7 +406,10 @@ fn test_chess_stalemate() {
         active.is_empty(),
         "no player should have legal moves after stalemate"
     );
-    assert!(engine.is_game_over(), "game should be over (stalemate)");
+    assert!(
+        engine.derive_game_progress_bool(),
+        "game should be over (stalemate)"
+    );
 
     // Black king must still be on the board (not captured — this is stalemate, not checkmate)
     let state = engine.state();

@@ -1,112 +1,7 @@
-use std::fmt::Display;
-
 use rhai::{CustomType, Dynamic, TypeBuilder};
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-
-use crate::error::CvError;
-
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
-#[repr(u8)]
-#[allow(dead_code)]
-#[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub enum PieceType {
-    #[default]
-    Unknown,
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
-}
-
-pub fn standard_piece_type(s: &str) -> Option<PieceType> {
-    match s {
-        "pawn" => Some(PieceType::Pawn),
-        "knight" => Some(PieceType::Knight),
-        "bishop" => Some(PieceType::Bishop),
-        "rook" => Some(PieceType::Rook),
-        "queen" => Some(PieceType::Queen),
-        "king" => Some(PieceType::King),
-        _ => None,
-    }
-}
-
-impl TryFrom<String> for PieceType {
-    type Error = CvError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        standard_piece_type(&value).ok_or(CvError::EnumConversion {
-            enum_type: "PieceType".to_owned(),
-            converting_from: "String".to_owned(),
-        })
-    }
-}
-
-impl Display for PieceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            PieceType::Unknown => "unknown",
-            PieceType::Pawn => "pawn",
-            PieceType::Knight => "knight",
-            PieceType::Bishop => "bishop",
-            PieceType::Rook => "rook",
-            PieceType::Queen => "queen",
-            PieceType::King => "king",
-        };
-        write!(f, "{s}")
-    }
-}
-
-/// Standard color enum, useful for WASM consumers and logic helpers.
-/// The Piece struct uses String-based colors for Rhai flexibility.
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
-#[repr(u8)]
-#[derive(Clone, Copy, Hash, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[allow(dead_code)]
-pub enum PieceColor {
-    #[default]
-    Unknown,
-    White,
-    Black,
-}
-
-#[allow(dead_code)]
-impl PieceColor {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PieceColor::Unknown => "unknown",
-            PieceColor::White => "white",
-            PieceColor::Black => "black",
-        }
-    }
-}
-
-impl TryFrom<String> for PieceColor {
-    type Error = CvError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let ret = match value.as_str() {
-            "white" => Self::White,
-            "black" => Self::Black,
-            _ => {
-                return Err(CvError::EnumConversion {
-                    enum_type: "PieceColor".to_owned(),
-                    converting_from: "String".to_owned(),
-                });
-            }
-        };
-        Ok(ret)
-    }
-}
-
-impl Display for PieceColor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType)]
@@ -119,8 +14,6 @@ pub struct Piece {
         get = Self::get_piece_type_as_string
     )]
     piece_type: String,
-    // Stored as a raw string so arbitrary colors ("red", "blue", ...) survive
-    // serialization intact. The PieceColor enum is kept for standard logic helpers.
     #[rhai_type(set = Self::set_color_from_string, get = Self::get_color_as_string)]
     color: String,
     data: Option<Dynamic>,
@@ -293,13 +186,7 @@ impl PartialEq for Piece {
 
 #[cfg(test)]
 mod tests {
-    use super::{Piece, PieceType, standard_piece_type};
-
-    #[test]
-    fn test_standard_piece_type() {
-        assert_eq!(standard_piece_type("rook"), Some(PieceType::Rook));
-        assert_eq!(standard_piece_type("camel"), None);
-    }
+    use super::Piece;
 
     #[test]
     fn test_custom_piece_type_round_trip() {

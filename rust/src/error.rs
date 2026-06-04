@@ -20,11 +20,6 @@ pub enum CvError {
         function_name: String,
         rhai_rust_error: Box<RhaiRustError>,
     },
-    #[error("Error: Converting an enum")]
-    EnumConversion {
-        enum_type: String,
-        converting_from: String,
-    },
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("Internal error: {0}")]
@@ -68,7 +63,6 @@ impl From<CvError> for CvJsError {
             RhaiParse(_) => "rhai-parse".to_owned(),
             Unexpected => "unexpected".to_owned(),
             RhaiFunctionReturnObject { .. } => "rhai-function-return-object".to_owned(),
-            EnumConversion { .. } => "enum-conversion".to_owned(),
             Json(_) => "json".to_owned(),
             Internal(_) => "internal".to_owned(),
         };

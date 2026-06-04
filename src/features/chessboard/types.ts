@@ -135,14 +135,16 @@ export interface WasmPlayerMoves {
   moves: WasmAction[];
 }
 
+/** Game progress as returned by `derive_game_progress()` or `state.outcome`. */
+export type GameProgress =
+  | { progress: "in_progress" }
+  | { progress: "draw" }
+  | { progress: "decisive"; winningTeam: number };
+
 /** Result of `submitAction()`. */
 export interface WasmSubmitActionResult {
   ui: WasmUiMap;
-  game_over: {
-    type: "winner" | "winners" | "draw";
-    player?: number;
-    players?: number[];
-  } | null;
+  game_over: GameProgress | null;
   board_state: WasmBoardState;
 }
 

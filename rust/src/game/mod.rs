@@ -1,6 +1,6 @@
 pub mod actions;
 pub mod board;
-pub mod game_result;
+pub mod game_progress;
 pub mod moves;
 pub mod piece;
 pub mod standard;

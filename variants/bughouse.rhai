@@ -57,14 +57,14 @@ fn handle_action(state, player, action) {
             let dst = engine::board::get(board, to); if dst != () && dst.color == col { throw "cannot capture own piece"; }
             state.board[brd] = engine::board::move_piece(board, from, to);
             if dst != () { let pkey = partner_key(col, brd); if !(pkey in state.reserves) { state.reserves[pkey] = []; } state.reserves[pkey].push(dst); }
-            for b in 0..2 { let bb = state.board[b]; for pl in state.players { if pl.board == b { let kings = engine::board::find(bb, Piece(pl.color, "king")); if kings.len == 0 { let other_team = if pl.team == 0 { 1 } else { 0 }; let winners = state.players.filter(|p| p.team == other_team); state.outcome = Winners(winners.map(|p| p.id)); return state; } } } }
+            for b in 0..2 { let bb = state.board[b]; for pl in state.players { if pl.board == b { let kings = engine::board::find(bb, Piece(pl.color, "king")); if kings.len == 0 { let other_team = if pl.team == 0 { 1 } else { 0 }; state.outcome = Winner(other_team); return state; } } } }
         }
         let turn_order = state.turn_order[brd]; let cur_idx = turn_order.index_of(player.id); let next_idx = (cur_idx + 1) % turn_order.len; state.current_turn[brd] = turn_order[next_idx];
     }
     state
 }
 
-fn is_game_over(state, all_valid_moves) { if "outcome" in state { return true; } for entry in all_valid_moves { if entry.moves.len > 0 { return false; } } true }
+fn derive_game_progress(state, all_valid_moves) { if "outcome" in state { return state.outcome; } for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } } Draw() }
 
 fn derive_ui(state, player) {
     let ui = #{};

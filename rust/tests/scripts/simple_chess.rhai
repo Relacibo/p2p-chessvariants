@@ -85,8 +85,8 @@ fn valid_moves(state, player) {
     candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
-fn is_game_over(state, all_valid_moves) {
-    if "outcome" in state { return true; } for entry in all_valid_moves { if entry.moves.len > 0 { return false; } } true
+fn derive_game_progress(state, all_valid_moves) {
+    if "outcome" in state { return state.outcome; } for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } } Draw()
 }
 
 fn handle_action(state, player, action) {
@@ -99,7 +99,7 @@ fn handle_action(state, player, action) {
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
         let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.color); if enemies.len == 0 { enemies = state.players.filter(|p| p.color != player_color).map(|p| p.color); }
         if is_in_check(new_board, player_color, enemies, state) { throw "move leaves king in check"; }
-        for p in state.players { let kings = engine::board::find(new_board, Piece(p.color, "king")); if kings.len == 0 { let oc = if p.color == "white" { "black" } else { "white" }; let wi = state.players.filter(|q| q.color == oc).map(|q| q.id)[0]; return merge(state, #{ board: new_board, outcome: Winner(wi) }); } }
+        for p in state.players { let kings = engine::board::find(new_board, Piece(p.color, "king")); if kings.len == 0 { let oc = if p.color == "white" { "black" } else { "white" }; let wi = state.players.filter(|q| q.color == oc).map(|q| q.id)[0]; let wt = state.players.filter(|q| q.id == wi).map(|q| q.team)[0]; return merge(state, #{ board: new_board, outcome: Winner(wt) }); } }
         let next = if player.id == 0 { 1 } else { 0 }; return merge(state, #{ board: new_board, turn: next });
     }
     state

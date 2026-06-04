@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { EngineProxy } from "../engine/EngineProxy";
 import {
+  GameProgress,
   PendingMove,
   PlayerRef,
   WasmAction,
@@ -13,12 +14,6 @@ import {
   WasmVariantConfig,
 } from "./types";
 import { fetchScriptText } from "../lobby/scriptUrl";
-
-export type GameOverResult = {
-  type: "winner" | "winners" | "draw";
-  player?: number;
-  players?: number[];
-};
 
 export interface UseChessGameOptions {
   /** JSON-encoded PlayerRef for the local player whose valid moves / UI to show. */
@@ -35,7 +30,7 @@ export interface UseChessGameResult {
   uiElements: WasmUiMap | null;
   allPlayers: WasmPlayerConfig[];
   activePlayers: PlayerRef[];
-  gameOver: GameOverResult | null;
+  gameOver: GameProgress | null;
   pendingMove: PendingMove | null;
   selectedDropPiece: WasmPiece | null;
   lastAction: WasmAction | undefined;
@@ -77,7 +72,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
   const [uiElements, setUiElements] = useState<WasmUiMap | null>(null);
   const [allPlayers, setAllPlayers] = useState<WasmPlayerConfig[]>([]);
   const [activePlayers, setActivePlayers] = useState<PlayerRef[]>([]);
-  const [gameOver, setGameOver] = useState<GameOverResult | null>(null);
+  const [gameOver, setGameOver] = useState<GameProgress | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [selectedDropPiece, setSelectedDropPiece] = useState<WasmPiece | null>(null);
   const [lastAction, setLastAction] = useState<WasmAction | undefined>();
@@ -190,7 +185,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
       setValidMovesAll(va);
       setActivePlayers(deriveActivePlayers(va));
       if (payload.gameOver) {
-        setGameOver(payload.gameOver as GameOverResult);
+        setGameOver(payload.gameOver as GameProgress);
       }
     };
     return () => {

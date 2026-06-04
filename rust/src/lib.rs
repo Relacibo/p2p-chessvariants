@@ -16,7 +16,7 @@ mod modules;
 pub mod rhai_rust_error;
 
 // Re-exports for integration tests and external consumers
-pub use game::game_result::GameResult;
+pub use game::game_progress::GameProgress;
 pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, Player};
 
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
@@ -48,7 +48,9 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<game::variant_config::BoardLayoutConfig>()
         .build_type::<Action>()
         .build_type::<Player>()
-        .build_type::<GameResult>();
+        .register_type_with_name::<GameProgress>("GameProgress")
+        .register_get("progress", GameProgress::get_progress_mut)
+        .register_get("winning_team", GameProgress::get_winning_team_mut);
 
     // Coords is an opaque enum — register manually with getters.
     engine
@@ -88,9 +90,9 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Interact", Action::rhai_interact);
     engine.register_fn("Cancel", Action::rhai_cancel);
     engine.register_fn("Piece", Piece::rhai_new);
-    engine.register_fn("Winner", GameResult::winner);
-    engine.register_fn("Winners", GameResult::winners);
-    engine.register_fn("Draw", GameResult::draw);
+    engine.register_fn("InProgress", GameProgress::in_progress);
+    engine.register_fn("Winner", GameProgress::winner);
+    engine.register_fn("Draw", GameProgress::draw);
     engine.register_fn("standard_start_position", standard::standard_start_position);
     engine.register_fn(
         "merge",
@@ -583,7 +585,9 @@ impl ChessvariantEngine {
         }
     }
 
-    pub fn is_game_over(&mut self) -> bool {
+    /// Returns `true` when the game has reached a terminal state.
+    /// Delegates to `derive_game_progress()` from the script (mandatory).
+    pub fn derive_game_progress_bool(&mut self) -> bool {
         match self.compute_valid_moves_all() {
             Ok((_, Some(_))) => true,
             _ => self
@@ -594,11 +598,12 @@ impl ChessvariantEngine {
         }
     }
 
-    pub fn outcome(&self) -> Dynamic {
+    /// Returns the current outcome from `state.outcome`, if set.
+    pub fn outcome(&self) -> Option<GameProgress> {
         self.game_state
             .read_lock::<rhai::Map>()
             .and_then(|m| m.get("outcome").cloned())
-            .unwrap_or(Dynamic::UNIT)
+            .and_then(|d| d.try_cast::<GameProgress>())
     }
 
     #[allow(dead_code)]
@@ -757,11 +762,17 @@ impl ChessvariantEngine {
             });
         }
 
-        let game_over = self.call_is_game_over(&result);
+        let game_over = self.call_derive_game_progress(&result)?;
         Ok((result, game_over))
     }
 
-    fn call_is_game_over(&mut self, all_moves: &[PlayerMoves]) -> Option<serde_json::Value> {
+    /// Calls the script's mandatory `derive_game_progress(state, all_valid_moves)`.
+    /// Returns `Ok(None)` for `InProgress`, `Ok(Some(json))` for `Draw` or `Decisive`.
+    /// Propagates errors — the function is mandatory, no fallback.
+    fn call_derive_game_progress(
+        &mut self,
+        all_moves: &[PlayerMoves],
+    ) -> Result<Option<serde_json::Value>, CvError> {
         let mut scope = Scope::new();
         let entries: rhai::Array = all_moves
             .iter()
@@ -779,27 +790,18 @@ impl ChessvariantEngine {
             })
             .collect();
 
-        match self.engine.call_fn::<bool>(
+        let progress: GameProgress = self.engine.call_fn(
             &mut scope,
             &self.ast,
-            "is_game_over",
+            "derive_game_progress",
             (self.game_state.clone(), Dynamic::from(entries)),
-        ) {
-            Ok(true) => Some(
-                self.extract_outcome_from_state()
-                    .unwrap_or_else(|| serde_json::json!({ "type": "game_over" })),
-            ),
-            Ok(false) => None,
-            Err(_) => {
-                let all_empty = all_moves.iter().all(|pm| pm.moves.is_empty());
-                if all_empty {
-                    Some(
-                        self.extract_outcome_from_state()
-                            .unwrap_or_else(|| serde_json::json!({ "type": "game_over" })),
-                    )
-                } else {
-                    None
-                }
+        )?;
+
+        match progress {
+            GameProgress::InProgress => Ok(None),
+            GameProgress::Draw | GameProgress::Decisive { .. } => {
+                let json = serde_json::to_value(&progress).map_err(CvError::from)?;
+                Ok(Some(json))
             }
         }
     }
@@ -809,6 +811,10 @@ impl ChessvariantEngine {
         let outcome = map.get("outcome")?.clone();
         if outcome.is_unit() {
             return None;
+        }
+        // Prefer direct GameProgress cast for clean serialization
+        if let Some(gp) = outcome.clone().try_cast::<GameProgress>() {
+            return serde_json::to_value(&gp).ok();
         }
         Some(dynamic_to_json(&outcome))
     }

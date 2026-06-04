@@ -53,10 +53,10 @@ fn handle_action(state, player, action) {
         let src = engine::board::get(state.board, action.from); if src == () { throw "no piece there"; } if src.color != player.color { throw "not yours"; }
         let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player.color { throw "own piece"; }
         state.board = engine::board::move_piece(state.board, action.from, action.to);
-        for p in state.players { let kings = engine::board::find(state.board, Piece(p.color, "king")); if kings.len == 0 { let survivors = state.players.filter(|q| q.color != p.color); state.outcome = Winners(survivors.map(|q| q.id)); return state; } }
+        for p in state.players { let kings = engine::board::find(state.board, Piece(p.color, "king")); if kings.len == 0 { let survivors = state.players.filter(|q| q.color != p.color); state.outcome = Winner(survivors[0].team); return state; } }
         let idx = state.turn_order.index_of(player.id); state.turn = state.turn_order[(idx + 1) % 4];
     }
     state
 }
 
-fn is_game_over(state, all_valid_moves) { if "outcome" in state { return true; } for entry in all_valid_moves { if entry.moves.len > 0 { return false; } } true }
+fn derive_game_progress(state, all_valid_moves) { if "outcome" in state { return state.outcome; } for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } } Draw() }

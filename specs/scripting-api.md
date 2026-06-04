@@ -298,23 +298,35 @@ fn valid_moves(state, player) {
 - Uses script-level `get_pseudo_dests()` instead of engine `pseudo_moves()`.
 - Returns `[]` if the player has no legal moves.
 
-### `is_game_over(state, all_valid_moves)`
+### `derive_game_progress(state, all_valid_moves)`
 
 ```
-(#{}, [ #{ player: Player, moves: [Move] } ]) -> bool
+(#{}, [ #{ player: Player, moves: [Move] } ]) -> GameProgress
 ```
 
 **Mandatory.** Called after `valid_moves` has been computed for **all** players.
+Returns a `GameProgress` enum value directly (no `bool`).
+
+**`GameProgress` variants:**
+
+| Rhai constructor | Rust variant | JSON |
+|------------------|-------------|------|
+| `InProgress()` | `GameProgress::InProgress` | `{ "progress": "in_progress" }` |
+| `Draw()` | `GameProgress::Draw` | `{ "progress": "draw" }` |
+| `Winner(team_id)` | `GameProgress::Decisive { winning_team }` | `{ "progress": "decisive", "winningTeam": 0 }` |
 
 ```rhai
-fn is_game_over(state, all_valid_moves) {
-    if "outcome" in state { return true; }
+fn derive_game_progress(state, all_valid_moves) {
+    if "outcome" in state { return state.outcome; }
     for entry in all_valid_moves {
-        if entry.moves.len > 0 { return false; }
+        if entry.moves.len > 0 { return InProgress(); }
     }
-    true
+    Draw()
 }
 ```
+
+The function **must** be defined in every script. The engine will return an error if the
+function is missing — there is no fallback.
 
 ### `handle_action(state, player, action)`
 
@@ -498,7 +510,7 @@ for each player in state.players except local:
 ### Phase 2c — game over check
 ```
 all_valid_moves = collected from Phase 2a + 2b
-is_game_over(new_state, all_valid_moves) → bool
+derive_game_progress(new_state, all_valid_moves) → GameProgress
 ```
 
 ---
@@ -566,21 +578,21 @@ There is **no** `engine::moves::pawn` function. Pawn movement is defined entirel
 | `Interact(element_id)` | Interact action |
 | `Cancel()` | Cancel action |
 | `Piece(color, type)` | Piece |
-| `Winner(idx)` | Game outcome — returns `GameResult` |
-| `Winners([colors])` | Game outcome — returns `GameResult` |
-| `Draw()` | Game outcome — returns `GameResult` |
+| `InProgress()` | Game state — returns `GameProgress` |
+| `Winner(team_id)` | Game outcome — returns `GameProgress` |
+| `Draw()` | Game outcome — returns `GameProgress` |
 
-#### `GameResult` type
+#### `GameProgress` type
 
-Returned by `Winner()`, `Winners()`, and `Draw()` constructors. Stored in `state.outcome`.
+Returned by `InProgress()`, `Winner()`, and `Draw()` constructors. Stored in `state.outcome`.
 
-| Field | Type | Available on | Description |
-|-------|------|-------------|-------------|
-| `type` | string | all | `"winner"`, `"winners"`, or `"draw"` |
-| `player` | i32 | `Winner` only | Winning player ID |
-| `players` | [i32] | `Winners` only | Winning player IDs |
+| Variant | Rhai constructor | JSON |
+|---------|-----------------|------|
+| `InProgress` | `InProgress()` | `{ "progress": "in_progress" }` |
+| `Draw` | `Draw()` | `{ "progress": "draw" }` |
+| `Decisive` | `Winner(team_id)` | `{ "progress": "decisive", "winningTeam": 0 }` |
 
-Serialized as `{ type, player?, players? }` in JSON output.
+`Winner(team_id)` takes a **team ID** (from `state.players[].team`), never a player ID.
 
 Coords is an **opaque Rhai type** with getters: `.type`, `.row`, `.col`, `.board_index`, `.index`.
 
@@ -615,5 +627,5 @@ Coords is an **opaque Rhai type** with getters: `.type`, `.row`, `.col`, `.board
 | UI element IDs unique | Engine throws on duplicate keys in `derive_ui` return. |
 | State immutability | Engine never mutates state map. Script owns all transitions. |
 | Deterministic replay | `handle_action` is pure: same `(player, action)` → same state. |
-| Game-over is terminal | Once `is_game_over` returns `true`, engine reads `state.outcome` and stops calling script functions. |
+| Game-over is terminal | Once `derive_game_progress` returns `Draw` or `Decisive`, the engine reads the result directly and stops calling script functions. |
 | Piece definitions are script-owned | Engine provides only unbiased geometry helpers. All piece rules, conditions, and direction are in the script. |

@@ -38,7 +38,7 @@ fn valid_moves(state, player) {
     candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
-fn is_game_over(state, all_valid_moves) { "outcome" in state }
+fn derive_game_progress(state, all_valid_moves) { if "outcome" in state { return state.outcome; } InProgress() }
 
 fn handle_action(state, player, action) {
     let player_color = player.color; if state.turn != player.id { throw "not your turn"; }
@@ -46,7 +46,7 @@ fn handle_action(state, player, action) {
         let src = engine::board::get(state.board, action.from); if src == () { throw "no piece at source square"; } if src.color != player_color { throw "that piece does not belong to you"; }
         let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
-        for p in state.players { let kings = engine::board::find(new_board, Piece(p.color, "king")); if kings.len == 0 { let oc = if p.color == "white" { "black" } else { "white" }; let wi = state.players.filter(|q| q.color == oc).map(|q| q.id)[0]; return merge(state, #{ board: new_board, outcome: Winner(wi) }); } }
+        for p in state.players { let kings = engine::board::find(new_board, Piece(p.color, "king")); if kings.len == 0 { let oc = if p.color == "white" { "black" } else { "white" }; let wi = state.players.filter(|q| q.color == oc).map(|q| q.id)[0]; let wt = state.players.filter(|q| q.id == wi).map(|q| q.team)[0]; return merge(state, #{ board: new_board, outcome: Winner(wt) }); } }
         let next = if player.id == 0 { 1 } else { 0 }; return merge(state, #{ board: new_board, turn: next });
     }
     state
