@@ -47,6 +47,17 @@ fn init_static(player_count) {
 }
 ```
 
+**PIECE_DEFS schema:** Each key is `"{type}"` (all colors) or `"{type}:{color}"` (color-specific, takes precedence). Each value is an array of movement components:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `"jump"` or `"slide"` | Movement class |
+| `offsets` | `[[i32,i32]]` | Leap vectors (for jump) |
+| `dirs` | `[[i32,i32]]` | Direction vectors (for slide) |
+| `condition` | `\|s, f, t\| -> bool` (optional) | Filter destinations via `engine::board::get` and state keys |
+
+Scripts use `engine::moves::jump`/`slide` to generate candidates, filter with conditions, then validate moves via king-safety checks.
+
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
 fn init_static(player_count) {
@@ -69,8 +80,6 @@ fn init_static(player_count) {
     }
 }
 ```
-
-See [Piece Definitions](#piece-definitions--script-only) for the full PIECE_DEFS schema.
 
 ### `init(player_count)`
 
