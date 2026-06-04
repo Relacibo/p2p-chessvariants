@@ -30,8 +30,8 @@ export function useTokenRefresh() {
           dispatch(login({ token: data.token, user: data.user }));
         }
         // If refresh fails, we leave it to the 401 retry in baseQueryWithAuth
-      } catch {
-        // Network error – will surface when the next API request fails
+      } catch (e) {
+        console.error("[useTokenRefresh] token refresh failed", e);
       }
     }, delay);
 

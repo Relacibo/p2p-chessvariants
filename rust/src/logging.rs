@@ -20,11 +20,12 @@ pub fn set_log_level(level: &str) {
         "error" => LogLevel::Error,
         _ => return,
     };
-    *LOG_LEVEL.lock().unwrap() = new_level;
+    // Poisoned mutex is unrecoverable in single-threaded WASM; recover guard.
+    *LOG_LEVEL.lock().unwrap_or_else(|e| e.into_inner()) = new_level;
 }
 
 fn log(level: LogLevel, msg: &str) {
-    let current = *LOG_LEVEL.lock().unwrap();
+    let current = *LOG_LEVEL.lock().unwrap_or_else(|e| e.into_inner());
     if level < current {
         return;
     }

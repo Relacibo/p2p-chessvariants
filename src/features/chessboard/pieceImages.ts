@@ -57,8 +57,8 @@ export async function preloadAllPieceImages(): Promise<void> {
         try {
           const img = await loadImage(url);
           imageCache.set(url, img);
-        } catch {
-          // ignore — piece image simply won't render
+        } catch (e) {
+          console.error("[pieceImages] failed to preload piece image", url, e);
         }
       })
     )

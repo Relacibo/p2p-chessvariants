@@ -27,7 +27,8 @@ const ConnectWithGoogleButton = ({ onConnected }: Props) => {
               });
               onConnected?.();
             })
-            .catch(() => {
+            .catch((e) => {
+              console.error("[ConnectWithGoogleButton] link failed", e);
               notifications.show({
                 title: "Error",
                 message: "Could not link Google account.",

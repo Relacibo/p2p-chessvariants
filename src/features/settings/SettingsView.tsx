@@ -133,6 +133,7 @@ const ProfileTab = () => {
         color: "green",
       });
     } catch (err) {
+      console.error("[SettingsView] update profile failed", err);
       notifications.show({
         title: "Error",
         message: "Could not update profile.",
@@ -268,7 +269,8 @@ const ConnectionsTab = () => {
         color: "blue",
       });
       refetch();
-    } catch {
+    } catch (e) {
+      console.error("[SettingsView] unlink failed", e);
       notifications.show({
         title: "Error",
         message:

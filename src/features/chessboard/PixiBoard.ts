@@ -182,6 +182,14 @@ export class PixiBoard {
     canvas.style.display = "block";
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
+
+    // Log WebGL context loss / renderer errors — these would otherwise be silent.
+    canvas.addEventListener("webglcontextlost", (e) => {
+      console.error("[PixiBoard] WebGL context lost", e);
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      console.warn("[PixiBoard] WebGL context restored");
+    });
     container.appendChild(canvas);
 
     app.stage.addChild(this.rootContainer);

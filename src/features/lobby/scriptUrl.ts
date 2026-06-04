@@ -115,8 +115,8 @@ export function parseVariantSource(input: string): VariantSource | null {
       }
       return null; // Recognized as Gist but invalid format
     }
-  } catch {
-    // Ignore URL parse errors
+  } catch (e) {
+    console.error("[scriptUrl] URL parse error", e);
   }
 
   // Generic fallback removed to strictly enforce immutability

@@ -39,7 +39,8 @@ const LichessLinkHandler = () => {
         });
         navigate("/settings/connections");
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("[LichessLinkHandler] link failed", e);
         notifications.show({
           title: "Error",
           message: "Could not link Lichess account.",

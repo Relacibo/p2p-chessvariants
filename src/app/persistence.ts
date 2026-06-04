@@ -13,7 +13,8 @@ export function loadState(): Record<string, unknown> {
     const serialized = localStorage.getItem(STORAGE_KEY);
     if (!serialized) return {};
     return JSON.parse(serialized);
-  } catch {
+  } catch (e) {
+    console.error("[persistence] loadState failed", e);
     return {};
   }
 }
@@ -27,8 +28,8 @@ export const persistenceMiddleware: Middleware =
         PERSISTED_KEYS.map((key) => [key, state[key]])
       );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersist));
-    } catch {
-      // ignore write errors (e.g. storage quota exceeded)
+    } catch (e) {
+      console.error("[persistence] localStorage write failed", e);
     }
     return result;
   };

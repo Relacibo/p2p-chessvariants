@@ -54,7 +54,7 @@ function formatError(e: unknown): string {
     const obj = e as Record<string, unknown>;
     if (typeof obj.message === "string") return obj.message;
     if (typeof obj.error === "string") return obj.error;
-    try { return JSON.stringify(e, null, 2); } catch { /* fall through */ }
+    try { return JSON.stringify(e, null, 2); } catch (e2) { console.error("[engineWorker] formatError JSON.stringify failed", e2); }
   }
   return String(e);
 }

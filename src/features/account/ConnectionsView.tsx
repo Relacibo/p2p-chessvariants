@@ -30,7 +30,8 @@ const ConnectionsView = () => {
         color: "blue",
       });
       refetch();
-    } catch {
+    } catch (e) {
+      console.error("[ConnectionsView] unlink failed", e);
       notifications.show({
         title: "Fehler",
         message:

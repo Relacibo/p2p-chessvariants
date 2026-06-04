@@ -79,7 +79,7 @@ interface UrlState {
 function readUrlState(sp: URLSearchParams): UrlState {
   const raw = sp.get("dev");
   if (!raw) return {};
-  try { return JSON.parse(raw) as UrlState; } catch { return {}; }
+  try { return JSON.parse(raw) as UrlState; } catch (e) { console.error("[DevBoardView] readUrlState parse failed", e); return {}; }
 }
 
 function encodeUrlState(s: UrlState): string {
@@ -838,7 +838,8 @@ export function DevBoardView() {
                         null,
                         2
                       );
-                    } catch {
+                    } catch (e) {
+                      console.error("[DevBoardView] validMoves prettify failed", e);
                       return validMovesJsonStr;
                     }
                   })()}

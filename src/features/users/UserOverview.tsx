@@ -43,9 +43,10 @@ function UserOverview() {
       .then(() =>
         notifications.show({ message: "Friend request sent!", color: "green" }),
       )
-      .catch(() =>
-        notifications.show({ message: "Could not send request", color: "red" }),
-      );
+      .catch((e) => {
+        console.error("[UserOverview] send request failed", e);
+        notifications.show({ message: "Could not send request", color: "red" });
+      });
   };
 
   const content = isLoading ? (
