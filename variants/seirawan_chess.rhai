@@ -1,9 +1,7 @@
 // Seirawan Chess (S-Chess) - API v2
 fn config() { #{ api_version: 1, name: "Seirawan Chess", version: "2.0.0", colors: ["white","black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } } }
 
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
+let PIECE_DEFS = #{
             "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
             "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
             "rook": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }],
@@ -11,9 +9,8 @@ fn init_static(player_count) {
             "knight": [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }],
             "pawn:white": [ #{ type:"jump",offsets:[[-1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-2,0]],condition:|s,f,t|f.row==6&&engine::board::get(s.board,Coords(f.row-1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ],
             "pawn:black": [ #{ type:"jump",offsets:[[1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[2,0]],condition:|s,f,t|f.row==1&&engine::board::get(s.board,Coords(f.row+1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[1,-1],[1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ],
-        }
-    }
-}
+        };
+
 fn get_piece_defs(piece) {
     let color_key = piece.type + ":" + piece.color; if color_key in PIECE_DEFS { return PIECE_DEFS[color_key]; } if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; } []; }
 

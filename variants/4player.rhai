@@ -1,9 +1,7 @@
 // 4-Player Chess - API v2
 fn config() { #{ api_version: 1, name: "4-Player Chess", version: "2.0.0", colors: ["red","blue","yellow","green"], allowed_player_count: 4, board: #{ type: "rectangle", rows: 14, cols: 14, disabled_rects: [#{ r1:0,c1:0,r2:3,c2:3 },#{ r1:0,c1:11,r2:3,c2:3 },#{ r1:11,c1:0,r2:3,c2:3 },#{ r1:11,c1:11,r2:3,c2:3 }] } } }
 
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
+let PIECE_DEFS = #{
             "king": [#{ type:"jump",offsets:[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
             "queen": [#{ type:"slide",dirs:[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
             "rook": [#{ type:"slide",dirs:[[0,1],[0,-1],[1,0],[-1,0]] }],
@@ -13,9 +11,8 @@ fn init_static(player_count) {
             "pawn:green":  [ #{ type:"jump",offsets:[[0,-1]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[0,-2]],condition:|s,f,t|f.col==12&&engine::board::get(s.board,Coords(f.row,f.col-1))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[1,-1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ],
             "pawn:red":    [ #{ type:"jump",offsets:[[-1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-2,0]],condition:|s,f,t|f.row==12&&engine::board::get(s.board,Coords(f.row-1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ],
             "pawn:blue":   [ #{ type:"jump",offsets:[[0,1]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[0,2]],condition:|s,f,t|f.col==1&&engine::board::get(s.board,Coords(f.row,f.col+1))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,1],[1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ],
-        }
-    }
-}
+        };
+
 fn get_piece_defs(piece) {
     let color_key = piece.type + ":" + piece.color; if color_key in PIECE_DEFS { return PIECE_DEFS[color_key]; } if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; } []; }
 

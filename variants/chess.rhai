@@ -6,9 +6,7 @@ fn config() {
        allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
 }
 
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
+let PIECE_DEFS = #{
             "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
             "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
             "rook": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }],
@@ -32,9 +30,8 @@ fn init_static(player_count) {
                      target == () || target.color != my.color
                  } },
             ],
-        }
-    }
-}
+        };
+
 
 fn get_piece_defs(piece) {
     let color_key = piece.type + ":" + piece.color;

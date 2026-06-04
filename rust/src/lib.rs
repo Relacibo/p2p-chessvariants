@@ -28,7 +28,6 @@ pub struct PlayerMoves {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
-#[derive(Debug)]
 pub struct ChessvariantEngine {
     engine: Engine,
     ast: AST,
@@ -224,12 +223,26 @@ impl ChessvariantEngine {
 
         let ast = engine.compile(&script_content)?;
 
+        // Register ALL engine helpers BEFORE evaluating the script,
+        // so that closures in `let`/`const` declarations (like
+        // condition: |s,f,t| engine::board::get(...)) can reference them.
+        register_engine_helpers(&mut engine);
+
         let mut scope = Scope::new();
 
-        // Run the AST top-level to install fn definitions into the scope.
-        // Without this, closures in init_static() may not capture correctly
-        // when registered as global module variables.
+        // Run the AST top-level to evaluate `let`/`const` declarations
+        // and install fn definitions into the scope.
         engine.run_ast_with_scope(&mut scope, &ast)?;
+
+        // Extract top-level `let`/`const` declarations from the scope and
+        // register them as a global module so they are visible in every scope.
+        {
+            let mut module = Module::new();
+            if let Some(pd) = scope.get_value::<Dynamic>("PIECE_DEFS") {
+                module.set_var("PIECE_DEFS", pd);
+            }
+            engine.register_global_module(Rc::new(module));
+        }
 
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
@@ -241,22 +254,6 @@ impl ChessvariantEngine {
             return Err(CvError::Internal(format!(
                 "player_count {player_count} is not allowed by variant config"
             )));
-        }
-
-        register_engine_helpers(&mut engine);
-
-        // Call optional init_static() to get script-defined constants (PIECE_DEFS etc.)
-        // and register them as a global module so all function scopes can see them.
-        if let Ok(statics) =
-            engine.call_fn::<Dynamic>(&mut scope, &ast, "init_static", (player_count,))
-        {
-            if let Some(map) = statics.try_cast::<rhai::Map>() {
-                let mut module = Module::new();
-                for (key, value) in map {
-                    module.set_var(key, value);
-                }
-                engine.register_global_module(Rc::new(module));
-            }
         }
 
         let init_result = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
@@ -553,9 +550,9 @@ impl ChessvariantEngine {
     }
 
     fn compute_valid_moves_for_player(&mut self, player: &Player) -> Result<Vec<Action>, CvError> {
-        let mut tmp_scope = rhai::Scope::new();
+        let mut scope = Scope::new();
         let result = self.engine.call_fn::<Dynamic>(
-            &mut tmp_scope,
+            &mut scope,
             &self.ast,
             "valid_moves",
             (

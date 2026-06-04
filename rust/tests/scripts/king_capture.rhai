@@ -1,14 +1,10 @@
 // Minimal board for game-over / king-capture tests.
 fn config() { #{ api_version: 1, name: "King Capture Test", version: "2.0.0", colors: ["white", "black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } } }
 
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
+let PIECE_DEFS = #{
             "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
             "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
-        }
-    }
-}
+        };
 
 fn get_piece_defs(piece) {
     if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
