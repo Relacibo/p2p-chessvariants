@@ -147,10 +147,9 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
         const initialValid = init.validMoves as WasmPlayerMoves[];
         setValidMovesAll(initialValid);
         setActivePlayers(deriveActivePlayers(initialValid));
+        const firstActive = deriveActivePlayers(initialValid)[0];
         const firstPlayer = controllingPlayerRefRef.current
-          ?? (deriveActivePlayers(initialValid)[0]
-              ? JSON.stringify(deriveActivePlayers(initialValid)[0])
-              : "");
+          ?? (firstActive?.id != null ? String(firstActive.id) : "");
         await syncState(proxy, firstPlayer || undefined);
       } catch (e: unknown) {
         const msg =

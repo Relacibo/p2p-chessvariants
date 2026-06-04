@@ -269,14 +269,10 @@ export function DevBoardView() {
   // Union valid moves from all selected players for display.
   const displayValidMoves = useMemo((): WasmAction[] => {
     if (selectedPlayers.length <= 1) return validMoves;
-    const selectedSet = new Set(selectedPlayers);
+    const selectedSet = new Set(selectedPlayers.map(Number));
     const actions: WasmAction[] = [];
     for (const pm of validMovesAll) {
-      const ref = JSON.stringify({
-        board: pm.player.board,
-        color: pm.player.color,
-      });
-      if (selectedSet.has(ref)) {
+      if (selectedSet.has(pm.player.id)) {
         actions.push(...pm.moves);
       }
     }
@@ -368,12 +364,12 @@ export function DevBoardView() {
           proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
           proxy.playersJson() as Promise<WasmPlayerConfig[]>,
         ]);
-        // Set controllingPlayer to first active player
+        // Set controllingPlayer to first active player's numeric ID
         const active = allValid
           .filter((pa) => pa.moves.length > 0)
-          .map((pa) => ({ board: pa.player.board, color: pa.player.color }));
+          .map((pa) => pa.player.id);
         if (active.length > 0) {
-          setControllingPlayer(JSON.stringify(active[0]));
+          setControllingPlayer(String(active[0]));
         }
         // Restore selected players from URL
         if (urlPreselection && urlPreselection.length > 0) {
