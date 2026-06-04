@@ -2,18 +2,12 @@ import {
   Alert,
   Button,
   Center,
-  Divider,
   Loader,
   Paper,
   Stack,
   Text,
-  TextInput,
-  Title,
 } from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { notifications } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
-import { useGuestLoginMutation } from "../../api/api";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import {
   broadcastLobbyState,
@@ -24,10 +18,11 @@ import {
 } from "../../api/tabCoordination";
 import * as webrtcService from "../../api/webrtcService";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { login, selectToken, selectUser } from "../auth/authSlice";
+import { selectToken, selectUser } from "../auth/authSlice";
 import useConfigureLayout from "../layout/hooks";
 import PageContainer from "../layout/PageContainer";
 import ActiveLobbyView from "./ActiveLobbyView";
+import GuestAuthView from "./GuestAuthView";
 import SecondaryTabView from "./SecondaryTabView";
 import {
   becomeActiveHost,
@@ -71,15 +66,6 @@ export default function LobbyView() {
   const [broadcastTrigger, setBroadcastTrigger] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevTokenRef = useRef<string | null>(null);
-
-  const [guestLogin, { isLoading: isGuestLoggingIn }] = useGuestLoginMutation();
-  const guestForm = useForm({
-    initialValues: { displayName: "" },
-    validate: {
-      displayName: (v) =>
-        v.trim().length > 0 ? null : "Display name is required",
-    },
-  });
 
   const type: "lobby" | "peer" | null = lobbyId
     ? "lobby"
@@ -230,24 +216,6 @@ export default function LobbyView() {
     }
   }, [lobbyStatus.phase, navigate, serverLobbyId]);
 
-  const handleGuestJoin = async (values: { displayName: string }) => {
-    try {
-      const res = await guestLogin(values).unwrap();
-      dispatch(login({ token: res.token, user: res.user }));
-      notifications.show({
-        title: "Joined as guest",
-        message: "Connecting to lobby...",
-        color: "blue",
-      });
-    } catch (e: any) {
-      notifications.show({
-        title: "Error",
-        message: e.message || "Failed to join as guest",
-        color: "red",
-      });
-    }
-  };
-
   if (token && type === "lobby" && tabRole === "checking") {
     return (
       <PageContainer>
@@ -380,33 +348,13 @@ export default function LobbyView() {
 
   // Not logged in → offer guest login or full login
   if (!token) {
-    const loginRedirect = `/auth/login?redirect=${encodeURIComponent(location.pathname)}`;
     return (
       <PageContainer>
-        <Paper p="md" maw={480} mx="auto">
-          <Stack>
-            <Title order={3}>Join Lobby</Title>
-            <Button
-              variant="default"
-              onClick={() => navigate(loginRedirect)}
-            >
-              Login with account
-            </Button>
-            <Divider label="or join as guest" labelPosition="center" />
-            <form onSubmit={guestForm.onSubmit(handleGuestJoin)}>
-              <Stack>
-                <TextInput
-                  label="Display Name"
-                  placeholder="Guest Player"
-                  {...guestForm.getInputProps("displayName")}
-                />
-                <Button type="submit" loading={isGuestLoggingIn}>
-                  Join as Guest
-                </Button>
-              </Stack>
-            </form>
-          </Stack>
-        </Paper>
+        <GuestAuthView
+          title="Join Lobby"
+          guestLabel="Join as Guest"
+          dividerLabel="or join as guest"
+        />
       </PageContainer>
     );
   }

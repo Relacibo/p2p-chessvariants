@@ -5,7 +5,6 @@ import {
   Button,
   Checkbox,
   Combobox,
-  Divider,
   Group,
   Input,
   InputBase,
@@ -20,7 +19,6 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import {
   IconAlertCircle,
   IconBrandGithub,
@@ -28,10 +26,8 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useGuestLoginMutation } from "../../api/api";
 import { useDispatch, useSelector } from "../../app/hooks";
-import { login, selectToken } from "../auth/authSlice";
+import { selectToken } from "../auth/authSlice";
 import {
   getGithubBrowseUrl,
   normalizeScriptUrl,
@@ -49,6 +45,7 @@ import {
   createLobby,
   selectLobbyStatus,
 } from "./lobbySlice";
+import GuestAuthView from "./GuestAuthView";
 
 type PendingCreate = {
   scriptUrl: string;
@@ -105,78 +102,6 @@ function AddCustomVariantModal({
   );
 }
 
-/** Login / guest-login screen shown after user clicks "Create Lobby" without being logged in. */
-function CreateLobbyAuthScreen({
-  pending,
-  onBack,
-}: {
-  pending: PendingCreate;
-  onBack: () => void;
-}) {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const [guestLogin, { isLoading: isGuestLoggingIn }] =
-    useGuestLoginMutation();
-
-  const guestForm = useForm({
-    initialValues: { displayName: "" },
-    validate: {
-      displayName: (v) =>
-        v.trim().length > 0 ? null : "Display name is required",
-    },
-  });
-
-  const loginRedirect = `/auth/login?redirect=${encodeURIComponent(location.pathname)}`;
-
-  const handleGuestCreate = async (values: { displayName: string }) => {
-    try {
-      const res = await guestLogin(values).unwrap();
-      dispatch(login({ token: res.token, user: res.user }));
-      dispatch(
-        createLobby(
-          pending.scriptUrl,
-          pending.useServerLobby,
-          pending.allowGuests,
-        ),
-      );
-    } catch (e: any) {
-      notifications.show({
-        title: "Error",
-        message: e.message || "Guest login failed",
-        color: "red",
-      });
-    }
-  };
-
-  return (
-    <Stack>
-      <Group>
-        <Button variant="subtle" onClick={onBack}>
-          ← Back
-        </Button>
-      </Group>
-      <Button variant="default" onClick={() => navigate(loginRedirect)}>
-        Login with account
-      </Button>
-      <Divider label="or continue as guest" labelPosition="center" />
-      <form onSubmit={guestForm.onSubmit(handleGuestCreate)}>
-        <Stack>
-          <TextInput
-            label="Display Name"
-            placeholder="Guest Player"
-            {...guestForm.getInputProps("displayName")}
-          />
-          <Group>
-            <Button type="submit" loading={isGuestLoggingIn}>
-              Create as Guest
-            </Button>
-          </Group>
-        </Stack>
-      </form>
-    </Stack>
-  );
-}
-
 function CreateLobbyForm() {
   const dispatch = useDispatch();
   const status = useSelector(selectLobbyStatus);
@@ -227,10 +152,27 @@ function CreateLobbyForm() {
   // Show login/guest screen after submitting without token
   if (pendingCreate) {
     return (
-      <CreateLobbyAuthScreen
-        pending={pendingCreate}
-        onBack={() => setPendingCreate(null)}
-      />
+      <Stack>
+        <Group>
+          <Button variant="subtle" onClick={() => setPendingCreate(null)}>
+            ← Back
+          </Button>
+        </Group>
+        <GuestAuthView
+          title="Create Lobby"
+          guestLabel="Create as Guest"
+          dividerLabel="or continue as guest"
+          onSuccess={() =>
+            dispatch(
+              createLobby(
+                pendingCreate.scriptUrl,
+                pendingCreate.useServerLobby,
+                pendingCreate.allowGuests,
+              ),
+            )
+          }
+        />
+      </Stack>
     );
   }
 
