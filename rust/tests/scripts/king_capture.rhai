@@ -1,15 +1,19 @@
 // Minimal board for game-over / king-capture tests.
 fn config() { #{ api_version: 1, name: "King Capture Test", version: "2.0.0", colors: ["white", "black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } } }
 
-fn PIECE_DEFS() {
+fn init_static(player_count) {
     #{
-    "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
-    "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
-}
+        PIECE_DEFS: #{
+            "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
+            "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
+        }
+    }
 }
 
 fn get_piece_defs(piece) {
-    let defs = PIECE_DEFS(); if piece.type in defs { return defs[piece.type]; } []; }
+    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
+    [];
+}
 
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }

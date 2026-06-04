@@ -4,39 +4,40 @@ fn config() {
        allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
 }
 
-fn PIECE_DEFS() {
+fn init_static(player_count) {
     #{
-        "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
-        "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
-        "rook": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }],
-        "bishop": [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }],
-        "knight": [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }],
-        "pawn:white": [
-             #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-             #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
-             #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
-                 let target = engine::board::get(s.board, t);
-                 let my = engine::board::get(s.board, f);
-                 target == () || target.color != my.color
-             } },
-        ],
-        "pawn:black": [
-             #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-             #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
-             #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
-                 let target = engine::board::get(s.board, t);
-                 let my = engine::board::get(s.board, f);
-                 target == () || target.color != my.color
-             } },
-        ],
+        PIECE_DEFS: #{
+            "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
+            "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
+            "rook": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }],
+            "bishop": [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }],
+            "knight": [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }],
+            "pawn:white": [
+                 #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+                 #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
+                 #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
+                     let target = engine::board::get(s.board, t);
+                     let my = engine::board::get(s.board, f);
+                     target == () || target.color != my.color
+                 } },
+            ],
+            "pawn:black": [
+                 #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+                 #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
+                 #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
+                     let target = engine::board::get(s.board, t);
+                     let my = engine::board::get(s.board, f);
+                     target == () || target.color != my.color
+                 } },
+            ],
+        }
     }
 }
 
 fn get_piece_defs(piece) {
-    let defs = PIECE_DEFS();
     let color_key = piece.type + ":" + piece.color;
-    if color_key in defs { return defs[color_key]; }
-    if piece.type in defs { return defs[piece.type]; }
+    if color_key in PIECE_DEFS { return PIECE_DEFS[color_key]; }
+    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
     [];
 }
 

@@ -3,7 +3,7 @@ use game::{
     actions::Action, board, piece::Piece, standard, state::Coords, variant_config::VariantConfig,
 };
 use modules::builtins;
-use rhai::{AST, Dynamic, Engine, Scope};
+use rhai::{AST, Dynamic, Engine, Module, Scope};
 use serde::Serialize;
 use std::rc::Rc;
 #[cfg(target_arch = "wasm32")]
@@ -234,6 +234,21 @@ impl ChessvariantEngine {
         }
 
         register_engine_helpers(&mut engine);
+
+        // Call optional init_static() to get script-defined constants (PIECE_DEFS etc.)
+        // and register them as a global module so all function scopes can see them.
+        if let Ok(statics) =
+            engine.call_fn::<Dynamic>(&mut scope, &ast, "init_static", (player_count,))
+        {
+            if let Some(map) = statics.try_cast::<rhai::Map>() {
+                let mut module = Module::new();
+                for (key, value) in map {
+                    module.set_var(key, value);
+                }
+                engine.register_global_module(Rc::new(module));
+            }
+        }
+
         let game_state = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
 
         Ok(ChessvariantEngine {

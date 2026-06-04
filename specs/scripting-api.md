@@ -30,7 +30,7 @@ All agents (Plan, Build) MUST reference this document.
 
 > **v2 change**: Piece definitions are entirely script-defined. The engine provides **only unbiased geometry helpers** (`engine::moves::jump`, `engine::moves::slide`, `engine::moves::pawn_push`, and the per-type convenience wrappers `engine::moves::rook`, `::knight`, `::bishop`, `::queen`, `::king`). There is no `pieces()` function recognized by the engine, no `PieceDefinitionMap`, and no `pseudo_moves()` engine function.
 
-Piece definitions live in a **single flat map**, defined as a function `fn PIECE_DEFS()` at global scope. They are **not** stored in the game state (they are static, never serialized to the frontend).
+Piece definitions live in a **single flat map** returned by `fn init_static(player_count)`. The engine calls this function once after `init()` and registers the returned map entries as global module variables — they are **not** stored in game state (never serialized to the frontend), and are visible to all function scopes.
 
 #### Key format
 
@@ -40,53 +40,57 @@ Piece definitions live in a **single flat map**, defined as a function `fn PIECE
 | `"{type}:{color}"` | `"pawn:white"`, `"pawn:black"` | Color-specific piece (takes precedence over plain key) |
 
 ```rhai
-fn PIECE_DEFS() {
+fn init_static(player_count) {
     #{
-        "king": [
-            #{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] },
-        ],
-        "queen": [
-            #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] },
-        ],
-        "rook": [
-            #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] },
-        ],
-        "bishop": [
-            #{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] },
-        ],
-        "knight": [
-            #{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] },
-        ],
-        "pawn:white": [
-            // Single forward push — target must be empty
-            #{ type: "jump", offsets: [[-1, 0]],
-               condition: |s, f, t| engine::board::get(s.board, t) == ()
-            },
-            // Double forward push — from start line, both squares empty
-            #{ type: "jump", offsets: [[-2, 0]],
-               condition: |s, f, t|
-                   f.row == 6
-                   && engine::board::get(s.board, Coords(f.row - 1, f.col)) == ()
-                   && engine::board::get(s.board, t) == ()
-            },
-            // Diagonal captures — enemy piece
-            #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
-               condition: |s, f, t| {
-                   let target = engine::board::get(s.board, t);
-                   let my     = engine::board::get(s.board, f);
-                   target == () || target.color != my.color
-               }
-            },
-        ],
-        "pawn:black": [
-            #{ type: "jump", offsets: [[1, 0]],
-               condition: |s, f, t| engine::board::get(s.board, t) == ()
-            },
-            // ... double push and captures with opposite direction
-        ],
+        PIECE_DEFS: #{
+            "king": [
+                #{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] },
+            ],
+            "queen": [
+                #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] },
+            ],
+            "rook": [
+                #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] },
+            ],
+            "bishop": [
+                #{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] },
+            ],
+            "knight": [
+                #{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] },
+            ],
+            "pawn:white": [
+                // Single forward push — target must be empty
+                #{ type: "jump", offsets: [[-1, 0]],
+                   condition: |s, f, t| engine::board::get(s.board, t) == ()
+                },
+                // Double forward push — from start line, both squares empty
+                #{ type: "jump", offsets: [[-2, 0]],
+                   condition: |s, f, t|
+                       f.row == 6
+                       && engine::board::get(s.board, Coords(f.row - 1, f.col)) == ()
+                       && engine::board::get(s.board, t) == ()
+                },
+                // Diagonal captures — enemy piece
+                #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
+                   condition: |s, f, t| {
+                       let target = engine::board::get(s.board, t);
+                       let my     = engine::board::get(s.board, f);
+                       target == () || target.color != my.color
+                   }
+                },
+            ],
+            "pawn:black": [
+                #{ type: "jump", offsets: [[1, 0]],
+                   condition: |s, f, t| engine::board::get(s.board, t) == ()
+                },
+                // ... double push and captures with opposite direction
+            ],
+        }
     }
 }
 ```
+
+The engine calls `init_static(player_count)` after `init()`, iterates the returned map, and registers each key as a global variable. Script functions access them directly (e.g. `PIECE_DEFS[key]`).
 
 #### Component types and `condition` closures
 
@@ -108,10 +112,9 @@ Every variant script must implement (or copy) these helper functions:
 ```rhai
 // Lookup: tries "{type}:{color}" key, falls back to "{type}" key
 fn get_piece_defs(piece) {
-    let defs = PIECE_DEFS();
     let color_key = piece.type + ":" + piece.color;
-    if color_key in defs { return defs[color_key]; }
-    if piece.type in defs { return defs[piece.type]; }
+    if color_key in PIECE_DEFS { return PIECE_DEFS[color_key]; }
+    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
     [];
 }
 
@@ -210,10 +213,11 @@ fn init(player_count) {
 
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
-fn PIECE_DEFS() {
+fn init_static(player_count) {
     #{
-        // ... standard pieces (king, queen, etc.) ...
-        "pawn:yellow": [
+        PIECE_DEFS: #{
+            // ... standard pieces (king, queen, etc.) ...
+            "pawn:yellow": [
             #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
             #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
             #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
@@ -225,6 +229,7 @@ fn PIECE_DEFS() {
         ],
         "pawn:red":    [ /* moves north */ ],
         "pawn:blue":   [ /* moves east */ ],
+        }
     }
 }
 ```
