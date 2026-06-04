@@ -4,10 +4,10 @@ fn config() { #{ api_version: 1, name: "4-Player Chess", version: "2.0.0", color
 fn build_piece_defs() { #{ king: [#{ type:"jump",offsets:[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }], queen: [#{ type:"slide",dirs:[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }], rook: [#{ type:"slide",dirs:[[0,1],[0,-1],[1,0],[-1,0]] }], bishop: [#{ type:"slide",dirs:[[1,1],[1,-1],[-1,1],[-1,-1]] }], knight: [#{ type:"jump",offsets:[[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] } }
 
 fn build_color_piece_defs() {
-    #{ yellow: #{ pawn: [ #{ type:"jump",offsets:[[1,0]] }, #{ type:"jump",offsets:[[2,0]] }, #{ type:"jump",offsets:[[1,-1],[1,1]] } ]},
-       green:  #{ pawn: [ #{ type:"jump",offsets:[[0,-1]] }, #{ type:"jump",offsets:[[0,-2]] }, #{ type:"jump",offsets:[[-1,-1],[1,-1]] } ]},
-       red:    #{ pawn: [ #{ type:"jump",offsets:[[-1,0]] }, #{ type:"jump",offsets:[[-2,0]] }, #{ type:"jump",offsets:[[-1,-1],[-1,1]] } ]},
-       blue:   #{ pawn: [ #{ type:"jump",offsets:[[0,1]] }, #{ type:"jump",offsets:[[0,2]] }, #{ type:"jump",offsets:[[-1,1],[1,1]] } ]} }
+    #{ yellow: #{ pawn: [ #{ type:"jump",offsets:[[1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[2,0]],condition:|s,f,t|f.row==1&&engine::board::get(s.board,Coords(f.row+1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[1,-1],[1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ]},
+       green:  #{ pawn: [ #{ type:"jump",offsets:[[0,-1]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[0,-2]],condition:|s,f,t|f.col==12&&engine::board::get(s.board,Coords(f.row,f.col-1))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[1,-1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ]},
+       red:    #{ pawn: [ #{ type:"jump",offsets:[[-1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-2,0]],condition:|s,f,t|f.row==12&&engine::board::get(s.board,Coords(f.row-1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ]},
+       blue:   #{ pawn: [ #{ type:"jump",offsets:[[0,1]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[0,2]],condition:|s,f,t|f.col==1&&engine::board::get(s.board,Coords(f.row,f.col+1))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,1],[1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ]} }
 }
 
 fn get_piece_defs(piece, state) { if piece.color in state.color_piece_defs && piece.type in state.color_piece_defs[piece.color] { return state.color_piece_defs[piece.color][piece.type]; } if piece.type in state.piece_defs { return state.piece_defs[piece.type]; } []; }
@@ -16,7 +16,7 @@ fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }
     let comps = get_piece_defs(piece, state); if comps == () || comps.len == 0 { return []; }
     let dests = [];
-    for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; for d in raw { dests.push(d); } }
+    for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; if comp.condition!=() { raw=raw.filter(|t|comp.condition(state,from,t)); } for d in raw { dests.push(d); } }
     dests
 }
 

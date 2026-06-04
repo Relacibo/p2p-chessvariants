@@ -16,14 +16,22 @@ fn build_piece_defs() {
 
 fn build_color_piece_defs() {
     #{ white: #{ pawn: [
-         #{ type: "jump", offsets: [[-1, 0]] },
-         #{ type: "jump", offsets: [[-2, 0]] },
-         #{ type: "jump", offsets: [[-1, -1], [-1, 1]] },
+         #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
+             let target = engine::board::get(s.board, t);
+             let my = engine::board::get(s.board, f);
+             target == () || target.color != my.color
+         } },
     ]},
     black: #{ pawn: [
-         #{ type: "jump", offsets: [[1, 0]] },
-         #{ type: "jump", offsets: [[2, 0]] },
-         #{ type: "jump", offsets: [[1, -1], [1, 1]] },
+         #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
+             let target = engine::board::get(s.board, t);
+             let my = engine::board::get(s.board, f);
+             target == () || target.color != my.color
+         } },
     ]} }
 }
 
@@ -47,7 +55,7 @@ fn get_pseudo_dests(board, from, state) {
             "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
             _ => [],
         };
-
+        if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
         for d in raw { dests.push(d); }
     }
     dests
