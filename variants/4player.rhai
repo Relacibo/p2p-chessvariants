@@ -41,22 +41,22 @@ fn init(player_count) {
 }
 
 fn valid_moves(state, player) {
-    if "outcome" in state { return []; } if player.id != state.turn { return []; }
+    if player.id != state["turn"] { return []; }
     let moves = [];
     for r in 0..14 { for c in 0..14 { let piece = engine::board::get(state.board, Coords(r, c)); if piece != () && piece.color == player.data.color { let from = Coords(r, c); let dests = get_pseudo_dests(state.board, from, state); for to in dests { let bt = engine::board::get(state.board, to); if bt != () && bt.color == player.data.color { continue; } moves.push(Move(from, to)); } } } }
     moves
 }
 
 fn handle_action(state, player, action) {
-    if state.turn != player.id { throw `not ${player.id}'s turn`; }
+    if state["turn"] != player.id { throw `not ${player.id}'s turn`; }
     if action.type == "move" {
         let src = engine::board::get(state.board, action.from); if src == () { throw "no piece there"; } if src.color != player.data.color { throw "not yours"; }
         let dst = engine::board::get(state.board, action.to); if dst != () && dst.color == player.data.color { throw "own piece"; }
         state.board = engine::board::move_piece(state.board, action.from, action.to);
-        for p in state.players { let kings = engine::board::find(state.board, Piece(p.data.color, "king")); if kings.len == 0 { let survivors = state.players.filter(|q| q.data.color != p.data.color); state.outcome = Winner(survivors[0].team); return state; } }
-        let idx = state.turn_order.index_of(player.id); state.turn = state.turn_order[(idx + 1) % 4];
+        for p in state.players { let kings = engine::board::find(state.board, Piece(p.data.color, "king")); if kings.len == 0 { let survivors = state.players.filter(|q| q.data.color != p.data.color); state["outcome"] = Winner(survivors[0].team); return state; } }
+        let idx = state["turn_order"].index_of(player.id); state["turn"] = state["turn_order"][(idx + 1) % 4];
     }
     state
 }
 
-fn derive_game_progress(state, all_valid_moves) { if "outcome" in state { return state.outcome; } for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } } Draw() }
+fn derive_game_progress(state, all_valid_moves) { for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } } Draw() }

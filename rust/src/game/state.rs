@@ -8,6 +8,80 @@ use wasm_bindgen::prelude::*;
 
 use super::piece::Piece;
 
+/// The game state, exposed to Rhai scripts as an indexed map.
+///
+/// **Rust fields** (typed, always present):
+///   - `board` — the board(s), stored as Dynamic (BoardState or Array of BoardState)
+///   - `players` — array of player maps
+///
+/// **Script data** (variant-specific, opaque to Rust):
+///   All other keys (`turn`, `castling_rights`, `en_passant`, etc.) live in `data`.
+///   Scripts access them via indexer syntax: `state["turn"]`, `state["castling_rights"]`.
+///
+/// There is no `outcome` field — game-over is determined by `derive_game_progress()`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct State {
+    pub board: Dynamic,
+    pub players: rhai::Array,
+    #[serde(flatten)]
+    pub data: rhai::Map,
+}
+
+impl State {
+    /// Create a new state from a board and player list. `data` starts empty.
+    pub fn new(board: Dynamic, players: rhai::Array) -> Self {
+        Self {
+            board,
+            players,
+            data: rhai::Map::new(),
+        }
+    }
+
+    /// Build a State from a Rhai map (returned by `init()`).
+    /// Extracts `board` and `players`; remaining keys go to `data`.
+    pub fn from_init_map(map: rhai::Map) -> Result<Self, String> {
+        let board = map
+            .get("board")
+            .cloned()
+            .unwrap_or(Dynamic::UNIT);
+        let players = map
+            .get("players")
+            .cloned()
+            .and_then(|v| v.try_cast::<rhai::Array>())
+            .ok_or_else(|| "init() must return a 'players' key with an array".to_string())?;
+        let data: rhai::Map = map
+            .into_iter()
+            .filter(|(k, _)| k != "board" && k != "players")
+            .collect();
+        Ok(State {
+            board,
+            players,
+            data,
+        })
+    }
+
+    // ─── Rhai property accessors (registered in lib.rs) ───────────────────────
+    // board + players use property syntax: state.board, state.players
+    // data keys use indexer syntax: state["turn"]
+
+    /// Indexer getter — only for data keys. board/players are properties.
+    pub fn rhai_index_get(&mut self, key: &str) -> Dynamic {
+        self.data.get(key).cloned().unwrap_or(Dynamic::UNIT)
+    }
+
+    /// Indexer setter — only for data keys.
+    pub fn rhai_index_set(&mut self, key: &str, value: Dynamic) {
+        self.data.insert(key.into(), value);
+    }
+
+    // ─── Convenience typed accessors for Rust code ─────────────────────────────
+
+    #[allow(dead_code)]
+    pub fn try_get_players(&self) -> &rhai::Array {
+        &self.players
+    }
+}
+
 /// A coordinate that can refer to a board square OR a reserve slot.
 ///
 /// Scripts use:

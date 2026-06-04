@@ -87,8 +87,7 @@ fn init(player_count) {
 }
 
 fn valid_moves(state, player) {
-    if "outcome" in state { return []; }
-    if player.id != state.turn { return []; }
+    if player.id != state["turn"] { return []; }
     let color = player.data.color;
     let candidates = [];
     for r in 0..8 { for c in 0..8 {
@@ -101,8 +100,8 @@ fn valid_moves(state, player) {
     let king_row = if color == "white" { 7 } else { 0 };
     let king = engine::board::get(state.board, Coords(king_row, 4));
     if king != () && king.color == color && king.type == "king" {
-        let ks = if color == "white" { state.castling_rights.wk } else { state.castling_rights.bk };
-        let qs = if color == "white" { state.castling_rights.wq } else { state.castling_rights.bq };
+        let ks = if color == "white" { state["castling_rights"].wk } else { state["castling_rights"].bk };
+        let qs = if color == "white" { state["castling_rights"].wq } else { state["castling_rights"].bq };
         if ks { candidates.push(Move(Coords(king_row, 4), Coords(king_row, 6))); }
         if qs { candidates.push(Move(Coords(king_row, 4), Coords(king_row, 2))); }
     }
@@ -110,14 +109,13 @@ fn valid_moves(state, player) {
 }
 
 fn derive_game_progress(state, all_valid_moves) {
-    if "outcome" in state { return state.outcome; }
     for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } }
     Draw()
 }
 
 fn handle_action(state, player, action) {
     let player_color = player.data.color;
-    if state.turn != player.id { throw `${player.id} is not active — it's ${state.turn}'s turn`; }
+    if state["turn"] != player.id { throw `${player.id} is not active — it's ${state["turn"]}'s turn`; }
 
     if action.type == "move" {
         let from = action.from; let to = action.to;
@@ -131,7 +129,7 @@ fn handle_action(state, player, action) {
         if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player_color).map(|p| p.data.color); }
 
         let dr = to.row - from.row; let dc = to.col - from.col;
-        let new_board = (); let new_castling_rights = state.castling_rights; let new_en_passant = ();
+        let new_board = (); let new_castling_rights = state["castling_rights"]; let new_en_passant = ();
 
         if src.type == "king" && dr == 0 && (dc == 2 || dc == -2) {
             if is_in_check(state.board, player_color, enemies, state) { throw "cannot castle while in check"; }
@@ -141,11 +139,11 @@ fn handle_action(state, player, action) {
             let rook_piece = engine::board::get(state.board, rook_from);
             if rook_piece == () || rook_piece.color != player_color || rook_piece.type != "rook" { throw "no rook at castling position"; }
             if player_color == "white" {
-                if is_kingside && !state.castling_rights.wk { throw "white kingside castling rights lost"; }
-                if !is_kingside && !state.castling_rights.wq { throw "white queenside castling rights lost"; }
+                if is_kingside && !state["castling_rights"].wk { throw "white kingside castling rights lost"; }
+                if !is_kingside && !state["castling_rights"].wq { throw "white queenside castling rights lost"; }
             } else {
-                if is_kingside && !state.castling_rights.bk { throw "black kingside castling rights lost"; }
-                if !is_kingside && !state.castling_rights.bq { throw "black queenside castling rights lost"; }
+                if is_kingside && !state["castling_rights"].bk { throw "black kingside castling rights lost"; }
+                if !is_kingside && !state["castling_rights"].bq { throw "black queenside castling rights lost"; }
             }
             if is_kingside { for c in (from.col + 1)..rook_col { if engine::board::get(state.board, Coords(row, c)) != () { throw "castling path is blocked"; } } }
             else { for c in (rook_col + 1)..from.col { if engine::board::get(state.board, Coords(row, c)) != () { throw "castling path is blocked"; } } }
@@ -159,7 +157,7 @@ fn handle_action(state, player, action) {
             else { new_castling_rights = merge(new_castling_rights, #{ bk: false, bq: false }); }
         }
         else if src.type == "pawn" && dc != 0 && dst == () {
-            if state.en_passant == () || to != state.en_passant { throw "invalid en passant target"; }
+            if state["en_passant"] == () || to != state["en_passant"] { throw "invalid en passant target"; }
             let captured_pawn_pos = Coords(from.row, to.col);
             new_board = engine::board::move_piece(state.board, from, to);
             new_board = engine::board::set(new_board, captured_pawn_pos, ());
@@ -168,7 +166,8 @@ fn handle_action(state, player, action) {
         else {
             if src.type == "pawn" {
                 if (player_color == "white" && to.row == 0) || (player_color == "black" && to.row == 7) {
-                    return merge(state, #{ promotion_pending: #{ from: from, to: to, color: player_color } });
+                    state["promotion_pending"] = #{ from: from, to: to, color: player_color };
+                    return state;
                 }
             }
             new_board = engine::board::move_piece(state.board, from, to);
@@ -196,11 +195,15 @@ fn handle_action(state, player, action) {
             }
         }
         let next_turn = if player.id == 0 { 1 } else { 0 };
-        return merge(state, #{ board: new_board, turn: next_turn, castling_rights: new_castling_rights, en_passant: new_en_passant });
+        state.board = new_board;
+        state["turn"] = next_turn;
+        state["castling_rights"] = new_castling_rights;
+        state["en_passant"] = new_en_passant;
+        return state;
     }
 
     if action.type == "select_piece" {
-        let pp = state.promotion_pending;
+        let pp = state["promotion_pending"];
         if pp == () { throw "no promotion pending"; }
         if pp.color != player_color { throw "not your promotion"; }
         let new_board = engine::board::move_piece(state.board, pp.from, pp.to);
@@ -208,14 +211,18 @@ fn handle_action(state, player, action) {
         let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
         if is_in_check(new_board, player_color, enemies, state) { throw "promotion leaves king in check"; }
         let next_turn = if player.id == 0 { 1 } else { 0 };
-        return merge(state, #{ board: new_board, turn: next_turn, promotion_pending: () });
+        state.board = new_board;
+        state["turn"] = next_turn;
+        state["promotion_pending"] = ();
+        return state;
     }
 
     if action.type == "cancel" {
-        if "promotion_pending" in state && state.promotion_pending != () {
-            let pp = state.promotion_pending;
+        if state["promotion_pending"] != () {
+            let pp = state["promotion_pending"];
             if pp.color != player_color { throw "not your promotion to cancel"; }
-            return merge(state, #{ promotion_pending: () });
+            state["promotion_pending"] = ();
+            return state;
         }
         throw "nothing to cancel";
     }
@@ -223,8 +230,8 @@ fn handle_action(state, player, action) {
 }
 
 fn derive_ui(state, player) {
-    if "promotion_pending" in state && state.promotion_pending != () {
-        let pp = state.promotion_pending;
+    if state["promotion_pending"] != () {
+        let pp = state["promotion_pending"];
         if pp.color == player.data.color {
             return #{ promotion: #{ type: "piece_picker", cancelable: true, title: "Promote pawn to:",
                pieces: [Piece(pp.color, "queen"), Piece(pp.color, "rook"), Piece(pp.color, "bishop"), Piece(pp.color, "knight")] } };

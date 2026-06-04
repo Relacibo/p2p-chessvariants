@@ -16,14 +16,8 @@ fn make_engine(script_path: &str, players: i32) -> ChessvariantEngine {
         .unwrap_or_else(|e| panic!("Failed to init engine for {script_path}: {e:?}"))
 }
 
-fn state_board(state: &Dynamic) -> BoardState {
-    state
-        .clone()
-        .cast::<rhai::Map>()
-        .get("board")
-        .expect("state has no 'board' field")
-        .clone()
-        .cast::<BoardState>()
+fn state_board(engine: &ChessvariantEngine) -> BoardState {
+    serde_json::from_str(&engine.board_state_json().unwrap()).unwrap()
 }
 
 fn coords(row: i32, col: i32) -> Coords {
@@ -35,8 +29,8 @@ fn coords(row: i32, col: i32) -> Coords {
 #[test]
 fn test_chess_basic_init_board_has_standard_pieces() {
     let engine = make_engine("../variants/chess.rhai", 2);
-    let state = engine.state();
-    let board = state_board(&state);
+    let _state = engine.state();
+    let board = state_board(&engine);
 
     for col in 0..8_i32 {
         let piece = board
@@ -87,8 +81,8 @@ fn test_chess_basic_pawn_e2_e4() {
         .submit_move("white", coords(6, 4), coords(4, 4))
         .expect("white pawn e2→e4 should succeed");
 
-    let state = engine.state();
-    let board = state_board(&state);
+    let _state = engine.state();
+    let board = state_board(&engine);
 
     let piece = board
         .get_piece(&BoardCoords::new_board_0(4, 4))
@@ -227,8 +221,8 @@ fn test_chess_ruy_lopez_kingside_castling() {
         .submit_move("white", coords(7, 4), coords(7, 6))
         .expect("5. O-O");
 
-    let state = engine.state();
-    let board = state_board(&state);
+    let _state = engine.state();
+    let board = state_board(&engine);
 
     // King must be on g1 = (7,6)
     let king = board
@@ -301,8 +295,8 @@ fn test_chess_pawn_promotion() {
         .submit_select_piece("white", "white", "queen")
         .expect("5. promote to queen");
 
-    let state = engine.state();
-    let board = state_board(&state);
+    let _state = engine.state();
+    let board = state_board(&engine);
 
     // Promoted queen must be on a8 = (0,0)
     let promoted = board
@@ -412,8 +406,8 @@ fn test_chess_stalemate() {
     );
 
     // Black king must still be on the board (not captured — this is stalemate, not checkmate)
-    let state = engine.state();
-    let board = state_board(&state);
+    let _state = engine.state();
+    let board = state_board(&engine);
     let black_king = board.get_piece(&BoardCoords::new_board_0(2, 6));
     assert!(black_king.is_some(), "black king must still be on board");
     assert_eq!(black_king.unwrap().piece_type_name(), "king");
