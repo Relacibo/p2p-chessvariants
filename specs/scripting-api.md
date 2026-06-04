@@ -1,4 +1,4 @@
-# Chess Variant Scripting API v2
+# Chess Variant Scripting API
 
 **Single Source of Truth** for the Rhai scripting interface.
 All agents (Plan, Build) MUST reference this document.
@@ -25,137 +25,6 @@ All agents (Plan, Build) MUST reference this document.
 | `colors` | [string] | YES | Player color identifiers |
 | `allowed_player_count` | `i32` \| `[i32]` \| `#{min: i32, max: i32, step?: i32}` | YES | Exact count, list of allowed values, or ranged constraint |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
-
-### Piece Definitions — Script-Only
-
-> **v2 change**: Piece definitions are entirely script-defined. The engine provides **only unbiased geometry helpers** (`engine::moves::jump`, `engine::moves::slide`, `engine::moves::pawn_push`, and the per-type convenience wrappers `engine::moves::rook`, `::knight`, `::bishop`, `::queen`, `::king`). There is no `pieces()` function recognized by the engine, no `PieceDefinitionMap`, and no `pseudo_moves()` engine function.
-
-Piece definitions live in a **single flat map** returned by `fn init_static(player_count)`. The engine calls this function once after `init()` and registers the returned map entries as global module variables — they are **not** stored in game state (never serialized to the frontend), and are visible to all function scopes.
-
-#### Key format
-
-| Key pattern | Example | Description |
-|-------------|---------|-------------|
-| `"{type}"` | `"king"`, `"rook"`, `"knight"` | Color-independent piece (works for all colors) |
-| `"{type}:{color}"` | `"pawn:white"`, `"pawn:black"` | Color-specific piece (takes precedence over plain key) |
-
-```rhai
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
-            "king": [
-                #{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] },
-            ],
-            "queen": [
-                #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] },
-            ],
-            "rook": [
-                #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] },
-            ],
-            "bishop": [
-                #{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] },
-            ],
-            "knight": [
-                #{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] },
-            ],
-            "pawn:white": [
-                // Single forward push — target must be empty
-                #{ type: "jump", offsets: [[-1, 0]],
-                   condition: |s, f, t| engine::board::get(s.board, t) == ()
-                },
-                // Double forward push — from start line, both squares empty
-                #{ type: "jump", offsets: [[-2, 0]],
-                   condition: |s, f, t|
-                       f.row == 6
-                       && engine::board::get(s.board, Coords(f.row - 1, f.col)) == ()
-                       && engine::board::get(s.board, t) == ()
-                },
-                // Diagonal captures — must be enemy piece, not empty
-                #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
-                   condition: |s, f, t| {
-                       let target = engine::board::get(s.board, t);
-                       let my     = engine::board::get(s.board, f);
-                       target != () && target.color != my.color
-                   }
-                },
-            ],
-            "pawn:black": [
-                #{ type: "jump", offsets: [[1, 0]],
-                   condition: |s, f, t| engine::board::get(s.board, t) == ()
-                },
-                // ... double push and captures with opposite direction
-            ],
-        }
-    }
-}
-```
-
-The engine calls `init_static(player_count)` after `config()` and before `init()`, iterates the returned map, and registers each key as a global variable. Script functions access them directly (e.g. `PIECE_DEFS[key]`).
-
-#### Component types and `condition` closures
-
-Each component is an object map with fields:
-
-| field | type | required | description |
-|-------|------|----------|-------------|
-| `type` | string | YES | `"jump"` or `"slide"` |
-| `offsets` | `[[i32,i32]]` | for `"jump"` | Leap offset pairs |
-| `dirs` | `[[i32,i32]]` | for `"slide"` | Ray direction vectors |
-| `condition` | closure `\|s, f, t\| -> bool` | NO | Pseudo-legal constraint filter |
-
-**Conditions** are Rhai closures that receive the game state, source coordinate, and destination. They are called by the script's `get_pseudo_dests()` function to filter pseudo-legal destinations. Conditions can access `engine::board::get` and any state keys (e.g., `state.en_passant`).
-
-#### Required script helpers
-
-Every variant script must implement (or copy) these helper functions:
-
-```rhai
-// Lookup: tries "{type}:{color}" key, falls back to "{type}" key
-fn get_piece_defs(piece) {
-    let color_key = piece.type + ":" + piece.color;
-    if color_key in PIECE_DEFS { return PIECE_DEFS[color_key]; }
-    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
-    [];
-}
-
-// Generate pseudo-legal destinations using geometry helpers + conditions
-fn get_pseudo_dests(board, from, state) {
-    let piece = engine::board::get(board, from);
-    if piece == () { return []; }
-    let comps = get_piece_defs(piece);
-    if comps == () || comps.len == 0 { return []; }
-    let dests = [];
-    for comp in comps {
-        let raw = switch comp.type {
-            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color),
-            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
-            _ => [],
-        };
-        if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
-        for d in raw { dests.push(d); }
-    }
-    dests
-}
-
-// Attack detection
-fn sq_attacked_by(board, square, enemy_colors, state) {
-    if enemy_colors == () || enemy_colors.len == 0 { return false; }
-    for r in 0..board.rows { for c in 0..board.cols {
-        let pos = Coords(r, c); let piece = engine::board::get(board, pos);
-        if piece != () && enemy_colors.contains(piece.color) {
-            let dests = get_pseudo_dests(board, pos, state);
-            for d in dests { if d == square { return true; } }
-        }
-    }}
-    false
-}
-
-fn is_in_check(board, king_color, enemy_colors, state) {
-    let king_pos = engine::board::find(board, Piece(king_color, "king"));
-    if king_pos == () || king_pos.len == 0 { return false; }
-    sq_attacked_by(board, king_pos[0], enemy_colors, state)
-}
-```
 
 ---
 
@@ -561,8 +430,6 @@ There is **no** `engine::moves::pawn` function. Pawn movement is defined entirel
 |----------|-----------|---------|
 | `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow map merge |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess |
-
-> **Removed in v2**: `pseudo_moves` (both forms), `is_square_attacked`, `is_in_check`, `pieces()` — all replaced by script-side equivalents using the generic geometry helpers.
 
 ### `engine` — Constructors
 
