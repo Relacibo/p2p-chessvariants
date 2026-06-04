@@ -52,23 +52,22 @@ return state;
 
 ---
 
-### `init_static(player_count)`
+### PIECE\_DEFS (top-level `let`)
 
 ```
-(i32) -> #{}
+let PIECE_DEFS = #{}
 ```
 
-**Optional.** Called once after `config()` and before `init()`. Returns a map of key-value pairs that are registered as global variables (via Rhai global module), visible to all subsequent function calls without being stored in game state.
+**Required.** Declared at the top level of the script. After `run_ast_with_scope()` evaluates it, the engine extracts the value by name and registers it as a global module, making it visible to all subsequent function calls without being stored in game state.
 
-Use this for static data that never changes and should not be serialized to the frontend — primarily `PIECE_DEFS` (piece movement definitions).
+This replaces the former `init_static()` function — one less wrapper for script authors.
 
 ```rhai
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{ "king": [...], "pawn:white": [...], ... },
-        // other static data...
-    }
-}
+let PIECE_DEFS = #{
+    "king": [...],
+    "pawn:white": [...],
+    // other piece definitions...
+};
 ```
 
 **PIECE_DEFS schema:** Each key is `"{type}"` (all colors) or `"{type}:{color}"` (color-specific, takes precedence). Each value is an array of movement components:
@@ -84,25 +83,23 @@ Scripts use `engine::moves::jump`/`slide` to generate candidates, filter with co
 
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
-fn init_static(player_count) {
-    #{
-        PIECE_DEFS: #{
-            // ... standard pieces (king, queen, etc.) ...
-            "pawn:yellow": [
-            #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-            #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
-            #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
-        ],
-        "pawn:green": [
-            #{ type: "jump", offsets: [[0,-1]], condition: ... },
-            #{ type: "jump", offsets: [[0,-2]], condition: ... },
-            #{ type: "jump", offsets: [[-1,-1],[1,-1]], condition: ... },
-        ],
-        "pawn:red":    [ /* moves north */ ],
-        "pawn:blue":   [ /* moves east */ ],
+let PIECE_DEFS = #{
+    // ... standard pieces (king, queen, etc.) ...
+    "pawn:yellow": [
+    #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+    #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
+    #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
+],
+    "pawn:green": [
+        #{ type: "jump", offsets: [[0,-1]], condition: ... },
+        #{ type: "jump", offsets: [[0,-2]], condition: ... },
+        #{ type: "jump", offsets: [[-1,-1],[1,-1]], condition: ... },
+    ],
+    "pawn:red":    [ /* moves north */ ],
+    "pawn:blue":   [ /* moves east */ ],
         }
-    }
-}
+    "pawn:blue":   [ /* moves east */ ],
+};
 ```
 
 ### `init(player_count)`
@@ -368,10 +365,10 @@ All payload fields (`from`, `to`, `piece`, `element_id`) are `()` on `Cancel` ac
 ```
 new ChessvariantEngine(script, player_count)
 → compile(script) → AST
-→ run_ast_with_scope(scope, AST) — installs fn/const definitions into scope
+→ register_builtins() + register_engine_helpers()
+→ run_ast_with_scope(scope, AST) — installs fn/const declarations into scope
+→ extract PIECE_DEFS from scope → register as global module
 → calls config() → validates api_version=1
-→ calls register_engine_helpers()
-→ calls init_static(player_count) → registers return values as global module
 → calls init(player_count) → returns engine
 ```
 
