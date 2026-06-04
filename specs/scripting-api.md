@@ -30,71 +30,60 @@ All agents (Plan, Build) MUST reference this document.
 
 > **v2 change**: Piece definitions are entirely script-defined. The engine provides **only unbiased geometry helpers** (`engine::moves::jump`, `engine::moves::slide`, `engine::moves::pawn_push`, and the per-type convenience wrappers `engine::moves::rook`, `::knight`, `::bishop`, `::queen`, `::king`). There is no `pieces()` function recognized by the engine, no `PieceDefinitionMap`, and no `pseudo_moves()` engine function.
 
-Scripts define piece movement using a **two-level map structure**:
+Piece definitions live in a **single flat map**, defined as a function `fn PIECE_DEFS()` at global scope. They are **not** stored in the game state (they are static, never serialized to the frontend).
 
-- **Type-level** (`PIECE_DEFS`): color-independent components (king, queen, rook, bishop, knight)
-- **Color-specific** (`COLOR_PIECE_DEFS`): per-color components (pawns with color-dependent direction)
+#### Key format
 
-These maps are populated by builder functions called from `init()` and stored in the game state:
+| Key pattern | Example | Description |
+|-------------|---------|-------------|
+| `"{type}"` | `"king"`, `"rook"`, `"knight"` | Color-independent piece (works for all colors) |
+| `"{type}:{color}"` | `"pawn:white"`, `"pawn:black"` | Color-specific piece (takes precedence over plain key) |
 
 ```rhai
-fn build_piece_defs() {
+fn PIECE_DEFS() {
     #{
-        king: [
+        "king": [
             #{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] },
         ],
-        queen: [
+        "queen": [
             #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] },
         ],
-        rook: [
+        "rook": [
             #{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] },
         ],
-        bishop: [
+        "bishop": [
             #{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] },
         ],
-        knight: [
+        "knight": [
             #{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] },
         ],
-    }
-}
-
-fn build_color_piece_defs() {
-    #{
-        white: #{
-            pawn: [
-                // Single forward push — target must be empty
-                #{ type: "jump", offsets: [[-1, 0]],
-                   condition: |state, from, to|
-                       engine::board::get(state.board, to) == ()
-                },
-                // Double forward push — from start line, both squares empty
-                #{ type: "jump", offsets: [[-2, 0]],
-                   condition: |state, from, to|
-                       from.row == 6
-                       && engine::board::get(state.board, Coords(from.row - 1, from.col)) == ()
-                       && engine::board::get(state.board, to) == ()
-                },
-                // Diagonal captures — enemy piece or en passant
-                #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
-                   condition: |state, from, to| {
-                       let target = engine::board::get(state.board, to);
-                       let my     = engine::board::get(state.board, from);
-                       let is_enemy = (target != () && target.color != my.color);
-                       let is_ep    = (state.en_passant != () && to == state.en_passant);
-                       is_enemy || is_ep
-                   }
-                },
-            ],
-        },
-        black: #{
-            pawn: [
-                #{ type: "jump", offsets: [[1, 0]],
-                   condition: |state, from, to|
-                       engine::board::get(state.board, to) == ()
-                },
-                // ... double push and captures with opposite direction
-            ],
-        },
+        "pawn:white": [
+            // Single forward push — target must be empty
+            #{ type: "jump", offsets: [[-1, 0]],
+               condition: |s, f, t| engine::board::get(s.board, t) == ()
+            },
+            // Double forward push — from start line, both squares empty
+            #{ type: "jump", offsets: [[-2, 0]],
+               condition: |s, f, t|
+                   f.row == 6
+                   && engine::board::get(s.board, Coords(f.row - 1, f.col)) == ()
+                   && engine::board::get(s.board, t) == ()
+            },
+            // Diagonal captures — enemy piece
+            #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
+               condition: |s, f, t| {
+                   let target = engine::board::get(s.board, t);
+                   let my     = engine::board::get(s.board, f);
+                   target == () || target.color != my.color
+               }
+            },
+        ],
+        "pawn:black": [
+            #{ type: "jump", offsets: [[1, 0]],
+               condition: |s, f, t| engine::board::get(s.board, t) == ()
+            },
+            // ... double push and captures with opposite direction
+        ],
     }
 }
 ```
@@ -108,7 +97,7 @@ Each component is an object map with fields:
 | `type` | string | YES | `"jump"` or `"slide"` |
 | `offsets` | `[[i32,i32]]` | for `"jump"` | Leap offset pairs |
 | `dirs` | `[[i32,i32]]` | for `"slide"` | Ray direction vectors |
-| `condition` | closure `\|state,from,to\| -> bool` | NO | Pseudo-legal constraint filter |
+| `condition` | closure `\|s, f, t\| -> bool` | NO | Pseudo-legal constraint filter |
 
 **Conditions** are Rhai closures that receive the game state, source coordinate, and destination. They are called by the script's `get_pseudo_dests()` function to filter pseudo-legal destinations. Conditions can access `engine::board::get` and any state keys (e.g., `state.en_passant`).
 
@@ -117,12 +106,12 @@ Each component is an object map with fields:
 Every variant script must implement (or copy) these helper functions:
 
 ```rhai
-// Lookup: tries color-specific then type-level
-fn get_piece_defs(piece, state) {
-    if piece.color in state.color_piece_defs && piece.type in state.color_piece_defs[piece.color] {
-        return state.color_piece_defs[piece.color][piece.type];
-    }
-    if piece.type in state.piece_defs { return state.piece_defs[piece.type]; }
+// Lookup: tries "{type}:{color}" key, falls back to "{type}" key
+fn get_piece_defs(piece) {
+    let defs = PIECE_DEFS();
+    let color_key = piece.type + ":" + piece.color;
+    if color_key in defs { return defs[color_key]; }
+    if piece.type in defs { return defs[piece.type]; }
     [];
 }
 
@@ -130,7 +119,7 @@ fn get_piece_defs(piece, state) {
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from);
     if piece == () { return []; }
-    let comps = get_piece_defs(piece, state);
+    let comps = get_piece_defs(piece);
     if comps == () || comps.len == 0 { return []; }
     let dests = [];
     for comp in comps {
@@ -213,29 +202,29 @@ fn init(player_count) {
             #{ id: 0, name: "White", board: 0, color: "white", team: 0, orientation: "normal" },
             #{ id: 1, name: "Black", board: 0, color: "black", team: 1, orientation: "flipped" },
         ],
-        piece_defs: build_piece_defs(),
-        color_piece_defs: build_color_piece_defs(),
         // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
+        // NOTE: piece_defs / color_piece_defs are NOT in state — they live in fn PIECE_DEFS() at global scope.
     }
 }
 ```
 
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
-fn build_color_piece_defs() {
+fn PIECE_DEFS() {
     #{
-        yellow: #{ pawn: [
+        // ... standard pieces (king, queen, etc.) ...
+        "pawn:yellow": [
             #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
             #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && ... },
             #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { /* enemy capture */ } },
-        ]},
-        green:  #{ pawn: [
+        ],
+        "pawn:green": [
             #{ type: "jump", offsets: [[0,-1]], condition: ... },
             #{ type: "jump", offsets: [[0,-2]], condition: ... },
             #{ type: "jump", offsets: [[-1,-1],[1,-1]], condition: ... },
-        ]},
-        red:    #{ pawn: [ /* moves north */ ] },
-        blue:   #{ pawn: [ /* moves east */ ] },
+        ],
+        "pawn:red":    [ /* moves north */ ],
+        "pawn:blue":   [ /* moves east */ ],
     }
 }
 ```

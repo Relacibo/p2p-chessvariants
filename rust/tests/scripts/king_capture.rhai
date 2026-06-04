@@ -1,13 +1,19 @@
 // Minimal board for game-over / king-capture tests.
 fn config() { #{ api_version: 1, name: "King Capture Test", version: "2.0.0", colors: ["white", "black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } } }
 
-fn build_piece_defs() { #{ king: [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }], queen: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }] } }
+fn PIECE_DEFS() {
+    #{
+    "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
+    "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
+}
+}
 
-fn get_piece_defs(piece, state) { if piece.type in state.piece_defs { return state.piece_defs[piece.type]; } []; }
+fn get_piece_defs(piece) {
+    let defs = PIECE_DEFS(); if piece.type in defs { return defs[piece.type]; } []; }
 
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }
-    let comps = get_piece_defs(piece, state); if comps == () || comps.len == 0 { return []; }
+    let comps = get_piece_defs(piece); if comps == () || comps.len == 0 { return []; }
     let dests = [];
     for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; for d in raw { dests.push(d); } }
     dests
@@ -18,7 +24,7 @@ fn init(player_count) {
     board = engine::board::set(board, Coords(0, 4), Piece("black", "king"));
     board = engine::board::set(board, Coords(1, 4), Piece("white", "queen"));
     board = engine::board::set(board, Coords(7, 4), Piece("white", "king"));
-    #{ board: board, players: [#{ id: 0, name: "White", board: 0, color: "white", team: 0 }, #{ id: 1, name: "Black", board: 0, color: "black", team: 1 }], turn: 0, piece_defs: build_piece_defs(), color_piece_defs: #{} }
+    #{ board: board, players: [#{ id: 0, name: "White", board: 0, color: "white", team: 0 }, #{ id: 1, name: "Black", board: 0, color: "black", team: 1 }], turn: 0 }
 }
 
 fn valid_moves(state, player) {
