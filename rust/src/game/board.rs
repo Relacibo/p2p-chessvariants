@@ -5,10 +5,6 @@ use super::{
     state::{BoardCoords, BoardState, Coords},
 };
 
-fn piece_to_dynamic(piece: Option<&Piece>) -> Dynamic {
-    piece.cloned().map(Dynamic::from).unwrap_or(Dynamic::UNIT)
-}
-
 fn pair_from_array(array: &Array) -> Option<(i32, i32)> {
     if array.len() < 2 {
         return None;
@@ -21,7 +17,12 @@ fn pair_from_array(array: &Array) -> Option<(i32, i32)> {
 fn trace_square(board: &BoardState, coords: BoardCoords) -> Dynamic {
     let mut map = Map::new();
     map.insert("coords".into(), Dynamic::from(Coords::from(coords.clone())));
-    map.insert("piece".into(), piece_to_dynamic(board.get_piece(&coords)));
+    map.insert(
+        "piece".into(),
+        board
+            .get_piece(&coords)
+            .map_or(Dynamic::UNIT, |p| Dynamic::from(p.clone())),
+    );
     Dynamic::from(map)
 }
 
@@ -29,7 +30,9 @@ pub fn rhai_board_get(board: BoardState, coords: Coords) -> Dynamic {
     let Some(bc) = coords.as_board_coords() else {
         return Dynamic::UNIT;
     };
-    piece_to_dynamic(board.get_piece(&bc))
+    board
+        .get_piece(&bc)
+        .map_or(Dynamic::UNIT, |p| Dynamic::from(p.clone()))
 }
 
 pub fn rhai_board_set(mut board: BoardState, coords: Coords, piece: Dynamic) -> BoardState {
