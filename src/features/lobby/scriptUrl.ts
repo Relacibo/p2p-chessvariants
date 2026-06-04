@@ -58,6 +58,10 @@ export class GithubGistSource implements VariantSource {
  * or if it is an unsupported generic URL.
  */
 export function parseVariantSource(input: string): VariantSource | null {
+  // Local/relative URLs are not GitHub/Gist — return null immediately
+  if (input.startsWith("/") || input.startsWith("./") || input.startsWith("../")) {
+    return null;
+  }
   try {
     const url = new URL(input.trim());
 
@@ -116,7 +120,8 @@ export function parseVariantSource(input: string): VariantSource | null {
       return null; // Recognized as Gist but invalid format
     }
   } catch (e) {
-    console.error("[scriptUrl] URL parse error", e);
+    // Not an absolute URL — return null (caller handles fallback)
+    console.debug("[scriptUrl] not an absolute URL:", input);
   }
 
   // Generic fallback removed to strictly enforce immutability
