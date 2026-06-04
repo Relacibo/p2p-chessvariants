@@ -225,6 +225,12 @@ impl ChessvariantEngine {
         let ast = engine.compile(&script_content)?;
 
         let mut scope = Scope::new();
+
+        // Run the AST top-level to install fn definitions into the scope.
+        // Without this, closures in init_static() may not capture correctly
+        // when registered as global module variables.
+        engine.run_ast_with_scope(&mut scope, &ast)?;
+
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
 
@@ -309,6 +315,7 @@ impl ChessvariantEngine {
         register_builtins(&mut engine);
 
         let mut scope = Scope::new();
+        engine.run_ast_with_scope(&mut scope, &ast)?;
         let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
 
