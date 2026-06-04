@@ -39,11 +39,8 @@ The engine passes `state` as a typed struct with **property access** for well-kn
 
 Indexer writes go directly to `state.data` (opaque to Rust). There is no `outcome` field — game-over is determined solely by `derive_game_progress()`.
 
-Scripts update state with individual assignments instead of `merge()`:
-
+Scripts update state with individual assignments:
 ```rhai
-// Before: return merge(state, #{ board: new_board, turn: next });
-// After:
 state.board = new_board;
 state["turn"] = next;
 return state;
@@ -370,6 +367,8 @@ All payload fields (`from`, `to`, `piece`, `element_id`) are `()` on `Cancel` ac
 
 ```
 new ChessvariantEngine(script, player_count)
+→ compile(script) → AST
+→ run_ast_with_scope(scope, AST) — installs fn/const definitions into scope
 → calls config() → validates api_version=1
 → calls register_engine_helpers()
 → calls init_static(player_count) → registers return values as global module
