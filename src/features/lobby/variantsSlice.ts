@@ -12,10 +12,6 @@ export const OFFICIAL_VARIANTS: VariantEntry[] = [
     url: "/variants/chess.rhai",
   },
   {
-    name: "Simple Chess",
-    url: "/variants/simple_chess.rhai",
-  },
-  {
     name: "Seirawan Chess",
     url: "/variants/seirawan_chess.rhai",
   },
