@@ -55,15 +55,13 @@ return state;
 ### PIECE\_DEFS (top-level `let`)
 
 ```
-let PIECE_DEFS = #{}
+const PIECE_DEFS = #{}
 ```
 
 **Required.** Declared at the top level of the script. After `run_ast_with_scope()` evaluates it, the engine extracts the value by name and registers it as a global module, making it visible to all subsequent function calls without being stored in game state.
 
-This replaces the former `init_static()` function — one less wrapper for script authors.
-
 ```rhai
-let PIECE_DEFS = #{
+const PIECE_DEFS = #{
     "king": [...],
     "pawn:white": [...],
     // other piece definitions...
@@ -83,7 +81,7 @@ Scripts use `engine::moves::jump`/`slide` to generate candidates, filter with co
 
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
-let PIECE_DEFS = #{
+const PIECE_DEFS = #{
     // ... standard pieces (king, queen, etc.) ...
     "pawn:yellow": [
     #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
@@ -121,7 +119,7 @@ let PIECE_DEFS = #{
     ],
     teams?: [ #{ id: i32, orientations: [ #{ board: i32, orientation: string } ] } ],
     // custom state keys (turn, en_passant, castling_rights, …)
-    // NOTE: piece definitions are NOT in state — they come from init_static()
+    // NOTE: piece definitions are NOT in state — they come from PIECE_DEFS
 }
 ```
 
@@ -142,7 +140,7 @@ fn init(player_count) {
             #{ id: 1, name: "Black", team: 1, orientation: "flipped", data: #{ color: "black" } },
         ],
         // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
-        // NOTE: piece definitions are NOT in state — they come from init_static()
+        // NOTE: piece definitions are NOT in state — they come from PIECE_DEFS
     }
 }
 ```
