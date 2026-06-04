@@ -17,41 +17,57 @@
 import { BebopView, BebopRuntimeError, BebopRecord } from "bebop";
 
 export const BEBOP_SCHEMA = new Uint8Array ([
-3, 10, 0, 0, 0, 80, 108, 97, 121, 101, 114, 0, 1, 0, 0,
+3, 14, 0, 0, 0, 80, 108, 97, 121, 101, 114, 0, 1, 0, 0,
 20, 0, 0, 0, 0, 2, 85, 115, 101, 114, 73, 100, 0, 244,
 255, 255, 255, 0, 68, 105, 115, 112, 108, 97, 121, 78, 97,
-109, 101, 0, 245, 255, 255, 255, 0, 76, 111, 98, 98, 121,
-74, 111, 105, 110, 0, 2, 0, 5, 0, 0, 0, 4, 85, 115, 101,
-114, 73, 100, 0, 244, 255, 255, 255, 0, 1, 68, 105, 115,
-112, 108, 97, 121, 78, 97, 109, 101, 0, 245, 255, 255,
-255, 0, 2, 75, 110, 111, 119, 110, 80, 108, 97, 121, 101,
-114, 115, 0, 242, 255, 255, 255, 0, 0, 0, 0, 0, 0, 3, 83,
-116, 97, 116, 101, 84, 105, 109, 101, 115, 116, 97, 109,
-112, 0, 248, 255, 255, 255, 0, 4, 76, 111, 98, 98, 121,
-73, 110, 102, 111, 0, 2, 0, 5, 0, 0, 0, 3, 86, 97, 114,
-105, 97, 110, 116, 85, 114, 108, 0, 245, 255, 255, 255, 0,
-1, 80, 108, 97, 121, 101, 114, 115, 0, 242, 255, 255, 255,
-0, 0, 0, 0, 0, 0, 2, 72, 111, 115, 116, 80, 114, 105, 111,
-114, 105, 116, 121, 0, 242, 255, 255, 255, 0, 244, 255,
-255, 255, 0, 3, 80, 108, 97, 121, 101, 114, 74, 111, 105,
-110, 101, 100, 0, 2, 0, 5, 0, 0, 0, 1, 80, 108, 97, 121,
-101, 114, 0, 0, 0, 0, 0, 0, 1, 80, 108, 97, 121, 101, 114,
-76, 101, 102, 116, 0, 2, 0, 5, 0, 0, 0, 1, 85, 115, 101,
-114, 73, 100, 0, 244, 255, 255, 255, 0, 1, 72, 111, 115,
-116, 77, 105, 103, 114, 97, 116, 105, 111, 110, 0, 2, 0,
-5, 0, 0, 0, 2, 78, 101, 119, 72, 111, 115, 116, 85, 115,
-101, 114, 73, 100, 0, 244, 255, 255, 255, 0, 1, 76, 111,
-98, 98, 121, 73, 100, 0, 245, 255, 255, 255, 0, 2, 76,
-111, 98, 98, 121, 76, 101, 97, 118, 101, 0, 1, 0, 0, 0, 0,
-0, 0, 1, 0, 71, 97, 109, 101, 77, 101, 115, 115, 97, 103,
-101, 0, 2, 0, 5, 0, 0, 0, 1, 80, 97, 121, 108, 111, 97,
-100, 0, 242, 255, 255, 255, 0, 254, 255, 255, 255, 0, 1,
-76, 111, 98, 98, 121, 75, 105, 99, 107, 0, 2, 0, 5, 0, 0,
-0, 1, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255, 255,
-0, 1, 80, 50, 112, 77, 115, 103, 0, 3, 0, 5, 0, 0, 0, 8,
-1, 1, 0, 0, 0, 2, 2, 0, 0, 0, 3, 3, 0, 0, 0, 4, 4, 0, 0,
-0, 5, 5, 0, 0, 0, 6, 6, 0, 0, 0, 7, 7, 0, 0, 0, 8, 8, 0,
-0, 0, 0, 0, 0, 0
+109, 101, 0, 245, 255, 255, 255, 0, 80, 108, 97, 121, 101,
+114, 65, 115, 115, 105, 103, 110, 109, 101, 110, 116, 0,
+1, 0, 0, 20, 0, 0, 0, 1, 2, 85, 115, 101, 114, 73, 100, 0,
+244, 255, 255, 255, 0, 80, 108, 97, 121, 101, 114, 67,
+111, 110, 102, 105, 103, 73, 100, 0, 250, 255, 255, 255,
+0, 76, 111, 98, 98, 121, 74, 111, 105, 110, 0, 2, 0, 5, 0,
+0, 0, 4, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255,
+255, 0, 1, 68, 105, 115, 112, 108, 97, 121, 78, 97, 109,
+101, 0, 245, 255, 255, 255, 0, 2, 75, 110, 111, 119, 110,
+80, 108, 97, 121, 101, 114, 115, 0, 242, 255, 255, 255, 0,
+0, 0, 0, 0, 0, 3, 83, 116, 97, 116, 101, 84, 105, 109,
+101, 115, 116, 97, 109, 112, 0, 248, 255, 255, 255, 0, 4,
+76, 111, 98, 98, 121, 73, 110, 102, 111, 0, 2, 0, 5, 0, 0,
+0, 3, 86, 97, 114, 105, 97, 110, 116, 85, 114, 108, 0,
+245, 255, 255, 255, 0, 1, 80, 108, 97, 121, 101, 114, 115,
+0, 242, 255, 255, 255, 0, 0, 0, 0, 0, 0, 2, 72, 111, 115,
+116, 80, 114, 105, 111, 114, 105, 116, 121, 0, 242, 255,
+255, 255, 0, 244, 255, 255, 255, 0, 3, 80, 108, 97, 121,
+101, 114, 74, 111, 105, 110, 101, 100, 0, 2, 0, 5, 0, 0,
+0, 1, 80, 108, 97, 121, 101, 114, 0, 0, 0, 0, 0, 0, 1, 80,
+108, 97, 121, 101, 114, 76, 101, 102, 116, 0, 2, 0, 5, 0,
+0, 0, 1, 85, 115, 101, 114, 73, 100, 0, 244, 255, 255,
+255, 0, 1, 72, 111, 115, 116, 77, 105, 103, 114, 97, 116,
+105, 111, 110, 0, 2, 0, 5, 0, 0, 0, 2, 78, 101, 119, 72,
+111, 115, 116, 85, 115, 101, 114, 73, 100, 0, 244, 255,
+255, 255, 0, 1, 76, 111, 98, 98, 121, 73, 100, 0, 245,
+255, 255, 255, 0, 2, 76, 111, 98, 98, 121, 76, 101, 97,
+118, 101, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 71, 97, 109, 101,
+77, 101, 115, 115, 97, 103, 101, 0, 2, 0, 5, 0, 0, 0, 1,
+80, 97, 121, 108, 111, 97, 100, 0, 242, 255, 255, 255, 0,
+254, 255, 255, 255, 0, 1, 76, 111, 98, 98, 121, 75, 105,
+99, 107, 0, 2, 0, 5, 0, 0, 0, 1, 85, 115, 101, 114, 73,
+100, 0, 244, 255, 255, 255, 0, 1, 71, 97, 109, 101, 83,
+116, 97, 114, 116, 0, 2, 0, 5, 0, 0, 0, 2, 65, 115, 115,
+105, 103, 110, 109, 101, 110, 116, 115, 0, 242, 255, 255,
+255, 0, 1, 0, 0, 0, 0, 1, 80, 108, 97, 121, 101, 114, 67,
+111, 117, 110, 116, 0, 250, 255, 255, 255, 0, 2, 83, 108,
+111, 116, 82, 101, 113, 117, 101, 115, 116, 0, 2, 0, 5, 0,
+0, 0, 1, 83, 108, 111, 116, 73, 110, 100, 101, 120, 0,
+250, 255, 255, 255, 0, 1, 83, 108, 111, 116, 65, 115, 115,
+105, 103, 110, 101, 100, 0, 2, 0, 5, 0, 0, 0, 2, 85, 115,
+101, 114, 73, 100, 0, 244, 255, 255, 255, 0, 1, 83, 108,
+111, 116, 73, 110, 100, 101, 120, 0, 250, 255, 255, 255,
+0, 2, 80, 50, 112, 77, 115, 103, 0, 3, 0, 5, 0, 0, 0, 11,
+1, 2, 0, 0, 0, 2, 3, 0, 0, 0, 3, 4, 0, 0, 0, 4, 5, 0, 0,
+0, 5, 6, 0, 0, 0, 6, 7, 0, 0, 0, 7, 8, 0, 0, 0, 8, 9, 0,
+0, 0, 9, 10, 0, 0, 0, 10, 11, 0, 0, 0, 11, 12, 0, 0, 0, 0,
+0, 0, 0
 ]);
 
 export interface Player {
@@ -100,6 +116,58 @@ export const Player = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
       return {
         userId: field0,
         displayName: field1,
+      };
+    },
+  }
+));
+
+
+export interface PlayerAssignment {
+
+  readonly userId: string;
+
+  readonly playerConfigId: number;
+}
+
+export const PlayerAssignment = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: PlayerAssignment): PlayerAssignment & BebopRecord => {
+    return Object.freeze({
+      ...data,
+      encode(): Uint8Array {
+        return PlayerAssignment.encode(this);
+      }
+    });
+  },
+  // Static methods
+  {
+    encode(record: PlayerAssignment): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      PlayerAssignment.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: PlayerAssignment, view: BebopView): void {
+      view.writeGuid(record.userId);
+      view.writeInt32(record.playerConfigId);
+    },
+
+    decode(buffer: Uint8Array): PlayerAssignment & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = PlayerAssignment.readFrom(view);
+      return PlayerAssignment(decoded);
+    },
+
+    readFrom(view: BebopView): PlayerAssignment {
+      let field0: string;
+      field0 = view.readGuid();
+      let field1: number;
+      field1 = view.readInt32();
+      return {
+        userId: field0,
+        playerConfigId: field1,
       };
     },
   }
@@ -711,7 +779,239 @@ export const LobbyKick = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign
 ));
 
 
-export type P2PMsg = { tag: 1, value: LobbyJoin } | { tag: 2, value: LobbyInfo } | { tag: 3, value: PlayerJoined } | { tag: 4, value: PlayerLeft } | { tag: 5, value: HostMigration } | { tag: 6, value: LobbyLeave } | { tag: 7, value: GameMessage } | { tag: 8, value: LobbyKick };
+export interface GameStart {
+
+  assignments?: PlayerAssignment[];
+
+  playerCount?: number;
+}
+
+export const GameStart = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: GameStart): GameStart & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return GameStart.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: GameStart): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      GameStart.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: GameStart, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.assignments !== undefined) {
+        view.writeByte(1);
+        {
+        const length0 = record.assignments.length;
+        view.writeUint32(length0);
+        for (let i0 = 0; i0 < length0; i0++) {
+          PlayerAssignment.encodeInto(record.assignments[i0], view);
+        }
+      }
+      }
+      if (record.playerCount !== undefined) {
+        view.writeByte(2);
+        view.writeInt32(record.playerCount);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): GameStart & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = GameStart.readFrom(view);
+      return GameStart(decoded);
+    },
+
+    readFrom(view: BebopView): GameStart {
+      const message: GameStart = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            {
+          const length0 = view.readUint32();
+          message.assignments = [];
+          for (let i0 = 0; i0 < length0; i0++) {
+            let x0: PlayerAssignment;
+            x0 = PlayerAssignment.readFrom(view);
+            message.assignments[i0] = x0;
+          }
+        }
+            break;
+
+          case 2:
+            message.playerCount = view.readInt32();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface SlotRequest {
+
+  slotIndex?: number;
+}
+
+export const SlotRequest = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: SlotRequest): SlotRequest & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return SlotRequest.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: SlotRequest): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      SlotRequest.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: SlotRequest, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.slotIndex !== undefined) {
+        view.writeByte(1);
+        view.writeInt32(record.slotIndex);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): SlotRequest & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = SlotRequest.readFrom(view);
+      return SlotRequest(decoded);
+    },
+
+    readFrom(view: BebopView): SlotRequest {
+      const message: SlotRequest = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.slotIndex = view.readInt32();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export interface SlotAssigned {
+
+  userId?: string;
+
+  slotIndex?: number;
+}
+
+export const SlotAssigned = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
+  // Factory function
+  (data: SlotAssigned): SlotAssigned & BebopRecord => {
+    return {
+      ...data,
+      encode(): Uint8Array {
+        return SlotAssigned.encode(this);
+      }
+    };
+  },
+  // Static methods
+  {
+    encode(record: SlotAssigned): Uint8Array {
+      const view = BebopView.getInstance();
+      view.startWriting();
+      SlotAssigned.encodeInto(record, view);
+      return view.toArray();
+    },
+
+    encodeInto(record: SlotAssigned, view: BebopView): void {
+      const pos = view.reserveMessageLength();
+      const start = view.length;
+      if (record.userId !== undefined) {
+        view.writeByte(1);
+        view.writeGuid(record.userId);
+      }
+      if (record.slotIndex !== undefined) {
+        view.writeByte(2);
+        view.writeInt32(record.slotIndex);
+      }
+      view.writeByte(0);
+      const end = view.length;
+      view.fillMessageLength(pos, end - start);
+    },
+
+    decode(buffer: Uint8Array): SlotAssigned & BebopRecord {
+      const view = BebopView.getInstance();
+      view.startReading(buffer);
+      const decoded = SlotAssigned.readFrom(view);
+      return SlotAssigned(decoded);
+    },
+
+    readFrom(view: BebopView): SlotAssigned {
+      const message: SlotAssigned = {};
+      const length = view.readMessageLength();
+      const end = view.index + length;
+      while (true) {
+        switch (view.readByte()) {
+          case 0:
+            return message;
+
+          case 1:
+            message.userId = view.readGuid();
+            break;
+
+          case 2:
+            message.slotIndex = view.readInt32();
+            break;
+
+          default:
+            view.index = end;
+            return message;
+        }
+      }
+    },
+  }
+));
+
+
+export type P2PMsg = { tag: 1, value: LobbyJoin } | { tag: 2, value: LobbyInfo } | { tag: 3, value: PlayerJoined } | { tag: 4, value: PlayerLeft } | { tag: 5, value: HostMigration } | { tag: 6, value: LobbyLeave } | { tag: 7, value: GameMessage } | { tag: 8, value: LobbyKick } | { tag: 9, value: GameStart } | { tag: 10, value: SlotRequest } | { tag: 11, value: SlotAssigned };
 
 export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
   // Factory function
@@ -757,6 +1057,18 @@ export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
       return P2PMsg({ tag: 8, value });
     },
 
+    fromGameStart(value: GameStart): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 9, value });
+    },
+
+    fromSlotRequest(value: SlotRequest): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 10, value });
+    },
+
+    fromSlotAssigned(value: SlotAssigned): P2PMsg & BebopRecord {
+      return P2PMsg({ tag: 11, value });
+    },
+
     encode(record: P2PMsg): Uint8Array {
       const view = BebopView.getInstance();
       view.startWriting();
@@ -793,6 +1105,15 @@ export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
         case 8:
           LobbyKick.encodeInto(record.value, view);
           break;
+        case 9:
+          GameStart.encodeInto(record.value, view);
+          break;
+        case 10:
+          SlotRequest.encodeInto(record.value, view);
+          break;
+        case 11:
+          SlotAssigned.encodeInto(record.value, view);
+          break;
       }
       const end = view.length;
       view.fillMessageLength(pos, end - start);
@@ -826,6 +1147,12 @@ export const P2PMsg = /*#__PURE__*/ Object.freeze(/*#__PURE__*/ Object.assign(
           return { tag: 7, value: GameMessage.readFrom(view) };
         case 8:
           return { tag: 8, value: LobbyKick.readFrom(view) };
+        case 9:
+          return { tag: 9, value: GameStart.readFrom(view) };
+        case 10:
+          return { tag: 10, value: SlotRequest.readFrom(view) };
+        case 11:
+          return { tag: 11, value: SlotAssigned.readFrom(view) };
         default:
           view.index = end;
           throw new BebopRuntimeError(`Unknown union discriminator: ${tag}`);

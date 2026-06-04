@@ -6,6 +6,11 @@ struct Player {
     string DisplayName;
 }
 
+struct PlayerAssignment {
+    guid UserId;
+    int32 PlayerConfigId;
+}
+
 union P2pMsg {
     // Sent by a joining peer to the host immediately after WebRTC connect.
     1 -> message LobbyJoin {
@@ -53,5 +58,24 @@ union P2pMsg {
     // Recipient with matching UserId must leave the lobby.
     8 -> message LobbyKick {
         1 -> guid UserId;
+    }
+
+    // Broadcast by host to all peers to start the game.
+    9 -> message GameStart {
+        1 -> PlayerAssignment[] Assignments;
+        2 -> int32 PlayerCount;
+    }
+
+    // Sent by a peer to the host to request a game slot.
+    // SlotIndex -1 means unclaim. Host validates and responds with SlotAssigned.
+    10 -> message SlotRequest {
+        1 -> int32 SlotIndex;
+    }
+
+    // Broadcast by host to all peers to confirm a slot assignment.
+    // SlotIndex -1 means the slot was unassigned for the user.
+    11 -> message SlotAssigned {
+        1 -> guid UserId;
+        2 -> int32 SlotIndex;
     }
 }
