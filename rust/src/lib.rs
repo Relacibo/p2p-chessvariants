@@ -49,18 +49,6 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<game::variant_config::BoardLayoutConfig>()
         .build_type::<Action>()
         .build_type::<Player>()
-        .register_indexer_get(
-            |p: &mut Player, key: &str| -> Dynamic {
-                match key {
-                    "id" => Dynamic::from(p.id),
-                    "name" => Dynamic::from(p.name.clone()),
-                    "home_board" => Dynamic::from(p.home_board),
-                    "team" => Dynamic::from(p.team),
-                    "data" => p.data.clone().unwrap_or(Dynamic::UNIT),
-                    _ => Dynamic::UNIT,
-                }
-            },
-        )
         .register_type_with_name::<GameProgress>("GameProgress")
         .register_get("progress", GameProgress::get_progress_mut)
         .register_get("winning_team", GameProgress::get_winning_team_mut);
@@ -78,26 +66,14 @@ fn register_builtins(engine: &mut Engine) {
             State::rhai_index_set,
         );
 
-    // Coords is an opaque enum — register manually with getters + indexer.
+    // Coords is an opaque enum — register manually with getters.
     engine
         .register_type_with_name::<Coords>("Coords")
         .register_get("type", Coords::get_type_mut)
         .register_get("row", Coords::get_row_mut)
         .register_get("col", Coords::get_col_mut)
         .register_get("board_index", Coords::get_board_index_mut)
-        .register_get("index", Coords::get_index_mut)
-        .register_indexer_get(
-            |c: &mut Coords, key: &str| -> Dynamic {
-                match key {
-                    "type" => Dynamic::from(c.get_type_mut()),
-                    "row" => Dynamic::from(c.get_row_mut()),
-                    "col" => Dynamic::from(c.get_col_mut()),
-                    "board_index" => Dynamic::from(c.get_board_index_mut()),
-                    "index" => Dynamic::from(c.get_index_mut()),
-                    _ => Dynamic::UNIT,
-                }
-            },
-        );
+        .register_get("index", Coords::get_index_mut);
 
     // ── Legacy global aliases (backward compat for existing variant scripts) ──
     engine.register_fn("board_empty", BoardState::board_empty);
