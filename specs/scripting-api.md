@@ -28,6 +28,33 @@ All agents (Plan, Build) MUST reference this document.
 
 ---
 
+### State Type
+
+The engine passes `state` as a typed struct with **property access** for well-known fields and **indexer access** (`state["key"]`) for variant-defined data.
+
+| Access | Fields | Example |
+|--------|--------|---------|
+| **Property** | `board`, `players` | `state.board`, `state.players` |
+| **Indexer** | `turn`, `castling_rights`, `en_passant`, … | `state["turn"]`, `state["castling_rights"]` |
+
+Indexer writes go directly to `state.data` (opaque to Rust). There is no `outcome` field — game-over is determined solely by `derive_game_progress()`.
+
+Scripts update state with individual assignments instead of `merge()`:
+
+```rhai
+// Before: return merge(state, #{ board: new_board, turn: next });
+// After:
+state.board = new_board;
+state["turn"] = next;
+return state;
+```
+
+**Player indexer:** `player["color"]` reads/writes `player.data.color`. Well-known fields (`player.id`, `player.name`, `player.team`) use property syntax.
+
+**Piece indexer:** `piece["key"]` reads/writes `piece.data.key`. Built-in fields (`piece.type`, `piece.color`) use property syntax.
+
+---
+
 ### `init_static(player_count)`
 
 ```
@@ -131,25 +158,25 @@ fn init(player_count) {
 ### `valid_moves(state, player)`
 
 ```
-(#{}, #{}) -> [Move]
+(State, #{}) -> [Move]
 ```
 
 **Mandatory.** Returns all legal `Move` actions for the given player.
 **Only `Move` actions.** No `SelectPiece`, `Interact`, or `Cancel`.
 
-The engine passes the player as a map `#{ id, name, team, orientation?, data? }`. Scripts that need color or board assignments store them in `data`.
+The engine passes the player as a map `#{ id, name, team, orientation?, data? }`. Scripts that need color or board assignments store them in `data` and access them via `player["color"]`.
 
 ```rhai
 fn valid_moves(state, player) {
-    if "outcome" in state { return []; }
-    if player.id != state.turn { return []; }
+    if player.id != state["turn"] { return []; }
 
+    let color = player["color"];
     let candidates = [];
     for r in 0..8 {
         for c in 0..8 {
             let from = Coords(r, c);
             let piece = engine::board::get(state.board, from);
-            if piece != () && piece.color == player.data.color {
+            if piece != () && piece.color == color {
                 let dests = get_pseudo_dests(state.board, from, state);
                 for to in dests {
                     candidates.push(Move(from, to));
@@ -173,11 +200,11 @@ fn valid_moves(state, player) {
 ### `derive_game_progress(state, all_valid_moves)`
 
 ```
-(#{}, [ #{ player: Player, moves: [Move] } ]) -> GameProgress
+(State, [ #{ player: Player, moves: [Move] } ]) -> GameProgress
 ```
 
 **Mandatory.** Called after `valid_moves` has been computed for **all** players.
-Returns a `GameProgress` enum value directly (no `bool`).
+Returns a `GameProgress` enum value directly (no `bool`). There is no `outcome` shortcut — this function is the single source of truth for game-over.
 
 **`GameProgress` variants:**
 
@@ -189,7 +216,6 @@ Returns a `GameProgress` enum value directly (no `bool`).
 
 ```rhai
 fn derive_game_progress(state, all_valid_moves) {
-    if "outcome" in state { return state.outcome; }
     for entry in all_valid_moves {
         if entry.moves.len > 0 { return InProgress(); }
     }
@@ -203,7 +229,7 @@ function is missing — there is no fallback.
 ### `handle_action(state, player, action)`
 
 ```
-(#{}, #{}, Action) -> #{}
+(State, #{}, Action) -> State
 ```
 
 **Mandatory.** The single action reducer. Dispatches on `action.type`.
@@ -212,28 +238,31 @@ function is missing — there is no fallback.
 - Turn order, piece ownership, no self-capture
 - **King safety** — use script-level `is_in_check()` after applying the move
 
-The engine passes the player as a map `#{ id, name, team, orientation?, data? }`. Scripts that need color or board assignments store them in `data`.
+The engine passes the player as a map `#{ id, name, team, orientation?, data? }`. Color/board are in `data`, accessed via `player["color"]`.
 
 ```rhai
 fn handle_action(state, player, action) {
+    let color = player["color"];
+
     if action.type == "move" {
-        if state.turn != player.id { throw "not your turn"; }
+        if state["turn"] != player.id { throw "not your turn"; }
         let piece = engine::board::get(state.board, action.from);
         if piece == () { throw "no piece at source square"; }
-        if piece.color != player.data.color { throw "not your piece"; }
+        if piece.color != color { throw "not your piece"; }
 
         let new_board = engine::board::move_piece(state.board, action.from, action.to);
 
         // King safety
         let enemy_colors = state.players
             .filter(|p| p.team != player.team)
-            .map(|p| p.data.color);
-        if is_in_check(new_board, player.data.color, enemy_colors, state) {
+            .map(|p| p["color"]);
+        if is_in_check(new_board, color, enemy_colors, state) {
             throw "move leaves king in check";
         }
 
         state.board = new_board;
-        state.turn = /* next player */;
+        state["turn"] = /* next player */;
+        return state;
     }
     if action.type == "select_piece" {
         // action.piece — user picked from PiecePicker UI element
@@ -435,7 +464,7 @@ There is **no** `engine::moves::pawn` function. Pawn movement is defined entirel
 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
-| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow map merge |
+| `merge` | `(base: #{}, updates: #{}) -> #{}` | Shallow map merge (for sub-maps like castling_rights; not for state updates — use property/indexer assignments) |
 | `standard_start_position` | `() -> Board` | 8×8 standard chess |
 
 ### `engine` — Constructors
@@ -456,7 +485,7 @@ There is **no** `engine::moves::pawn` function. Pawn movement is defined entirel
 
 #### `GameProgress` type
 
-Returned by `InProgress()`, `Winner()`, and `Draw()` constructors. Stored in `state.outcome`.
+Returned by `InProgress()`, `Winner()`, and `Draw()` constructors. Returned directly by `derive_game_progress()` — there is no `outcome` field in state.
 
 | Variant | Rhai constructor | JSON |
 |---------|-----------------|------|
@@ -466,7 +495,7 @@ Returned by `InProgress()`, `Winner()`, and `Draw()` constructors. Stored in `st
 
 `Winner(team_id)` takes a **team ID** (from `state.players[].team`), never a player ID.
 
-Coords is an **opaque Rhai type** with getters: `.type` (`"board"` for board squares, `"reserve"` for `ReserveCoords`), `.row`, `.col`, `.board_index`, `.index`. Board squares: `.row`/`.col` are i32, `.index` returns `()`. `ReserveCoords`: `.index` is i32, `.row`/`.col` return `()`.
+Coords is an **opaque Rhai type** with property getters only: `.type` (`"board"` for board squares, `"reserve"` for `ReserveCoords`), `.row`, `.col`, `.board_index`, `.index`. Board squares: `.row`/`.col` are i32, `.index` returns `()`. `ReserveCoords`: `.index` is i32, `.row`/`.col` return `()`.
 
 ### `log`
 
@@ -497,7 +526,7 @@ Coords is an **opaque Rhai type** with getters: `.type` (`"board"` for board squ
 | Move is legal | Engine calls `valid_moves(state, player)` via Rhai; move must be in returned list. |
 | Non-Move actions are state-consistent | Script validates state conditions in `handle_action`. Engine passes them through. |
 | UI element IDs unique | Engine throws on duplicate keys in `derive_ui` return. |
-| State immutability | Engine never mutates state map. Script owns all transitions. |
+| State immutability | Engine never mutates state. Script owns all transitions via property (`state.board =`) and indexer (`state["turn"] =`) assignments. |
 | Deterministic replay | `handle_action` is pure: same `(player, action)` → same state. |
 | Game-over is terminal | Once `derive_game_progress` returns `Draw` or `Decisive`, the engine reads the result directly and stops calling script functions. |
 | Piece definitions are script-owned | Engine provides only unbiased geometry helpers. All piece rules, conditions, and direction are in the script. |
