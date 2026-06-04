@@ -103,6 +103,7 @@ fn register_builtins(engine: &mut Engine) {
     engine.register_fn("Player", Player::new_by_id);
     engine.register_fn("Player", Player::new_by_id_name);
     engine.register_fn("Player", Player::new_full);
+    engine.register_fn("Player", Player::new_with_data);
     engine.register_fn("Move", Action::rhai_move);
     engine.register_fn("SelectPiece", Action::rhai_select_piece);
     engine.register_fn("Interact", Action::rhai_interact);
@@ -318,11 +319,13 @@ fn player_ref_to_player_id(state: &Dynamic, pref: &PlayerRef) -> Player {
                             .and_then(|v: rhai::Dynamic| v.as_int().ok())
                             .map(|v| v as i32)
                             .unwrap_or(0);
+                        let data = m.get("data").cloned();
                         return Player {
                             id: pid,
                             name,
                             home_board,
                             team,
+                            data,
                         };
                     }
                 }
@@ -392,6 +395,20 @@ fn rhai_dynamic_to_json(value: &rhai::Dynamic) -> serde_json::Value {
         // Fallback: string representation
         serde_json::Value::String(format!("{:?}", value))
     }
+}
+
+/// Convert a Player to a serde_json::Value, including the optional `data` field.
+fn player_to_json_value(player: &Player) -> serde_json::Value {
+    let mut json = serde_json::json!({
+        "id": player.id,
+        "name": player.name,
+        "home_board": player.home_board,
+        "team": player.team,
+    });
+    if let Some(ref data) = player.data {
+        json["data"] = rhai_dynamic_to_json(data);
+    }
+    json
 }
 
 // ─── Constructor ─────────────────────────────────────────────────────────────
@@ -625,8 +642,17 @@ impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesAllJson))]
     pub fn valid_moves_all_json(&mut self) -> Result<String, CvError> {
         let (all_moves, game_over) = self.compute_valid_moves_all()?;
+        let valid_moves_json: Vec<serde_json::Value> = all_moves
+            .iter()
+            .map(|pm| {
+                serde_json::json!({
+                    "player": player_to_json_value(&pm.player),
+                    "moves": pm.moves,
+                })
+            })
+            .collect();
         Ok(serde_json::to_string(&serde_json::json!({
-            "validMoves": all_moves,
+            "validMoves": valid_moves_json,
             "gameOver": game_over,
         }))?)
     }
@@ -638,7 +664,7 @@ impl ChessvariantEngine {
         let player = player_ref_to_player_id(&self.game_state, &player_ref);
         let moves = self.compute_valid_moves_for_player(&player)?;
         Ok(serde_json::to_string(&serde_json::json!({
-            "player": player,
+            "player": player_to_json_value(&player),
             "moves": moves,
         }))?)
     }
@@ -794,11 +820,13 @@ impl ChessvariantEngine {
                         let team: i32 = m.get("team").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
                         let name: String = m.get("name").cloned().and_then(|v: Dynamic| v.into_string().ok()).unwrap_or_default();
                         let home_board: i32 = m.get("home_board").cloned().and_then(|v: Dynamic| v.as_int().ok()).unwrap_or(0) as i32;
+                        let data = m.get("data").cloned();
                         return Ok(Player {
                             id: pid,
                             name,
                             home_board,
                             team,
+                            data,
                         });
                     }
                 }
@@ -1026,11 +1054,13 @@ impl ChessvariantEngine {
                     .get("home_board")
                     .and_then(|v: &Dynamic| v.as_int().ok())
                     .unwrap_or(0) as i32;
+                let data = player_map.get("data").cloned();
                 Ok(Player {
                     id: pid,
                     name,
                     home_board,
                     team,
+                    data,
                 })
             })
             .collect()

@@ -123,6 +123,7 @@ let dests = engine::pseudo_moves(state.board, from, "empress", player.color);
             id: i32,                // Required: unique player identifier
             name?: string,          // Optional: display name (e.g. "Alice")
             home_board?: i32,       // Optional: default board when pressing "home" (default 0)
+            data?: #{},             // Optional: arbitrary script-defined metadata (available as Rhai value)
 
             // Game role — which board, color, and team this player controls
             board: i32,
@@ -701,11 +702,21 @@ engine.deriveUiJson(player_json) → string
 | `Player(id)` | Player by numeric id (preferred) |
 | `Player(id, name)` | Player by id with display name |
 | `Player(id, name, home_board)` | Player with id, name, and home board |
+| `Player(id, name, home_board, data)` | Player with arbitrary script data |
 | `Player(color)` | Player by color (backward compat) |
 | `Player(board, color)` | Player by board + color (backward compat) |
 | `Winner(idx)` | Game outcome |
 | `Winners([colors])` | Game outcome |
 | `Draw()` | Game outcome |
+
+Player has an optional `data` field (like `Piece.data`) for script-defined metadata:
+
+```rhai
+let p = Player(0, "Alice", 0, #{ score: 42 });
+// p.data  →  #{ score: 42 }
+```
+
+The `data` field is extracted from `state.players` Rhai map entries if a `data` key is present, and is included in `validMovesForPlayerJson` and `validMovesAllJson` output.
 
 Coords is an **opaque Rhai type** with the following getter properties:
 

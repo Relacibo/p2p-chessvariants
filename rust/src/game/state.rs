@@ -1,5 +1,6 @@
-use rhai::CustomType;
+use rhai::{CustomType, Dynamic};
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
 #[cfg(target_arch = "wasm32")]
@@ -227,11 +228,12 @@ impl BoardCoords {
 ///   `Player(id)`            → minimal player
 ///   `Player(id, name)`      → with display name
 ///   `Player(id, name, home_board)` → with home board
+///   `Player(id, name, home_board, data)` → with arbitrary data
 ///
 /// The engine does not bind a player to a specific board or color —
 /// those are variant-defined and belong in `state.players` (Rhai map).
 /// Equality is registered so `.contains()` works on arrays of Player.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize, CustomType)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, CustomType)]
 #[serde(rename_all = "camelCase")]
 pub struct Player {
     /// Canonical player identifier — unique, assigned by script in init().
@@ -246,6 +248,31 @@ pub struct Player {
     /// Team index — populated from state.players after init(). Defaults to 0.
     #[rhai_type(readonly)]
     pub team: i32,
+    /// Arbitrary script-defined data attached to the player (like `Piece.data`).
+    /// Skipped in serde — serialized manually via `player_to_json()` in lib.rs.
+    #[serde(skip)]
+    pub data: Option<Dynamic>,
+}
+
+// Manual PartialEq/Eq/Hash — skip `data` since `Dynamic` does not implement these traits.
+impl PartialEq for Player {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.name == other.name
+            && self.home_board == other.home_board
+            && self.team == other.team
+    }
+}
+
+impl Eq for Player {}
+
+impl Hash for Player {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.name.hash(state);
+        self.home_board.hash(state);
+        self.team.hash(state);
+    }
 }
 
 impl Player {
@@ -256,6 +283,7 @@ impl Player {
             name: String::new(),
             home_board: 0,
             team: 0,
+            data: None,
         }
     }
 
@@ -266,6 +294,7 @@ impl Player {
             name,
             home_board: 0,
             team: 0,
+            data: None,
         }
     }
 
@@ -276,6 +305,18 @@ impl Player {
             name,
             home_board,
             team: 0,
+            data: None,
+        }
+    }
+
+    /// `Player(id, name, home_board, data)` — with arbitrary script data.
+    pub fn new_with_data(id: i32, name: String, home_board: i32, data: Dynamic) -> Self {
+        Self {
+            id,
+            name,
+            home_board,
+            team: 0,
+            data: Some(data),
         }
     }
 }
