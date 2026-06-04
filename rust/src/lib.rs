@@ -236,12 +236,14 @@ impl ChessvariantEngine {
         // and install fn definitions into the scope.
         engine.run_ast_with_scope(&mut scope, &ast)?;
 
-        // Extract top-level `let`/`const` declarations from the scope and
+        // Extract ALL top-level `let`/`const` declarations from the scope and
         // register them as a global module so they are visible in every scope.
+        // This makes closures inside piece definitions (|s,f,t| ...) work,
+        // as Rhai closures do not automatically capture their environment.
         {
             let mut module = Module::new();
-            if let Some(pd) = scope.get_value::<Dynamic>("PIECE_DEFS") {
-                module.set_var("PIECE_DEFS", pd);
+            for (name, _const, value) in scope.iter() {
+                module.set_var(name, value.clone());
             }
             engine.register_global_module(Rc::new(module));
         }

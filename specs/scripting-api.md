@@ -52,13 +52,13 @@ return state;
 
 ---
 
-### PIECE\_DEFS (top-level `let`)
+### PIECE\_DEFS (top-level `let`/`const`)
 
 ```
 const PIECE_DEFS = #{}
 ```
 
-**Required.** Declared at the top level of the script. After `run_ast_with_scope()` evaluates it, the engine extracts the value by name and registers it as a global module, making it visible to all subsequent function calls without being stored in game state.
+Declared at the top level of the script. After `run_ast_with_scope()` evaluates it, the engine extracts all scope variables and registers them as a global module, making them visible to all subsequent function calls without being stored in game state. Omission is allowed — scripts that do not need piece definitions (e.g. simple test scripts) may skip it.
 
 ```rhai
 const PIECE_DEFS = #{
@@ -364,8 +364,8 @@ All payload fields (`from`, `to`, `piece`, `element_id`) are `()` on `Cancel` ac
 new ChessvariantEngine(script, player_count)
 → compile(script) → AST
 → register_builtins() + register_engine_helpers()
-→ run_ast_with_scope(scope, AST) — installs fn/const declarations into scope
-→ extract PIECE_DEFS from scope → register as global module
+→ run_ast_with_scope(scope, AST) — installs fn/let/const declarations into scope
+→ extract all scope variables → register as global module
 → calls config() → validates api_version=1
 → calls init(player_count) → returns engine
 ```
