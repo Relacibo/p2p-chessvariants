@@ -430,7 +430,7 @@ impl ChessvariantEngine {
 impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = boardStateJson))]
     pub fn board_state_json(&self) -> Result<String, CvError> {
-        Ok(serde_json::to_string(&self.try_as_board_state())?)
+        Ok(serde_json::to_string(&self.try_as_board_state()?)?)
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playersJson))]
@@ -523,10 +523,10 @@ impl ChessvariantEngine {
 // ─── Core engine logic (native) ──────────────────────────────────────────────
 
 impl ChessvariantEngine {
-    fn try_as_board_state(&self) -> BoardState {
+    fn try_as_board_state(&self) -> Result<BoardState, CvError> {
         // Single BoardState
         if let Some(b) = self.state.board.clone().try_cast::<BoardState>() {
-            return b;
+            return Ok(b);
         }
         // Array of BoardState — merge into one
         let Some(arr): Option<rhai::Array> = self.state.board.clone().try_cast::<rhai::Array>()
@@ -534,24 +534,24 @@ impl ChessvariantEngine {
             todo!("handle empty board! Don't return sentinel! Return error: board wrong format")
         };
         if arr.is_empty() {
-            return BoardState::board_empty(0, 0);
+            todo!("empty board array in try_as_board_state");
         }
         let first: BoardState = arr[0]
             .clone()
             .try_cast::<BoardState>()
-            .unwrap_or_else(|| BoardState::board_empty(0, 0));
+            .ok_or_else(|| CvError::Internal("board array element is not a BoardState".into()))?;
         let mut boards: Vec<Vec<Option<Piece>>> = first.boards.clone();
         for elem in &arr[1..] {
             if let Some(b) = elem.clone().try_cast::<BoardState>() {
                 boards.extend(b.boards);
             }
         }
-        return BoardState {
+        Ok(BoardState {
             rows: first.rows,
             cols: first.cols,
             number_of_boards: boards.len() as i32,
             boards,
-        };
+        })
     }
 
     fn submit_action_js_impl(
@@ -601,7 +601,7 @@ impl ChessvariantEngine {
 
         let (_, game_over) = self.compute_valid_moves_all()?;
         let ui = self.run_derive_ui(player)?;
-        let board_json = serde_json::to_value(&self.try_as_board_state())?;
+        let board_json = serde_json::to_value(self.try_as_board_state()?)?;
 
         Ok(serde_json::json!({
             "ui": ui,
@@ -653,7 +653,7 @@ impl ChessvariantEngine {
         let bc = coords
             .as_board_coords()
             .ok_or_else(|| CvError::Internal("cannot read piece from non-board coords".into()))?;
-        self.try_as_board_state()
+        self.try_as_board_state()?
             .get_piece(&bc)
             .cloned()
             .ok_or_else(|| CvError::Internal("no piece at source square".into()))
@@ -673,7 +673,9 @@ impl ChessvariantEngine {
             ),
         );
         let ui_map = match result {
-            Ok(v) => v.try_cast::<rhai::Map>().unwrap_or_else(rhai::Map::new),
+            Ok(v) => v
+                .try_cast::<rhai::Map>()
+                .ok_or_else(|| CvError::Internal("derive_ui must return a map".into()))?,
             Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(..)) => {
                 return Ok(serde_json::Value::Object(serde_json::Map::new()));
             }
@@ -702,6 +704,7 @@ impl ChessvariantEngine {
                 rhai::EvalAltResult::ErrorFunctionNotFound(fn_sig, ..)
                     if fn_sig.starts_with("valid_moves") =>
                 {
+                    // Script has no valid_moves function — no moves defined.
                     return Ok(vec![]);
                 }
                 _ => return Err(CvError::from(e)),
@@ -762,21 +765,21 @@ impl ChessvariantEngine {
         all_moves: &[PlayerMoves],
     ) -> Result<Option<serde_json::Value>, CvError> {
         let mut scope = Scope::new();
-        let entries: rhai::Array = all_moves
-            .iter()
-            .map(|pm| {
-                let mut entry = rhai::Map::new();
-                entry.insert(
-                    "player".into(),
-                    get_player_map(&self.state, pm.player.id)
-                        .unwrap_or_else(|| Dynamic::from(rhai::Map::new())),
-                );
-                let moves_arr: rhai::Array =
-                    pm.moves.iter().map(|m| Dynamic::from(m.clone())).collect();
-                entry.insert("moves".into(), Dynamic::from(moves_arr));
-                Dynamic::from(entry)
-            })
-            .collect();
+        let mut entries: rhai::Array = Vec::new();
+        for pm in all_moves {
+            let mut entry = rhai::Map::new();
+            let player_map = get_player_map(&self.state, pm.player.id).ok_or_else(|| {
+                CvError::Internal(format!(
+                    "player {} not found for derive_game_progress",
+                    pm.player.id
+                ))
+            })?;
+            entry.insert("player".into(), player_map);
+            let moves_arr: rhai::Array =
+                pm.moves.iter().map(|m| Dynamic::from(m.clone())).collect();
+            entry.insert("moves".into(), Dynamic::from(moves_arr));
+            entries.push(Dynamic::from(entry));
+        }
 
         let progress: GameProgress = self.inner.engine.call_fn(
             &mut scope,
@@ -833,22 +836,30 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
 
         let typ = elem_map
             .get("type")
-            .and_then(|v| v.clone().into_string().ok())
-            .unwrap_or_default();
+            .and_then(|v| v.clone().into_string().ok());
+        let Some(typ) = typ else {
+            return Err(CvError::Internal(format!(
+                "UI element '{id}' has no 'type' field"
+            )));
+        };
 
         let json_element = match typ.as_str() {
             "button" => {
                 let label = elem_map
                     .get("label")
                     .and_then(|v| v.clone().into_string().ok())
-                    .unwrap_or_default();
+                    .ok_or_else(|| {
+                        CvError::Internal(format!("button '{id}' has no 'label' field"))
+                    })?;
                 serde_json::json!({ "type": "button", "label": label })
             }
             "banner" => {
                 let text = elem_map
                     .get("text")
                     .and_then(|v| v.clone().into_string().ok())
-                    .unwrap_or_default();
+                    .ok_or_else(|| {
+                        CvError::Internal(format!("banner '{id}' has no 'text' field"))
+                    })?;
                 let style = elem_map
                     .get("style")
                     .and_then(|v| v.clone().into_string().ok())
@@ -860,7 +871,9 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .get("pieces")
                     .cloned()
                     .and_then(|d| d.try_cast::<rhai::Array>())
-                    .unwrap_or_default();
+                    .ok_or_else(|| {
+                        CvError::Internal(format!("reserve_pile '{id}' has no 'pieces' array"))
+                    })?;
                 let pieces_json: Vec<serde_json::Value> = pieces_arr
                     .iter()
                     .filter_map(|d| {
@@ -879,7 +892,9 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .get("pieces")
                     .cloned()
                     .and_then(|d| d.try_cast::<rhai::Array>())
-                    .unwrap_or_default();
+                    .ok_or_else(|| {
+                        CvError::Internal(format!("piece_picker '{id}' has no 'pieces' array"))
+                    })?;
                 let pieces_json: Vec<serde_json::Value> = pieces_arr
                     .iter()
                     .filter_map(|d| {
