@@ -230,24 +230,14 @@ export function DevBoardView() {
     return arr;
   }, [allPlayers, selectedPlayers, variantConfig?.board.count, localOrientationOverride]);
 
-  // Collect unique orientations from all players + local overrides, sorted clockwise.
+  // Cycle through all 4 orientations clockwise when rotating a board.
+  // We always include all four regardless of which orientations are
+  // currently assigned to players — otherwise the rotation button does
+  // nothing in variants where all players use the default orientation,
+  // such as standard chess (players have no explicit orientation field).
   const usedOrientations = useMemo((): BoardOrientation[] => {
-    const clockwiseOrder: BoardOrientation[] = [
-      "normal",
-      "clockwise",
-      "flipped",
-      "counterclockwise",
-    ];
-    const unique = new Set<BoardOrientation>();
-    for (const p of allPlayers) {
-      unique.add(p.orientation ?? "normal");
-    }
-    for (const o of Object.values(localOrientationOverride)) {
-      if (o) unique.add(o);
-    }
-    const sorted = clockwiseOrder.filter((o) => unique.has(o));
-    return sorted.length > 0 ? sorted : ["normal"];
-  }, [allPlayers, localOrientationOverride]);
+    return ["normal", "clockwise", "flipped", "counterclockwise"];
+  }, []);
 
   const handleRotateBoard = useCallback(
     (boardIndex: number) => {
