@@ -44,7 +44,7 @@ return state;
 
 ### Player
 
-The engine passes each player as the **same map the script returned in `init()`'s `players` array**, looked up by `id`. Whatever fields `init` stored are visible here.
+The engine passes each player as the **same map the script returned in `setup_players()`'s `players` array**, looked up by `id`. Whatever fields `setup_players` stored are visible here.
 
 | Access | Fields | Example |
 |--------|--------|---------|
