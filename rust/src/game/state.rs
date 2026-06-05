@@ -125,7 +125,11 @@ impl GameState {
 /// Rhai's blanket impl `impl<T: Any + Clone + SendSync> Variant for T` applies
 /// automatically, so no manual `Variant` impl is needed.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+// `rename_all` on an enum only renames the variant tags; the explicit
+// `rename = "board"`/`"reserve"` below already handle those. To camelCase the
+// fields *inside* struct variants (e.g. `board_index` → `boardIndex`) we need
+// `rename_all_fields`.
+#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Coords {
     #[serde(rename = "board")]
     Board {
