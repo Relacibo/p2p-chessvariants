@@ -33,6 +33,7 @@ pub struct PlayerMoves {
 /// as a global module, making them accessible to all `call_fn` invocations
 /// regardless of nesting depth.
 /// Call `init()` to create a [`ChessvariantEngine`] with an initial game state.
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct StatelessChessvariantEngine {
     engine: Engine,
     ast: AST,
@@ -226,10 +227,12 @@ fn get_player_map(state: &GameState, player_id: i32) -> Option<Dynamic> {
 
 // ─── StatelessChessvariantEngine ─────────────────────────────────────────────
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl StatelessChessvariantEngine {
     /// Compile a Rhai script, evaluate top-level declarations, and extract
     /// [`VariantConfig`] from the mandatory `config()` function.
     /// Returns a stateless engine ready for `init()`.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new(script_content: String) -> Result<Self, CvError> {
         let mut engine = Engine::new();
         register_builtins(&mut engine);
@@ -305,6 +308,58 @@ impl StatelessChessvariantEngine {
             state: game_state,
         })
     }
+
+    // ── Config getters (WASM-facing) ──
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
+    pub fn name(&self) -> String {
+        self.variant_config.name.clone()
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playerCount))]
+    pub fn player_count(&self) -> i32 {
+        self.max_players()
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = minPlayers))]
+    pub fn min_players(&self) -> i32 {
+        match &self.variant_config.allowed_player_count {
+            game::variant_config::AllowedPlayerCount::Exact(n) => *n as i32,
+            game::variant_config::AllowedPlayerCount::Discrete(vals) => {
+                vals.iter().min().copied().unwrap_or(0) as i32
+            }
+            game::variant_config::AllowedPlayerCount::Range { min, .. } => *min as i32,
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = maxPlayers))]
+    pub fn max_players(&self) -> i32 {
+        match &self.variant_config.allowed_player_count {
+            game::variant_config::AllowedPlayerCount::Exact(n) => *n as i32,
+            game::variant_config::AllowedPlayerCount::Discrete(vals) => {
+                vals.iter().max().copied().unwrap_or(0) as i32
+            }
+            game::variant_config::AllowedPlayerCount::Range { max, .. } => *max as i32,
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = variantConfigJson))]
+    pub fn variant_config_json(&self) -> Result<String, CvError> {
+        Ok(serde_json::to_string(&self.variant_config)?)
+    }
+
+    /// Parse a variant script and return its config as JSON.
+    /// Does not call `init()` — suitable for lobby previews.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
+    pub fn parse_config(script_content: String) -> Result<String, CvError> {
+        let stateless = Self::new(script_content)?;
+        Ok(serde_json::to_string(&stateless.variant_config)?)
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = setLogLevel))]
+    pub fn set_log_level(level: String) {
+        logging::set_log_level(&level);
+    }
 }
 
 // ─── ChessvariantEngine: getters & static utilities ──────────────────────────
@@ -355,16 +410,7 @@ impl ChessvariantEngine {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
     pub fn parse_config(script_content: String) -> Result<String, CvError> {
-        let mut engine = Engine::new();
-        let ast = engine.compile(&script_content)?;
-        register_builtins(&mut engine);
-
-        let mut scope = Scope::new();
-        engine.run_ast_with_scope(&mut scope, &ast)?;
-        let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
-        let variant_config: VariantConfig = dynamic_config.try_into()?;
-
-        Ok(serde_json::to_string(&variant_config)?)
+        StatelessChessvariantEngine::parse_config(script_content)
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = variantConfigJson))]
@@ -378,40 +424,10 @@ impl ChessvariantEngine {
     }
 }
 
-// ─── Core engine logic ───────────────────────────────────────────────────────
+// ─── Core engine logic (WASM-facing) ─────────────────────────────────────────
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl ChessvariantEngine {
-    fn try_as_board_state(&self) -> BoardState {
-        // Single BoardState
-        if let Some(b) = self.state.board.clone().try_cast::<BoardState>() {
-            return b;
-        }
-        // Array of BoardState — merge into one
-        let Some(arr): Option<rhai::Array> = self.state.board.clone().try_cast::<rhai::Array>()
-        else {
-            todo!("handle empty board! Don't return sentinel! Return error: board wrong format")
-        };
-        if arr.is_empty() {
-            return BoardState::board_empty(0, 0);
-        }
-        let first: BoardState = arr[0]
-            .clone()
-            .try_cast::<BoardState>()
-            .unwrap_or_else(|| BoardState::board_empty(0, 0));
-        let mut boards: Vec<Vec<Option<Piece>>> = first.boards.clone();
-        for elem in &arr[1..] {
-            if let Some(b) = elem.clone().try_cast::<BoardState>() {
-                boards.extend(b.boards);
-            }
-        }
-        return BoardState {
-            rows: first.rows,
-            cols: first.cols,
-            number_of_boards: boards.len() as i32,
-            boards,
-        };
-    }
-
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = boardStateJson))]
     pub fn board_state_json(&self) -> Result<String, CvError> {
         Ok(serde_json::to_string(&self.try_as_board_state())?)
@@ -481,6 +497,61 @@ impl ChessvariantEngine {
         let player = resolve_player(&self.state, player_id)?;
         let ui = self.run_derive_ui(&player)?;
         Ok(serde_json::to_string(&serde_json::json!({ "ui": ui }))?)
+    }
+
+    /// Returns `true` when the game has reached a terminal state.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = deriveGameProgressBool))]
+    pub fn derive_game_progress_bool(&mut self) -> bool {
+        matches!(self.compute_valid_moves_all(), Ok((_, Some(_))))
+    }
+
+    /// Returns the IDs of all players who currently have valid moves.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = activePlayerIds))]
+    pub fn active_player_ids(&mut self) -> Result<Vec<i32>, CvError> {
+        let player_ids = self.get_player_ids()?;
+        let mut active = Vec::new();
+        for pid in &player_ids {
+            let moves = self.compute_valid_moves_for_player(pid)?;
+            if !moves.is_empty() {
+                active.push(pid.id);
+            }
+        }
+        Ok(active)
+    }
+}
+
+// ─── Core engine logic (native) ──────────────────────────────────────────────
+
+impl ChessvariantEngine {
+    fn try_as_board_state(&self) -> BoardState {
+        // Single BoardState
+        if let Some(b) = self.state.board.clone().try_cast::<BoardState>() {
+            return b;
+        }
+        // Array of BoardState — merge into one
+        let Some(arr): Option<rhai::Array> = self.state.board.clone().try_cast::<rhai::Array>()
+        else {
+            todo!("handle empty board! Don't return sentinel! Return error: board wrong format")
+        };
+        if arr.is_empty() {
+            return BoardState::board_empty(0, 0);
+        }
+        let first: BoardState = arr[0]
+            .clone()
+            .try_cast::<BoardState>()
+            .unwrap_or_else(|| BoardState::board_empty(0, 0));
+        let mut boards: Vec<Vec<Option<Piece>>> = first.boards.clone();
+        for elem in &arr[1..] {
+            if let Some(b) = elem.clone().try_cast::<BoardState>() {
+                boards.extend(b.boards);
+            }
+        }
+        return BoardState {
+            rows: first.rows,
+            cols: first.cols,
+            number_of_boards: boards.len() as i32,
+            boards,
+        };
     }
 
     fn submit_action_js_impl(
@@ -569,32 +640,12 @@ impl ChessvariantEngine {
         self.submit_action_core(&player, &action)
     }
 
-    /// Returns `true` when the game has reached a terminal state.
-    /// Delegates to `derive_game_progress()` from the script (mandatory).
-    pub fn derive_game_progress_bool(&mut self) -> bool {
-        matches!(self.compute_valid_moves_all(), Ok((_, Some(_))))
-    }
-
     /// Returns the current game outcome from `derive_game_progress()`.
     pub fn outcome(&mut self) -> Option<GameProgress> {
         match self.compute_valid_moves_all() {
             Ok((_, Some(game_over))) => serde_json::from_value(game_over).ok(),
             _ => None,
         }
-    }
-
-    /// Returns the IDs of all players who currently have valid moves
-    /// (i.e., it is their turn).
-    pub fn active_player_ids(&mut self) -> Result<Vec<i32>, CvError> {
-        let player_ids = self.get_player_ids()?;
-        let mut active = Vec::new();
-        for pid in &player_ids {
-            let moves = self.compute_valid_moves_for_player(pid)?;
-            if !moves.is_empty() {
-                active.push(pid.id);
-            }
-        }
-        Ok(active)
     }
 
     #[allow(dead_code)]
