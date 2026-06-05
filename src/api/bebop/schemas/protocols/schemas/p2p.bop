@@ -78,4 +78,9 @@ union P2pMsg {
         1 -> guid UserId;
         2 -> int32 SlotIndex;
     }
+
+    // Sent by the host to a joining peer to reject their join request.
+    12 -> message JoinRejected {
+        1 -> string Reason;
+    }
 }

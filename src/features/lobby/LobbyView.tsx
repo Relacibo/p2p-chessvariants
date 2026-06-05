@@ -35,6 +35,7 @@ import {
   selectLobbyScriptUrl,
   selectLobbyStatus,
   selectLobbyServerLobbyId,
+  selectVariantConfig,
   _setIdle,
   _setIsPrimaryTab,
 } from "./lobbySlice";
@@ -54,6 +55,7 @@ export default function LobbyView() {
   const isHost = useSelector(selectIsHost);
   const hostUserId = useSelector(selectHostUserId);
   const scriptUrl = useSelector(selectLobbyScriptUrl);
+  const variantConfig = useSelector(selectVariantConfig);
   const { lobbyId, peerId } = useParams<{
     lobbyId?: string;
     peerId?: string;
@@ -168,6 +170,7 @@ export default function LobbyView() {
       isHost,
       hostUserId,
       scriptUrl,
+      variantConfig,
     });
   // broadcastTrigger is intentionally included to force a broadcast when secondary tab joins
   // eslint-disable-next-line react-hooks/exhaustive-deps

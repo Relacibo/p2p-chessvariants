@@ -7,6 +7,7 @@
 import {
   GameMessage,
   GameStart,
+  JoinRejected,
   LobbyInfo,
   LobbyJoin,
   LobbyKick,
@@ -46,6 +47,10 @@ export type P2PLobbyCallbacks = {
   /** Host only: called when a peer requests a slot. Returns whether host accepted the request. */
   onSlotRequest?: (fromUserId: string, slotIndex: number) => boolean;
   onSlotAssigned?: (userId: string, slotIndex: number) => void;
+  /** Host only: validate a join request before acceptance. Return false to reject. */
+  onValidateJoin?: (userId: string, displayName: string) => boolean;
+  /** Client: called when the host rejected our join. */
+  onJoinRejected?: (reason: string) => void;
 };
 
 let myUserId: string | null = null;
@@ -212,7 +217,7 @@ function handleMessage(
   fromUserId: string,
   msg: ReturnType<typeof P2PMsg.decode>,
 ): void {
-  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",6:"LobbyLeave",7:"GameMessage",8:"LobbyKick",9:"GameStart",10:"SlotRequest",11:"SlotAssigned"};
+  const tagNames: Record<number, string> = {1:"LobbyJoin",2:"LobbyInfo",3:"PlayerJoined",4:"PlayerLeft",6:"LobbyLeave",7:"GameMessage",8:"LobbyKick",9:"GameStart",10:"SlotRequest",11:"SlotAssigned",12:"JoinRejected"};
   console.log(`[p2p] received ${tagNames[msg.tag] ?? `tag=${msg.tag}`} from ${fromUserId.slice(0, 8)} (isHost=${isHost})`);
   switch (msg.tag) {
     case 1:
@@ -265,7 +270,21 @@ function handleMessage(
         handleSlotAssigned(msg.value as SlotAssigned);
       }
       break;
+    case 12:
+      handleJoinRejected(msg.value as JoinRejected);
+      break;
   }
+}
+
+/** Host: send a rejection message to a peer that tried to join. */
+function sendJoinRejected(toUserId: string, reason: string): void {
+  const msg = P2PMsg.encode({ tag: 12, value: JoinRejected({ reason }) });
+  webrtcService.sendToPeer(toUserId, msg);
+}
+
+function handleJoinRejected(msg: JoinRejected): void {
+  console.log("[p2p] join rejected:", msg.reason);
+  callbacks?.onJoinRejected?.(msg.reason ?? "Join was rejected by the host");
 }
 
 function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
@@ -273,6 +292,15 @@ function handleLobbyJoin(fromUserId: string, join: LobbyJoin): void {
   const displayName = join.displayName ?? userId;
   const ts = join.stateTimestamp ?? 0n;
   console.log(`[p2p] handleLobbyJoin from ${userId.slice(0, 8)}, ts=${ts}, bestTs=${bestStateTimestamp}, current players: [${players.map(p=>p.userId.slice(0,8)).join(", ")}]`);
+
+  // Validate join before acceptance
+  if (callbacks?.onValidateJoin) {
+    if (!callbacks.onValidateJoin(userId, displayName)) {
+      console.log(`[p2p] rejecting join from ${userId.slice(0, 8)} (validation failed)`);
+      sendJoinRejected(userId, "Lobby is full");
+      return;
+    }
+  }
 
   // If this guest has a newer snapshot than what we know, merge their player list.
   // This helps rebuild state after a host refresh.

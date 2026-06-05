@@ -10,7 +10,9 @@ import * as p2pLobbyService from "../../api/p2pLobbyService";
 import * as webrtcService from "../../api/webrtcService";
 import type { AppThunk, RootState } from "../../app/store";
 import { selectToken, selectUser } from "../auth/authSlice";
-import { parseScriptConfig } from "./scriptUrl";
+import { fetchAndParseFullConfig, parseScriptConfig } from "./scriptUrl";
+import type { WasmVariantConfig } from "../chessboard/types";
+import { getMaxSlots, isValidPlayerCount } from "./playerCountUtils";
 
 export type LobbyPlayer = {
   userId: string;
@@ -50,6 +52,8 @@ export type LobbyState = {
   pendingInvite: LobbyInvite | null;
   /** Maps userId → WasmPlayerConfig.id (0-indexed slot). -1 means unassigned. */
   playerAssignments: Record<string, number>;
+  /** Full variant configuration parsed from the script URL. */
+  variantConfig: WasmVariantConfig | null;
 };
 
 function logLobbyWarning(context: string, err: unknown): void {
@@ -76,6 +80,7 @@ const initialState: LobbyState = {
   players: [],
   pendingInvite: null,
   playerAssignments: {},
+  variantConfig: null,
 };
 
 export const {
@@ -103,6 +108,7 @@ export const {
     _clearPendingInvite,
     _slotAssigned,
     _gameStarted,
+    _setVariantConfig,
   },
   reducer,
 } = createSlice({
@@ -152,6 +158,7 @@ export const {
       state.allowGuests = true;
       state.players = [];
       state.playerAssignments = {};
+      state.variantConfig = null;
     },
     _setKicked: (state) => {
       state.status = { phase: "kicked" };
@@ -166,6 +173,7 @@ export const {
       state.allowGuests = true;
       state.players = [];
       state.playerAssignments = {};
+      state.variantConfig = null;
     },
     _setLocalUserId: (state, action: PayloadAction<string>) => {
       state.localUserId = action.payload;
@@ -238,6 +246,9 @@ export const {
       }
       state.status = { phase: "game_started", playerCount };
     },
+    _setVariantConfig: (state, action: PayloadAction<WasmVariantConfig>) => {
+      state.variantConfig = action.payload;
+    },
   },
 });
 
@@ -291,19 +302,50 @@ async function _applyTurnCredentials(token: string): Promise<void> {
   }
 }
 
-/** Host-only callbacks wired to Redux state for slot assignment and game start. */
+/** Host-only callbacks wired to Redux state for slot assignment, join validation, and game start. */
 function _makeHostGameCallbacks(
   dispatch: LobbyDispatch,
   getState: () => RootState,
 ): Pick<
   import("../../api/p2pLobbyService").P2PLobbyCallbacks,
-  "onGameStart" | "onSlotRequest" | "onSlotAssigned"
+  "onGameStart" | "onSlotRequest" | "onSlotAssigned" | "onValidateJoin" | "onJoinRejected"
 > {
   return {
+    onValidateJoin: (_userId, _displayName) => {
+      const state = getState().lobby;
+      const apc = state.variantConfig?.allowed_player_count;
+      if (!apc) return true; // unknown config — allow
+      const max = getMaxSlots(apc);
+      // Count connected players (not just assigned). The player hasn't been added yet
+      // but will be if we return true.
+      const connectedCount = state.players.length;
+      if (connectedCount >= max) {
+        console.log(`[lobby] rejecting join: lobby full (${connectedCount}/${max})`);
+        return false;
+      }
+      return true;
+    },
+    onJoinRejected: (reason) => {
+      dispatch(_setError(reason));
+      notifications.show({
+        title: "Join rejected",
+        message: reason,
+        color: "red",
+      });
+    },
     onSlotRequest: (fromUserId, slotIndex) => {
-      const assignments = getState().lobby.playerAssignments;
-      // Allow unclaiming (-1) always.
-      if (slotIndex !== -1) {
+      const state = getState().lobby;
+      const assignments = state.playerAssignments;
+      // Validate slotIndex against maxSlots from config
+      if (slotIndex >= 0) {
+        const apc = state.variantConfig?.allowed_player_count;
+        if (apc) {
+          const max = getMaxSlots(apc);
+          if (slotIndex >= max) {
+            console.log(`[lobby] rejecting slot ${slotIndex}: exceeds max ${max}`);
+            return false;
+          }
+        }
         // Reject if another user already holds this slot.
         const holder = Object.entries(assignments).find(
           ([, s]) => s === slotIndex,
@@ -347,9 +389,34 @@ export function createLobby(
     dispatch(_setScriptUrl(scriptUrl));
 
     try {
+      // Parse the full variant config (needed for slot count and validation in all lobby types).
+      let variantConfig: WasmVariantConfig | null = null;
+      try {
+        variantConfig = await fetchAndParseFullConfig(scriptUrl);
+        dispatch(_setVariantConfig(variantConfig));
+      } catch (e) {
+        console.warn("[lobby] could not parse variant config for lobby creation", e);
+      }
+
       let lobbyId: string | null = null;
       if (useServerLobby) {
-        const scriptConfig = await parseScriptConfig(scriptUrl);
+        const scriptConfig = variantConfig
+          ? {
+              name: variantConfig.name,
+              minPlayers:
+                typeof variantConfig.allowed_player_count === "number"
+                  ? variantConfig.allowed_player_count
+                  : Array.isArray(variantConfig.allowed_player_count)
+                    ? Math.min(...variantConfig.allowed_player_count)
+                    : variantConfig.allowed_player_count.min,
+              maxPlayers:
+                typeof variantConfig.allowed_player_count === "number"
+                  ? variantConfig.allowed_player_count
+                  : Array.isArray(variantConfig.allowed_player_count)
+                    ? Math.max(...variantConfig.allowed_player_count)
+                    : variantConfig.allowed_player_count.max,
+            }
+          : await parseScriptConfig(scriptUrl);
         const res = await dispatch(
           api.endpoints.createLobby.initiate({
             scriptUrl,
@@ -483,6 +550,10 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
       }
 
       dispatch(_setScriptUrl(lobbyInfo.scriptUrl));
+      // Parse variant config for slot count and validation
+      fetchAndParseFullConfig(lobbyInfo.scriptUrl)
+        .then(cfg => dispatch(_setVariantConfig(cfg)))
+        .catch(e => console.warn("[lobby] could not parse variant config from lobby info", e));
       dispatch(_setServerLobbyId(lobbyId));
       dispatch(_setLocalUserId(user.id));
       dispatch(_setHostUserId(lobbyInfo.hostUserId));
@@ -654,6 +725,10 @@ function _initP2PAsJoiner(
       onLobbyInfo: (info) => {
         dispatch(_setScriptUrl(info.variantUrl));
         if (info.hostUserId) dispatch(_setHostUserId(info.hostUserId));
+        // Parse variant config for slot count and validation
+        fetchAndParseFullConfig(info.variantUrl)
+          .then(cfg => dispatch(_setVariantConfig(cfg)))
+          .catch(e => console.warn("[lobby] could not parse variant config from lobby info", e));
         for (const p of info.players) {
           dispatch(
             _playerJoined({
@@ -856,6 +931,8 @@ export const selectLobbyAllowGuests = (state: RootState) => state.lobby.allowGue
 export const selectLobbyPlayers = (state: RootState) => state.lobby.players;
 export const selectPendingInvite = (state: RootState) =>
   state.lobby.pendingInvite;
+export const selectVariantConfig = (state: RootState) =>
+  state.lobby.variantConfig;
 
 export const selectInviteUrl = (state: RootState): string => {
   const { isHost, serverLobbyId, localUserId } = state.lobby;
@@ -888,8 +965,18 @@ export const selectPlayerAssignments = (state: RootState) =>
 export function requestSlot(slotIndex: number): AppThunk {
   return (_dispatch, getState) => {
     const state = getState().lobby;
-    const { localUserId, hostUserId, isHost } = state;
+    const { localUserId, hostUserId, isHost, variantConfig } = state;
     if (!localUserId) return;
+
+    // Validate slotIndex against maxSlots from config
+    if (variantConfig?.allowed_player_count && slotIndex >= 0) {
+      const max = getMaxSlots(variantConfig.allowed_player_count);
+      if (slotIndex >= max) {
+        console.log(`[lobby] requestSlot: slot ${slotIndex} exceeds max ${max}`);
+        return;
+      }
+    }
+
     if (isHost) {
       // Host assigns itself directly without a request round-trip.
       const assignments = state.playerAssignments;
@@ -916,13 +1003,22 @@ export function startGame(): AppThunk {
   return (_dispatch, getState) => {
     const state = getState().lobby;
     if (!state.isHost) return;
-    const { playerAssignments, players } = state;
-    const playerCount = players.length;
+    const { playerAssignments, variantConfig } = state;
+    const assignedCount = Object.keys(playerAssignments).length;
+
+    // Validate player count against allowed_player_count
+    if (variantConfig?.allowed_player_count) {
+      if (!isValidPlayerCount(variantConfig.allowed_player_count, assignedCount)) {
+        console.log(`[lobby] startGame: player count ${assignedCount} is invalid for variant`);
+        return;
+      }
+    }
+
     const assignments = Object.entries(playerAssignments).map(
       ([userId, playerConfigId]) => ({ userId, playerConfigId }),
     );
-    p2pLobbyService.broadcastGameStart(assignments, playerCount);
-    _dispatch(_gameStarted({ assignments, playerCount }));
+    p2pLobbyService.broadcastGameStart(assignments, assignedCount);
+    _dispatch(_gameStarted({ assignments, playerCount: assignedCount }));
   };
 }
 

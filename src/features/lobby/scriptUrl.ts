@@ -171,15 +171,20 @@ export function getPlayersRange(apc: WasmVariantConfig["allowed_player_count"]):
 }
 
 export async function parseScriptConfig(url: string): Promise<ScriptConfig> {
+  const config = await fetchAndParseFullConfig(url);
+  const range = getPlayersRange(config.allowed_player_count);
+  return {
+    name: config.name,
+    minPlayers: range.min,
+    maxPlayers: range.max,
+  };
+}
+
+/** Fetch + parse the full variant config from a script URL. */
+export async function fetchAndParseFullConfig(url: string): Promise<WasmVariantConfig> {
   const script = await fetchScriptText(url);
   try {
-    const config = (await ChessvariantEngine.parseConfig(script)) as unknown as WasmVariantConfig;
-    const range = getPlayersRange(config.allowed_player_count);
-    return {
-      name: config.name,
-      minPlayers: range.min,
-      maxPlayers: range.max,
-    };
+    return (await ChessvariantEngine.parseConfig(script)) as unknown as WasmVariantConfig;
   } catch (e: any) {
     throw new Error(`Engine error: ${e.message || e}`);
   }

@@ -23,6 +23,7 @@ export type SecondaryTabState = {
   isHost: boolean;
   hostUserId: string | null;
   scriptUrl: string | null;
+  variantConfig: import("../features/chessboard/types").WasmVariantConfig | null;
 };
 
 let channel: BroadcastChannel | null = null;
