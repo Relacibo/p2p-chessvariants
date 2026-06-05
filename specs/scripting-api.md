@@ -5,6 +5,18 @@ All agents (Plan, Build) MUST reference this document.
 
 `api_version` in `config()` must be `1`.
 
+## Conventions
+
+| Rule | Applies to |
+|------|------------|
+| **snake_case** for all multi-word identifiers | Rhai map keys, function names, config fields, JSON wire format |
+| **lowercase** for single-word identifiers | Primitive field names, discriminator values (`"move"`, `"board"`) |
+| **Data fields** (`Piece.data`, `Player.data`, `state.data`) are **free-form** Rhai maps — keys pass through unchanged, no validation | `Piece("white","king")`, `player["color"]`, `state["turn"]` |
+
+The engine serialization layer (`#[serde(rename_all = "snake_case")]`) ensures **all** engine→frontend JSON uses snake_case.
+When the frontend receives e.g. `{ piece_type: "king", board_index: 0, winning_team: 1 }`, every field name matches the convention exactly.
+A casing mismatch is a **compile error** (TypeScript) or a **Zod validation error** (runtime) — never a silent rendering failure.
+
 ---
 
 ## 1. Script Functions
@@ -204,7 +216,7 @@ Returns a `GameProgress` enum value directly (no `bool`). There is no `outcome` 
 |------------------|-------------|------|
 | `InProgress()` | `GameProgress::InProgress` | `{ "progress": "in_progress" }` |
 | `Draw()` | `GameProgress::Draw` | `{ "progress": "draw" }` |
-| `Winner(team_id)` | `GameProgress::Decisive { winning_team }` | `{ "progress": "decisive", "winningTeam": 0 }` |
+| `Winner(team_id)` | `GameProgress::Decisive { winning_team }` | `{ "progress": "decisive", "winning_team": 0 }` |
 
 ```rhai
 fn derive_game_progress(state, all_valid_moves) {
@@ -485,7 +497,7 @@ Returned by `InProgress()`, `Winner()`, and `Draw()` constructors. Returned dire
 |---------|-----------------|------|
 | `InProgress` | `InProgress()` | `{ "progress": "in_progress" }` |
 | `Draw` | `Draw()` | `{ "progress": "draw" }` |
-| `Decisive` | `Winner(team_id)` | `{ "progress": "decisive", "winningTeam": 0 }` |
+| `Decisive` | `Winner(team_id)` | `{ "progress": "decisive", "winning_team": 0 }` |
 
 `Winner(team_id)` takes a **team ID** (from `state.players[].team`), never a player ID.
 
