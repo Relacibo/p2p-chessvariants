@@ -20,14 +20,14 @@ use super::piece::Piece;
 ///
 /// There is no `outcome` field — game-over is determined by `derive_game_progress()`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct State {
+pub struct GameState {
     pub board: Dynamic,
     pub players: rhai::Array,
     #[serde(flatten)]
     pub data: rhai::Map,
 }
 
-impl State {
+impl GameState {
     /// Create a new state from a board and player list. `data` starts empty.
     pub fn new(board: Dynamic, players: rhai::Array) -> Self {
         Self {
@@ -40,10 +40,7 @@ impl State {
     /// Build a State from a Rhai map (returned by `init()`).
     /// Extracts `board` and `players`; remaining keys go to `data`.
     pub fn from_init_map(map: rhai::Map) -> Result<Self, String> {
-        let board = map
-            .get("board")
-            .cloned()
-            .unwrap_or(Dynamic::UNIT);
+        let board = map.get("board").cloned().unwrap_or(Dynamic::UNIT);
         let players = map
             .get("players")
             .cloned()
@@ -53,7 +50,7 @@ impl State {
             .into_iter()
             .filter(|(k, _)| k != "board" && k != "players")
             .collect();
-        Ok(State {
+        Ok(GameState {
             board,
             players,
             data,

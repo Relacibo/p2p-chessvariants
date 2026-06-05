@@ -96,15 +96,11 @@ fn test_chess_basic_pawn_e2_e4() {
 fn test_chess_basic_turn_alternates() {
     let mut engine = make_engine("../variants/chess.rhai", 2);
 
-    engine
-        .submit_move(0, coords(6, 4), coords(4, 4))
-        .unwrap();
+    engine.submit_move(0, coords(6, 4), coords(4, 4)).unwrap();
     let active = engine.active_player_ids().expect("active_player_ids");
     assert_eq!(active, vec![1]);
 
-    engine
-        .submit_move(1, coords(1, 4), coords(3, 4))
-        .unwrap();
+    engine.submit_move(1, coords(1, 4), coords(3, 4)).unwrap();
     let active = engine.active_player_ids().expect("active_player_ids");
     assert_eq!(active, vec![0]);
 }
@@ -162,9 +158,7 @@ fn test_king_capture_triggers_game_over() {
 fn test_king_capture_game_not_over_after_non_king_move() {
     let mut engine = make_engine("tests/scripts/king_capture.rhai", 2);
 
-    engine
-        .submit_move(0, coords(1, 4), coords(2, 4))
-        .unwrap();
+    engine.submit_move(0, coords(1, 4), coords(2, 4)).unwrap();
 
     assert!(
         !engine.derive_game_progress_bool(),

@@ -1,8 +1,5 @@
 use error::CvError;
-use game::{
-    board, standard, state::Coords,
-    variant_config::VariantConfig,
-};
+use game::{board, standard, state::Coords, variant_config::VariantConfig};
 use modules::builtins;
 use rhai::{AST, Dynamic, Engine, Module, Scope};
 use serde::Serialize;
@@ -20,7 +17,7 @@ pub mod rhai_rust_error;
 pub use game::actions::Action;
 pub use game::game_progress::GameProgress;
 pub use game::piece::Piece;
-pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, Player, State};
+pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, GameState, Player};
 
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
 #[derive(Clone, Debug, Serialize)]
@@ -29,12 +26,27 @@ pub struct PlayerMoves {
     pub moves: Vec<Action>,
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
-pub struct ChessvariantEngine {
+// ─── Stateless engine (Rhai runtime without game state) ─────────────────────
+
+/// Holds the compiled script and Rhai runtime. Does not contain game state.
+/// Call `init()` to create a [`ChessvariantEngine`] with an initial game state.
+pub struct StatelessChessvariantEngine {
     engine: Engine,
     ast: AST,
-    pub(crate) game_state: State,
     pub(crate) variant_config: VariantConfig,
+    /// Scope populated by `run_ast_with_scope` at construction time.
+    /// Contains top-level `const` / `let` declarations from the variant script
+    /// (e.g. `PIECE_DEFS`). Cloned for every `call_fn` invocation so the
+    /// original stays pristine — matching the playground's `global.clone()` pattern.
+    scope: Scope<'static>,
+}
+
+/// Fully initialized chess variant engine, combining the stateless runtime
+/// with a concrete [`GameState`].
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+pub struct ChessvariantEngine {
+    inner: StatelessChessvariantEngine,
+    state: GameState,
 }
 
 // ─── Builtin Registration ────────────────────────────────────────────────────
@@ -53,14 +65,17 @@ fn register_builtins(engine: &mut Engine) {
         .register_indexer_get_set(
             |p: &mut Player, key: &str| -> Dynamic {
                 match &p.data {
-                    Some(data) => data.read_lock::<rhai::Map>()
+                    Some(data) => data
+                        .read_lock::<rhai::Map>()
                         .and_then(|m| m.get(key).cloned())
                         .unwrap_or(Dynamic::UNIT),
                     None => Dynamic::UNIT,
                 }
             },
             |p: &mut Player, key: &str, value: Dynamic| {
-                let map = p.data.get_or_insert_with(|| Dynamic::from(rhai::Map::new()));
+                let map = p
+                    .data
+                    .get_or_insert_with(|| Dynamic::from(rhai::Map::new()));
                 if let Some(mut m) = map.write_lock::<rhai::Map>() {
                     m.insert(key.into(), value);
                 }
@@ -72,16 +87,16 @@ fn register_builtins(engine: &mut Engine) {
 
     // State — typed wrapper: board/players are properties, data keys use indexer
     engine
-        .register_type_with_name::<State>("State")
-        .register_get_set("board",
-            |s: &mut State| s.board.clone(),
-            |s: &mut State, value: Dynamic| s.board = value,
+        .register_type_with_name::<GameState>("State")
+        .register_get_set(
+            "board",
+            |s: &mut GameState| s.board.clone(),
+            |s: &mut GameState, value: Dynamic| s.board = value,
         )
-        .register_get("players", |s: &mut State| Dynamic::from(s.players.clone()))
-        .register_indexer_get_set(
-            State::rhai_index_get,
-            State::rhai_index_set,
-        );
+        .register_get("players", |s: &mut GameState| {
+            Dynamic::from(s.players.clone())
+        })
+        .register_indexer_get_set(GameState::rhai_index_get, GameState::rhai_index_set);
 
     // Coords is an opaque enum — register manually with getters.
     engine
@@ -166,7 +181,7 @@ fn register_engine_helpers(engine: &mut Engine) {
 // ─── Rhai Map helpers ────────────────────────────────────────────────────────
 
 fn player_field_i32(m: &rhai::Map, key: &str) -> i32 {
-    m.get(key).and_then(|v| v.as_int().ok()).unwrap_or(0) as i32
+    m.get(key).and_then(|v| v.as_int().ok()).unwrap_or(0)
 }
 
 fn player_field_string(m: &rhai::Map, key: &str) -> String {
@@ -189,7 +204,7 @@ fn player_from_map(m: &rhai::Map) -> Player {
 
 /// Resolve a player ID to a `Player` from `state.players`.
 /// Used both by WASM-facing methods and integration tests.
-pub fn resolve_player(state: &State, player_id: i32) -> Result<Player, CvError> {
+pub fn resolve_player(state: &GameState, player_id: i32) -> Result<Player, CvError> {
     for p in &state.players {
         let Some(m) = p.clone().try_cast::<rhai::Map>() else {
             continue;
@@ -204,22 +219,20 @@ pub fn resolve_player(state: &State, player_id: i32) -> Result<Player, CvError> 
 }
 
 /// Look up a player's full Rhai map from `state.players` by id.
-fn get_player_map(state: &State, player_id: i32) -> Option<Dynamic> {
-    state
-        .players
-        .iter()
-        .find_map(|p| {
-            let m = p.clone().try_cast::<rhai::Map>()?;
-            (m.get("id")?.as_int().ok()? == player_id).then(|| Dynamic::from(m))
-        })
+fn get_player_map(state: &GameState, player_id: i32) -> Option<Dynamic> {
+    state.players.iter().find_map(|p| {
+        let m = p.clone().try_cast::<rhai::Map>()?;
+        (m.get("id")?.as_int().ok()? == player_id).then(|| Dynamic::from(m))
+    })
 }
 
-// ─── Constructor ─────────────────────────────────────────────────────────────
+// ─── StatelessChessvariantEngine ─────────────────────────────────────────────
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
-impl ChessvariantEngine {
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
-    pub fn new(script_content: String, player_count: i32) -> Result<ChessvariantEngine, CvError> {
+impl StatelessChessvariantEngine {
+    /// Compile a Rhai script, evaluate top-level declarations, and extract
+    /// [`VariantConfig`] from the mandatory `config()` function.
+    /// Returns a stateless engine ready for `init()`.
+    pub fn new(script_content: String) -> Result<Self, CvError> {
         let mut engine = Engine::new();
         register_builtins(&mut engine);
 
@@ -234,6 +247,8 @@ impl ChessvariantEngine {
 
         // Run the AST top-level to evaluate `let`/`const` declarations
         // and install fn definitions into the scope.
+        // The scope is stored and cloned for every function call —
+        // Rhai manages scope levels per call (push/pop), so no pollution.
         engine.run_ast_with_scope(&mut scope, &ast)?;
 
         // Extract ALL top-level `let`/`const` declarations from the scope and
@@ -248,8 +263,27 @@ impl ChessvariantEngine {
             engine.register_global_module(Rc::new(module));
         }
 
-        let dynamic_config = engine.call_fn::<Dynamic>(&mut scope, &ast, "config", ())?;
+        let mut config_scope = scope.clone();
+        let dynamic_config = engine.call_fn::<Dynamic>(&mut config_scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
+
+        Ok(Self {
+            engine,
+            ast,
+            variant_config,
+            scope,
+        })
+    }
+
+    /// Call the script's `init(player_count)` function and produce a fully
+    /// initialized [`ChessvariantEngine`]. Consumes `self`.
+    pub fn init(self, player_count: i32) -> Result<ChessvariantEngine, CvError> {
+        let StatelessChessvariantEngine {
+            engine,
+            ast,
+            variant_config,
+            scope,
+        } = self;
 
         if !variant_config
             .allowed_player_count
@@ -260,26 +294,44 @@ impl ChessvariantEngine {
             )));
         }
 
-        let init_result = engine.call_fn::<Dynamic>(&mut scope, &ast, "init", (player_count,))?;
+        // Clone the scope for the init() call so the original stays pristine.
+        let mut init_scope = scope.clone();
+        let init_result =
+            engine.call_fn::<Dynamic>(&mut init_scope, &ast, "init", (player_count,))?;
         let init_map = init_result
             .try_cast::<rhai::Map>()
             .ok_or_else(|| CvError::Internal("init() must return a map".into()))?;
-        let game_state = State::from_init_map(init_map)
-            .map_err(CvError::Internal)?;
+        let game_state = GameState::from_init_map(init_map).map_err(CvError::Internal)?;
 
         Ok(ChessvariantEngine {
-            engine,
-            ast,
-            game_state,
-            variant_config,
+            inner: StatelessChessvariantEngine {
+                engine,
+                ast,
+                variant_config,
+                scope,
+            },
+            state: game_state,
         })
+    }
+}
+
+// ─── ChessvariantEngine: getters & static utilities ──────────────────────────
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+impl ChessvariantEngine {
+    /// Combined constructor for WASM. Compiles the script and initialises
+    /// the game state in one step.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
+    pub fn new(script_content: String, player_count: i32) -> Result<Self, CvError> {
+        let stateless = StatelessChessvariantEngine::new(script_content)?;
+        stateless.init(player_count)
     }
 
     // ── Getters ──
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
     pub fn name(&self) -> String {
-        self.variant_config.name.clone()
+        self.inner.variant_config.name.clone()
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playerCount))]
@@ -289,7 +341,7 @@ impl ChessvariantEngine {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = minPlayers))]
     pub fn min_players(&self) -> i32 {
-        match &self.variant_config.allowed_player_count {
+        match &self.inner.variant_config.allowed_player_count {
             game::variant_config::AllowedPlayerCount::Exact(n) => *n as i32,
             game::variant_config::AllowedPlayerCount::Discrete(vals) => {
                 vals.iter().min().copied().unwrap_or(0) as i32
@@ -300,7 +352,7 @@ impl ChessvariantEngine {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = maxPlayers))]
     pub fn max_players(&self) -> i32 {
-        match &self.variant_config.allowed_player_count {
+        match &self.inner.variant_config.allowed_player_count {
             game::variant_config::AllowedPlayerCount::Exact(n) => *n as i32,
             game::variant_config::AllowedPlayerCount::Discrete(vals) => {
                 vals.iter().max().copied().unwrap_or(0) as i32
@@ -325,34 +377,47 @@ impl ChessvariantEngine {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = variantConfigJson))]
     pub fn variant_config_json(&self) -> Result<String, CvError> {
-        Ok(serde_json::to_string(&self.variant_config)?)
+        Ok(serde_json::to_string(&self.inner.variant_config)?)
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = setLogLevel))]
+    pub fn set_log_level(level: String) {
+        logging::set_log_level(&level);
+    }
+}
+
+// ─── Core engine logic ───────────────────────────────────────────────────────
+
+impl ChessvariantEngine {
     fn try_as_board_state(&self) -> BoardState {
         // Single BoardState
-        if let Some(b) = self.game_state.board.clone().try_cast::<BoardState>() {
+        if let Some(b) = self.state.board.clone().try_cast::<BoardState>() {
             return b;
         }
         // Array of BoardState — merge into one
-        if let Some(arr) = self.game_state.board.clone().try_cast::<rhai::Array>() {
-            if arr.is_empty() {
-                return BoardState::board_empty(0, 0);
-            }
-            let first: BoardState = arr[0].clone().try_cast::<BoardState>().unwrap_or_else(|| BoardState::board_empty(0, 0));
-            let mut boards: Vec<Vec<Option<Piece>>> = first.boards.clone();
-            for elem in &arr[1..] {
-                if let Some(b) = elem.clone().try_cast::<BoardState>() {
-                    boards.extend(b.boards);
-                }
-            }
-            return BoardState {
-                rows: first.rows,
-                cols: first.cols,
-                number_of_boards: boards.len() as i32,
-                boards,
-            };
+        let Some(arr): Option<rhai::Array> = self.state.board.clone().try_cast::<rhai::Array>()
+        else {
+            todo!("handle empty board! Don't return sentinel! Return error: board wrong format")
+        };
+        if arr.is_empty() {
+            return BoardState::board_empty(0, 0);
         }
-        BoardState::board_empty(0, 0)
+        let first: BoardState = arr[0]
+            .clone()
+            .try_cast::<BoardState>()
+            .unwrap_or_else(|| BoardState::board_empty(0, 0));
+        let mut boards: Vec<Vec<Option<Piece>>> = first.boards.clone();
+        for elem in &arr[1..] {
+            if let Some(b) = elem.clone().try_cast::<BoardState>() {
+                boards.extend(b.boards);
+            }
+        }
+        return BoardState {
+            rows: first.rows,
+            cols: first.cols,
+            number_of_boards: boards.len() as i32,
+            boards,
+        };
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = boardStateJson))]
@@ -362,13 +427,25 @@ impl ChessvariantEngine {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = playersJson))]
     pub fn players_json(&self) -> Result<String, CvError> {
-        Ok(serde_json::to_string(&self.game_state.players)?)
+        Ok(serde_json::to_string(&self.state.players)?)
     }
 
     /// Returns full game state as JSON.
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = stateJson))]
     pub fn state_json(&self) -> Result<String, CvError> {
-        Ok(serde_json::to_string_pretty(&self.game_state)?)
+        Ok(serde_json::to_string_pretty(&self.state)?)
+    }
+
+    /// Compute valid_moves for a single player.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesForPlayerJson))]
+    pub fn valid_moves_for_player_json(&mut self, player_json: String) -> Result<String, CvError> {
+        let player_id: i32 = serde_json::from_str(&player_json)?;
+        let player = resolve_player(&self.state, player_id)?;
+        let moves = self.compute_valid_moves_for_player(&player)?;
+        Ok(serde_json::to_string(&serde_json::json!({
+            "player": serde_json::to_value(&player)?,
+            "moves": moves,
+        }))?)
     }
 
     /// Returns valid moves for ALL players + game_over.
@@ -387,18 +464,6 @@ impl ChessvariantEngine {
         Ok(serde_json::to_string(&serde_json::json!({
             "validMoves": valid_moves_json,
             "gameOver": game_over,
-        }))?)
-    }
-
-    /// Compute valid_moves for a single player.
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = validMovesForPlayerJson))]
-    pub fn valid_moves_for_player_json(&mut self, player_json: String) -> Result<String, CvError> {
-        let player_id: i32 = serde_json::from_str(&player_json)?;
-        let player = resolve_player(&self.game_state, player_id)?;
-        let moves = self.compute_valid_moves_for_player(&player)?;
-        Ok(serde_json::to_string(&serde_json::json!({
-            "player": serde_json::to_value(&player)?,
-            "moves": moves,
         }))?)
     }
 
@@ -421,27 +486,18 @@ impl ChessvariantEngine {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = deriveUiJson))]
     pub fn derive_ui_json_js(&self, player_json: String) -> Result<String, CvError> {
         let player_id: i32 = serde_json::from_str(&player_json)?;
-        let player = resolve_player(&self.game_state, player_id)?;
+        let player = resolve_player(&self.state, player_id)?;
         let ui = self.run_derive_ui(&player)?;
         Ok(serde_json::to_string(&serde_json::json!({ "ui": ui }))?)
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = setLogLevel))]
-    pub fn set_log_level(level: String) {
-        logging::set_log_level(&level);
-    }
-}
-
-// ─── Core engine logic ───────────────────────────────────────────────────────
-
-impl ChessvariantEngine {
     fn submit_action_js_impl(
         &mut self,
         player_json: String,
         action_json: String,
     ) -> Result<String, CvError> {
         let player_id: i32 = serde_json::from_str(&player_json)?;
-        let player = resolve_player(&self.game_state, player_id)?;
+        let player = resolve_player(&self.state, player_id)?;
         let action: Action = serde_json::from_str(&action_json)?;
         let result = self.submit_action_core(&player, &action)?;
         Ok(serde_json::to_string(&result)?)
@@ -459,23 +515,26 @@ impl ChessvariantEngine {
                 return Err(CvError::Internal("illegal move".into()));
             }
         }
+        // Use a block so the scope is dropped before recursive calls
+        {
+            let mut scope = self.inner.scope.clone();
+            let new_state_dyn = self.inner.engine.call_fn::<Dynamic>(
+                &mut scope,
+                &self.inner.ast,
+                "handle_action",
+                (
+                    Dynamic::from(self.state.clone()),
+                    get_player_map(&self.state, player.id).ok_or_else(|| {
+                        CvError::Internal(format!("player {} not found", player.id))
+                    })?,
+                    Dynamic::from(action.clone()),
+                ),
+            )?;
 
-        let mut scope = Scope::new();
-        let new_state_dyn = self.engine.call_fn::<Dynamic>(
-            &mut scope,
-            &self.ast,
-            "handle_action",
-            (
-                Dynamic::from(self.game_state.clone()),
-                get_player_map(&self.game_state, player.id)
-                    .ok_or_else(|| CvError::Internal(format!("player {} not found", player.id)))?,
-                Dynamic::from(action.clone()),
-            ),
-        )?;
-
-        self.game_state = new_state_dyn
-            .try_cast::<State>()
-            .ok_or_else(|| CvError::Internal("handle_action must return a State".into()))?;
+            self.state = new_state_dyn
+                .try_cast::<GameState>()
+                .ok_or_else(|| CvError::Internal("handle_action must return a State".into()))?;
+        } // drop scope here
 
         let (_, game_over) = self.compute_valid_moves_all()?;
         let ui = self.run_derive_ui(player)?;
@@ -488,8 +547,9 @@ impl ChessvariantEngine {
         }))
     }
 
-    pub fn state(&self) -> State {
-        self.game_state.clone()
+    /// Returns a reference to the current game state.
+    pub fn state(&self) -> &GameState {
+        &self.state
     }
 
     /// Submit a move by player ID (for integration tests).
@@ -499,7 +559,7 @@ impl ChessvariantEngine {
         from: Coords,
         to: Coords,
     ) -> Result<serde_json::Value, CvError> {
-        let player = resolve_player(&self.game_state, player_id)?;
+        let player = resolve_player(&self.state, player_id)?;
         let action = Action::rhai_move(from, to);
         self.submit_action_core(&player, &action)
     }
@@ -511,20 +571,10 @@ impl ChessvariantEngine {
         color: &str,
         piece_type: &str,
     ) -> Result<serde_json::Value, CvError> {
-        let player = resolve_player(&self.game_state, player_id)?;
+        let player = resolve_player(&self.state, player_id)?;
         let piece = Piece::rhai_new(color.to_string(), piece_type.to_string());
         let action = Action::rhai_select_piece(piece);
         self.submit_action_core(&player, &action)
-    }
-
-    /// Returns the IDs of players who currently have legal moves.
-    pub fn active_player_ids(&mut self) -> Result<Vec<i32>, CvError> {
-        let (all_moves, _) = self.compute_valid_moves_all()?;
-        Ok(all_moves
-            .iter()
-            .filter(|pm| !pm.moves.is_empty())
-            .map(|pm| pm.player.id)
-            .collect())
     }
 
     /// Returns `true` when the game has reached a terminal state.
@@ -541,6 +591,20 @@ impl ChessvariantEngine {
         }
     }
 
+    /// Returns the IDs of all players who currently have valid moves
+    /// (i.e., it is their turn).
+    pub fn active_player_ids(&mut self) -> Result<Vec<i32>, CvError> {
+        let player_ids = self.get_player_ids()?;
+        let mut active = Vec::new();
+        for pid in &player_ids {
+            let moves = self.compute_valid_moves_for_player(pid)?;
+            if !moves.is_empty() {
+                active.push(pid.id);
+            }
+        }
+        Ok(active)
+    }
+
     #[allow(dead_code)]
     fn read_piece_from_board(&self, coords: &Coords) -> Result<Piece, CvError> {
         let bc = coords
@@ -553,14 +617,14 @@ impl ChessvariantEngine {
     }
 
     fn run_derive_ui(&self, player: &Player) -> Result<serde_json::Value, CvError> {
-        let mut scope = Scope::new();
-        let result = self.engine.call_fn::<Dynamic>(
+        let mut scope = self.inner.scope.clone();
+        let result = self.inner.engine.call_fn::<Dynamic>(
             &mut scope,
-            &self.ast,
+            &self.inner.ast,
             "derive_ui",
             (
-                Dynamic::from(self.game_state.clone()),
-                get_player_map(&self.game_state, player.id).ok_or_else(|| {
+                Dynamic::from(self.state.clone()),
+                get_player_map(&self.state, player.id).ok_or_else(|| {
                     CvError::Internal(format!("player {} not found for derive_ui", player.id))
                 })?,
             ),
@@ -577,14 +641,14 @@ impl ChessvariantEngine {
     }
 
     fn compute_valid_moves_for_player(&mut self, player: &Player) -> Result<Vec<Action>, CvError> {
-        let mut scope = Scope::new();
-        let result = self.engine.call_fn::<Dynamic>(
+        let mut scope = self.inner.scope.clone();
+        let result = self.inner.engine.call_fn::<Dynamic>(
             &mut scope,
-            &self.ast,
+            &self.inner.ast,
             "valid_moves",
             (
-                Dynamic::from(self.game_state.clone()),
-                get_player_map(&self.game_state, player.id).ok_or_else(|| {
+                Dynamic::from(self.state.clone()),
+                get_player_map(&self.state, player.id).ok_or_else(|| {
                     CvError::Internal(format!("player {} not found for valid_moves", player.id))
                 })?,
             ),
@@ -616,7 +680,7 @@ impl ChessvariantEngine {
     }
 
     fn get_player_ids(&self) -> Result<Vec<Player>, CvError> {
-        self.game_state
+        self.state
             .players
             .iter()
             .map(|p: &Dynamic| {
@@ -654,14 +718,14 @@ impl ChessvariantEngine {
         &mut self,
         all_moves: &[PlayerMoves],
     ) -> Result<Option<serde_json::Value>, CvError> {
-        let mut scope = Scope::new();
+        let mut scope = self.inner.scope.clone();
         let entries: rhai::Array = all_moves
             .iter()
             .map(|pm| {
                 let mut entry = rhai::Map::new();
                 entry.insert(
                     "player".into(),
-                    get_player_map(&self.game_state, pm.player.id)
+                    get_player_map(&self.state, pm.player.id)
                         .unwrap_or_else(|| Dynamic::from(rhai::Map::new())),
                 );
                 let moves_arr: rhai::Array =
@@ -671,11 +735,11 @@ impl ChessvariantEngine {
             })
             .collect();
 
-        let progress: GameProgress = self.engine.call_fn(
+        let progress: GameProgress = self.inner.engine.call_fn(
             &mut scope,
-            &self.ast,
+            &self.inner.ast,
             "derive_game_progress",
-            (Dynamic::from(self.game_state.clone()), Dynamic::from(entries)),
+            (Dynamic::from(self.state.clone()), Dynamic::from(entries)),
         )?;
 
         match progress {
@@ -689,12 +753,12 @@ impl ChessvariantEngine {
 
     #[allow(dead_code)]
     fn script_has_function(&self, name: &str) -> bool {
-        let mut scope = Scope::new();
-        match self.engine.call_fn::<Dynamic>(
+        let mut scope = self.inner.scope.clone();
+        match self.inner.engine.call_fn::<Dynamic>(
             &mut scope,
-            &self.ast,
+            &self.inner.ast,
             name,
-            (self.game_state.clone(),),
+            (self.state.clone(),),
         ) {
             Ok(_) => true,
             Err(e) if matches!(*e, rhai::EvalAltResult::ErrorFunctionNotFound(..)) => false,
@@ -821,8 +885,9 @@ mod tests {
     }
 
     fn new_engine(script: &str) -> ChessvariantEngine {
-        ChessvariantEngine::new(script.to_string(), 2)
-            .expect("engine construction should succeed")
+        let stateless =
+            StatelessChessvariantEngine::new(script.to_string()).expect("engine construction");
+        stateless.init(2).expect("init should succeed")
     }
 
     #[test]
@@ -863,8 +928,16 @@ mod tests {
         let bs = engine.board_state_json().expect("board_state_json");
         let v: serde_json::Value = serde_json::from_str(&bs).expect("parse");
         let board = &v["boards"][0];
-        let piece_count = board.as_array().unwrap().iter().filter(|c| !c.is_null()).count();
-        assert_eq!(piece_count, 32, "standard start position should have 32 pieces");
+        let piece_count = board
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|c| !c.is_null())
+            .count();
+        assert_eq!(
+            piece_count, 32,
+            "standard start position should have 32 pieces"
+        );
     }
 
     #[test]
@@ -888,7 +961,10 @@ mod tests {
         let all = v["validMoves"].as_array().expect("validMoves array");
         assert_eq!(all.len(), 2, "should have moves for 2 players");
         // Find white player's moves (id=0)
-        let white = all.iter().find(|e| e["player"]["id"] == 0).expect("white player");
+        let white = all
+            .iter()
+            .find(|e| e["player"]["id"] == 0)
+            .expect("white player");
         let moves = white["moves"].as_array().expect("white moves");
         assert!(!moves.is_empty(), "white should have valid moves");
         // Each move should have type "move"
@@ -906,16 +982,29 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
         let all = v["validMoves"].as_array().expect("validMoves array");
         // Only the active player (white, id=0, turn=0) should have moves
-        let white = all.iter().find(|e| e["player"]["id"] == 0).expect("white player");
-        let black = all.iter().find(|e| e["player"]["id"] == 1).expect("black player");
-        assert!(!white["moves"].as_array().unwrap().is_empty(), "white should have valid moves");
-        assert!(black["moves"].as_array().unwrap().is_empty(), "black should NOT have moves (not black's turn)");
+        let white = all
+            .iter()
+            .find(|e| e["player"]["id"] == 0)
+            .expect("white player");
+        let black = all
+            .iter()
+            .find(|e| e["player"]["id"] == 1)
+            .expect("black player");
+        assert!(
+            !white["moves"].as_array().unwrap().is_empty(),
+            "white should have valid moves"
+        );
+        assert!(
+            black["moves"].as_array().unwrap().is_empty(),
+            "black should NOT have moves (not black's turn)"
+        );
     }
 
     #[test]
     fn test_valid_moves_for_single_player() {
         let mut engine = new_engine(&chess_script());
-        let vm = engine.valid_moves_for_player_json("0".to_string())
+        let vm = engine
+            .valid_moves_for_player_json("0".to_string())
             .expect("valid_moves_for_player_json");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
         let moves = v["moves"].as_array().expect("moves array");
@@ -931,15 +1020,29 @@ mod tests {
         let result = engine.submit_move(0, from, to);
         assert!(result.is_ok(), "submit_move should succeed for a2a4");
         // After move, black should be the active player
-        let vm = engine.valid_moves_all_json().expect("valid_moves_all_json after move");
+        let vm = engine
+            .valid_moves_all_json()
+            .expect("valid_moves_all_json after move");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
         let all = v["validMoves"].as_array().expect("validMoves array");
         // White's moves should be empty (not white's turn)
-        let white = all.iter().find(|e| e["player"]["id"] == 0).expect("white player");
-        assert!(white["moves"].as_array().unwrap().is_empty(), "white should have no moves after playing");
+        let white = all
+            .iter()
+            .find(|e| e["player"]["id"] == 0)
+            .expect("white player");
+        assert!(
+            white["moves"].as_array().unwrap().is_empty(),
+            "white should have no moves after playing"
+        );
         // Black should have moves
-        let black = all.iter().find(|e| e["player"]["id"] == 1).expect("black player");
-        assert!(!black["moves"].as_array().unwrap().is_empty(), "black should have moves");
+        let black = all
+            .iter()
+            .find(|e| e["player"]["id"] == 1)
+            .expect("black player");
+        assert!(
+            !black["moves"].as_array().unwrap().is_empty(),
+            "black should have moves"
+        );
     }
 
     #[test]
@@ -956,11 +1059,17 @@ mod tests {
     fn test_pawn_move_sequence() {
         let mut engine = new_engine(&chess_script());
         // a2a4 (white pawn push) — this is a legal move
-        engine.submit_move(0, Coords::new_board(6, 0, 0), Coords::new_board(4, 0, 0)).unwrap();
+        engine
+            .submit_move(0, Coords::new_board(6, 0, 0), Coords::new_board(4, 0, 0))
+            .unwrap();
         // b7b5 (black pawn push)
-        engine.submit_move(1, Coords::new_board(1, 1, 0), Coords::new_board(3, 1, 0)).unwrap();
+        engine
+            .submit_move(1, Coords::new_board(1, 1, 0), Coords::new_board(3, 1, 0))
+            .unwrap();
         // a4a5 (white pawn push)
-        engine.submit_move(0, Coords::new_board(4, 0, 0), Coords::new_board(3, 0, 0)).unwrap();
+        engine
+            .submit_move(0, Coords::new_board(4, 0, 0), Coords::new_board(3, 0, 0))
+            .unwrap();
         // After 3 moves, verify board state changed
         let bs = engine.board_state_json().expect("board_state_json");
         let v: serde_json::Value = serde_json::from_str(&bs).expect("parse");
@@ -972,17 +1081,25 @@ mod tests {
     #[test]
     fn test_derive_ui_returns_empty_for_no_promotion() {
         let engine = new_engine(&chess_script());
-        let ui = engine.derive_ui_json_js("0".to_string()).expect("derive_ui_json");
+        let ui = engine
+            .derive_ui_json_js("0".to_string())
+            .expect("derive_ui_json");
         let v: serde_json::Value = serde_json::from_str(&ui).expect("parse");
         // No promotion pending — should be empty or have minimal structure
         assert!(v.as_object().is_some());
-        assert!(!v.as_object().unwrap().contains_key("promotion"), "no promotion should be pending");
+        assert!(
+            !v.as_object().unwrap().contains_key("promotion"),
+            "no promotion should be pending"
+        );
     }
 
     #[test]
     fn test_game_progress_is_in_progress() {
         let mut engine = new_engine(&chess_script());
-        assert!(!engine.derive_game_progress_bool(), "game should be in progress");
+        assert!(
+            !engine.derive_game_progress_bool(),
+            "game should be in progress"
+        );
         assert!(engine.outcome().is_none(), "no outcome yet");
     }
 
@@ -995,7 +1112,12 @@ mod tests {
         assert_eq!(v["cols"], 8);
         // Standard chess has 32 pieces
         let board = &v["boards"][0];
-        let piece_count = board.as_array().unwrap().iter().filter(|c| !c.is_null()).count();
+        let piece_count = board
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|c| !c.is_null())
+            .count();
         assert_eq!(piece_count, 32, "standard start position has 32 pieces");
     }
 
@@ -1018,24 +1140,33 @@ mod tests {
         let mut engine = new_engine(&chess_script());
         // Get valid moves for white — this exercises get_pseudo_dests which
         // uses pawn conditions (closures) from PIECE_DEFS
-        let vm = engine.valid_moves_for_player_json("0".to_string())
+        let vm = engine
+            .valid_moves_for_player_json("0".to_string())
             .expect("valid_moves_for_player_json");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
         let moves = v["moves"].as_array().expect("moves array");
 
         // Find a pawn move — white pawns are on rows 1-6
-        let pawn_moves: Vec<_> = moves.iter().filter(|m| {
-            m["from"]["row"] == 6 || m["from"]["row"] == 5
-        }).collect();
-        assert!(!pawn_moves.is_empty(), "white should have pawn moves from ranks 1-2");
+        let pawn_moves: Vec<_> = moves
+            .iter()
+            .filter(|m| m["from"]["row"] == 6 || m["from"]["row"] == 5)
+            .collect();
+        assert!(
+            !pawn_moves.is_empty(),
+            "white should have pawn moves from ranks 1-2"
+        );
 
         // Each pawn move from starting position should be a single or double step
         for m in &pawn_moves {
             let from_row = m["from"]["row"].as_i64().unwrap();
             let to_row = m["to"]["row"].as_i64().unwrap();
             let row_diff = from_row - to_row;
-            assert!(row_diff == 1 || row_diff == 2,
-                "pawn move should be 1 or 2 squares forward, got from row {} to row {}", from_row, to_row);
+            assert!(
+                row_diff == 1 || row_diff == 2,
+                "pawn move should be 1 or 2 squares forward, got from row {} to row {}",
+                from_row,
+                to_row
+            );
         }
     }
 
@@ -1046,14 +1177,19 @@ mod tests {
         let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
         // Game is in progress — gameOver should be null
-        assert!(v["gameOver"].is_null(), "gameOver should be null for in-progress game");
+        assert!(
+            v["gameOver"].is_null(),
+            "gameOver should be null for in-progress game"
+        );
         assert_eq!(engine.player_count(), 2);
     }
 
     /// Test engine construction with 4 players fails for chess (only allows 2).
     #[test]
     fn test_invalid_player_count_fails() {
-        let result = ChessvariantEngine::new(chess_script(), 4);
+        let stateless =
+            StatelessChessvariantEngine::new(chess_script()).expect("stateless engine creation");
+        let result = stateless.init(4);
         assert!(result.is_err(), "chess only allows 2 players");
     }
 

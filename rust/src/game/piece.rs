@@ -151,14 +151,17 @@ impl Piece {
             .with_indexer_get_set(
                 |p: &mut Piece, key: &str| -> Dynamic {
                     match &p.data {
-                        Some(data) => data.read_lock::<rhai::Map>()
+                        Some(data) => data
+                            .read_lock::<rhai::Map>()
                             .and_then(|m| m.get(key).cloned())
                             .unwrap_or(Dynamic::UNIT),
                         None => Dynamic::UNIT,
                     }
                 },
                 |p: &mut Piece, key: &str, value: Dynamic| {
-                    let map = p.data.get_or_insert_with(|| Dynamic::from(rhai::Map::new()));
+                    let map = p
+                        .data
+                        .get_or_insert_with(|| Dynamic::from(rhai::Map::new()));
                     if let Some(mut m) = map.write_lock::<rhai::Map>() {
                         m.insert(key.into(), value);
                     }
