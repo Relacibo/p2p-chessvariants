@@ -19,12 +19,47 @@ use super::piece::Piece;
 ///   Scripts access them via indexer syntax: `state["turn"]`, `state["castling_rights"]`.
 ///
 /// There is no `outcome` field — game-over is determined by `derive_game_progress()`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct GameState {
     pub board: Dynamic,
     pub players: rhai::Array,
     #[serde(flatten)]
     pub data: rhai::Map,
+}
+
+/// Custom `Serialize` because `Dynamic` (Rhai) does not serialize custom types
+/// like `BoardState` via `serde_json` — it outputs the Rust type name instead.
+/// We manually extract the board from the `Dynamic` and serialize it natively.
+impl Serialize for GameState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+
+        let board_value: serde_json::Value =
+            if let Some(b) = self.board.clone().try_cast::<BoardState>() {
+                serde_json::to_value(&b).unwrap_or(serde_json::Value::Null)
+            } else if let Some(arr) = self.board.clone().try_cast::<rhai::Array>() {
+                let boards: Vec<BoardState> = arr
+                    .iter()
+                    .filter_map(|d| d.clone().try_cast::<BoardState>())
+                    .collect();
+                serde_json::to_value(&boards).unwrap_or(serde_json::Value::Null)
+            } else {
+                // Fallback for unexpected board types — serialize the Dynamic as-is.
+                // Rhai strings/numbers/maps will serialize correctly; custom types won't.
+                serde_json::to_value(&self.board).unwrap_or(serde_json::Value::Null)
+            };
+
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("board", &board_value)?;
+        map.serialize_entry("players", &self.players)?;
+        for (k, v) in &self.data {
+            // Rhai Dynamic values in data may also be custom types.
+            // Use serde_json::to_value which handles primitives correctly.
+            let json_val = serde_json::to_value(v).unwrap_or(serde_json::Value::Null);
+            map.serialize_entry(k, &json_val)?;
+        }
+        map.end()
+    }
 }
 
 impl GameState {

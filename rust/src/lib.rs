@@ -1186,6 +1186,11 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&sj).expect("parse");
         // state has board and players
         assert!(v.get("board").is_some(), "state should have board key");
+        assert!(
+            v["board"].is_object(),
+            "board must be a JSON object (not a type-name string), got: {:?}",
+            v["board"]
+        );
         assert!(v["players"].is_array(), "state.players should be array");
         assert!(v.get("turn").is_some(), "state should have turn key");
     }
