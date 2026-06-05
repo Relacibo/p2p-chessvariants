@@ -343,36 +343,6 @@ impl StatelessChessvariantEngine {
         }
     }
 
-    /// Returns the list of allowed player counts for Discrete variants,
-    /// a single-element list for Exact, and an empty list for Range.
-    #[cfg_attr(
-        target_arch = "wasm32",
-        wasm_bindgen(js_name = allowedPlayerCounts)
-    )]
-    pub fn allowed_player_counts(&self) -> Vec<i32> {
-        match &self.variant_config.allowed_player_count {
-            game::variant_config::AllowedPlayerCount::Exact(n) => vec![*n as i32],
-            game::variant_config::AllowedPlayerCount::Discrete(vals) => {
-                vals.iter().map(|v| *v as i32).collect()
-            }
-            game::variant_config::AllowedPlayerCount::Range { .. } => vec![],
-        }
-    }
-
-    /// Returns the step value for Range variants, or None for Exact/Discrete.
-    #[cfg_attr(
-        target_arch = "wasm32",
-        wasm_bindgen(js_name = playerCountStep)
-    )]
-    pub fn player_count_step(&self) -> Option<i32> {
-        match &self.variant_config.allowed_player_count {
-            game::variant_config::AllowedPlayerCount::Range { step, .. } => {
-                Some(*step as i32)
-            }
-            _ => None,
-        }
-    }
-
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = variantConfigJson))]
     pub fn variant_config_json(&self) -> Result<String, CvError> {
         Ok(serde_json::to_string(&self.variant_config)?)
