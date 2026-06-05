@@ -191,12 +191,6 @@ fn register_engine_helpers(engine: &mut Engine) {
 
 // ─── Rhai Map helpers ────────────────────────────────────────────────────────
 
-/// Serialize a Piece to a JSON value. Panics only if the piece contains
-/// non-serializable data — which is impossible because `data` is `#[serde(skip)]`.
-fn piece_to_json_value(piece: &Piece) -> serde_json::Value {
-    serde_json::to_value(piece).expect("Piece serialization should never fail")
-}
-
 fn player_field_i32(m: &rhai::Map, key: &str) -> i32 {
     match m.get(key).and_then(|v| v.as_int().ok()) {
         Some(v) => v as i32,
@@ -907,7 +901,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .iter()
                     .filter_map(|d| {
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(piece_to_json_value(&piece))
+                        Some(serde_json::to_value(&piece).expect("Piece serialization should never fail"))
                     })
                     .collect();
                 let board_index = player_field_i32(&elem_map, "board_index");
@@ -925,7 +919,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .iter()
                     .filter_map(|d| {
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(piece_to_json_value(&piece))
+                        Some(serde_json::to_value(&piece).expect("Piece serialization should never fail"))
                     })
                     .collect();
                 let cancelable = elem_map.get("cancelable").and_then(|v| v.as_bool().ok());
