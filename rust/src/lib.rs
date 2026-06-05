@@ -34,7 +34,7 @@ struct SubmitActionResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
     ui: serde_json::Value,
-    game_over: Option<serde_json::Value>,
+    game_over: Option<GameProgress>,
     board_state: serde_json::Value,
 }
 
@@ -666,7 +666,7 @@ impl ChessvariantEngine {
     /// Returns the current game outcome from `derive_game_progress()`.
     pub fn outcome(&mut self) -> Option<GameProgress> {
         match self.compute_valid_moves_all() {
-            Ok((_, Some(game_over))) => serde_json::from_value(game_over).ok(),
+            Ok((_, game_over)) => game_over,
             _ => None,
         }
     }
@@ -764,7 +764,7 @@ impl ChessvariantEngine {
 
     fn compute_valid_moves_all(
         &mut self,
-    ) -> Result<(Vec<PlayerMoves>, Option<serde_json::Value>), CvError> {
+    ) -> Result<(Vec<PlayerMoves>, Option<GameProgress>), CvError> {
         let player_ids = self.get_player_ids()?;
         let mut result = Vec::new();
 
@@ -781,12 +781,12 @@ impl ChessvariantEngine {
     }
 
     /// Calls the script's mandatory `derive_game_progress(state, all_valid_moves)`.
-    /// Returns `Ok(None)` for `InProgress`, `Ok(Some(json))` for `Draw` or `Decisive`.
+    /// Returns `Ok(None)` for `InProgress`, `Ok(Some(progress))` for terminal states.
     /// Propagates errors — the function is mandatory, no fallback.
     fn call_derive_game_progress(
         &mut self,
         all_moves: &[PlayerMoves],
-    ) -> Result<Option<serde_json::Value>, CvError> {
+    ) -> Result<Option<GameProgress>, CvError> {
         let mut scope = Scope::new();
         let mut entries: rhai::Array = Vec::new();
         for pm in all_moves {
@@ -813,10 +813,7 @@ impl ChessvariantEngine {
 
         match progress {
             GameProgress::InProgress => Ok(None),
-            GameProgress::Draw | GameProgress::Decisive { .. } => {
-                let json = serde_json::to_value(&progress).map_err(CvError::from)?;
-                Ok(Some(json))
-            }
+            GameProgress::Draw | GameProgress::Decisive { .. } => Ok(Some(progress)),
         }
     }
 

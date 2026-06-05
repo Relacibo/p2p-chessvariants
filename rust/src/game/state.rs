@@ -349,7 +349,7 @@ pub struct Player {
     #[rhai_type(readonly)]
     pub team: i32,
     /// Arbitrary script-defined data attached to the player (like `Piece.data`).
-    /// Skipped in serde — serialized manually via `player_to_json()` in lib.rs.
+    /// Skipped in serde — Rhai map data lives in `state.players`, not here.
     #[serde(skip)]
     pub data: Option<Dynamic>,
 }
