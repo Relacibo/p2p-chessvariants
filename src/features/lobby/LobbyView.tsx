@@ -2,10 +2,13 @@ import {
   Alert,
   Button,
   Center,
+  Divider,
   Loader,
   Paper,
   Stack,
   Text,
+  TextInput,
+  Title,
 } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
@@ -28,6 +31,7 @@ import {
   becomeActiveHost,
   joinLobbyById,
   joinLobbyByPeer,
+  joinLobbyByPeerAsGuest,
   selectIsHost,
   selectHostUserId,
   selectIsPassiveHostTab,
@@ -349,17 +353,61 @@ export default function LobbyView() {
     );
   }
 
-  // Not logged in → offer guest login or full login
+  // Not logged in → offer guest login (server lobby) or local name entry (P2P)
   if (!token) {
-    return (
-      <PageContainer>
-        <GuestAuthView
-          title="Join Lobby"
-          guestLabel="Join as Guest"
-          dividerLabel="or join as guest"
-        />
-      </PageContainer>
-    );
+    // Server lobby: requires server authentication
+    if (type === "lobby") {
+      return (
+        <PageContainer>
+          <GuestAuthView
+            title="Join Lobby"
+            guestLabel="Join as Guest"
+            dividerLabel="or join as guest"
+          />
+        </PageContainer>
+      );
+    }
+    // P2P lobby: local name entry — no server account needed
+    if (type === "peer") {
+      return (
+        <PageContainer>
+          <Paper p="md" maw={480} mx="auto">
+            <Stack>
+              <Title order={3}>Join P2P Lobby</Title>
+              <Button
+                variant="default"
+                onClick={() => navigate(`/auth/login?redirect=${encodeURIComponent(location.pathname)}`)}
+              >
+                Login with account
+              </Button>
+              <Divider label="or join as guest" labelPosition="center" />
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const name = (formData.get("displayName") as string).trim();
+                  if (!name) return;
+                  setHasAutoJoined(true);
+                  dispatch(joinLobbyByPeerAsGuest(peerId!, name));
+                }}
+              >
+                <Stack>
+                  <TextInput
+                    name="displayName"
+                    label="Display Name"
+                    placeholder="Guest Player"
+                    required
+                  />
+                  <Button type="submit">Join as Guest</Button>
+                </Stack>
+              </form>
+            </Stack>
+          </Paper>
+        </PageContainer>
+      );
+    }
+    // Unknown type — redirect home
+    return <Navigate to="/" replace />;
   }
 
   // idle + no type → invalid URL

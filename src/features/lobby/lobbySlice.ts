@@ -9,7 +9,7 @@ import {
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import * as webrtcService from "../../api/webrtcService";
 import type { AppThunk, RootState } from "../../app/store";
-import { selectToken, selectUser } from "../auth/authSlice";
+import { selectToken, selectUser, login } from "../auth/authSlice";
 import { fetchAndParseFullConfig, parseScriptConfig } from "./scriptUrl";
 import type { WasmVariantConfig } from "../chessboard/types";
 import { getMaxSlots, isValidPlayerCount } from "./playerCountUtils";
@@ -705,6 +705,50 @@ export function joinLobbyByPeer(peerHandle: string): AppThunk<Promise<void>> {
       null,
     );
     await webrtcService.connectToPeers([hostUserId], user.id, true);
+  };
+}
+
+/**
+ * P2P-only guest join. No server lobby — the guest only needs a display name.
+ * Obtains a lightweight guest token from the server (for WebRTC signaling),
+ * then initiates the P2P join with the host.
+ */
+export function joinLobbyByPeerAsGuest(
+  peerHandle: string,
+  displayName: string,
+): AppThunk<Promise<void>> {
+  return async (dispatch, getState) => {
+    p2pLobbyService.resetP2PLobby();
+    webrtcService.reset();
+    dispatch(_setJoining());
+
+    try {
+      // Obtain a guest token for signaling (transparent to the user)
+      const guestResult = await dispatch(
+        api.endpoints.guestLogin.initiate({ displayName }),
+      ).unwrap();
+      dispatch(login({ token: guestResult.token, user: guestResult.user }));
+
+      const hostUserId = userIdFromPeerHandle(peerHandle);
+      const userId = guestResult.user.id;
+
+      dispatch(_setLocalUserId(userId));
+      dispatch(_setHostUserId(hostUserId));
+
+      await _applyTurnCredentials(guestResult.token);
+
+      webrtcService.init((toUserId, signal) => {
+        const currentToken = selectToken(getState());
+        return sendSignalDirect(currentToken ?? "", toUserId, signal);
+      });
+      _initP2PAsJoiner(dispatch, getState, userId, displayName, null, null);
+      await webrtcService.connectToPeers([hostUserId], userId, true);
+    } catch (err) {
+      logLobbyWarning("P2P guest join failed", err);
+      dispatch(
+        _setError(err instanceof Error ? err.message : "Failed to join lobby"),
+      );
+    }
   };
 }
 
