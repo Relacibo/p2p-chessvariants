@@ -90,6 +90,18 @@ Always create and run temporary scripts inside `/tmp/`. Never litter the workspa
 - In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?` or return `Err(CvError::...)`.
 - Silencing errors hides bugs and makes debugging impossible. Show errors to users where appropriate; always log them.
 
+## No Sentinel Return Values (CRITICAL)
+
+**Never return dummy/fallback values to mask failure or unimplemented logic.** Forbidden patterns:
+
+- **Rust**: `Player::new_by_id(0)`, empty `Dynamic`/`Map`/`Array`, `0`/`-1`/`""` as error indicators, `Default::default()` as error sentinel.
+- **TypeScript**: `null`/`undefined` returned silently, empty `[]`/`{}`/`""` as fallback for failures, `false` meaning "operation failed".
+
+**Correct approaches (in order of preference):**
+1. **Proper types**: `Option<T>` / `Result<T, E>` in Rust, typed errors or absence-aware returns in TypeScript. Propagate with `?`.
+2. **`todo!()` / explicit throw**: If the logic is genuinely unimplemented and you don't know the right return value, use `todo!("description of what is needed")` in Rust, or `throw new Error("TODO: description")` in TypeScript. A crash with a clear message is **always** better than silent wrong behavior — a dummy value corrupts state in ways that are nearly impossible to debug.
+3. **Never guess** a plausible-looking default.
+
 ## Git Commits
 
 - Commit messages in **English**, plain text, no prefix

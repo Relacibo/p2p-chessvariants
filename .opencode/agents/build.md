@@ -53,3 +53,23 @@ implementing engine features, script functions, or Wasm endpoints. Key constrain
 Every `catch` must at minimum log with a descriptive context prefix (e.g. `console.error("[module] operation failed", e)`).
 In Rust, never use `.unwrap()` or `.expect()` in library/engine code — propagate via `?`.
 Silencing errors hides bugs and makes debugging impossible.
+
+## No Sentinel Return Values (CRITICAL)
+
+**Never return dummy/fallback values to mask failure or unimplemented logic.** Examples of forbidden patterns:
+
+**Rust:**
+- `Player::new_by_id(0)` (invalid player as fallback)
+- Empty `Dynamic`, `Map`, `Array` returned as "no value"
+- `0`, `-1`, `""` as error indicators
+- `Default::default()` as error sentinel
+
+**TypeScript:**
+- `null` / `undefined` returned silently without caller handling
+- Empty `[]`, `{}`, `""` as fallback for failed operations
+- `false` meaning "operation failed"
+
+**Correct approaches (in order of preference):**
+1. **Proper types**: Return `Option<T>` / `Result<T, E>` in Rust, or throw typed errors in TypeScript. Propagate with `?`.
+2. **`todo!()` / explicit throw**: If the logic is genuinely unimplemented and you don't know the correct return value, use `todo!("what is needed: e.g. compute checkmate status from move list")` in Rust, or `throw new Error("TODO: description")` in TypeScript. This panics/fails with a clear message, making the gap visible and debuggable. It is **never acceptable** to substitute a dummy value for unimplemented logic — a crash with a description is always better than silent wrong behavior.
+3. **Never**: Guess a plausible-looking default. Wrong data propagates and corrupts state in ways that are nearly impossible to debug.
