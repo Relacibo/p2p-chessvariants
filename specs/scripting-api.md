@@ -9,8 +9,9 @@ All agents (Plan, Build) MUST reference this document.
 
 | Rule | Applies to |
 |------|------------|
-| **snake_case** for all multi-word identifiers | Rhai map keys, function names, config fields, JSON wire format |
+| **snake_case** for all multi-word identifiers | Rhai map keys, script-defined function names (`valid_moves`, `handle_action`), config fields, JSON wire format |
 | **lowercase** for single-word identifiers | Primitive field names, discriminator values (`"move"`, `"board"`) |
+| **PascalCase** for engine type constructors | `Move`, `SelectPiece`, `Coords`, `ReserveCoords`, `Piece`, `Player`, `InProgress`, `Winner`, `Draw` — idiomatic like Rust enum variants; these are the only non-snake_case callables |
 | **Data fields** (`Piece.data`, `Player.data`, `state.data`) are **free-form** Rhai maps — keys pass through unchanged, no validation | `Piece("white","king")`, `player["color"]`, `state["turn"]` |
 
 The engine serialization layer (`#[serde(rename_all = "snake_case")]`) ensures **all** engine→frontend JSON uses snake_case.
