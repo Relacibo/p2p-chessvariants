@@ -1192,7 +1192,14 @@ mod tests {
             v["board"]
         );
         assert!(v["players"].is_array(), "state.players should be array");
-        assert!(v.get("turn").is_some(), "state should have turn key");
+        assert!(
+            v.get("data").is_some(),
+            "state should have 'data' key with variant-specific fields"
+        );
+        assert!(
+            v["data"].get("turn").is_some(),
+            "state.data should have turn key"
+        );
     }
 
     /// PIECE_DEFS is registered as a global module. This test verifies that

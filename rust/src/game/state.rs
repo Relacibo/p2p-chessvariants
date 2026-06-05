@@ -52,12 +52,10 @@ impl Serialize for GameState {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("board", &board_value)?;
         map.serialize_entry("players", &self.players)?;
-        for (k, v) in &self.data {
-            // Rhai Dynamic values in data may also be custom types.
-            // Use serde_json::to_value which handles primitives correctly.
-            let json_val = serde_json::to_value(v).unwrap_or(serde_json::Value::Null);
-            map.serialize_entry(k, &json_val)?;
-        }
+        // Variant-specific data (turn, castling_rights, etc.) nested under "data".
+        // The frontend must NOT depend on specific keys inside "data" — those
+        // are defined by the Rhai variant script and vary per variant.
+        map.serialize_entry("data", &self.data)?;
         map.end()
     }
 }
