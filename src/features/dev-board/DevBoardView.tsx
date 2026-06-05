@@ -148,6 +148,7 @@ export function DevBoardView() {
   const [showActionLog, setShowActionLog] = useState(false);
   const [validMovesJsonStr, setValidMovesJsonStr] = useState<string | null>(null);
   const [showValidMoves, setShowValidMoves] = useState(false);
+  const [showVariantConfig, setShowVariantConfig] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
@@ -775,6 +776,51 @@ export function DevBoardView() {
                   }}
                 >
                   {JSON.stringify(gameStateJson, null, 2)}
+                </Text>
+              </Box>
+            )}
+          </Box>
+
+          {/* ── Variant Config (collapsible) ── */}
+          <Box mt="xs">
+            <Group
+              justify="space-between"
+              align="center"
+              style={{ cursor: "pointer" }}
+              onClick={() => setShowVariantConfig((s) => !s)}
+            >
+              <Text size="sm" fw={600}>
+                Variant Config
+              </Text>
+              <Text size="xs" c="dimmed">
+                {showVariantConfig ? "▼" : "▶"}
+              </Text>
+            </Group>
+            {showVariantConfig && variantConfig && (
+              <Box
+                mt={4}
+                style={{
+                  minHeight: 60,
+                  maxHeight: 300,
+                  overflow: "auto",
+                  resize: "vertical",
+                  background: "#1a1b1e",
+                  borderRadius: 4,
+                  padding: 8,
+                }}
+              >
+                <Text
+                  size="xs"
+                  component="pre"
+                  style={{
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    fontFamily: "monospace",
+                    color: "#c9d1d9",
+                  }}
+                >
+                  {JSON.stringify(variantConfig, null, 2)}
                 </Text>
               </Box>
             )}
