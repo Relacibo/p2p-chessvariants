@@ -360,6 +360,23 @@ impl StatelessChessvariantEngine {
         self.init_with_setup_map(setup_map)
     }
 
+    /// Init from JSON setup data (players + optional teams as serialized Rhai maps).
+    /// For P2P peers: host broadcasts setup, peer calls this to init the engine.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = initFromSetupJson))]
+    pub fn init_from_setup_json(self, setup_json: String) -> Result<ChessvariantEngine, CvError> {
+        let json_value: serde_json::Value = serde_json::from_str(&setup_json)?;
+        let rhai_dynamic = rhai::serde::to_dynamic(&json_value)
+            .map_err(|e| CvError::Internal(format!("Failed to convert setup JSON to Rhai: {e}")))?;
+        let setup_map = rhai_dynamic
+            .try_cast::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal("setup JSON must be an object".into()))?;
+
+        self.init_with_setup_map(setup_map)
+    }
+}
+
+// Internal method — not WASM-exposed (rhai::Map cannot cross the WASM boundary).
+impl StatelessChessvariantEngine {
     /// Init from a pre-built setup map (players + optional teams).
     /// Skips `setup_players()` — used by P2P peers that receive setup from the host.
     pub fn init_with_setup_map(self, setup_map: rhai::Map) -> Result<ChessvariantEngine, CvError> {
@@ -423,21 +440,11 @@ impl StatelessChessvariantEngine {
             state: game_state,
         })
     }
+}
 
-    /// Init from JSON setup data (players + optional teams as serialized Rhai maps).
-    /// For P2P peers: host broadcasts setup, peer calls this to init the engine.
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = initFromSetupJson))]
-    pub fn init_from_setup_json(self, setup_json: String) -> Result<ChessvariantEngine, CvError> {
-        let json_value: serde_json::Value = serde_json::from_str(&setup_json)?;
-        let rhai_dynamic = rhai::serde::to_dynamic(&json_value)
-            .map_err(|e| CvError::Internal(format!("Failed to convert setup JSON to Rhai: {e}")))?;
-        let setup_map = rhai_dynamic
-            .try_cast::<rhai::Map>()
-            .ok_or_else(|| CvError::Internal("setup JSON must be an object".into()))?;
-
-        self.init_with_setup_map(setup_map)
-    }
-
+// WASM-exposed getters and utilities on StatelessChessvariantEngine.
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+impl StatelessChessvariantEngine {
     // ── Config getters (WASM-facing) ──
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter))]
