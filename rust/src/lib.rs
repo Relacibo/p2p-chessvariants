@@ -26,6 +26,18 @@ pub struct PlayerMoves {
     pub moves: Vec<Action>,
 }
 
+/// Result of `submitAction()`. Always includes `ui`, `game_over`, and `board_state`.
+/// When an error occurs, `error` is set and the other fields are `null`.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct SubmitActionResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    ui: serde_json::Value,
+    game_over: Option<serde_json::Value>,
+    board_state: serde_json::Value,
+}
+
 // ─── Stateless engine (Rhai runtime without game state) ─────────────────────
 
 /// Holds the compiled script and Rhai runtime. Does not contain game state.
@@ -178,6 +190,12 @@ fn register_engine_helpers(engine: &mut Engine) {
 }
 
 // ─── Rhai Map helpers ────────────────────────────────────────────────────────
+
+/// Serialize a Piece to a JSON value. Panics only if the piece contains
+/// non-serializable data — which is impossible because `data` is `#[serde(skip)]`.
+fn piece_to_json_value(piece: &Piece) -> serde_json::Value {
+    serde_json::to_value(piece).expect("Piece serialization should never fail")
+}
 
 fn player_field_i32(m: &rhai::Map, key: &str) -> i32 {
     match m.get(key).and_then(|v| v.as_int().ok()) {
@@ -468,10 +486,7 @@ impl ChessvariantEngine {
         let player_id: i32 = serde_json::from_str(&player_json)?;
         let player = resolve_player(&self.state, player_id)?;
         let moves = self.compute_valid_moves_for_player(&player)?;
-        Ok(serde_json::to_string(&serde_json::json!({
-            "player": serde_json::to_value(&player)?,
-            "moves": moves,
-        }))?)
+        Ok(serde_json::to_string(&PlayerMoves { player, moves })?)
     }
 
     /// Returns valid moves for ALL players + game_over.
@@ -480,20 +495,8 @@ impl ChessvariantEngine {
         let (all_moves, game_over) = self.compute_valid_moves_all()?;
         let valid_moves_json: Vec<serde_json::Value> = all_moves
             .iter()
-            .map(|pm| {
-                serde_json::json!({
-                    "player": serde_json::to_value(&pm.player)
-                        .unwrap_or_else(|e| {
-                            crate::logging::log_error(&format!(
-                                "[engine] failed to serialize player {}: {e}",
-                                pm.player.id
-                            ));
-                            serde_json::Value::Null
-                        }),
-                    "moves": pm.moves,
-                })
-            })
-            .collect();
+            .map(|pm| serde_json::to_value(pm).map_err(CvError::Json))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(serde_json::to_string(&serde_json::json!({
             "valid_moves": valid_moves_json,
             "game_over": game_over,
@@ -505,13 +508,13 @@ impl ChessvariantEngine {
     pub fn submit_action_js(&mut self, player_json: String, action_json: String) -> String {
         match self.submit_action_js_impl(player_json, action_json) {
             Ok(json) => json,
-            Err(e) => serde_json::json!({
-                "error": e.to_string(),
-                "ui": null,
-                "game_over": null,
-                "board_state": null,
+            Err(e) => serde_json::to_string(&SubmitActionResult {
+                error: Some(e.to_string()),
+                ui: serde_json::Value::Null,
+                game_over: None,
+                board_state: serde_json::Value::Null,
             })
-            .to_string(),
+            .unwrap_or_else(|e| format!(r#"{{"error":"{}"}}"#, e)),
         }
     }
 
@@ -628,11 +631,12 @@ impl ChessvariantEngine {
         let ui = self.run_derive_ui(player)?;
         let board_json = serde_json::to_value(self.try_as_board_state()?)?;
 
-        Ok(serde_json::json!({
-            "ui": ui,
-            "game_over": game_over,
-            "board_state": board_json,
-        }))
+        Ok(serde_json::to_value(&SubmitActionResult {
+            error: None,
+            ui,
+            game_over,
+            board_state: board_json,
+        })?)
     }
 
     /// Returns a reference to the current game state.
@@ -903,10 +907,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .iter()
                     .filter_map(|d| {
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(serde_json::json!({
-                            "color": piece.color_name(),
-                            "piece_type": piece.piece_type_name(),
-                        }))
+                        Some(piece_to_json_value(&piece))
                     })
                     .collect();
                 let board_index = player_field_i32(&elem_map, "board_index");
@@ -924,10 +925,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     .iter()
                     .filter_map(|d| {
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(serde_json::json!({
-                            "color": piece.color_name(),
-                            "piece_type": piece.piece_type_name(),
-                        }))
+                        Some(piece_to_json_value(&piece))
                     })
                     .collect();
                 let cancelable = elem_map.get("cancelable").and_then(|v| v.as_bool().ok());
