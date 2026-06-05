@@ -70,24 +70,14 @@ impl GameState {
         }
     }
 
-    /// Build a State from a Rhai map (returned by `init()`).
-    /// Extracts `board` and `players`; remaining keys go to `data`.
-    pub fn from_init_map(map: rhai::Map) -> Result<Self, String> {
-        let board = map.get("board").cloned().unwrap_or(Dynamic::UNIT);
-        let players = map
-            .get("players")
-            .cloned()
-            .and_then(|v| v.try_cast::<rhai::Array>())
-            .ok_or_else(|| "init() must return a 'players' key with an array".to_string())?;
-        let data: rhai::Map = map
-            .into_iter()
-            .filter(|(k, _)| k != "board" && k != "players")
-            .collect();
-        Ok(GameState {
+    /// Build a State from explicit parts (board, players, data).
+    /// Preferred over `from_init_map` — no implicit leftover-key collection.
+    pub fn from_parts(board: Dynamic, players: rhai::Array, data: rhai::Map) -> Self {
+        Self {
             board,
             players,
             data,
-        })
+        }
     }
 
     // ─── Rhai property accessors (registered in lib.rs) ───────────────────────

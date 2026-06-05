@@ -21,9 +21,24 @@ fn get_pseudo_dests(board, from, state) {
     dests
 }
 
-fn init(player_count) {
-    let b0=standard_start_position();let b1=standard_start_position();
-     #{ board:[b0,b1], players:[#{id:0,name:"White A",team:0,orientation:"normal",data:#{color:"white",board:0}},#{id:1,name:"Black A",team:1,orientation:"flipped",data:#{color:"black",board:0}},#{id:2,name:"White B",team:1,orientation:"normal",data:#{color:"white",board:1}},#{id:3,name:"Black B",team:0,orientation:"flipped",data:#{color:"black",board:1}}], reserves:#{w0:[],b0:[],w1:[],b1:[]}, turn_order:[[0,1],[2,3]], current_turn:[0,2] }
+fn setup_players(variant_config, player_count) {
+    #{
+        players: [
+            #{ id: 0, name: "White A", team: 0, data: #{ color: "white", board: 0 } },
+            #{ id: 1, name: "Black A", team: 1, data: #{ color: "black", board: 0 } },
+            #{ id: 2, name: "White B", team: 1, data: #{ color: "white", board: 1 } },
+            #{ id: 3, name: "Black B", team: 0, data: #{ color: "black", board: 1 } },
+        ]
+    }
+}
+
+fn init(variant_config, setup) {
+    let b0 = standard_start_position();
+    let b1 = standard_start_position();
+    #{
+        board: [b0, b1],
+        data: #{ reserves: #{ w0: [], b0: [], w1: [], b1: [] }, turn_order: [[0, 1], [2, 3]], current_turn: [0, 2] }
+    }
 }
 
 fn reserve_key(color, board_idx) { color[0].to_string() + board_idx.to_string() }

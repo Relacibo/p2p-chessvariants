@@ -30,7 +30,9 @@ fn sq_attacked_by(board,square,enemy_colors,state) {
 
 fn is_in_check(board,king_color,enemy_colors,state) { let k=engine::board::find(board,Piece(king_color,"king"));if k==()||k.len==0 {return false;} sq_attacked_by(board,k[0],enemy_colors,state) }
 
-fn init(player_count) { #{ board: standard_start_position(), players: [#{ id:0,name:"White",team:0,data:#{color:"white"} },#{ id:1,name:"Black",team:1,data:#{color:"black"} }], turn: 0 } }
+fn setup_players(variant_config, player_count) { #{ players: [#{id:0,name:"White",team:0,data:#{color:"white"}},#{id:1,name:"Black",team:1,data:#{color:"black"}}] } }
+
+fn init(variant_config, setup) { #{ board: standard_start_position(), data: #{ turn: 0 } } }
 
 fn valid_moves(state, player) {
     if player.id != state["turn"] { return []; }

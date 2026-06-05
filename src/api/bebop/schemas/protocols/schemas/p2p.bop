@@ -61,9 +61,13 @@ union P2pMsg {
     }
 
     // Broadcast by host to all peers to start the game.
+    // SetupJson contains the result of setup_players() as a JSON string
+    // (players array + optional teams).
+    // PlayerCount is kept for backward compat with older peers.
     9 -> message GameStart {
         1 -> PlayerAssignment[] Assignments;
         2 -> int32 PlayerCount;
+        3 -> string SetupJson;
     }
 
     // Sent by a peer to the host to request a game slot.

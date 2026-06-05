@@ -93,7 +93,8 @@ Returned by `derive_game_progress()`. Constructed via `InProgress()`, `Draw()`, 
 | Function | Required | Signature |
 |----------|----------|-----------|
 | `config()` | YES | `() -> #{}` |
-| `init(player_count)` | YES | `(i32) -> State` |
+| `setup_players(variant_config, player_count)` | YES | `(VariantConfig, i32) -> #{}` |
+| `init(variant_config, setup)` | YES | `(VariantConfig, #{}) -> #{board, data}` |
 | `valid_moves(state, player)` | YES | `(State, Player) -> [Move]` |
 | `derive_game_progress(state, all_valid_moves)` | YES | `(State, [#{player, moves}]) -> GameProgress` |
 | `handle_action(state, player, action)` | YES | `(State, Player, Action) -> State` |
@@ -112,13 +113,12 @@ Returns the variant configuration map.
 | `allowed_player_count` | `i32` \| `[i32]` \| `#{min: i32, max: i32, step?: i32}` | YES | Exact count, list of allowed values, or ranged constraint |
 | `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
 
-### `init(player_count)`
+### `setup_players(variant_config, player_count)`
 
-Returns the initial game state.
+Returns the player roster and optional team configurations. Called once during engine initialisation, before `init()`.
 
 ```rhai
 #{
-    board: Board,
     players: [
         #{
             id: i32,
@@ -129,12 +129,18 @@ Returns the initial game state.
             orientation?: string,
         },
     ],
-    teams?: [ #{ id: i32, orientations: [ #{ board: i32, orientation: string } ] } ],
-    // custom state keys (turn, en_passant, castling_rights, …)
+    teams?: [
+        #{ id: i32, orientations: [#{ board: i32, orientation: string }] },
+    ],
 }
 ```
 
-Piece definitions are **not** part of state — see [Script-Level Declarations](#3-script-level-declarations).
+**`variant_config`** is a typed Rhai custom type with property access:
+- `config.name` — variant display name (string)
+- `config.version` — script version (string)
+- `config.api_version` — API version (i32)
+- `config.colors` — player color identifiers (array of strings)
+- `config.board` — board layout: `.rows`, `.cols`, `.count` (all i32)
 
 **Orientation values:** `"normal"` | `"flipped"` | `"clockwise"` | `"counterclockwise"`
 
@@ -143,19 +149,43 @@ Piece definitions are **not** part of state — see [Script-Level Declarations](
 2. `teams[player.team].orientations` entry matching `player.home_board` (if `teams` present and `home_board` set)
 3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
 
+### `init(variant_config, setup)`
+
+Returns the initial board and variant-specific data. Receives the `variant_config` (same typed object) and the `setup` map returned by `setup_players()`. The engine already extracted `players` and `teams` from `setup` — this function only provides the board and game data.
+
+```rhai
+#{
+    board: Board,
+    data: #{
+        // variant-specific keys (turn, castling_rights, en_passant, turn_order, reserves, …)
+    },
+}
+```
+
+The `board` can be a single `BoardState` or an array of `BoardState` for multi-board variants (e.g. Bughouse). The `data` map becomes `state.data` and is accessed via indexer syntax: `state["turn"]`, `state["castling_rights"]`.
+
+The engine injects `teams` from `setup_players()` into `data["teams"]` so scripts can access `state["teams"]` as before.
+
 **Standard 1v1** — using player-level orientation directly:
 ```rhai
-fn init(player_count) {
+fn setup_players(config, player_count) {
     #{
-        board: engine::standard_start_position(),
         players: [
             #{ id: 0, name: "White", team: 0, orientation: "normal",  data: #{ color: "white" } },
             #{ id: 1, name: "Black", team: 1, orientation: "flipped", data: #{ color: "black" } },
-        ],
-        // Variant-defined keys: e.g. turn: 0, turn_order, castling_rights, …
+        ]
+    }
+}
+
+fn init(config, setup) {
+    #{
+        board: engine::standard_start_position(),
+        data: #{ turn: 0, castling_rights: #{ wk: true, wq: true, bk: true, bq: true }, en_passant: () },
     }
 }
 ```
+
+Piece definitions are **not** part of state — see [Script-Level Declarations](#3-script-level-declarations).
 
 ### `valid_moves(state, player)`
 
@@ -384,13 +414,32 @@ Returned by `derive_ui`.
 ### Constructor
 
 ```
-new ChessvariantEngine(script, player_count)
+new StatelessChessvariantEngine(script)
 → compile(script) → AST
 → register_builtins() + register_engine_helpers()
 → run_ast_with_scope(scope, AST) — installs fn/let/const declarations into scope
 → extract all scope variables → register as global module   (see §3)
 → calls config() → validates api_version=1
-→ calls init(player_count) → returns engine
+
+.init(player_count)
+→ validates player_count against allowed_player_count
+→ calls setup_players(variant_config, player_count) → extracts players + optional teams
+→ calls init(variant_config, setup) → extracts board + data
+→ injects teams into data["teams"]
+→ builds GameState from parts → returns ChessvariantEngine
+```
+
+### P2P Host → Peers
+
+```
+Host:
+  StatelessChessvariantEngine::new(script)
+  → .init(player_count) → setup_players() + init()
+  → broadcasts setup (players + teams) to peers
+
+Peer:
+  StatelessChessvariantEngine::new(script)
+  → .init_from_setup_json(setup_json) → skips setup_players(), runs init() with received setup
 ```
 
 ### Submit Action — Phase 1 (synchronous, immediate)

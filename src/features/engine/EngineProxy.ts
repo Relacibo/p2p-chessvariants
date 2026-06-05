@@ -83,14 +83,14 @@ export class EngineProxy {
     });
   }
 
-  init(script: string, playerCount: number) {
+  init(script: string, playerCount: number, setupJson?: string) {
     return this.call<{
       board_state: unknown;
       valid_moves: unknown[];
       game_over: unknown;
       players: unknown[];
       variant_config: unknown;
-    }>("init", { script, playerCount });
+    }>("init", { script, playerCount, setupJson });
   }
 
   /**

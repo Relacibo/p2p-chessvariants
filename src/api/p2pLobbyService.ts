@@ -43,7 +43,7 @@ export type P2PLobbyCallbacks = {
   onLobbyClosed: () => void;
   onKicked: () => void;
   onHeartbeat?: (lobbyId: string) => void;
-  onGameStart?: (info: { assignments: Array<{ userId: string; playerConfigId: number }>; playerCount: number }) => void;
+  onGameStart?: (info: { assignments: Array<{ userId: string; playerConfigId: number }>; playerCount: number; setupJson: string }) => void;
   /** Host only: called when a peer requests a slot. Returns whether host accepted the request. */
   onSlotRequest?: (fromUserId: string, slotIndex: number) => boolean;
   onSlotAssigned?: (userId: string, slotIndex: number) => void;
@@ -202,13 +202,14 @@ export function broadcastSlotAssigned(userId: string, slotIndex: number): void {
 export function broadcastGameStart(
   assignments: Array<{ userId: string; playerConfigId: number }>,
   playerCount: number,
+  setupJson: string,
 ): void {
   const bebopAssignments: PlayerAssignment[] = assignments.map((a) =>
     PlayerAssignment({ userId: a.userId, playerConfigId: a.playerConfigId }),
   );
   const msg = P2PMsg.encode({
     tag: 9,
-    value: GameStart({ assignments: bebopAssignments, playerCount }),
+    value: GameStart({ assignments: bebopAssignments, playerCount, setupJson }),
   });
   webrtcService.sendToAll(msg);
 }
@@ -475,7 +476,8 @@ function handleGameStart(gs: GameStart): void {
     playerConfigId: a.playerConfigId ?? 0,
   }));
   const playerCount = gs.playerCount ?? 0;
-  callbacks?.onGameStart?.({ assignments, playerCount });
+  const setupJson = gs.setupJson ?? "{}";
+  callbacks?.onGameStart?.({ assignments, playerCount, setupJson });
 }
 
 function handleSlotRequest(fromUserId: string, req: SlotRequest): void {

@@ -24,7 +24,24 @@ fn get_pseudo_dests(board, from, state) {
     dests
 }
 
-fn init(player_count) {
+fn setup_players(variant_config, player_count) {
+    #{
+        players: [
+            #{ id: 0, name: "Yellow", team: 0, data: #{ color: "yellow" } },
+            #{ id: 1, name: "Green",  team: 1, data: #{ color: "green" } },
+            #{ id: 2, name: "Red",    team: 2, data: #{ color: "red" } },
+            #{ id: 3, name: "Blue",   team: 3, data: #{ color: "blue" } },
+        ],
+        teams: [
+            #{ id: 0, orientations: [#{ board: 0, orientation: "flipped" }] },
+            #{ id: 1, orientations: [#{ board: 0, orientation: "clockwise" }] },
+            #{ id: 2, orientations: [#{ board: 0, orientation: "normal" }] },
+            #{ id: 3, orientations: [#{ board: 0, orientation: "counterclockwise" }] },
+        ]
+    }
+}
+
+fn init(variant_config, setup) {
     let board = board_empty(14, 14);
     let yb=[Piece("yellow","rook"),Piece("yellow","knight"),Piece("yellow","bishop"),Piece("yellow","queen"),Piece("yellow","king"),Piece("yellow","bishop"),Piece("yellow","knight"),Piece("yellow","rook")];
     for i in 0..yb.len{board=engine::board::set(board,Coords(0,3+i,0),yb[i]);board=engine::board::set(board,Coords(1,3+i,0),Piece("yellow","pawn"))}
@@ -34,7 +51,7 @@ fn init(player_count) {
     for i in 0..rb.len{board=engine::board::set(board,Coords(13,3+i,0),rb[i]);board=engine::board::set(board,Coords(12,3+i,0),Piece("red","pawn"))}
     let bb=[Piece("blue","rook"),Piece("blue","knight"),Piece("blue","bishop"),Piece("blue","queen"),Piece("blue","king"),Piece("blue","bishop"),Piece("blue","knight"),Piece("blue","rook")];
     for i in 0..bb.len{board=engine::board::set(board,Coords(3+i,0,0),bb[i]);board=engine::board::set(board,Coords(3+i,1,0),Piece("blue","pawn"))}
-     #{ board: board, players: [#{id:0,name:"Yellow",team:0,data:#{color:"yellow"}},#{id:1,name:"Green",team:1,data:#{color:"green"}},#{id:2,name:"Red",team:2,data:#{color:"red"}},#{id:3,name:"Blue",team:3,data:#{color:"blue"}}], teams: [#{id:0,orientations:[#{board:0,orientation:"flipped"}]},#{id:1,orientations:[#{board:0,orientation:"clockwise"}]},#{id:2,orientations:[#{board:0,orientation:"normal"}]},#{id:3,orientations:[#{board:0,orientation:"counterclockwise"}]}], turn:2, turn_order:[2,3,0,1] }
+    #{ board: board, data: #{ turn: 2, turn_order: [2, 3, 0, 1] } }
 }
 
 fn valid_moves(state, player) {

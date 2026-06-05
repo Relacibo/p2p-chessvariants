@@ -44,6 +44,8 @@ export default function ArenaView() {
 
   const playerCount =
     lobbyStatus.phase === "game_started" ? lobbyStatus.playerCount : players.length;
+  const setupJson =
+    lobbyStatus.phase === "game_started" ? lobbyStatus.setupJson : undefined;
 
   // Derive the local player's PlayerRef (which slot/id was assigned to us).
   const localPlayerConfigId =
@@ -116,7 +118,7 @@ export default function ArenaView() {
     if (!scriptUrl || loadedRef.current) return;
     loadedRef.current = true;
     game
-      .loadScript(scriptUrl, playerCount)
+      .loadScript(scriptUrl, playerCount, setupJson)
       .then(() => {
         engineReadyRef.current = true;
         for (const msg of pendingMessagesRef.current) {

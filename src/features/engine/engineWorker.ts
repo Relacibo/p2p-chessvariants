@@ -71,9 +71,16 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
   try {
     switch (type) {
       case "init": {
-        const p = payload as { script: string; playerCount: number };
+        const p = payload as { script: string; playerCount?: number; setupJson?: string };
         const ChessvariantEngine = await getEngineClass();
-        engine = new ChessvariantEngine(p.script, p.playerCount);
+        if (p.setupJson && p.setupJson !== "{}") {
+          // Use pre-built setup from host (P2P peer path)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          engine = (ChessvariantEngine as any).new_with_setup(p.script, p.setupJson) as EngineInstance;
+        } else {
+          const pc = p.playerCount ?? 2;
+          engine = new ChessvariantEngine(p.script, pc);
+        }
         const va = JSON.parse(engine.validMovesAllJson());
         ok(id, {
           board_state:   JSON.parse(engine.boardStateJson()),

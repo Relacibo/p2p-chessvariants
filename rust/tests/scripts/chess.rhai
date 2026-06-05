@@ -76,11 +76,20 @@ fn is_in_check(board, king_color, enemy_colors, state) {
     sq_attacked_by(board, king_pos[0], enemy_colors, state)
 }
 
-fn init(player_count) {
-    #{ board: standard_start_position(),
-       players: [#{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
-                 #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } }],
-       turn: 0, castling_rights: #{ wk: true, wq: true, bk: true, bq: true }, en_passant: () }
+fn setup_players(variant_config, player_count) {
+    #{
+        players: [
+            #{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } },
+        ]
+    }
+}
+
+fn init(variant_config, setup) {
+    #{
+        board: standard_start_position(),
+        data: #{ turn: 0, castling_rights: #{ wk: true, wq: true, bk: true, bq: true }, en_passant: () }
+    }
 }
 
 fn valid_moves(state, player) {

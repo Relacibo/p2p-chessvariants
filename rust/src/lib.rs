@@ -65,6 +65,7 @@ pub struct ChessvariantEngine {
 
 fn register_builtins(engine: &mut Engine) {
     use game::state::BoardCoords;
+    use game::variant_config::{BoardScriptConfig, VariantConfig};
 
     engine
         .build_type::<BoardState>()
@@ -109,6 +110,24 @@ fn register_builtins(engine: &mut Engine) {
             Dynamic::from(s.players.clone())
         })
         .register_indexer_get_set(GameState::rhai_index_get, GameState::rhai_index_set);
+
+    // VariantConfig — typed Rhai custom type with property access for scripts
+    engine
+        .register_type_with_name::<VariantConfig>("VariantConfig")
+        .register_get("name", |c: &mut VariantConfig| c.name.clone())
+        .register_get("version", |c: &mut VariantConfig| c.version.clone())
+        .register_get("api_version", |c: &mut VariantConfig| c.api_version)
+        .register_get("colors", |c: &mut VariantConfig| {
+            Dynamic::from(c.colors.iter().map(|s| Dynamic::from(s.clone())).collect::<rhai::Array>())
+        })
+        .register_get("board", |c: &mut VariantConfig| c.board.clone());
+
+    // BoardScriptConfig — nested under VariantConfig, accessible via config.board
+    engine
+        .register_type_with_name::<BoardScriptConfig>("BoardScriptConfig")
+        .register_get("rows", |b: &mut BoardScriptConfig| b.rows)
+        .register_get("cols", |b: &mut BoardScriptConfig| b.cols)
+        .register_get("count", |b: &mut BoardScriptConfig| b.count);
 
     // Coords is an opaque enum — register manually with getters.
     engine
@@ -304,16 +323,18 @@ impl StatelessChessvariantEngine {
         })
     }
 
-    /// Call the script's `init(player_count)` function and produce a fully
-    /// initialized [`ChessvariantEngine`]. Consumes `self`.
+    /// Three-phase init flow — runs `setup_players` + `init`.
+    ///
+    ///   1. Validate player_count against variant config
+    ///   2. Call `setup_players(variant_config, player_count)` → players + optional teams
+    ///   3. Call `init(variant_config, setup)` → board + variant data
+    ///
+    /// Engine injects `teams` into `data` so scripts access `state["teams"]` as before.
+    /// Consumes `self`.
     pub fn init(self, player_count: i32) -> Result<ChessvariantEngine, CvError> {
-        let StatelessChessvariantEngine {
-            engine,
-            ast,
-            variant_config,
-        } = self;
-
-        if !variant_config
+        // Validate player count
+        if !self
+            .variant_config
             .allowed_player_count
             .validate(player_count as u32)
         {
@@ -322,13 +343,76 @@ impl StatelessChessvariantEngine {
             )));
         }
 
+        // Phase 1: setup_players(variant_config, player_count) → { players, teams? }
+        let mut setup_scope = Scope::new();
+        let setup_result = self.engine.call_fn::<Dynamic>(
+            &mut setup_scope,
+            &self.ast,
+            "setup_players",
+            (self.variant_config.clone(), player_count),
+        )?;
+        let setup_map = setup_result
+            .try_cast::<rhai::Map>()
+            .ok_or_else(|| {
+                CvError::Internal("setup_players() must return a map with 'players' key".into())
+            })?;
+
+        self.init_with_setup_map(setup_map)
+    }
+
+    /// Init from a pre-built setup map (players + optional teams).
+    /// Skips `setup_players()` — used by P2P peers that receive setup from the host.
+    pub fn init_with_setup_map(self, setup_map: rhai::Map) -> Result<ChessvariantEngine, CvError> {
+        let StatelessChessvariantEngine {
+            engine,
+            ast,
+            variant_config,
+        } = self;
+
+        let players = setup_map
+            .get("players")
+            .cloned()
+            .and_then(|v| v.try_cast::<rhai::Array>())
+            .ok_or_else(|| {
+                CvError::Internal(
+                    "setup must contain a 'players' key with an array".into(),
+                )
+            })?;
+
+        let teams = setup_map.get("teams").cloned();
+
+        // Phase 2: init(variant_config, setup) → { board, data: {...} }
         let mut init_scope = Scope::new();
-        let init_result =
-            engine.call_fn::<Dynamic>(&mut init_scope, &ast, "init", (player_count,))?;
+        let init_result = engine.call_fn::<Dynamic>(
+            &mut init_scope,
+            &ast,
+            "init",
+            (variant_config.clone(), Dynamic::from(setup_map)),
+        )?;
         let init_map = init_result
             .try_cast::<rhai::Map>()
             .ok_or_else(|| CvError::Internal("init() must return a map".into()))?;
-        let game_state = GameState::from_init_map(init_map).map_err(CvError::Internal)?;
+
+        let board = init_map
+            .get("board")
+            .cloned()
+            .ok_or_else(|| CvError::Internal("init() must return a 'board' key".into()))?;
+
+        // Phase 3: Extract data map from init result, inject teams from setup
+        let base_data = init_map
+            .get("data")
+            .cloned()
+            .and_then(|d| d.try_cast::<rhai::Map>())
+            .unwrap_or_default();
+
+        let mut data = base_data;
+
+        // Inject teams from setup_players into state data so scripts access state["teams"]
+        if let Some(teams_val) = teams {
+            data.insert("teams".into(), teams_val);
+        }
+
+        let game_state = GameState::from_parts(board, players, data);
 
         Ok(ChessvariantEngine {
             inner: StatelessChessvariantEngine {
@@ -338,6 +422,20 @@ impl StatelessChessvariantEngine {
             },
             state: game_state,
         })
+    }
+
+    /// Init from JSON setup data (players + optional teams as serialized Rhai maps).
+    /// For P2P peers: host broadcasts setup, peer calls this to init the engine.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = initFromSetupJson))]
+    pub fn init_from_setup_json(self, setup_json: String) -> Result<ChessvariantEngine, CvError> {
+        let json_value: serde_json::Value = serde_json::from_str(&setup_json)?;
+        let rhai_dynamic = rhai::serde::to_dynamic(&json_value)
+            .map_err(|e| CvError::Internal(format!("Failed to convert setup JSON to Rhai: {e}")))?;
+        let setup_map = rhai_dynamic
+            .try_cast::<rhai::Map>()
+            .ok_or_else(|| CvError::Internal("setup JSON must be an object".into()))?;
+
+        self.init_with_setup_map(setup_map)
     }
 
     // ── Config getters (WASM-facing) ──
@@ -398,11 +496,19 @@ impl StatelessChessvariantEngine {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl ChessvariantEngine {
     /// Combined constructor for WASM. Compiles the script and initialises
-    /// the game state in one step.
+    /// the game state in one step (runs setup_players + init).
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new(script_content: String, player_count: i32) -> Result<Self, CvError> {
         let stateless = StatelessChessvariantEngine::new(script_content)?;
         stateless.init(player_count)
+    }
+
+    /// Combined constructor for P2P peers. Compiles the script and initialises
+    /// with pre-built setup data (received from the host).
+    /// Called as `ChessvariantEngine.newWithSetup(script, setupJson)` in JS.
+    pub fn new_with_setup(script_content: String, setup_json: String) -> Result<Self, CvError> {
+        let stateless = StatelessChessvariantEngine::new(script_content)?;
+        stateless.init_from_setup_json(setup_json)
     }
 
     // ── Getters ──

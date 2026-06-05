@@ -50,7 +50,7 @@ export interface UseChessGameResult {
   setPendingMove: React.Dispatch<React.SetStateAction<PendingMove | null>>;
   setSelectedDropPiece: React.Dispatch<React.SetStateAction<WasmPiece | null>>;
   syncState: (proxy: EngineProxy, playerRefOverride?: string) => Promise<void>;
-  loadScript: (url: string, numPlayers: number) => Promise<void>;
+  loadScript: (url: string, numPlayers: number, setupJson?: string) => Promise<void>;
   /**
    * Submit a local action. `actorPlayerRef` is the JSON PlayerRef of the acting
    * player. After a successful submit the `onActionSubmitted` callback fires.
@@ -133,7 +133,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
   );
 
   const loadScript = useCallback(
-    async (url: string, numPlayers: number): Promise<void> => {
+    async (url: string, numPlayers: number, setupJson?: string): Promise<void> => {
       proxyRef.current?.terminate();
       proxyRef.current = null;
       notifications.clean();
@@ -151,7 +151,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
       try {
         const script = await fetchScriptText(url);
         const proxy = new EngineProxy();
-        const init = await proxy.init(script, numPlayers);
+        const init = await proxy.init(script, numPlayers, setupJson);
         proxyRef.current = proxy;
         setVariantConfig(vld(VariantConfigSchema, init.variant_config, "variant_config") as WasmVariantConfig);
         setBoardState(vld(BoardStateSchema, init.board_state, "board_state") as WasmBoardState);

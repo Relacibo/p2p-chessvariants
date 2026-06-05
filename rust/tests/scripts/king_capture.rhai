@@ -19,12 +19,21 @@ fn get_pseudo_dests(board, from, state) {
     dests
 }
 
-fn init(player_count) {
+fn setup_players(variant_config, player_count) {
+    #{
+        players: [
+            #{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } },
+        ]
+    }
+}
+
+fn init(variant_config, setup) {
     let board = engine::board::empty(8, 8);
     board = engine::board::set(board, Coords(0, 4), Piece("black", "king"));
     board = engine::board::set(board, Coords(1, 4), Piece("white", "queen"));
     board = engine::board::set(board, Coords(7, 4), Piece("white", "king"));
-     #{ board: board, players: [#{ id: 0, name: "White", team: 0, data: #{ color: "white" } }, #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } }], turn: 0 }
+    #{ board: board, data: #{ turn: 0 } }
 }
 
 fn valid_moves(state, player) {
