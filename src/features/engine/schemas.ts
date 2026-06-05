@@ -101,10 +101,11 @@ export const PlayerSchema = z.object({
   name: z.string(),
   home_board: z.number(),
   team: z.number(),
+  data: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const PlayerMovesSchema = z.object({
-  player: PlayerSchema,
+  player: z.number(),
   moves: z.array(ActionSchema),
 });
 

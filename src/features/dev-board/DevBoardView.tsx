@@ -161,7 +161,7 @@ export function DevBoardView() {
   }, [controllingPlayer]);
   const currentBoardIndex = useMemo(() => {
     if (playerRef == null) return 0;
-    const pm = validMovesAll.find(pm2 => pm2.player.id === playerRef);
+    const pm = validMovesAll.find(pm2 => pm2.player === playerRef);
     if (pm && pm.moves.length > 0) {
       const firstM = pm.moves[0] as unknown as { from: { type: string; board_index: number } };
       return firstM.from.board_index;
@@ -175,7 +175,7 @@ export function DevBoardView() {
     const boards = new Set<number>();
     const selIds = new Set(selectedPlayers.map(s => parseInt(s, 10)).filter(n => !isNaN(n)));
     for (const pm of validMovesAll) {
-      if (selIds.has(pm.player.id) && pm.moves.length > 0) {
+      if (selIds.has(pm.player) && pm.moves.length > 0) {
         for (const m of pm.moves) {
           const mv = m as unknown as { from: { type: string; board_index: number }; to: unknown };
           if (mv.from.type === "board") boards.add(mv.from.board_index);
@@ -273,7 +273,7 @@ export function DevBoardView() {
     const selectedSet = new Set(selectedPlayers.map(Number));
     const actions: WasmAction[] = [];
     for (const pm of validMovesAll) {
-      if (selectedSet.has(pm.player.id)) {
+      if (selectedSet.has(pm.player)) {
         actions.push(...pm.moves);
       }
     }
@@ -368,7 +368,7 @@ export function DevBoardView() {
         // Set controllingPlayer to first active player's numeric ID
         const active = allValid
           .filter((pa) => pa.moves.length > 0)
-          .map((pa) => pa.player.id);
+          .map((pa) => pa.player);
         if (active.length > 0) {
           setControllingPlayer(String(active[0]));
         }
@@ -837,7 +837,7 @@ export function DevBoardView() {
                   // Fetch on first expand
                   void proxyRef.current?.validMovesJson().then(v => {
                     const mapped = (v as WasmPlayerMoves[]).map(pm => ({
-                      player: pm.player.id,
+                      player: pm.player,
                       moves: pm.moves,
                     }));
                     setValidMovesJsonStr(JSON.stringify(mapped, null, 2));

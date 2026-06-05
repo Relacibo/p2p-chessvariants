@@ -21,8 +21,9 @@ pub use game::state::{BoardCoords, BoardState, Coords as GameCoords, GameState, 
 
 /// A player's valid moves, as returned by `valid_moves(state, player)`.
 #[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct PlayerMoves {
-    pub player: Player,
+    pub player: i32,
     pub moves: Vec<Action>,
 }
 
@@ -480,7 +481,7 @@ impl ChessvariantEngine {
         let player_id: i32 = serde_json::from_str(&player_json)?;
         let player = resolve_player(&self.state, player_id)?;
         let moves = self.compute_valid_moves_for_player(&player)?;
-        Ok(serde_json::to_string(&PlayerMoves { player, moves })?)
+        Ok(serde_json::to_string(&PlayerMoves { player: player.id, moves })?)
     }
 
     /// Returns valid moves for ALL players + game_over.
@@ -771,7 +772,7 @@ impl ChessvariantEngine {
         for pid in &player_ids {
             let moves = self.compute_valid_moves_for_player(pid)?;
             result.push(PlayerMoves {
-                player: pid.clone(),
+                player: pid.id,
                 moves,
             });
         }
@@ -791,10 +792,10 @@ impl ChessvariantEngine {
         let mut entries: rhai::Array = Vec::new();
         for pm in all_moves {
             let mut entry = rhai::Map::new();
-            let player_map = get_player_map(&self.state, pm.player.id).ok_or_else(|| {
+            let player_map = get_player_map(&self.state, pm.player).ok_or_else(|| {
                 CvError::Internal(format!(
                     "player {} not found for derive_game_progress",
-                    pm.player.id
+                    pm.player
                 ))
             })?;
             entry.insert("player".into(), player_map);
@@ -1031,7 +1032,7 @@ mod tests {
         // Find white player's moves (id=0)
         let white = all
             .iter()
-            .find(|e| e["player"]["id"] == 0)
+            .find(|e| e["player"].as_i64() == Some(0))
             .expect("white player");
         let moves = white["moves"].as_array().expect("white moves");
         assert!(!moves.is_empty(), "white should have valid moves");
@@ -1052,11 +1053,11 @@ mod tests {
         // Only the active player (white, id=0, turn=0) should have moves
         let white = all
             .iter()
-            .find(|e| e["player"]["id"] == 0)
+            .find(|e| e["player"].as_i64() == Some(0))
             .expect("white player");
         let black = all
             .iter()
-            .find(|e| e["player"]["id"] == 1)
+            .find(|e| e["player"].as_i64() == Some(1))
             .expect("black player");
         assert!(
             !white["moves"].as_array().unwrap().is_empty(),
@@ -1096,7 +1097,7 @@ mod tests {
         // White's moves should be empty (not white's turn)
         let white = all
             .iter()
-            .find(|e| e["player"]["id"] == 0)
+            .find(|e| e["player"].as_i64() == Some(0))
             .expect("white player");
         assert!(
             white["moves"].as_array().unwrap().is_empty(),
@@ -1105,7 +1106,7 @@ mod tests {
         // Black should have moves
         let black = all
             .iter()
-            .find(|e| e["player"]["id"] == 1)
+            .find(|e| e["player"].as_i64() == Some(1))
             .expect("black player");
         assert!(
             !black["moves"].as_array().unwrap().is_empty(),

@@ -22,7 +22,7 @@ interface WorkerMsg {
 
 export interface ValidMovesPayload {
   valid_moves: {
-    player: { board: number; color: string; team: number };
+    player: number;
     moves: unknown[];
   };
 }

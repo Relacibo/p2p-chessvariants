@@ -131,9 +131,10 @@ export type WasmUiElementNode =
 /** UI map returned by engine: { [elementId: string]: WasmUiElementNode }. */
 export type WasmUiMap = Record<string, WasmUiElementNode>;
 
-/** A player's valid moves entry from `validMovesJson()`. */
+/** A player's valid moves entry from `validMovesJson()`.
+ *  Player info (name, home_board, orientation, data) comes from `playersJson()`. */
 export interface WasmPlayerMoves {
-  player: { id: number; name: string; home_board: number; team: number };
+  player: number;
   moves: WasmAction[];
 }
 

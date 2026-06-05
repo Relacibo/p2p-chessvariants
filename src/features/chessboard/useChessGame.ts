@@ -99,9 +99,9 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
     return allActions
       .filter((pa) => pa.moves.length > 0)
       .map((pa) => ({
-        id: pa.player.id,
+        id: pa.player,
         orientation: allPlayersRef.current.find(
-          (ap) => ap.id === pa.player.id,
+          (ap) => ap.id === pa.player,
         )?.orientation,
       }));
   }, []);
@@ -120,7 +120,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
       setAllPlayers(allP);
       if (player) {
         const pid: number = JSON.parse(player);
-        const entry = allValid.find((pa) => pa.player.id === pid);
+        const entry = allValid.find((pa) => pa.player === pid);
         setValidMoves(entry?.moves ?? []);
         const uiResult = (await proxy.deriveUiJson(player)) as { ui: WasmUiMap };
         setUiElements((uiResult.ui ?? null) as WasmUiMap | null);
