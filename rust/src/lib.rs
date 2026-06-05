@@ -29,16 +29,14 @@ pub struct PlayerMoves {
 // ─── Stateless engine (Rhai runtime without game state) ─────────────────────
 
 /// Holds the compiled script and Rhai runtime. Does not contain game state.
+/// Top-level `const`/`let` declarations from the variant script are registered
+/// as a global module, making them accessible to all `call_fn` invocations
+/// regardless of nesting depth.
 /// Call `init()` to create a [`ChessvariantEngine`] with an initial game state.
 pub struct StatelessChessvariantEngine {
     engine: Engine,
     ast: AST,
     pub(crate) variant_config: VariantConfig,
-    /// Scope populated by `run_ast_with_scope` at construction time.
-    /// Contains top-level `const` / `let` declarations from the variant script
-    /// (e.g. `PIECE_DEFS`). Cloned for every `call_fn` invocation so the
-    /// original stays pristine — matching the playground's `global.clone()` pattern.
-    scope: Scope<'static>,
 }
 
 /// Fully initialized chess variant engine, combining the stateless runtime
@@ -247,8 +245,6 @@ impl StatelessChessvariantEngine {
 
         // Run the AST top-level to evaluate `let`/`const` declarations
         // and install fn definitions into the scope.
-        // The scope is stored and cloned for every function call —
-        // Rhai manages scope levels per call (push/pop), so no pollution.
         engine.run_ast_with_scope(&mut scope, &ast)?;
 
         // Extract ALL top-level `let`/`const` declarations from the scope and
@@ -263,7 +259,7 @@ impl StatelessChessvariantEngine {
             engine.register_global_module(Rc::new(module));
         }
 
-        let mut config_scope = scope.clone();
+        let mut config_scope = Scope::new();
         let dynamic_config = engine.call_fn::<Dynamic>(&mut config_scope, &ast, "config", ())?;
         let variant_config: VariantConfig = dynamic_config.try_into()?;
 
@@ -271,7 +267,6 @@ impl StatelessChessvariantEngine {
             engine,
             ast,
             variant_config,
-            scope,
         })
     }
 
@@ -282,7 +277,6 @@ impl StatelessChessvariantEngine {
             engine,
             ast,
             variant_config,
-            scope,
         } = self;
 
         if !variant_config
@@ -294,8 +288,7 @@ impl StatelessChessvariantEngine {
             )));
         }
 
-        // Clone the scope for the init() call so the original stays pristine.
-        let mut init_scope = scope.clone();
+        let mut init_scope = Scope::new();
         let init_result =
             engine.call_fn::<Dynamic>(&mut init_scope, &ast, "init", (player_count,))?;
         let init_map = init_result
@@ -308,7 +301,6 @@ impl StatelessChessvariantEngine {
                 engine,
                 ast,
                 variant_config,
-                scope,
             },
             state: game_state,
         })
@@ -517,7 +509,7 @@ impl ChessvariantEngine {
         }
         // Use a block so the scope is dropped before recursive calls
         {
-            let mut scope = self.inner.scope.clone();
+            let mut scope = Scope::new();
             let new_state_dyn = self.inner.engine.call_fn::<Dynamic>(
                 &mut scope,
                 &self.inner.ast,
@@ -617,7 +609,7 @@ impl ChessvariantEngine {
     }
 
     fn run_derive_ui(&self, player: &Player) -> Result<serde_json::Value, CvError> {
-        let mut scope = self.inner.scope.clone();
+        let mut scope = Scope::new();
         let result = self.inner.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.inner.ast,
@@ -641,7 +633,7 @@ impl ChessvariantEngine {
     }
 
     fn compute_valid_moves_for_player(&mut self, player: &Player) -> Result<Vec<Action>, CvError> {
-        let mut scope = self.inner.scope.clone();
+        let mut scope = Scope::new();
         let result = self.inner.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.inner.ast,
@@ -718,7 +710,7 @@ impl ChessvariantEngine {
         &mut self,
         all_moves: &[PlayerMoves],
     ) -> Result<Option<serde_json::Value>, CvError> {
-        let mut scope = self.inner.scope.clone();
+        let mut scope = Scope::new();
         let entries: rhai::Array = all_moves
             .iter()
             .map(|pm| {
@@ -753,7 +745,7 @@ impl ChessvariantEngine {
 
     #[allow(dead_code)]
     fn script_has_function(&self, name: &str) -> bool {
-        let mut scope = self.inner.scope.clone();
+        let mut scope = Scope::new();
         match self.inner.engine.call_fn::<Dynamic>(
             &mut scope,
             &self.inner.ast,
