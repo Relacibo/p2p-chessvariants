@@ -896,11 +896,9 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     })?;
                 let pieces_json: Vec<serde_json::Value> = pieces_arr
                     .iter()
-                    .filter_map(|d| {
-                        let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(serde_json::to_value(&piece).expect("Piece serialization should never fail"))
-                    })
-                    .collect();
+                    .filter_map(|d| d.clone().try_cast::<Piece>())
+                    .map(|p| serde_json::to_value(&p).map_err(CvError::Json))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let board_index = player_field_i32(&elem_map, "board_index");
                 serde_json::json!({ "type": "reserve_pile", "pieces": pieces_json, "board_index": board_index })
             }
@@ -914,11 +912,9 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                     })?;
                 let pieces_json: Vec<serde_json::Value> = pieces_arr
                     .iter()
-                    .filter_map(|d| {
-                        let piece: Piece = d.clone().try_cast::<Piece>()?;
-                        Some(serde_json::to_value(&piece).expect("Piece serialization should never fail"))
-                    })
-                    .collect();
+                    .filter_map(|d| d.clone().try_cast::<Piece>())
+                    .map(|p| serde_json::to_value(&p).map_err(CvError::Json))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let cancelable = elem_map.get("cancelable").and_then(|v| v.as_bool().ok());
                 let title = elem_map
                     .get("title")
