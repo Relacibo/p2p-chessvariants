@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[rhai_type(extra = Self::build_rhai_type)]
 pub struct Piece {
     #[rhai_type(

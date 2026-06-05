@@ -119,17 +119,14 @@ impl GameState {
 ///   `Coords(r, c, b)`    → board square on board `b`
 ///   `ReserveCoords(i)`   → slot `i` in the player's reserve
 ///
-/// Serialized as tagged JSON: `{"type":"board","row":1,"col":2,"boardIndex":0}`
-/// or `{"type":"reserve","index":0,"boardIndex":0}`.
+/// Serialized as tagged JSON: `{"type":"board","row":1,"col":2,"board_index":0}`
+/// or `{"type":"reserve","index":0,"board_index":0}`.
 ///
 /// Rhai's blanket impl `impl<T: Any + Clone + SendSync> Variant for T` applies
 /// automatically, so no manual `Variant` impl is needed.
+/// Field names use snake_case — serde's default matches the Rust identifiers exactly.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-// `rename_all` on an enum only renames the variant tags; the explicit
-// `rename = "board"`/`"reserve"` below already handle those. To camelCase the
-// fields *inside* struct variants (e.g. `board_index` → `boardIndex`) we need
-// `rename_all_fields`.
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(tag = "type")]
 pub enum Coords {
     #[serde(rename = "board")]
     Board {
@@ -220,7 +217,7 @@ impl From<BoardCoords> for Coords {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default, CustomType, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct BoardState {
@@ -295,7 +292,7 @@ pub struct ReservePileState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Default, CustomType)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct BoardCoords {
@@ -337,7 +334,7 @@ impl BoardCoords {
 /// those are variant-defined and belong in `state.players` (Rhai map).
 /// Equality is registered so `.contains()` works on arrays of Player.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, CustomType)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Player {
     /// Canonical player identifier — unique, assigned by script in init().
     #[rhai_type(readonly)]

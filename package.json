@@ -47,7 +47,8 @@
     "styled-components": "^6.4.1",
     "typed-css-modules": "^0.9.1",
     "typescript-plugin-css-modules": "^5.2.0",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

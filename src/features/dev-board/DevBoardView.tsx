@@ -163,8 +163,8 @@ export function DevBoardView() {
     if (playerRef == null) return 0;
     const pm = validMovesAll.find(pm2 => pm2.player.id === playerRef);
     if (pm && pm.moves.length > 0) {
-      const firstM = pm.moves[0] as unknown as { from: { type: string; boardIndex: number } };
-      return firstM.from.boardIndex;
+      const firstM = pm.moves[0] as unknown as { from: { type: string; board_index: number } };
+      return firstM.from.board_index;
     }
     return 0;
   }, [playerRef, validMovesAll]);
@@ -177,9 +177,9 @@ export function DevBoardView() {
     for (const pm of validMovesAll) {
       if (selIds.has(pm.player.id) && pm.moves.length > 0) {
         for (const m of pm.moves) {
-          const mv = m as unknown as { from: { type: string; boardIndex: number }; to: unknown };
-          if (mv.from.type === "board") boards.add(mv.from.boardIndex);
-          if (mv.to && (mv.to as { type: string }).type === "board") boards.add((mv.to as { boardIndex: number }).boardIndex);
+          const mv = m as unknown as { from: { type: string; board_index: number }; to: unknown };
+          if (mv.from.type === "board") boards.add(mv.from.board_index);
+          if (mv.to && (mv.to as { type: string }).type === "board") boards.add((mv.to as { board_index: number }).board_index);
         }
       }
     }
@@ -462,7 +462,7 @@ export function DevBoardView() {
       if (action.type === "move") {
         addLogEntry(actingPlayerId, { kind: "move", action });
       } else if (action.type === "interact") {
-        addLogEntry(actingPlayerId, { kind: "ui", elementId: action.elementId });
+        addLogEntry(actingPlayerId, { kind: "ui", elementId: action.element_id });
       } else if (action.type === "select_piece") {
         addLogEntry(actingPlayerId, { kind: "ui", elementId: "select_piece", piece: action.piece });
       } else if (action.type === "cancel") {

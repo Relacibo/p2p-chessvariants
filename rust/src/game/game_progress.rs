@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// or has reached a terminal state.  The script always identifies the winning
 /// **team**, never individual players — even 1v1 games have a default team.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "progress", rename_all = "camelCase")]
+#[serde(tag = "progress", rename_all = "snake_case")]
 pub enum GameProgress {
     /// Game is still in progress — no result yet.
     #[serde(rename = "in_progress")]
@@ -16,7 +16,7 @@ pub enum GameProgress {
     /// players' `team` field inside `state.players`.
     #[serde(rename = "decisive")]
     Decisive {
-        #[serde(rename = "winningTeam")]
+        #[serde(rename = "winning_team")]
         winning_team: i32,
     },
 }
@@ -77,6 +77,6 @@ mod tests {
     fn test_decisive_serialization() {
         let json = serde_json::to_value(&GameProgress::winner(1)).unwrap();
         assert_eq!(json["progress"], "decisive");
-        assert_eq!(json["winningTeam"], 1);
+        assert_eq!(json["winning_team"], 1);
     }
 }

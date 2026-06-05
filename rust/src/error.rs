@@ -30,7 +30,7 @@ pub enum CvError {
 
 #[wasm_bindgen]
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CvJsError {
     name: String,
     message: String,

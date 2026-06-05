@@ -14,6 +14,17 @@ import {
   WasmVariantConfig,
 } from "./types";
 import { fetchScriptText } from "../lobby/scriptUrl";
+import { BoardStateSchema, VariantConfigSchema } from "../engine/schemas";
+
+/** Validate engine output against Zod schemas. Logs detailed mismatch info and returns the validated value. */
+function vld<T>(schema: { parse: (v: unknown) => T }, raw: unknown, label: string): T {
+  try {
+    return schema.parse(raw);
+  } catch (e) {
+    console.error(`[engine] ${label} schema mismatch — falling back to unvalidated data`, e);
+    return raw as T;
+  }
+}
 
 export interface UseChessGameOptions {
   /** JSON-encoded PlayerRef for the local player whose valid moves / UI to show. */
@@ -103,7 +114,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
         proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
         proxy.playersJson() as Promise<WasmPlayerConfig[]>,
       ]);
-      setBoardState(bs);
+      setBoardState(vld(BoardStateSchema, bs, "board_state (syncState)"));
       setValidMovesAll(allValid);
       setActivePlayers(deriveActivePlayers(allValid));
       setAllPlayers(allP);
@@ -142,9 +153,9 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
         const proxy = new EngineProxy();
         const init = await proxy.init(script, numPlayers);
         proxyRef.current = proxy;
-        setVariantConfig(init.variantConfig as WasmVariantConfig);
-        setBoardState(init.boardState as WasmBoardState);
-        const initialValid = init.validMoves as WasmPlayerMoves[];
+        setVariantConfig(vld(VariantConfigSchema, init.variant_config, "variant_config") as WasmVariantConfig);
+        setBoardState(vld(BoardStateSchema, init.board_state, "board_state") as WasmBoardState);
+        const initialValid = init.valid_moves as WasmPlayerMoves[];
         setValidMovesAll(initialValid);
         setActivePlayers(deriveActivePlayers(initialValid));
         const firstActive = deriveActivePlayers(initialValid)[0];
@@ -177,14 +188,14 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
     const proxy = proxyRef.current;
     if (!proxy) return;
     proxy.onValidMoves = (payload) => {
-      setValidMoves((payload.validMoves.moves ?? []) as WasmAction[]);
+      setValidMoves((payload.valid_moves.moves ?? []) as WasmAction[]);
     };
     proxy.onGameOver = (payload) => {
-      const va = payload.validMoves as WasmPlayerMoves[];
+      const va = payload.valid_moves as WasmPlayerMoves[];
       setValidMovesAll(va);
       setActivePlayers(deriveActivePlayers(va));
-      if (payload.gameOver) {
-        setGameOver(payload.gameOver as GameProgress);
+      if (payload.game_over) {
+        setGameOver(payload.game_over as GameProgress);
       }
     };
     return () => {

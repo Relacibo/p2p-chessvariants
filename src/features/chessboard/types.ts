@@ -1,5 +1,5 @@
 export interface WasmPiece {
-  pieceType: string;
+  piece_type: string;
   color: string;
 }
 
@@ -7,7 +7,7 @@ export interface WasmPiece {
 export interface WasmBoardState {
   rows: number;
   cols: number;
-  numberOfBoards: number;
+  number_of_boards: number;
   /** One flat array per board: index = row * cols + col */
   boards: (WasmPiece | null)[][];
 }
@@ -17,7 +17,7 @@ export interface WasmBoardCoords {
   type: "board";
   row: number;
   col: number;
-  boardIndex: number;
+  board_index: number;
 }
 
 /** Pending move from drag-start — the client predicts the move locally. */
@@ -31,6 +31,7 @@ export type PendingMove = {
 export interface WasmReserveCoords {
   type: "reserve";
   index: number;
+  board_index: number;
 }
 
 /** Union coordinate type: board square OR reserve slot. */
@@ -45,7 +46,7 @@ export function isBoardCoords(c: WasmCoords): c is WasmBoardCoords {
 export type WasmAction =
   | { type: "move"; from: WasmCoords; to: WasmCoords }
   | { type: "select_piece"; piece: WasmPiece }
-  | { type: "interact"; elementId: string }
+  | { type: "interact"; element_id: string }
   | { type: "cancel" };
 
 export interface WasmDisabledRect {
@@ -132,7 +133,7 @@ export type WasmUiMap = Record<string, WasmUiElementNode>;
 
 /** A player's valid moves entry from `validMovesJson()`. */
 export interface WasmPlayerMoves {
-  player: { id: number; name: string; homeBoard: number; team: number };
+  player: { id: number; name: string; home_board: number; team: number };
   moves: WasmAction[];
 }
 
@@ -140,7 +141,7 @@ export interface WasmPlayerMoves {
 export type GameProgress =
   | { progress: "in_progress" }
   | { progress: "draw" }
-  | { progress: "decisive"; winningTeam: number };
+  | { progress: "decisive"; winning_team: number };
 
 /** Result of `submitAction()`. */
 export interface WasmSubmitActionResult {

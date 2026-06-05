@@ -3,8 +3,8 @@
  * Every call is async — zero main-thread blocking.
  *
  * Progressive Phase 2 after submitAction:
- *   1. "validMoves" — local player's moves, delivered ASAP via onValidMoves
- *   2. "gameOver"  — full validMoves + game_over, delivered via onGameOver
+ *   1. "valid_moves" — local player's moves, delivered ASAP via onValidMoves
+ *   2. "game_over"  — full validMoves + game_over, delivered via onGameOver
  */
 
 import EngineWorker from "./engineWorker.ts?worker";
@@ -15,21 +15,21 @@ type Reject  = (e: Error) => void;
 
 interface WorkerMsg {
   id: number;
-  _phase?: "validMoves" | "gameOver";
+  _phase?: "valid_moves" | "game_over";
   result?: unknown;
   error?: string;
 }
 
 export interface ValidMovesPayload {
-  validMoves: {
+  valid_moves: {
     player: { board: number; color: string; team: number };
     moves: unknown[];
   };
 }
 
 export interface GameOverPayload {
-  validMoves: unknown[];
-  gameOver: unknown;
+  valid_moves: unknown[];
+  game_over: unknown;
 }
 
 export class EngineProxy {
@@ -48,13 +48,13 @@ export class EngineProxy {
       const msg = data as WorkerMsg;
 
       // Phase 2a — local player's valid_moves, fast path
-      if (msg._phase === "validMoves") {
+      if (msg._phase === "valid_moves") {
         this.onValidMoves?.(msg.result as ValidMovesPayload);
         return;
       }
 
       // Phase 2b+c — game over result with full validMoves
-      if (msg._phase === "gameOver") {
+      if (msg._phase === "game_over") {
         this.onGameOver?.(msg.result as GameOverPayload);
         return;
       }
@@ -85,23 +85,23 @@ export class EngineProxy {
 
   init(script: string, playerCount: number) {
     return this.call<{
-      boardState: unknown;
-      validMoves: unknown[];
-      gameOver: unknown;
+      board_state: unknown;
+      valid_moves: unknown[];
+      game_over: unknown;
       players: unknown[];
-      variantConfig: unknown;
+      variant_config: unknown;
     }>("init", { script, playerCount });
   }
 
   /**
-   * Phase 1 resolves with board_state, ui, game_over, stateJson, players.
+   * Phase 1 resolves with board_state, ui, game_over, state_json, players.
    * Phase 2a → this.onValidMoves  (local player's moves)
    * Phase 2c → this.onGameOver    (all moves + game_over result)
    */
   submitAction(player: string, actionJson: string, localPlayer: string) {
     return this.call<{
       ui: unknown; game_over: unknown;
-      board_state: unknown; stateJson: unknown;
+      board_state: unknown; state_json: unknown;
       players: unknown[];
       error?: string;
     }>("submitAction", { player, actionJson, localPlayer });

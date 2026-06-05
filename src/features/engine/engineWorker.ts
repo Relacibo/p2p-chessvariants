@@ -76,11 +76,11 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         engine = new ChessvariantEngine(p.script, p.playerCount);
         const va = JSON.parse(engine.validMovesAllJson());
         ok(id, {
-          boardState:    JSON.parse(engine.boardStateJson()),
-          validMoves:    va.validMoves,
-          gameOver:      va.gameOver,
+          board_state:   JSON.parse(engine.boardStateJson()),
+          valid_moves:   va.valid_moves,
+          game_over:     va.game_over,
           players:       JSON.parse(engine.playersJson()),
-          variantConfig: JSON.parse(engine.variantConfigJson()),
+          variant_config: JSON.parse(engine.variantConfigJson()),
         });
         break;
       }
@@ -90,7 +90,7 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         const result = JSON.parse(need().submitAction(p.player, p.actionJson));
         ok(id, {
           ...result,
-          stateJson: JSON.parse(need().stateJson()),
+          state_json: JSON.parse(need().stateJson()),
           players:   JSON.parse(need().playersJson()),
         });
 
@@ -98,8 +98,8 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         const localMoves = JSON.parse(need().validMovesForPlayerJson(p.localPlayer));
         postMessage({
           id,
-          _phase: "validMoves",
-          result: { validMoves: localMoves },
+          _phase: "valid_moves",
+          result: { valid_moves: localMoves },
         });
 
         // Yield to let Phase 2a message reach the main thread before blocking
@@ -110,13 +110,13 @@ onmessage = async (e: MessageEvent<WorkerRequest>) => {
         const all = JSON.parse(need().validMovesAllJson());
         postMessage({
           id,
-          _phase: "gameOver",
-          result: { gameOver: all.gameOver, validMoves: all.validMoves },
+          _phase: "game_over",
+          result: { game_over: all.game_over, valid_moves: all.valid_moves },
         });
         break;
       }
       case "validMovesJson":
-        ok(id, JSON.parse(need().validMovesAllJson()).validMoves);
+        ok(id, JSON.parse(need().validMovesAllJson()).valid_moves);
         break;
       case "deriveUiJson":
         ok(id, JSON.parse(need().deriveUiJson((payload as { player: string }).player)));

@@ -180,13 +180,31 @@ fn register_engine_helpers(engine: &mut Engine) {
 // ─── Rhai Map helpers ────────────────────────────────────────────────────────
 
 fn player_field_i32(m: &rhai::Map, key: &str) -> i32 {
-    m.get(key).and_then(|v| v.as_int().ok()).unwrap_or(0)
+    match m.get(key).and_then(|v| v.as_int().ok()) {
+        Some(v) => v as i32,
+        None => {
+            if m.contains_key(key) {
+                crate::logging::log_warn(&format!(
+                    "[rhai] field '{key}' exists but is not an integer, using default 0"
+                ));
+            }
+            0
+        }
+    }
 }
 
 fn player_field_string(m: &rhai::Map, key: &str) -> String {
-    m.get(key)
-        .and_then(|v: &Dynamic| v.clone().into_string().ok())
-        .unwrap_or_default()
+    match m.get(key).and_then(|v: &Dynamic| v.clone().into_string().ok()) {
+        Some(v) => v,
+        None => {
+            if m.contains_key(key) {
+                crate::logging::log_warn(&format!(
+                    "[rhai] field '{key}' exists but is not a string, using default \"\""
+                ));
+            }
+            String::new()
+        }
+    }
 }
 
 fn player_from_map(m: &rhai::Map) -> Player {
@@ -464,14 +482,21 @@ impl ChessvariantEngine {
             .iter()
             .map(|pm| {
                 serde_json::json!({
-                    "player": serde_json::to_value(&pm.player).unwrap_or_default(),
+                    "player": serde_json::to_value(&pm.player)
+                        .unwrap_or_else(|e| {
+                            crate::logging::log_error(&format!(
+                                "[engine] failed to serialize player {}: {e}",
+                                pm.player.id
+                            ));
+                            serde_json::Value::Null
+                        }),
                     "moves": pm.moves,
                 })
             })
             .collect();
         Ok(serde_json::to_string(&serde_json::json!({
-            "validMoves": valid_moves_json,
-            "gameOver": game_over,
+            "valid_moves": valid_moves_json,
+            "game_over": game_over,
         }))?)
     }
 
@@ -880,7 +905,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
                         Some(serde_json::json!({
                             "color": piece.color_name(),
-                            "pieceType": piece.piece_type_name(),
+                            "piece_type": piece.piece_type_name(),
                         }))
                     })
                     .collect();
@@ -901,7 +926,7 @@ fn serialize_ui_to_json(ui_map: &rhai::Map) -> Result<serde_json::Value, CvError
                         let piece: Piece = d.clone().try_cast::<Piece>()?;
                         Some(serde_json::json!({
                             "color": piece.color_name(),
-                            "pieceType": piece.piece_type_name(),
+                            "piece_type": piece.piece_type_name(),
                         }))
                     })
                     .collect();
@@ -1016,7 +1041,7 @@ mod tests {
         let mut engine = new_engine(&chess_script());
         let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
-        let all = v["validMoves"].as_array().expect("validMoves array");
+        let all = v["valid_moves"].as_array().expect("valid_moves array");
         assert_eq!(all.len(), 2, "should have moves for 2 players");
         // Find white player's moves (id=0)
         let white = all
@@ -1038,7 +1063,7 @@ mod tests {
         let mut engine = new_engine(&chess_script());
         let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
-        let all = v["validMoves"].as_array().expect("validMoves array");
+        let all = v["valid_moves"].as_array().expect("valid_moves array");
         // Only the active player (white, id=0, turn=0) should have moves
         let white = all
             .iter()
@@ -1082,7 +1107,7 @@ mod tests {
             .valid_moves_all_json()
             .expect("valid_moves_all_json after move");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
-        let all = v["validMoves"].as_array().expect("validMoves array");
+        let all = v["valid_moves"].as_array().expect("valid_moves array");
         // White's moves should be empty (not white's turn)
         let white = all
             .iter()
@@ -1246,10 +1271,10 @@ mod tests {
         let mut engine = new_engine(&chess_script());
         let vm = engine.valid_moves_all_json().expect("valid_moves_all_json");
         let v: serde_json::Value = serde_json::from_str(&vm).expect("parse");
-        // Game is in progress — gameOver should be null
+        // Game is in progress — game_over should be null
         assert!(
-            v["gameOver"].is_null(),
-            "gameOver should be null for in-progress game"
+            v["game_over"].is_null(),
+            "game_over should be null for in-progress game"
         );
         assert_eq!(engine.player_count(), 2);
     }

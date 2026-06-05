@@ -41,11 +41,11 @@ const RESERVE_PADDING = 6;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function coordsEq(a: WasmBoardCoords, b: WasmBoardCoords): boolean {
-  return a.row === b.row && a.col === b.col && a.boardIndex === b.boardIndex;
+  return a.row === b.row && a.col === b.col && a.board_index === b.board_index;
 }
 
 function mkBoardCoords(row: number, col: number, boardIndex: number): WasmBoardCoords {
-  return { type: "board", row, col, boardIndex };
+  return { type: "board", row, col, board_index: boardIndex };
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -540,14 +540,14 @@ export class PixiBoard {
           coordsEq(a.from, activeSource) &&
           isBoardCoords(a.to)
         ) {
-          validTargets.add(`${a.to.boardIndex},${a.to.row},${a.to.col}`);
+          validTargets.add(`${a.to.board_index},${a.to.row},${a.to.col}`);
         }
       }
     }
     if (selectedDropPiece) {
       for (const a of validMoves) {
         if (a.type === "move" && a.from.type === "reserve" && isBoardCoords(a.to)) {
-          validTargets.add(`${a.to.boardIndex},${a.to.row},${a.to.col}`);
+          validTargets.add(`${a.to.board_index},${a.to.row},${a.to.col}`);
         }
       }
     }
@@ -611,7 +611,7 @@ export class PixiBoard {
     const pickable = new Set<string>();
     for (const a of validMoves) {
       if (a.type === "move" && isBoardCoords(a.from))
-        pickable.add(`${a.from.boardIndex},${a.from.row},${a.from.col}`);
+        pickable.add(`${a.from.board_index},${a.from.row},${a.from.col}`);
     }
 
     type DesiredEntry = { piece: WasmPiece; x: number; y: number; canDrag: boolean; sl: SlotLayout };
@@ -644,7 +644,7 @@ export class PixiBoard {
     }
 
     for (const [key, { piece, x, y, canDrag, sl }] of desired) {
-      const url = getPieceImageUrl(piece.color, piece.pieceType);
+      const url = getPieceImageUrl(piece.color, piece.piece_type);
       const tex = url ? (this.textureCache.get(url) ?? null) : null;
       if (!tex) continue;
 
@@ -655,7 +655,7 @@ export class PixiBoard {
       const col = Number(m[2]);
       const isDragOrigin =
         this.dragOrigin != null &&
-        this.dragOrigin.boardIndex === sl.boardIndex &&
+        this.dragOrigin.board_index === sl.boardIndex &&
         this.dragOrigin.row === row &&
         this.dragOrigin.col === col;
 
@@ -755,7 +755,7 @@ export class PixiBoard {
       for (const { elementId, pile } of piles) {
         for (let idx = 0; idx < pile.pieces.length; idx++) {
           const piece = pile.pieces[idx];
-          const url = getPieceImageUrl(piece.color, piece.pieceType);
+          const url = getPieceImageUrl(piece.color, piece.piece_type);
           const tex = url ? (this.textureCache.get(url) ?? null) : null;
           if (!tex) continue;
 
@@ -773,7 +773,7 @@ export class PixiBoard {
           if (
             selectedDropPiece &&
             selectedDropPiece.color === piece.color &&
-            selectedDropPiece.pieceType === piece.pieceType
+            selectedDropPiece.piece_type === piece.piece_type
           ) {
             sprite.tint = 0x88bbff;
           }
@@ -820,7 +820,7 @@ export class PixiBoard {
     }
 
     // Merge pieces from all picker entries; use first non-default cancel/title
-    const pieces: { color: string; pieceType: string }[] = [];
+    const pieces: WasmPiece[] = [];
     let showCancel = true;
     let title = "";
     for (const el of pickerEls) {
@@ -904,7 +904,7 @@ export class PixiBoard {
     const piecesStartX = cardX + cardPadding;
     for (let i = 0; i < pieces.length; i++) {
       const piece = pieces[i];
-      const url = getPieceImageUrl(piece.color, piece.pieceType);
+      const url = getPieceImageUrl(piece.color, piece.piece_type);
       const tex = url ? (this.textureCache.get(url) ?? null) : null;
       if (!tex) continue;
 
@@ -1228,7 +1228,7 @@ export class PixiBoard {
               coordsEq(a.to, target)
           );
           if (action) {
-            const piece = this.getDisplayPiece(savedOrigin.row, savedOrigin.col, savedOrigin.boardIndex);
+            const piece = this.getDisplayPiece(savedOrigin.row, savedOrigin.col, savedOrigin.board_index);
             if (piece && isBoardCoords(action.to)) {
               this.onPendingMove({ from: savedOrigin, piece, to: action.to });
             }

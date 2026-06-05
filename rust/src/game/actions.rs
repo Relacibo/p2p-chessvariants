@@ -9,7 +9,7 @@ use super::{piece::Piece, state::Coords};
 ///   - `interact`:      element_id is the UI element being activated
 ///   - `cancel`:        abort a multi-step pending action
 #[derive(Clone, Debug, Default, Deserialize, Serialize, CustomType, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct Action {
     #[serde(rename = "type")]
     #[rhai_type(name = "type", get = Self::get_type, readonly)]
