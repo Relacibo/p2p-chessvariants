@@ -151,6 +151,19 @@ export function DevBoardView() {
     handleSubmitAction: handleSubmitActionRaw,
   } = useChessGame();
 
+  // Listen for test-script messages from the pop-out variant editor
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "cv-test-script" && typeof e.data.script === "string") {
+        const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
+        loadScriptContentRaw(e.data.script, n);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [loadScriptContentRaw, playerCount]);
+
   // selectedPlayers persisted in URL state
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>(
     () => initUrl.sel ?? []
