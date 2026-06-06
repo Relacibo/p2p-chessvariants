@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   ActionIcon,
   Alert,
   Button,
   Checkbox,
   Combobox,
-  Divider,
   Group,
   Input,
   InputBase,
@@ -20,13 +19,13 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
-import { useNavigate } from "react-router-dom";
 import {
   IconAlertCircle,
   IconBrandGithub,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
+import { useState } from "react";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { selectToken } from "../auth/authSlice";
 import {
@@ -96,7 +95,7 @@ function AddCustomVariantModal({
   );
 }
 
-function CreateLobbyForm({ guestDisplayName }: { guestDisplayName?: string }) {
+function CreateLobbyForm() {
   const dispatch = useDispatch();
   const status = useSelector(selectLobbyStatus);
   const token = useSelector(selectToken);
@@ -123,12 +122,17 @@ function CreateLobbyForm({ guestDisplayName }: { guestDisplayName?: string }) {
       scriptUrl: "",
       useServerLobby: !!token,
       allowGuests: true,
+      displayName: "",
     },
     validate: {
       scriptUrl: (v) => {
         if (!v.trim()) return "Variant is required";
         const result = parseScriptUrl(v.trim());
         if (!result.ok) return scriptUrlErrorMessage(result.error);
+        return null;
+      },
+      displayName: (v) => {
+        if (!token && !v.trim()) return "Display name is required";
         return null;
       },
     },
@@ -177,15 +181,14 @@ function CreateLobbyForm({ guestDisplayName }: { guestDisplayName?: string }) {
     <>
       <form
         onSubmit={form.onSubmit(
-          ({ scriptUrl, useServerLobby }) => {
+          ({ scriptUrl, useServerLobby, displayName }) => {
             const normalized = normalizeScriptUrl(scriptUrl.trim());
-            const displayName = guestDisplayName?.trim() || undefined;
             dispatch(
               createLobby(
                 normalized,
                 !!token && useServerLobby,
                 form.values.allowGuests,
-                displayName,
+                displayName.trim() || undefined,
               ),
             );
           },
@@ -258,6 +261,13 @@ function CreateLobbyForm({ guestDisplayName }: { guestDisplayName?: string }) {
             </Tooltip>
           </Group>
 
+          {!token && (
+            <TextInput
+              label="Display Name"
+              placeholder="Guest Player"
+              {...form.getInputProps("displayName")}
+            />
+          )}
           <Tooltip
             label={token ? "" : "Login required for server lobby"}
             disabled={!!token}
@@ -265,7 +275,11 @@ function CreateLobbyForm({ guestDisplayName }: { guestDisplayName?: string }) {
             <div>
               <Checkbox
                 label="Create server lobby"
-                description="Enable server-side lobby tracking/events"
+                description={
+                  token
+                    ? "Enable server-side lobby tracking/events"
+                    : "Server lobbies require login"
+                }
                 disabled={!token}
                 {...form.getInputProps("useServerLobby", { type: "checkbox" })}
               />
@@ -293,63 +307,8 @@ function CreateLobbyForm({ guestDisplayName }: { guestDisplayName?: string }) {
   );
 }
 
-/** Guest name entry (no server call — local only). Styled like GuestAuthView. */
-function GuestNameEntry({ onName }: { onName: (name: string) => void }) {
-  const navigate = useNavigate();
-  const guestForm = useForm({
-    initialValues: { displayName: "" },
-    validate: {
-      displayName: (v) =>
-        v.trim().length > 0 ? null : "Display name is required",
-    },
-  });
-
-  const loginRedirect = `/auth/login?redirect=${encodeURIComponent(location.pathname)}`;
-
-  return (
-    <Stack>
-      <Title order={3}>Create Lobby as Guest</Title>
-      <Button variant="default" onClick={() => navigate(loginRedirect)}>
-        Login with account
-      </Button>
-      <Divider label="or continue as guest" labelPosition="center" />
-      <form onSubmit={guestForm.onSubmit((v) => onName(v.displayName.trim()))}>
-        <Stack>
-          <TextInput
-            label="Display Name"
-            placeholder="Guest Player"
-            {...guestForm.getInputProps("displayName")}
-          />
-          <Button type="submit">Continue</Button>
-        </Stack>
-      </form>
-    </Stack>
-  );
-}
-
 export default function CreateLobbyView() {
   const status = useSelector(selectLobbyStatus);
-  const token = useSelector(selectToken);
-
-  const [guestDisplayName, setGuestDisplayName] = useState<string | null>(null);
-
-  // Guests see a name-entry screen first; authenticated users go straight to the form.
-  if (!token && !guestDisplayName) {
-    return (
-      <Paper p="md" shadow="xs" maw={480} mx="auto">
-        {status.phase === "error" && (
-          <Alert
-            icon={<IconAlertCircle size="1rem" />}
-            color="red"
-            title="Error"
-          >
-            {status.message}
-          </Alert>
-        )}
-        <GuestNameEntry onName={setGuestDisplayName} />
-      </Paper>
-    );
-  }
 
   return (
     <Paper p="md" shadow="xs">
@@ -364,7 +323,7 @@ export default function CreateLobbyView() {
           </Alert>
         )}
         {status.phase === "idle" && <Title order={3}>Create Lobby</Title>}
-        <CreateLobbyForm guestDisplayName={guestDisplayName ?? undefined} />
+        <CreateLobbyForm />
       </Stack>
     </Paper>
   );
