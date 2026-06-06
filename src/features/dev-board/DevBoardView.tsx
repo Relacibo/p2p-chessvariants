@@ -18,6 +18,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { useCombobox } from "@mantine/core";
 import {
   IconBrandGithub,
+  IconCode,
   IconPlayerSkipBack,
   IconSettings,
   IconTrash,
@@ -27,6 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import useConfigureLayout from "../layout/hooks";
+import VariantEditorModal from "../variant-editor/VariantEditorModal";
 import { useChessGame } from "../chessboard/useChessGame";
 import style from "./DevBoardView.module.css";
 import {
@@ -113,6 +115,8 @@ export function DevBoardView() {
 
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(initUrl.panel === 1);
+  const [editorOpen, { open: openEditor, close: closeEditor }] =
+    useDisclosure(false);
 
   const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(
     null
@@ -143,6 +147,7 @@ export function DevBoardView() {
     setSelectedDropPiece,
     syncState,
     loadScript: loadScriptRaw,
+    loadScriptContent: loadScriptContentRaw,
     handleSubmitAction: handleSubmitActionRaw,
   } = useChessGame();
 
@@ -656,6 +661,14 @@ export function DevBoardView() {
           >
             Load / Restart
           </Button>
+          <Button
+            variant="light"
+            leftSection={<IconCode size="0.85rem" />}
+            onClick={openEditor}
+            fullWidth
+          >
+            Variant Editor
+          </Button>
 
           <MultiSelect
             label="Controlling players (local)"
@@ -910,6 +923,16 @@ export function DevBoardView() {
           </ScrollArea>
         </Paper>
       </Box>
+
+      {/* Variant Editor Modal */}
+      <VariantEditorModal
+        opened={editorOpen}
+        onClose={closeEditor}
+        onTest={(script) => {
+          const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
+          loadScriptContentRaw(script, n);
+        }}
+      />
     </Box>
   );
 }

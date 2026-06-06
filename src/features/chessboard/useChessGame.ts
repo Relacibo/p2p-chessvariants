@@ -51,6 +51,8 @@ export interface UseChessGameResult {
   setSelectedDropPiece: React.Dispatch<React.SetStateAction<WasmPiece | null>>;
   syncState: (proxy: EngineProxy, playerRefOverride?: string) => Promise<void>;
   loadScript: (url: string, numPlayers: number, setupJson?: string) => Promise<void>;
+  /** Load a script directly from its content (no URL fetch). For variant editor. */
+  loadScriptContent: (scriptContent: string, numPlayers: number, setupJson?: string) => Promise<void>;
   /**
    * Submit a local action. `actorPlayerRef` is the JSON PlayerRef of the acting
    * player. After a successful submit the `onActionSubmitted` callback fires.
@@ -152,6 +154,56 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
         const script = await fetchScriptText(url);
         const proxy = new EngineProxy();
         const init = await proxy.init(script, numPlayers, setupJson);
+        proxyRef.current = proxy;
+        setVariantConfig(vld(VariantConfigSchema, init.variant_config, "variant_config") as WasmVariantConfig);
+        setBoardState(vld(BoardStateSchema, init.board_state, "board_state") as WasmBoardState);
+        const initialValid = init.valid_moves as WasmPlayerMoves[];
+        setValidMovesAll(initialValid);
+        setActivePlayers(deriveActivePlayers(initialValid));
+        const firstActive = deriveActivePlayers(initialValid)[0];
+        const firstPlayer = controllingPlayerRefRef.current
+          ?? (firstActive?.id != null ? String(firstActive.id) : "");
+        await syncState(proxy, firstPlayer || undefined);
+      } catch (e: unknown) {
+        const msg =
+          e instanceof Error
+            ? e.message
+            : typeof e === "string"
+              ? e
+              : JSON.stringify(e);
+        notifications.show({
+          title: "Load failed",
+          message: msg,
+          color: "red",
+          withBorder: true,
+          autoClose: false,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [syncState, deriveActivePlayers],
+  );
+
+  const loadScriptContent = useCallback(
+    async (scriptContent: string, numPlayers: number, setupJson?: string): Promise<void> => {
+      proxyRef.current?.terminate();
+      proxyRef.current = null;
+      notifications.clean();
+      setLoading(true);
+      setLastAction(undefined);
+      setSelectedDropPiece(null);
+      setVariantConfig(null);
+      setBoardState(null);
+      setValidMoves([]);
+      setValidMovesAll([]);
+      setUiElements(null);
+      setGameOver(null);
+      setAllPlayers([]);
+      setActivePlayers([]);
+      try {
+        const proxy = new EngineProxy();
+        const init = await proxy.init(scriptContent, numPlayers, setupJson);
         proxyRef.current = proxy;
         setVariantConfig(vld(VariantConfigSchema, init.variant_config, "variant_config") as WasmVariantConfig);
         setBoardState(vld(BoardStateSchema, init.board_state, "board_state") as WasmBoardState);
@@ -298,6 +350,7 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
     setSelectedDropPiece,
     syncState,
     loadScript,
+    loadScriptContent,
     handleSubmitAction,
     applyRemoteAction,
   };
