@@ -557,7 +557,7 @@ derive_game_progress(new_state, all_valid_moves) → GameProgress
 
 ### `engine::moves` — Pure-Geometry Move Generators
 
-The engine provides **unbiased geometry helpers**. All piece-specific rules (pawn direction, capture conditions, en passant) are defined in the script via conditions (see the [`PIECE_DEFS` convention](#the-piece_defs-convention)).
+The engine provides **unbiased geometry helpers**. All piece-specific rules (pawn direction, capture conditions, en passant) are defined in the script via conditions (see the [`PieceDefs` type](#the-piece_defs-type)).
 
 #### Generic helpers (composable by scripts)
 
