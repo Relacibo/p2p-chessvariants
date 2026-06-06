@@ -153,9 +153,9 @@ export const BoardScriptConfigSchema = z.object({
 
 /** Loose validation of the player count field — handles `number | number[] | { min, max, step? }`. */
 export const AllowedPlayerCountSchema = z.union([
-  z.number(),
-  z.array(z.number()),
-  z.object({ min: z.number(), max: z.number(), step: z.number().optional() }),
+  z.object({ exact: z.number() }),
+  z.object({ discrete: z.array(z.number()) }),
+  z.object({ range: z.object({ min: z.number(), max: z.number(), step: z.number().optional() }) }),
 ]);
 
 export const VariantConfigSchema = z.object({

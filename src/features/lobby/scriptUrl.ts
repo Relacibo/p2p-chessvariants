@@ -161,13 +161,13 @@ export type ScriptConfig = {
  * Extract min/max players from the allowed_player_count field.
  */
 export function getPlayersRange(apc: WasmVariantConfig["allowed_player_count"]): { min: number; max: number } {
-  if (typeof apc === "number") {
-    return { min: apc, max: apc };
+  if ("exact" in apc) {
+    return { min: apc.exact, max: apc.exact };
   }
-  if (Array.isArray(apc)) {
-    return { min: Math.min(...apc), max: Math.max(...apc) };
+  if ("discrete" in apc) {
+    return { min: Math.min(...apc.discrete), max: Math.max(...apc.discrete) };
   }
-  return { min: apc.min, max: apc.max };
+  return { min: apc.range.min, max: apc.range.max };
 }
 
 export async function parseScriptConfig(url: string): Promise<ScriptConfig> {

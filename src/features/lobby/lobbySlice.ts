@@ -12,7 +12,7 @@ import type { AppThunk, RootState } from "../../app/store";
 import { selectToken, selectUser, login } from "../auth/authSlice";
 import { fetchAndParseFullConfig, parseScriptConfig } from "./scriptUrl";
 import type { WasmVariantConfig } from "../chessboard/types";
-import { getMaxSlots, isValidPlayerCount } from "./playerCountUtils";
+import { getMaxSlots, getMinPlayers, isValidPlayerCount } from "./playerCountUtils";
 
 export type LobbyPlayer = {
   userId: string;
@@ -404,18 +404,8 @@ export function createLobby(
         const scriptConfig = variantConfig
           ? {
               name: variantConfig.name,
-              minPlayers:
-                typeof variantConfig.allowed_player_count === "number"
-                  ? variantConfig.allowed_player_count
-                  : Array.isArray(variantConfig.allowed_player_count)
-                    ? Math.min(...variantConfig.allowed_player_count)
-                    : variantConfig.allowed_player_count.min,
-              maxPlayers:
-                typeof variantConfig.allowed_player_count === "number"
-                  ? variantConfig.allowed_player_count
-                  : Array.isArray(variantConfig.allowed_player_count)
-                    ? Math.max(...variantConfig.allowed_player_count)
-                    : variantConfig.allowed_player_count.max,
+              minPlayers: getMinPlayers(variantConfig.allowed_player_count),
+              maxPlayers: getMaxSlots(variantConfig.allowed_player_count),
             }
           : await parseScriptConfig(scriptUrl);
         const res = await dispatch(

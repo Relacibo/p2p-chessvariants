@@ -85,11 +85,11 @@ export interface WasmVariantConfig {
   board: WasmBoardScriptConfig;
 }
 
-/** Player count specification from the script config. */
+/** Player count specification from the script config (serde tagged enum). */
 export type AllowedPlayerCount =
-  | number
-  | number[]
-  | { min: number; max: number; step?: number };
+  | { exact: number }
+  | { discrete: number[] }
+  | { range: { min: number; max: number; step?: number } };
 
 // ─── v2 UI Element types (from deriveUiJson / submitAction result) ──
 
@@ -161,7 +161,7 @@ export interface PlayerRef {
 export function getDefaultPlayerCount(
   allowed: AllowedPlayerCount
 ): number {
-  if (typeof allowed === "number") return allowed;
-  if (Array.isArray(allowed)) return allowed[0] ?? 2;
-  return allowed.min ?? 2;
+  if ("exact" in allowed) return allowed.exact;
+  if ("discrete" in allowed) return allowed.discrete[0] ?? 2;
+  return allowed.range.min ?? 2;
 }

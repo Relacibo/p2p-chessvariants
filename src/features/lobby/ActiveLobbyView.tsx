@@ -321,7 +321,7 @@ export default function ActiveLobbyView() {
                 ? players.find((p) => p.userId === holder) ?? null
                 : null;
               const slotLabel = getSlotLabel(
-                allowedPlayerCount ?? 2,
+                allowedPlayerCount ?? { exact: 2 },
                 i,
                 colors,
               );

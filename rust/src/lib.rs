@@ -1078,7 +1078,7 @@ mod tests {
         let config = engine.variant_config_json().expect("variant_config_json");
         let v: serde_json::Value = serde_json::from_str(&config).expect("parse config JSON");
         assert_eq!(v["name"], "Chess");
-        assert_eq!(v["allowed_player_count"], 2);
+        assert_eq!(v["allowed_player_count"]["exact"], 2);
         assert_eq!(v["board"]["rows"], 8);
         assert_eq!(v["board"]["cols"], 8);
         assert_eq!(v["board"]["count"], 1);
