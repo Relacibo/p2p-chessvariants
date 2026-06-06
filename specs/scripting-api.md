@@ -287,44 +287,97 @@ fn handle_action(state, player, action) {
 
 ## 3. Script-Level Declarations
 
-Beyond the functions above, a script may declare top-level `let`/`const` values. After `run_ast_with_scope()` evaluates the script, the engine extracts **all** top-level scope variables and registers them as a global module, making them visible to every function call without being stored in game state. This is also what lets closures inside those values (e.g. `condition: |s,f,t| ...`) resolve engine helpers.
+Beyond the functions above, a script may declare top-level `let` values. After `run_ast_with_scope()` evaluates the script, the engine extracts **all** top-level scope variables and registers them as a global module, making them visible to every function call without being stored in game state. This is also what lets closures inside those values (e.g. `condition: |s,f,t| ...`) resolve engine helpers.
 
-This mechanism is generic — there is no special `PIECE_DEFS` concept in the engine. `PIECE_DEFS` is simply the **conventional name** scripts use for their per-piece movement data. Omission is fine: scripts that don't need it (e.g. simple test scripts) just skip it.
+This mechanism is generic — `PIECE_DEFS` is simply the **conventional name** used here. Omission is fine: scripts that don't need it just skip it.
 
-### The `PIECE_DEFS` convention
+### The `PieceDefs` type
+
+A Rust-side custom type exposed as a global constructor `PieceDefs()`. Replaces the old string-keyed `PIECE_DEFS` map. Stores per-piece movement components with built-in color-aware lookup that returns `()` (Rhai's unit / `None` equivalent) when nothing matches.
+
+**Constructor:**
+- `PieceDefs()` — empty collection
+- `PieceDefs([entry, ...])` — from an array of entry maps
+
+**Entry map format** (`#{ type, color?, def }`):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | YES | Piece type, e.g. `"king"`, `"pawn"` |
+| `color` | string | optional | Color identifier; if absent, entry applies to all colors |
+| `def` | `[component]` | YES | Array of movement components (see below) |
+
+**Component map format** (`#{ type, offsets?, dirs?, condition? }`):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `"jump"` or `"slide"` | YES | Movement class |
+| `offsets` | `[[i32,i32]]` | for `"jump"` | Leap vectors |
+| `dirs` | `[[i32,i32]]` | for `"slide"` | Direction vectors |
+| `condition` | `\|s, f, t\| -> bool` | optional | Filter destinations via `engine::board::get` and state keys |
+
+**Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `get(piece)` | `(Piece) -> [component] \| ()` | Lookup by piece; precedence: color-specific → type-only → `()` |
+| `get(selector)` | `(#{type, color?}) -> [component] \| ()` | Lookup by explicit selector map |
+| `insert(type, def)` | `(&str, [component])` | Set/overwrite color-agnostic definitions |
+| `insert(type, color, def)` | `(&str, &str, [component])` | Set/overwrite color-specific definitions |
+
+**Precedence:** `get(piece)` first looks for `(piece_type, piece_color)`, then falls back to `piece_type` alone. Returns `()` when nothing is defined. Type-only and color-specific entries for the same type are **mutually exclusive** — the constructor rejects mixed entries.
+
+**Example:**
 
 ```rhai
-const PIECE_DEFS = #{
-    "king": [...],
-    "pawn:white": [...],
-    // ...
-};
+let PIECE_DEFS = PieceDefs([
+    // Color-agnostic: all colors share this definition
+    #{ type: "king",   def: [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }] },
+    #{ type: "queen",  def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+    #{ type: "rook",   def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }] },
+    #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+    #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
+
+    // Color-specific: each color gets its own definition
+    #{ type: "pawn", color: "white", def: [
+         #{ type: "jump", offsets: [[-1, 0]],        condition: |s,f,t| engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[-2, 0]],        condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[-1,-1],[-1,1]], condition: |s,f,t| { let target = engine::board::get(s.board, t); let my = engine::board::get(s.board, f); target == () || target.color != my.color } },
+    ]},
+    #{ type: "pawn", color: "black", def: [
+         #{ type: "jump", offsets: [[1, 0]],        condition: |s,f,t| engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[2, 0]],        condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[1,-1],[1,1]],  condition: |s,f,t| { let target = engine::board::get(s.board, t); let my = engine::board::get(s.board, f); target == () || target.color != my.color } },
+    ]},
+]);
+
+// Usage in get_pseudo_dests — no helper function needed:
+fn get_pseudo_dests(board, from, state) {
+    let piece = engine::board::get(board, from);
+    if piece == () { return []; }
+    let comps = PIECE_DEFS.get(piece);   // ← color-aware lookup, returns () if unknown
+    if comps == () { return []; }
+    // ... dispatch comp.type to engine::moves::jump / slide ...
+}
 ```
-
-Each key is `"{type}"` (all colors) or `"{type}:{color}"` (color-specific, takes precedence). Each value is an array of movement components:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | `"jump"` or `"slide"` | Movement class |
-| `offsets` | `[[i32,i32]]` | Leap vectors (for jump) |
-| `dirs` | `[[i32,i32]]` | Direction vectors (for slide) |
-| `condition` | `\|s, f, t\| -> bool` (optional) | Filter destinations via `engine::board::get` and state keys |
-
-Scripts feed these into [`engine::moves::jump`/`slide`](#enginemoves--pure-geometry-move-generators) to generate candidates, filter with conditions, then validate via king-safety checks.
 
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
-const PIECE_DEFS = #{
+let PIECE_DEFS = PieceDefs([
     // ... standard pieces (king, queen, etc.) ...
-    "pawn:yellow": [
-        #{ type: "jump", offsets: [[1, 0]],        condition: |s,f,t| engine::board::get(s.board, t) == () },
-        #{ type: "jump", offsets: [[2, 0]],        condition: |s,f,t| f.row == 1 && ... },
-        #{ type: "jump", offsets: [[1,-1],[1,1]],  condition: |s,f,t| { /* enemy capture */ } },
-    ],
-    "pawn:green": [ /* moves west  */ ],
-    "pawn:red":   [ /* moves north */ ],
-    "pawn:blue":  [ /* moves east  */ ],
-};
+    #{ type: "pawn", color: "yellow", def: [ /* moves south */ ] },
+    #{ type: "pawn", color: "green",  def: [ /* moves west  */ ] },
+    #{ type: "pawn", color: "red",    def: [ /* moves north */ ] },
+    #{ type: "pawn", color: "blue",   def: [ /* moves east  */ ] },
+]);
+```
+
+**Procedural construction** (alternative to the array literal):
+```rhai
+let defs = PieceDefs();
+defs.insert("king", [#{ type: "jump", offsets: [[1,0],...] }]);
+defs.insert("pawn", "white", [#{ type: "jump", offsets: [[-1,0]], ... }]);
+defs.insert("pawn", "black", [#{ type: "jump", offsets: [[1,0]], ... }]);
 ```
 
 ---

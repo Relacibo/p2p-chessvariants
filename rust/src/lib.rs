@@ -72,6 +72,7 @@ fn register_builtins(engine: &mut Engine) {
         .build_type::<game::state::ReservePileState>()
         .build_type::<BoardCoords>()
         .build_type::<Piece>()
+        .build_type::<game::piece_defs::PieceDefs>()
         .build_type::<game::variant_config::BoardLayoutConfig>()
         .build_type::<Action>()
         .build_type::<Player>()
@@ -137,6 +138,9 @@ fn register_builtins(engine: &mut Engine) {
         .register_get("col", Coords::get_col_mut)
         .register_get("board_index", Coords::get_board_index_mut)
         .register_get("index", Coords::get_index_mut);
+
+    engine.register_fn("PieceDefs", game::piece_defs::PieceDefs::new_empty);
+    engine.register_fn("PieceDefs", game::piece_defs::PieceDefs::new_from_array);
 
     // ── Legacy global aliases (backward compat for existing variant scripts) ──
     engine.register_fn("board_empty", BoardState::board_empty);

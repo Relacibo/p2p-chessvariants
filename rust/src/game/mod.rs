@@ -3,6 +3,7 @@ pub mod board;
 pub mod game_progress;
 pub mod moves;
 pub mod piece;
+pub mod piece_defs;
 pub mod standard;
 pub mod state;
 pub mod ui;

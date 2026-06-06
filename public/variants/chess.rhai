@@ -6,45 +6,38 @@ fn config() {
        allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
 }
 
-const PIECE_DEFS = #{
-            "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
-            "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
-            "rook": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }],
-            "bishop": [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }],
-            "knight": [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }],
-            "pawn:white": [
-                 #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-                 #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
-                 #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
-                     let target = engine::board::get(s.board, t);
-                     let my = engine::board::get(s.board, f);
-                     target == () || target.color != my.color
-                 } },
-            ],
-            "pawn:black": [
-                 #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-                 #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
-                 #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
-                     let target = engine::board::get(s.board, t);
-                     let my = engine::board::get(s.board, f);
-                     target == () || target.color != my.color
-                 } },
-            ],
-        };
+let PIECE_DEFS = PieceDefs([
+    #{ type: "king",   def: [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }] },
+    #{ type: "queen",  def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+    #{ type: "rook",   def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }] },
+    #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+    #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
+    #{ type: "pawn", color: "white", def: [
+         #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
+             let target = engine::board::get(s.board, t);
+             let my = engine::board::get(s.board, f);
+             target == () || target.color != my.color
+         } },
+    ]},
+    #{ type: "pawn", color: "black", def: [
+         #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
+         #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
+             let target = engine::board::get(s.board, t);
+             let my = engine::board::get(s.board, f);
+             target == () || target.color != my.color
+         } },
+    ]},
+]);
 
-
-fn get_piece_defs(piece) {
-    let color_key = piece.type + ":" + piece.color;
-    if color_key in PIECE_DEFS { return PIECE_DEFS[color_key]; }
-    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
-    [];
-}
 
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from);
     if piece == () { return []; }
-    let comps = get_piece_defs(piece);
-    if comps == () || comps.len == 0 { return []; }
+    let comps = PIECE_DEFS.get(piece);
+    if comps == () { return []; }
     let dests = [];
     for comp in comps {
         let raw = switch comp.type {
@@ -76,11 +69,20 @@ fn is_in_check(board, king_color, enemy_colors, state) {
     sq_attacked_by(board, king_pos[0], enemy_colors, state)
 }
 
-fn init(player_count) {
-    #{ board: standard_start_position(),
-       players: [#{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
-                 #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } }],
-       turn: 0, castling_rights: #{ wk: true, wq: true, bk: true, bq: true }, en_passant: () }
+fn setup_players(variant_config, player_count) {
+    #{
+        players: [
+            #{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } },
+        ]
+    }
+}
+
+fn init(variant_config, setup) {
+    #{
+        board: standard_start_position(),
+        data: #{ turn: 0, castling_rights: #{ wk: true, wq: true, bk: true, bq: true }, en_passant: () }
+    }
 }
 
 fn valid_moves(state, player) {

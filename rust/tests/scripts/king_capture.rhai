@@ -1,19 +1,14 @@
 // Minimal board for game-over / king-capture tests.
 fn config() { #{ api_version: 1, name: "King Capture Test", version: "2.0.0", colors: ["white", "black"], allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } } }
 
-const PIECE_DEFS = #{
-            "king": [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }],
-            "queen": [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }],
-        };
-
-fn get_piece_defs(piece) {
-    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
-    [];
-}
+let PIECE_DEFS = PieceDefs([
+    #{ type: "king",  def: [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }] },
+    #{ type: "queen", def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+]);
 
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }
-    let comps = get_piece_defs(piece); if comps == () || comps.len == 0 { return []; }
+    let comps = PIECE_DEFS.get(piece); if comps == () { return []; }
     let dests = [];
     for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; for d in raw { dests.push(d); } }
     dests
