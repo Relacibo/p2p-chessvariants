@@ -39,7 +39,6 @@ import {
   WasmPlayerMoves,
   WasmUiMap,
   WasmVariantConfig,
-  isBoardCoords,
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
 import { selectAllVariants, VariantEntry } from "../lobby/variantsSlice";
@@ -63,23 +62,21 @@ let logSeq = 0;
 /** Determine which selected player should act. Returns first selected player. */
 function getActingPlayer(
   action: WasmAction,
-  boardState: WasmBoardState,
-  allPlayers: WasmPlayerConfig[],
+  validMovesAll: WasmPlayerMoves[],
 ): string | null {
-  // For move actions, determine the player by the piece at the source square
-  if (action.type === "move" && isBoardCoords(action.from)) {
-    const board = boardState.boards[action.from.board_index ?? 0];
-    if (!board) return null;
-    const piece = board[action.from.row * boardState.cols + action.from.col];
-    if (piece) {
-      const player = allPlayers.find((p) => p.data?.color === piece.color);
-      if (player) return String(player.id);
+  // A move belongs to the player whose valid_moves list contains it.
+  // Compare by JSON so we don't depend on WasmAction reference equality.
+  const actionJson = JSON.stringify(action);
+  for (const pm of validMovesAll) {
+    if (pm.moves.some((m) => JSON.stringify(m) === actionJson)) {
+      return String(pm.player);
     }
   }
-  // For select_piece actions, use the piece's color
-  if (action.type === "select_piece" && action.piece?.color) {
-    const player = allPlayers.find((p) => p.data?.color === action.piece.color);
-    if (player) return String(player.id);
+  // Fallback: if no player has this move in their valid_moves, try
+  // select_piece/cancel actions — use the first player with any moves.
+  if (action.type === "select_piece" || action.type === "cancel") {
+    const active = validMovesAll.find((pm) => pm.moves.length > 0);
+    if (active) return String(active.player);
   }
   return null;
 }
@@ -463,10 +460,10 @@ export function DevBoardView() {
       const proxy = proxyRef.current;
       if (!proxy || selectedPlayers.length === 0) return;
 
-      // Determine which player to act as (based on the piece being moved)
+      // Determine which player to act as (find whose valid_moves contain this action)
       const actor =
-        boardState && allPlayers.length > 0
-          ? getActingPlayer(action, boardState, allPlayers)
+        validMovesAll.length > 0
+          ? getActingPlayer(action, validMovesAll)
           : null;
       const actingPlayer = actor ?? controllingPlayer ?? selectedPlayers[0];
       if (!actingPlayer) return;
@@ -488,7 +485,7 @@ export function DevBoardView() {
       // Delegate engine interaction to the hook
       await handleSubmitActionRaw(actingPlayer, action);
     },
-    [proxyRef, selectedPlayers, boardState, allPlayers, controllingPlayer, addLogEntry, handleSubmitActionRaw],
+    [proxyRef, selectedPlayers, boardState, allPlayers, controllingPlayer, validMovesAll, addLogEntry, handleSubmitActionRaw],
   );
 
   const filteredVariants = variants.filter((v) =>
