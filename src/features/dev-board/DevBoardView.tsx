@@ -151,19 +151,6 @@ export function DevBoardView() {
     handleSubmitAction: handleSubmitActionRaw,
   } = useChessGame();
 
-  // Listen for test-script messages from the pop-out variant editor
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return;
-      if (e.data?.type === "cv-test-script" && typeof e.data.script === "string") {
-        const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
-        loadScriptContentRaw(e.data.script, n);
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [loadScriptContentRaw, playerCount]);
-
   // selectedPlayers persisted in URL state
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>(
     () => initUrl.sel ?? []
@@ -388,37 +375,55 @@ export function DevBoardView() {
       const urlPreselection = readUrlState(searchParams).sel;
       setLocalOrientationOverride({});
       await loadScriptRaw(url, numPlayers);
-
-      // Restore selected players from URL + set controlling player
-      const proxy = proxyRef.current;
-      if (proxy) {
-        const [allValid, allP] = await Promise.all([
-          proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
-          proxy.playersJson() as Promise<WasmPlayerConfig[]>,
-        ]);
-        // Set controllingPlayer to first active player's numeric ID
-        const active = allValid
-          .filter((pa) => pa.moves.length > 0)
-          .map((pa) => pa.player);
-        if (active.length > 0) {
-          setControllingPlayer(String(active[0]));
-        }
-        // Restore selected players from URL
-        if (urlPreselection && urlPreselection.length > 0) {
-          const idSet = new Set(urlPreselection.map(Number));
-          const restored = allP
-            .filter((p) => idSet.has(p.id))
-            .map((p) => String(p.id));
-          setSelectedPlayers(restored.length > 0 ? restored : urlPreselection);
-        } else {
-          setSelectedPlayers(
-            allP.map((p) => String(p.id))
-          );
-        }
-      }
+      await restorePlayersAfterLoad(urlPreselection);
     },
     [loadScriptRaw, proxyRef, searchParams],
   );
+
+  const restorePlayersAfterLoad = useCallback(
+    async (urlPreselection?: string[]) => {
+      const proxy = proxyRef.current;
+      if (!proxy) return;
+      const [allValid, allP] = await Promise.all([
+        proxy.validMovesJson() as Promise<WasmPlayerMoves[]>,
+        proxy.playersJson() as Promise<WasmPlayerConfig[]>,
+      ]);
+      const active = allValid.filter((pa) => pa.moves.length > 0).map((pa) => pa.player);
+      if (active.length > 0) {
+        setControllingPlayer(String(active[0]));
+      }
+      if (urlPreselection && urlPreselection.length > 0) {
+        const idSet = new Set(urlPreselection.map(Number));
+        const restored = allP.filter((p) => idSet.has(p.id)).map((p) => String(p.id));
+        setSelectedPlayers(restored.length > 0 ? restored : urlPreselection);
+      } else {
+        setSelectedPlayers(allP.map((p) => String(p.id)));
+      }
+    },
+    [proxyRef],
+  );
+
+  const loadScriptContent = useCallback(
+    async (script: string, numPlayers: number) => {
+      setLog([]);
+      setLocalOrientationOverride({});
+      await loadScriptContentRaw(script, numPlayers);
+      await restorePlayersAfterLoad();
+    },
+    [loadScriptContentRaw, proxyRef, restorePlayersAfterLoad],
+  );
+
+  // Listen for test-script messages from the pop-out variant editor (BroadcastChannel)
+  useEffect(() => {
+    const bc = new BroadcastChannel("cv-editor");
+    bc.onmessage = (e: MessageEvent) => {
+      if (e.data?.type === "test" && typeof e.data.script === "string") {
+        const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
+        loadScriptContent(e.data.script, n);
+      }
+    };
+    return () => bc.close();
+  }, [loadScriptContent, playerCount]);
 
   // ── Sync when controlling player changes ──
   useEffect(() => {
@@ -943,7 +948,7 @@ export function DevBoardView() {
         onClose={closeEditor}
         onTest={(script) => {
           const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
-          loadScriptContentRaw(script, n);
+          loadScriptContent(script, n);
         }}
       />
     </Box>

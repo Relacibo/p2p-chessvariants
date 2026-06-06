@@ -271,7 +271,7 @@ export function VariantEditorContent({
 
   const handlePopOut = useCallback(() => {
     localStorage.setItem(DRAFT_KEY, scriptContent);
-    window.open("/dev/editor", "_blank", "width=1200,height=900");
+    window.open("/dev/editor", "cv-editor-popout", "width=1200,height=900");
   }, [scriptContent]);
 
   // Load dialog
