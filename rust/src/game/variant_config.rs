@@ -10,13 +10,13 @@ use crate::error;
 ///   - `[2, 4]`         → Discrete([2, 4])
 ///   - `#{min:2,max:4,step:2}` → Range { min:2, max:4, step:2 }
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[serde(untagged)]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 pub enum AllowedPlayerCount {
     Exact(u32),
     Discrete(Vec<u32>),
-    Range { min: u32, max: u32, step: u32 },
+    Range { min: u32, max: u32, #[serde(skip_serializing_if = "Option::is_none")] step: Option<u32> },
 }
 
 impl Default for AllowedPlayerCount {
@@ -31,6 +31,7 @@ impl AllowedPlayerCount {
             AllowedPlayerCount::Exact(v) => n == *v,
             AllowedPlayerCount::Discrete(vals) => vals.contains(&n),
             AllowedPlayerCount::Range { min, max, step } => {
+                let step = step.unwrap_or(1);
                 n >= *min && n <= *max && (n - min) % step == 0
             }
         }
@@ -59,7 +60,7 @@ impl AllowedPlayerCount {
         if let Some(map) = value.clone().try_cast::<rhai::Map>() {
             let min = map.get("min").and_then(|v| v.as_int().ok()).unwrap_or(2) as u32;
             let max = map.get("max").and_then(|v| v.as_int().ok()).unwrap_or(2) as u32;
-            let step = map.get("step").and_then(|v| v.as_int().ok()).unwrap_or(1) as u32;
+            let step = map.get("step").and_then(|v| v.as_int().ok()).map(|n| n as u32);
             return Ok(AllowedPlayerCount::Range { min, max, step });
         }
         Err(error::CvError::Internal(
