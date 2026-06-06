@@ -1,61 +1,57 @@
-// Chess - full rules: castling, en passant, pawn promotion
-// API v2: piece definitions in script, engine provides only geometry helpers.
+// Chess - full rules: castling, en passant, pawn promotion.
+// API v2. Standard piece moves use engine::moves convenience;
+// conditional moves (pawns, castling) use PieceDefs with helper-based conditions.
 
 fn config() {
     #{ api_version: 1, name: "Chess", version: "2.0.0", colors: ["white", "black"],
        allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
 }
 
-let PIECE_DEFS = PieceDefs([
-    #{ type: "king",   def: [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }] },
-    #{ type: "queen",  def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }] },
-    #{ type: "rook",   def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }] },
-    #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
-    #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
-    #{ type: "pawn", color: "white", def: [
-         #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[-1, -1], [-1, 1]], condition: |s,f,t| {
-             let target = engine::board::get(s.board, t);
-             let my = engine::board::get(s.board, f);
-             target == () || target.color != my.color
-         } },
-    ]},
-    #{ type: "pawn", color: "black", def: [
-         #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[1, -1], [1, 1]], condition: |s,f,t| {
-             let target = engine::board::get(s.board, t);
-             let my = engine::board::get(s.board, f);
-             target == () || target.color != my.color
-         } },
-    ]},
-]);
+// ── Board helpers (for readable closure conditions) ─────────────────────────
 
-
-fn get_pseudo_dests(board, from, state) {
-    let piece = engine::board::get(board, from);
-    if piece == () { return []; }
-    let comps = PIECE_DEFS.get(piece);
-    if comps == () { return []; }
-    let dests = [];
-    for comp in comps {
-        let raw = switch comp.type {
-            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color),
-            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
-            _ => [],
-        };
-        if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
-        for d in raw { dests.push(d); }
-    }
-    dests
+fn is_empty(board, c) {
+    engine::board::get(board, c) == ()
 }
 
-fn sq_attacked_by(board, square, enemy_colors, state) {
-    if enemy_colors == () || enemy_colors.len == 0 { return false; }
+fn is_enemy(board, c, my_color) {
+    let p = engine::board::get(board, c);
+    p != () && p.color != my_color
+}
+
+fn can_capture(board, c, my_color) {
+    let p = engine::board::get(board, c);
+    p == () || p.color != my_color
+}
+
+fn path_empty(board, from, to) {
+    let dr = to.row - from.row;
+    let dc = to.col - from.col;
+    let steps = max(dr.abs(), dc.abs()) - 1;
+    if steps <= 0 { return true; }
+    let sr = if dr == 0 { 0 } else { dr / dr.abs() };
+    let sc = if dc == 0 { 0 } else { dc / dc.abs() };
+    for i in 1..=steps {
+        let ch = engine::board::get(board, Coords(from.row + sr * i, from.col + sc * i));
+        if ch != () { return false; }
+    }
+    true
+}
+
+fn pawn_start_row(color) {
+    if color == "white" { 6 } else { 1 }
+}
+
+fn pawn_promotion_row(color) {
+    if color == "white" { 0 } else { 7 }
+}
+
+// ── Castling helpers ────────────────────────────────────────────────────────
+
+fn is_square_attacked(board, square, enemies, state) {
     for r in 0..board.rows { for c in 0..board.cols {
-        let pos = Coords(r, c); let piece = engine::board::get(board, pos);
-        if piece != () && enemy_colors.contains(piece.color) {
+        let pos = Coords(r, c);
+        let piece = engine::board::get(board, pos);
+        if piece != () && enemies.contains(piece.color) {
             let dests = get_pseudo_dests(board, pos, state);
             for d in dests { if d == square { return true; } }
         }
@@ -63,11 +59,147 @@ fn sq_attacked_by(board, square, enemy_colors, state) {
     false
 }
 
-fn is_in_check(board, king_color, enemy_colors, state) {
+fn get_enemies(state, my_color) {
+    let enemies = state.players.filter(|p| p.data.color != my_color).map(|p| p.data.color);
+    if enemies.len == 0 {
+        state.players.filter(|p| p.data.color != my_color).map(|p| p.data.color)
+    } else { enemies }
+}
+
+fn king_in_check(board, king_color, state) {
+    let enemies = get_enemies(state, king_color);
     let king_pos = engine::board::find(board, Piece(king_color, "king"));
     if king_pos == () || king_pos.len == 0 { return false; }
-    sq_attacked_by(board, king_pos[0], enemy_colors, state)
+    is_square_attacked(board, king_pos[0], enemies, state)
 }
+
+// Castling condition — called from king's PieceDefs closures.
+fn can_castle_kingside(state, king_pos, my_color) {
+    let row = king_pos.row;
+    if my_color == "white" {
+        if row != 7 { return false; }
+        if !state["castling_rights"].wk { return false; }
+    } else {
+        if row != 0 { return false; }
+        if !state["castling_rights"].bk { return false; }
+    }
+    // Rook present?
+    let rook_col = 7;
+    let rook = engine::board::get(state.board, Coords(row, rook_col));
+    if rook == () || rook.type != "rook" || rook.color != my_color { return false; }
+    // Path clear between king and rook
+    if !path_empty(state.board, Coords(row, 4), Coords(row, rook_col - 1)) { return false; }
+    // Not moving through or into check
+    let enemies = get_enemies(state, my_color);
+    if is_square_attacked(state.board, Coords(row, 4), enemies, state) { return false; }
+    if is_square_attacked(state.board, Coords(row, 5), enemies, state) { return false; }
+    if is_square_attacked(state.board, Coords(row, 6), enemies, state) { return false; }
+    true
+}
+
+fn can_castle_queenside(state, king_pos, my_color) {
+    let row = king_pos.row;
+    if my_color == "white" {
+        if row != 7 { return false; }
+        if !state["castling_rights"].wq { return false; }
+    } else {
+        if row != 0 { return false; }
+        if !state["castling_rights"].bq { return false; }
+    }
+    // Rook present?
+    let rook_col = 0;
+    let rook = engine::board::get(state.board, Coords(row, rook_col));
+    if rook == () || rook.type != "rook" || rook.color != my_color { return false; }
+    // Path clear between king and rook (b1/c1 for white, b8/c8 for black)
+    if !path_empty(state.board, Coords(row, 4), Coords(row, 1)) { return false; }
+    // Not moving through or into check
+    let enemies = get_enemies(state, my_color);
+    if is_square_attacked(state.board, Coords(row, 4), enemies, state) { return false; }
+    if is_square_attacked(state.board, Coords(row, 3), enemies, state) { return false; }
+    if is_square_attacked(state.board, Coords(row, 2), enemies, state) { return false; }
+    true
+}
+
+// ── Piece definitions ───────────────────────────────────────────────────────
+
+// Only conditional moves are defined here. Standard moves are generated by
+// engine::moves::king/queen/rook/bishop/knight directly in get_pseudo_dests.
+
+let PIECE_DEFS = PieceDefs([
+    // Castling — king moves two squares with many conditions
+    #{ type: "king", def: [
+        #{ type: "jump", offsets: [[0,  2]],
+            condition: |s,f,t| {
+                let king = engine::board::get(s.board, f);
+                can_castle_kingside(s, f, king.color) && is_empty(s.board, t)
+            }
+        },
+        #{ type: "jump", offsets: [[0, -2]],
+            condition: |s,f,t| {
+                let king = engine::board::get(s.board, f);
+                can_castle_queenside(s, f, king.color) && is_empty(s.board, t)
+            }
+        },
+    ]},
+    // Pawns — color-specific because direction differs
+    #{ type: "pawn", color: "white", def: [
+        #{ type: "jump", offsets: [[-1, 0]],
+            condition: |s,f,t| is_empty(s.board, t) },
+        #{ type: "jump", offsets: [[-2, 0]],
+            condition: |s,f,t| f.row == pawn_start_row("white") && path_empty(s.board, f, t) && is_empty(s.board, t) },
+        #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
+            condition: |s,f,t| can_capture(s.board, t, "white") },
+    ]},
+    #{ type: "pawn", color: "black", def: [
+        #{ type: "jump", offsets: [[1, 0]],
+            condition: |s,f,t| is_empty(s.board, t) },
+        #{ type: "jump", offsets: [[2, 0]],
+            condition: |s,f,t| f.row == pawn_start_row("black") && path_empty(s.board, f, t) && is_empty(s.board, t) },
+        #{ type: "jump", offsets: [[1, -1], [1, 1]],
+            condition: |s,f,t| can_capture(s.board, t, "black") },
+    ]},
+]);
+
+// ── Move generation ─────────────────────────────────────────────────────────
+
+fn get_pseudo_dests(board, from, state) {
+    let piece = engine::board::get(board, from);
+    if piece == () { return []; }
+
+    let color = piece.color;
+    let dests = [];
+
+    // Standard piece moves (no conditions needed)
+    let standard = switch piece.type {
+        "king"   => engine::moves::king(board, from, color),
+        "queen"  => engine::moves::queen(board, from, color),
+        "rook"   => engine::moves::rook(board, from, color),
+        "bishop" => engine::moves::bishop(board, from, color),
+        "knight" => engine::moves::knight(board, from, color),
+        _ => [],
+    };
+    for d in standard { dests.push(d); }
+
+    // Conditional moves from PieceDefs (pawns, castling, custom pieces)
+    let comps = PIECE_DEFS.get(piece);
+    if comps != () {
+        for comp in comps {
+            let raw = switch comp.type {
+                "jump"  => engine::moves::jump(board, from, comp.offsets, color),
+                "slide" => engine::moves::slide(board, from, comp.dirs, color),
+                _ => [],
+            };
+            if comp.condition != () {
+                raw = raw.filter(|t| comp.condition(state, from, t));
+            }
+            for d in raw { dests.push(d); }
+        }
+    }
+
+    dests
+}
+
+// ── Core engine functions ────────────────────────────────────────────────────
 
 fn setup_players(variant_config, player_count) {
     #{
@@ -96,14 +228,8 @@ fn valid_moves(state, player) {
         let dests = get_pseudo_dests(state.board, from, state);
         for to in dests { candidates.push(Move(from, to)); }
     }}
-    let king_row = if color == "white" { 7 } else { 0 };
-    let king = engine::board::get(state.board, Coords(king_row, 4));
-    if king != () && king.color == color && king.type == "king" {
-        let ks = if color == "white" { state["castling_rights"].wk } else { state["castling_rights"].bk };
-        let qs = if color == "white" { state["castling_rights"].wq } else { state["castling_rights"].bq };
-        if ks { candidates.push(Move(Coords(king_row, 4), Coords(king_row, 6))); }
-        if qs { candidates.push(Move(Coords(king_row, 4), Coords(king_row, 2))); }
-    }
+    // Castling moves are now generated by get_pseudo_dests via PieceDefs —
+    // no hardcoded candidate generation here.
     candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
@@ -111,6 +237,37 @@ fn derive_game_progress(state, all_valid_moves) {
     for entry in all_valid_moves { if entry.moves.len > 0 { return InProgress(); } }
     Draw()
 }
+
+// ── Castling execution helpers ──────────────────────────────────────────────
+
+fn execute_castle(state, color, from, to, is_kingside) {
+    let row = from.row;
+    let rook_col = if is_kingside { 7 } else { 0 };
+    let rook_to_col = if is_kingside { from.col + 1 } else { from.col - 1 };
+    let rook_from = Coords(row, rook_col);
+    let new_board = engine::board::move_piece(state.board, from, to);
+    new_board = engine::board::move_piece(new_board, rook_from, Coords(row, rook_to_col));
+    new_board
+}
+
+fn lose_castling_rights(rights, color) {
+    if color == "white" { merge(rights, #{ wk: false, wq: false }) }
+    else { merge(rights, #{ bk: false, bq: false }) }
+}
+
+fn update_castling_rights(rights, color, from_coords, to_coords, captured) {
+    let r = rights;
+    if color == "white" {
+        if from_coords == Coords(7, 7) || to_coords == Coords(7, 7) { r = merge(r, #{ wk: false }); }
+        if from_coords == Coords(7, 0) || to_coords == Coords(7, 0) { r = merge(r, #{ wq: false }); }
+    } else {
+        if from_coords == Coords(0, 7) || to_coords == Coords(0, 7) { r = merge(r, #{ bk: false }); }
+        if from_coords == Coords(0, 0) || to_coords == Coords(0, 0) { r = merge(r, #{ bq: false }); }
+    }
+    r
+}
+
+// ── Action handling ──────────────────────────────────────────────────────────
 
 fn handle_action(state, player, action) {
     let player_color = player.data.color;
@@ -124,79 +281,52 @@ fn handle_action(state, player, action) {
         let dst = engine::board::get(state.board, to);
         if dst != () && dst.color == player_color { throw "cannot capture your own piece"; }
 
-        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
-        if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player_color).map(|p| p.data.color); }
-
         let dr = to.row - from.row; let dc = to.col - from.col;
-        let new_board = (); let new_castling_rights = state["castling_rights"]; let new_en_passant = ();
+        let new_board = (); let new_castling = state["castling_rights"]; let new_en_passant = ();
 
+        // Castling
         if src.type == "king" && dr == 0 && (dc == 2 || dc == -2) {
-            if is_in_check(state.board, player_color, enemies, state) { throw "cannot castle while in check"; }
-            let is_kingside = dc == 2; let row = from.row;
-            let rook_col = if is_kingside { 7 } else { 0 };
-            let rook_from = Coords(row, rook_col);
-            let rook_piece = engine::board::get(state.board, rook_from);
-            if rook_piece == () || rook_piece.color != player_color || rook_piece.type != "rook" { throw "no rook at castling position"; }
-            if player_color == "white" {
-                if is_kingside && !state["castling_rights"].wk { throw "white kingside castling rights lost"; }
-                if !is_kingside && !state["castling_rights"].wq { throw "white queenside castling rights lost"; }
-            } else {
-                if is_kingside && !state["castling_rights"].bk { throw "black kingside castling rights lost"; }
-                if !is_kingside && !state["castling_rights"].bq { throw "black queenside castling rights lost"; }
-            }
-            if is_kingside { for c in (from.col + 1)..rook_col { if engine::board::get(state.board, Coords(row, c)) != () { throw "castling path is blocked"; } } }
-            else { for c in (rook_col + 1)..from.col { if engine::board::get(state.board, Coords(row, c)) != () { throw "castling path is blocked"; } } }
-            let pass_col = if is_kingside { from.col + 1 } else { from.col - 1 };
-            if sq_attacked_by(state.board, Coords(row, pass_col), enemies, state) { throw "king passes through attacked square"; }
-            if sq_attacked_by(state.board, Coords(row, to.col), enemies, state) { throw "king lands on attacked square"; }
-            let rook_to_col = if is_kingside { from.col + 1 } else { from.col - 1 };
-            new_board = engine::board::move_piece(state.board, from, to);
-            new_board = engine::board::move_piece(new_board, rook_from, Coords(row, rook_to_col));
-            if player_color == "white" { new_castling_rights = merge(new_castling_rights, #{ wk: false, wq: false }); }
-            else { new_castling_rights = merge(new_castling_rights, #{ bk: false, bq: false }); }
+            let is_kingside = dc == 2;
+            if king_in_check(state.board, player_color, state) { throw "cannot castle while in check"; }
+            new_board = execute_castle(state, player_color, from, to, is_kingside);
+            new_castling = lose_castling_rights(new_castling, player_color);
         }
+        // En passant
         else if src.type == "pawn" && dc != 0 && dst == () {
             if state["en_passant"] == () || to != state["en_passant"] { throw "invalid en passant target"; }
-            let captured_pawn_pos = Coords(from.row, to.col);
+            let captured_pawn = Coords(from.row, to.col);
             new_board = engine::board::move_piece(state.board, from, to);
-            new_board = engine::board::set(new_board, captured_pawn_pos, ());
-            if is_in_check(new_board, player_color, enemies, state) { throw "move leaves king in check"; }
+            new_board = engine::board::set(new_board, captured_pawn, ());
+            if king_in_check(new_board, player_color, state) { throw "move leaves king in check"; }
         }
+        // Normal move
         else {
             if src.type == "pawn" {
-                if (player_color == "white" && to.row == 0) || (player_color == "black" && to.row == 7) {
+                if to.row == pawn_promotion_row(player_color) {
                     state["promotion_pending"] = #{ from: from, to: to, color: player_color };
                     return state;
                 }
             }
             new_board = engine::board::move_piece(state.board, from, to);
-            if is_in_check(new_board, player_color, enemies, state) { throw "move leaves king in check"; }
+            if king_in_check(new_board, player_color, state) { throw "move leaves king in check"; }
             if src.type == "pawn" {
-                if (player_color == "white" && from.row == 6 && to.row == 4) || (player_color == "black" && from.row == 1 && to.row == 3) {
+                // Set en passant target
+                if (player_color == "white" && from.row == 6 && to.row == 4)
+                || (player_color == "black" && from.row == 1 && to.row == 3) {
                     new_en_passant = Coords((from.row + to.row) / 2, from.col);
                 }
             }
+            // Update castling rights
+            new_castling = update_castling_rights(new_castling, player_color, from, to, dst);
             if src.type == "king" {
-                if player_color == "white" { new_castling_rights = merge(new_castling_rights, #{ wk: false, wq: false }); }
-                else { new_castling_rights = merge(new_castling_rights, #{ bk: false, bq: false }); }
-            }
-            if src.type == "rook" {
-                if from == Coords(7, 7) { new_castling_rights = merge(new_castling_rights, #{ wk: false }); }
-                if from == Coords(7, 0) { new_castling_rights = merge(new_castling_rights, #{ wq: false }); }
-                if from == Coords(0, 7) { new_castling_rights = merge(new_castling_rights, #{ bk: false }); }
-                if from == Coords(0, 0) { new_castling_rights = merge(new_castling_rights, #{ bq: false }); }
-            }
-            if dst != () {
-                if to == Coords(7, 7) { new_castling_rights = merge(new_castling_rights, #{ wk: false }); }
-                if to == Coords(7, 0) { new_castling_rights = merge(new_castling_rights, #{ wq: false }); }
-                if to == Coords(0, 7) { new_castling_rights = merge(new_castling_rights, #{ bk: false }); }
-                if to == Coords(0, 0) { new_castling_rights = merge(new_castling_rights, #{ bq: false }); }
+                new_castling = lose_castling_rights(new_castling, player_color);
             }
         }
+
         let next_turn = if player.id == 0 { 1 } else { 0 };
         state.board = new_board;
         state["turn"] = next_turn;
-        state["castling_rights"] = new_castling_rights;
+        state["castling_rights"] = new_castling;
         state["en_passant"] = new_en_passant;
         return state;
     }
@@ -207,8 +337,7 @@ fn handle_action(state, player, action) {
         if pp.color != player_color { throw "not your promotion"; }
         let new_board = engine::board::move_piece(state.board, pp.from, pp.to);
         new_board = engine::board::set(new_board, pp.to, action.piece);
-        let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
-        if is_in_check(new_board, player_color, enemies, state) { throw "promotion leaves king in check"; }
+        if king_in_check(new_board, player_color, state) { throw "promotion leaves king in check"; }
         let next_turn = if player.id == 0 { 1 } else { 0 };
         state.board = new_board;
         state["turn"] = next_turn;
