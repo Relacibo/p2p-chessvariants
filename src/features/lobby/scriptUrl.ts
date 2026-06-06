@@ -144,7 +144,8 @@ export async function fetchScriptText(url: string): Promise<string> {
 export async function validateAndGetName(url: string): Promise<string> {
   const script = await fetchScriptText(url);
   try {
-    const config = (await ChessvariantEngine.parseConfig(script)) as unknown as WasmVariantConfig;
+    const json = await ChessvariantEngine.parseConfig(script);
+    const config = JSON.parse(json) as WasmVariantConfig;
     return config.name;
   } catch (e: any) {
     throw new Error(`Engine error: ${e.message || e}`);
@@ -184,7 +185,8 @@ export async function parseScriptConfig(url: string): Promise<ScriptConfig> {
 export async function fetchAndParseFullConfig(url: string): Promise<WasmVariantConfig> {
   const script = await fetchScriptText(url);
   try {
-    return (await ChessvariantEngine.parseConfig(script)) as unknown as WasmVariantConfig;
+    const json = await ChessvariantEngine.parseConfig(script);
+    return JSON.parse(json) as WasmVariantConfig;
   } catch (e: any) {
     throw new Error(`Engine error: ${e.message || e}`);
   }
