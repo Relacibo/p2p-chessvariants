@@ -26,6 +26,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "../../app/hooks";
 import { selectToken } from "../auth/authSlice";
 import {
@@ -309,6 +310,10 @@ function CreateLobbyForm() {
 
 export default function CreateLobbyView() {
   const status = useSelector(selectLobbyStatus);
+  const token = useSelector(selectToken);
+  const navigate = useNavigate();
+
+  const loginRedirect = `/auth/login?redirect=${encodeURIComponent(location.pathname)}`;
 
   return (
     <Paper p="md" shadow="xs">
@@ -322,7 +327,19 @@ export default function CreateLobbyView() {
             {status.message}
           </Alert>
         )}
-        {status.phase === "idle" && <Title order={3}>Create Lobby</Title>}
+        {status.phase === "idle" && (
+          <>
+            <Title order={3}>Create Lobby</Title>
+            {!token && (
+              <Button
+                variant="default"
+                onClick={() => navigate(loginRedirect)}
+              >
+                Login with account
+              </Button>
+            )}
+          </>
+        )}
         <CreateLobbyForm />
       </Stack>
     </Paper>
