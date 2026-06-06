@@ -56,9 +56,27 @@ export type LobbyState = {
   variantConfig: WasmVariantConfig | null;
 };
 
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  // RTK Query / fetch error shape: { status, data: { error } } or { data: { message } }
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    if (typeof e.message === "string") return e.message;
+    if (typeof e.error === "string") return e.error;
+    if (e.data && typeof e.data === "object") {
+      const d = e.data as Record<string, unknown>;
+      if (typeof d.error === "string") return d.error;
+      if (typeof d.message === "string") return d.message;
+    }
+    try { return JSON.stringify(err); } catch { /* fall through */ }
+  }
+  return String(err);
+}
+
 function logLobbyWarning(context: string, err: unknown): void {
   console.error(`[lobby] ${context}`, err);
-  const message = err instanceof Error ? err.message : String(err);
+  const message = extractErrorMessage(err);
   notifications.show({
     title: "Lobby error",
     message: `${context}: ${message}`,
@@ -506,9 +524,7 @@ export function createLobby(
     } catch (err) {
       logLobbyWarning("create lobby failed", err);
       dispatch(
-        _setError(
-          err instanceof Error ? err.message : "Failed to create lobby",
-        ),
+        _setError(extractErrorMessage(err)),
       );
     }
   };
@@ -653,7 +669,7 @@ export function joinLobbyById(lobbyId: string): AppThunk<Promise<void>> {
     } catch (err) {
       logLobbyWarning("join lobby failed", err);
       dispatch(
-        _setError(err instanceof Error ? err.message : "Failed to join lobby"),
+        _setError(extractErrorMessage(err)),
       );
     }
   };
@@ -736,7 +752,7 @@ export function joinLobbyByPeerAsGuest(
     } catch (err) {
       logLobbyWarning("P2P guest join failed", err);
       dispatch(
-        _setError(err instanceof Error ? err.message : "Failed to join lobby"),
+        _setError(extractErrorMessage(err)),
       );
     }
   };
