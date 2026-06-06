@@ -484,12 +484,20 @@ impl StatelessChessvariantEngine {
         Ok(serde_json::to_string(&self.variant_config)?)
     }
 
-    /// Parse a variant script and return its config as JSON.
-    /// Does not call `init()` — suitable for lobby previews.
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
+    /// Parse a variant script and return its config as a JSON string (native tests).
+    #[allow(dead_code)]
     pub fn parse_config(script_content: String) -> Result<String, CvError> {
         let stateless = Self::new(script_content)?;
         Ok(serde_json::to_string(&stateless.variant_config)?)
+    }
+
+    /// Parse a variant script and return its config as a JS object.
+    /// Does not call `init()` — suitable for lobby previews.
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
+    pub fn parse_config_js(script_content: String) -> Result<wasm_bindgen::JsValue, CvError> {
+        let stateless = Self::new(script_content)?;
+        serde_wasm_bindgen::to_value(&stateless.variant_config)
+            .map_err(|e| CvError::Internal(e.to_string()))
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = setLogLevel))]
@@ -552,9 +560,14 @@ impl ChessvariantEngine {
         }
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
+    /// Parse a variant script and return its config as a JSON string (native).
     pub fn parse_config(script_content: String) -> Result<String, CvError> {
         StatelessChessvariantEngine::parse_config(script_content)
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = parseConfig))]
+    pub fn parse_config_js(script_content: String) -> Result<wasm_bindgen::JsValue, CvError> {
+        StatelessChessvariantEngine::parse_config_js(script_content)
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(js_name = variantConfigJson))]
