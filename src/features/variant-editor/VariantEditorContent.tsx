@@ -23,7 +23,7 @@ import {
   saveLocalScript,
 } from "./localScripts";
 
-/** Minimal working Rhai variant skeleton with PIECE_DEFS and action handling. */
+/** Minimal working Rhai variant skeleton using the PieceDefs API. */
 const EMPTY_TEMPLATE = `fn config() {
     #{ api_version: 1, name: "My Variant", version: "0.1.0", colors: ["white", "black"],
        allowed_player_count: 2, board: #{ type: "rectangle", rows: 8, cols: 8 } }
@@ -31,31 +31,40 @@ const EMPTY_TEMPLATE = `fn config() {
 
 // ── Piece definitions ─────────────────────────────────────────────────
 
-const PIECE_DEFS = #{
-    king:   #{ moves: [#{ jump: [#[-1,-1],#[-1,0],#[-1,1],#[0,-1],#[0,1],#[1,-1],#[1,0],#[1,1]] }] },
-    queen:  #{ moves: [#{ slide: #[#[1,0],#[-1,0],#[0,1],#[0,-1],#[1,1],#[-1,1],#[1,-1],#[-1,-1]] }] },
-    rook:   #{ moves: [#{ slide: #[#[1,0],#[-1,0],#[0,1],#[0,-1]] }] },
-    bishop: #{ moves: [#{ slide: #[#[1,1],#[-1,1],#[1,-1],#[-1,-1]] }] },
-    knight: #{ moves: [#{ jump: #[#[2,1],#[2,-1],#[-2,1],#[-2,-1],#[1,2],#[1,-2],#[-1,2],#[-1,-2]] }] },
-    "pawn:white": #{ moves: [
-        #{ single: #[1,0], condition: |s,from,to| engine::board::get(s.board, to) == () },
-        #{ double: #[2,0], condition: |s,from,to| from.row == 6 && engine::board::get(s.board, to) == ()
-                                                                && engine::board::get(s.board, Coords(from.row+1,from.col)) == () },
-        #{ jump: #[#[1,1],#[1,-1]], condition: |s,from,to| { let tgt = engine::board::get(s.board, to); tgt != () && tgt.color != "white" } }
-    ] },
-    "pawn:black": #{ moves: [
-        #{ single: #[-1,0], condition: |s,from,to| engine::board::get(s.board, to) == () },
-        #{ double: #[-2,0], condition: |s,from,to| from.row == 1 && engine::board::get(s.board, to) == ()
-                                                                && engine::board::get(s.board, Coords(from.row-1,from.col)) == () },
-        #{ jump: #[#[-1,1],#[-1,-1]], condition: |s,from,to| { let tgt = engine::board::get(s.board, to); tgt != () && tgt.color != "black" } }
-    ] },
-};
+let PIECE_DEFS = PieceDefs([
+    #{ type: "king",   def: [#{ type: "jump", offsets: [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]] }] },
+    #{ type: "queen",  def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+    #{ type: "rook",   def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }] },
+    #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
+    #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
+    #{ type: "pawn", color: "white", def: [
+        #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[-1,-1],[-1,1]], condition: |s,f,t| { let x = engine::board::get(s.board, t); let y = engine::board::get(s.board, f); x == () || x.color != y.color } },
+    ]},
+    #{ type: "pawn", color: "black", def: [
+        #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { let x = engine::board::get(s.board, t); let y = engine::board::get(s.board, f); x == () || x.color != y.color } },
+    ]},
+]);
 
-fn get_piece_defs(piece) {
-    let key = piece.type + ":" + piece.color;
-    if key in PIECE_DEFS { return PIECE_DEFS[key]; }
-    if piece.type in PIECE_DEFS { return PIECE_DEFS[piece.type]; }
-    #{ moves: [] }
+fn get_pseudo_dests(board, from, state) {
+    let piece = engine::board::get(board, from);
+    if piece == () { return []; }
+    let comps = PIECE_DEFS.get(piece);
+    if comps == () { return []; }
+    let dests = [];
+    for comp in comps {
+        let raw = switch comp.type {
+            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color),
+            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
+            _ => [],
+        };
+        if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
+        for d in raw { dests.push(d); }
+    }
+    dests
 }
 
 // ── Setup & Init ─────────────────────────────────────────────────────
@@ -72,72 +81,41 @@ fn init(variant_config, setup) {
        data: #{ turn: 0 } }
 }
 
-// ── Move generation helpers ──────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────
 
 fn sq_attacked_by(board, square, enemy_colors, state) {
-    for r in 0..board.rows {
-        for c in 0..board.cols {
-            let p = engine::board::get(board, Coords(r,c));
-            if p == () || !(p.color in enemy_colors) { continue; }
-            let defs = get_piece_defs(p);
-            for m in defs.moves {
-                let dests = if "jump" in m {
-                    engine::moves::jump(board, Coords(r,c), m.jump)
-                } else if "slide" in m {
-                    engine::moves::slide(board, Coords(r,c), m.slide)
-                } else { continue };
-                for d in dests { if d.row == square.row && d.col == square.col && d.board_index == square.board_index { return true; } }
-            }
-        }
-    }
+    for r in 0..board.rows { for c in 0..board.cols {
+        let p = engine::board::get(board, Coords(r,c));
+        if p == () || !enemy_colors.contains(p.color) { continue; }
+        let dests = get_pseudo_dests(board, Coords(r,c), state);
+        for d in dests { if d == square { return true; } }
+    }}
     false
 }
 
 fn is_in_check(board, king_color, enemy_colors, state) {
-    for r in 0..board.rows {
-        for c in 0..board.cols {
-            let p = engine::board::get(board, Coords(r,c));
-            if p != () && p.type == "king" && p.color == king_color {
-                return sq_attacked_by(board, Coords(r,c), enemy_colors, state);
-            }
-        }
-    }
-    false
+    let kings = engine::board::find(board, Piece(king_color, "king"));
+    if kings == () || kings.len == 0 { return false; }
+    sq_attacked_by(board, kings[0], enemy_colors, state)
 }
 
 // ── valid_moves ──────────────────────────────────────────────────────
 
 fn valid_moves(state, player) {
     if player.id != state["turn"] { return []; }
-    let player_color = player["color"];
+
     let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
-    if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player_color).map(|p| p.data.color); }
-    let moves = [];
-    for r in 0..state.board.rows {
-        for c in 0..state.board.cols {
-            let p = engine::board::get(state.board, Coords(r,c));
-            if p == () || p.color != player_color { continue; }
-            let defs = get_piece_defs(p);
-            for m in defs.moves {
-                let dests = if "jump" in m {
-                    engine::moves::jump(state.board, Coords(r,c), m.jump)
-                } else if "slide" in m {
-                    engine::moves::slide(state.board, Coords(r,c), m.slide)
-                } else if "single" in m {
-                    [Coords(r + m.single[0], c + m.single[1])]
-                } else if "double" in m {
-                    [Coords(r + m.double[0], c + m.double[1])]
-                } else { continue };
-                for d in dests {
-                    if m.condition != () && !m.condition.call(state, Coords(r,c), d) { continue; }
-                    let action = Move(Coords(r,c), d);
-                    try { handle_action(state, player, action); moves.push(action); }
-                    catch(err) { }
-                }
-            }
-        }
-    }
-    moves
+    if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player.data.color).map(|p| p.data.color); }
+
+    let candidates = [];
+    for r in 0..state.board.rows { for c in 0..state.board.cols {
+        let from = Coords(r, c);
+        let piece = engine::board::get(state.board, from);
+        if piece == () || piece.color != player.data.color { continue; }
+        let dests = get_pseudo_dests(state.board, from, state);
+        for to in dests { candidates.push(Move(from, to)); }
+    }}
+    candidates.filter(|m| { try { handle_action(state, player, m); true } catch(err) { false } })
 }
 
 // ── derive_game_progress ─────────────────────────────────────────────
@@ -152,11 +130,10 @@ fn derive_game_progress(state, all_valid_moves) {
 fn handle_action(state, player, action) {
     if action.type != "move" { return state; }
 
-    let player_color = player["color"];
+    let player_color = player.data.color;
     let enemies = state.players.filter(|p| p.team != player.team).map(|p| p.data.color);
     if enemies.len == 0 { enemies = state.players.filter(|p| p.data.color != player_color).map(|p| p.data.color); }
 
-    // Basic legality checks
     if player.id != state["turn"] { throw "not your turn"; }
     let src = engine::board::get(state.board, action.from);
     if src == () { throw "no piece at source square"; }
@@ -164,7 +141,6 @@ fn handle_action(state, player, action) {
     let tgt = engine::board::get(state.board, action.to);
     if tgt != () && tgt.color == player_color { throw "cannot capture own piece"; }
 
-    // Apply the move
     let new_board = engine::board::move_piece(state.board, action.from, action.to);
     if is_in_check(new_board, player_color, enemies, state) { throw "move leaves king in check"; }
 
@@ -177,9 +153,6 @@ fn handle_action(state, player, action) {
 
 fn derive_ui(state, player) {
     // Return UI elements (buttons, banners, piece_pickers) here.
-    // Example: #{
-    //     "my_button": #{ type: "button", label: "Resign", on_click: |s| { /* handle */ state } }
-    // }
     #{}
 }
 `;

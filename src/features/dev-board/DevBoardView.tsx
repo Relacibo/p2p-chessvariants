@@ -28,7 +28,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import useConfigureLayout from "../layout/hooks";
-import VariantEditorModal from "../variant-editor/VariantEditorModal";
+import { VariantEditorContent } from "../variant-editor/VariantEditorContent";
+import {
+  listLocalScripts,
+  loadLocalScript,
+} from "../variant-editor/localScripts";
 import { useChessGame } from "../chessboard/useChessGame";
 import style from "./DevBoardView.module.css";
 import {
@@ -43,7 +47,11 @@ import {
   WasmVariantConfig,
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
-import { selectAllVariants, VariantEntry } from "../lobby/variantsSlice";
+import {
+  selectAllVariants,
+  VariantEntry,
+  OFFICIAL_VARIANTS,
+} from "../lobby/variantsSlice";
 import { getGithubBrowseUrl } from "../lobby/scriptUrl";
 
 // ─── Log entry ───────────────────────────────────────────────────────────────
@@ -66,16 +74,12 @@ function getActingPlayer(
   action: WasmAction,
   validMovesAll: WasmPlayerMoves[],
 ): string | null {
-  // A move belongs to the player whose valid_moves list contains it.
-  // Compare by JSON so we don't depend on WasmAction reference equality.
   const actionJson = JSON.stringify(action);
   for (const pm of validMovesAll) {
     if (pm.moves.some((m) => JSON.stringify(m) === actionJson)) {
       return String(pm.player);
     }
   }
-  // Fallback: if no player has this move in their valid_moves, try
-  // select_piece/cancel actions — use the first player with any moves.
   if (action.type === "select_piece" || action.type === "cancel") {
     const active = validMovesAll.find((pm) => pm.moves.length > 0);
     if (active) return String(active.player);
@@ -85,20 +89,84 @@ function getActingPlayer(
 
 // ─── URL State (single JSON query param) ─────────────────────────────────────
 interface UrlState {
+  /** Script identifier: "chess" (bundled name), "local:foo" (localStorage),
+   *  "/variants/chess.rhai" (legacy path), or full URL. */
   script?: string;
-  n?: number;
-  sel?: string[];
-  panel?: number;
+  n?: number;       // player count
+  sel?: string[];   // selected player IDs
+  panel?: number;   // drawer open: 0 or 1
+  editor?: number;  // editor section open: 0 or 1
 }
 
 function readUrlState(sp: URLSearchParams): UrlState {
   const raw = sp.get("dev");
   if (!raw) return {};
-  try { return JSON.parse(raw) as UrlState; } catch (e) { console.error("[DevBoardView] readUrlState parse failed", e); return {}; }
+  try { return JSON.parse(raw) as UrlState; }
+  catch (e) { console.error("[DevBoardView] readUrlState parse failed", e); return {}; }
 }
 
 function encodeUrlState(s: UrlState): string {
   return JSON.stringify(s);
+}
+
+/**
+ * Resolve a script identifier to either a fetchable URL or localStorage content.
+ * Supports:
+ *   "chess"            → looks up OFFICIAL_VARIANTS by name (case-insensitive)
+ *   "local:my-script"  → loads from localStorage
+ *   "/variants/x.rhai" → direct URL (legacy)
+ *   "https://..."      → direct URL
+ * Returns { url: string } for fetchable, or { content: string } for in-memory.
+ * Returns null if not found.
+ */
+function resolveScript(
+  scriptId: string,
+  bundledVariants: VariantEntry[],
+): { url: string } | { content: string } | null {
+  if (!scriptId) return null;
+
+  // localStorage
+  if (scriptId.startsWith("local:")) {
+    const name = scriptId.slice("local:".length);
+    const content = loadLocalScript(name);
+    return content ? { content } : null;
+  }
+
+  // Bundled name (case-insensitive match against official + custom variants)
+  const lower = scriptId.toLowerCase();
+  // Check official first
+  for (const v of OFFICIAL_VARIANTS) {
+    if (v.name.toLowerCase() === lower || v.url === scriptId) {
+      return { url: v.url };
+    }
+  }
+  // Check all variants (including custom)
+  for (const v of bundledVariants) {
+    if (v.name.toLowerCase() === lower || v.url === scriptId) {
+      return { url: v.url };
+    }
+  }
+
+  // Direct URL/path
+  if (scriptId.startsWith("/") || scriptId.startsWith("http")) {
+    return { url: scriptId };
+  }
+
+  return null;
+}
+
+/** Build a composite variant list: official + localStorage scripts. */
+function useCompositeVariants(): VariantEntry[] {
+  const bundled = useSelector(selectAllVariants);
+  return useMemo(() => {
+    const seen = new Set(bundled.map((v) => v.url));
+    const local = listLocalScripts().map((s) => ({
+      name: `📝 ${s.name}`,
+      url: `local:${s.name}`,
+    }));
+    const extras = local.filter((l) => !seen.has(l.url));
+    return [...bundled, ...extras];
+  }, [bundled]);
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -106,7 +174,7 @@ function encodeUrlState(s: UrlState): string {
 export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const [searchParams, setSearchParams] = useSearchParams();
-  const variants = useSelector(selectAllVariants);
+  const variants = useCompositeVariants();
   const combobox = useCombobox();
 
   const initUrl = useMemo(() => readUrlState(searchParams), []);
@@ -115,18 +183,16 @@ export function DevBoardView() {
 
   const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
     useDisclosure(initUrl.panel === 1);
-  const [editorOpen, { open: openEditor, close: closeEditor }] =
-    useDisclosure(false);
+  const [showEditor, setShowEditor] = useState(initUrl.editor === 1);
 
   const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(
-    null
+    null,
   );
   const [playerCount, setPlayerCount] = useState<number | string>(
-    () => initUrl.n ?? 2
+    () => initUrl.n ?? 2,
   );
-  // controllingPlayer is the primary player for submit/sync (first of selectedPlayers).
   const [controllingPlayer, setControllingPlayer] = useState<string>(
-    () => initUrl.sel?.[0] ?? ""
+    () => initUrl.sel?.[0] ?? "",
   );
   // ── Engine state managed by useChessGame hook ──
   const {
@@ -151,15 +217,14 @@ export function DevBoardView() {
     handleSubmitAction: handleSubmitActionRaw,
   } = useChessGame();
 
-  // selectedPlayers persisted in URL state
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>(
-    () => initUrl.sel ?? []
+    () => initUrl.sel ?? [],
   );
   const [localOrientationOverride, setLocalOrientationOverride] = useState<
     Partial<Record<number, BoardOrientation>>
   >({});
 
-  const lastLoadedUrl = useRef<string | null>(null);
+  const lastLoadedScriptId = useRef<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [gameStateJson, setGameStateJson] = useState<object | null>(null);
   const [showGameState, setShowGameState] = useState(false);
@@ -179,7 +244,7 @@ export function DevBoardView() {
   }, [controllingPlayer]);
   const currentBoardIndex = useMemo(() => {
     if (playerRef == null) return 0;
-    const pm = validMovesAll.find(pm2 => pm2.player === playerRef);
+    const pm = validMovesAll.find((pm2) => pm2.player === playerRef);
     if (pm && pm.moves.length > 0) {
       const firstM = pm.moves[0] as unknown as { from: { type: string; board_index: number } };
       return firstM.from.board_index;
@@ -187,11 +252,10 @@ export function DevBoardView() {
     return 0;
   }, [playerRef, validMovesAll]);
 
-  // Derive board indices for all selected controlling players (drag permissions).
   const activeBoardIndices = useMemo((): number[] => {
     if (selectedPlayers.length === 0) return [currentBoardIndex];
     const boards = new Set<number>();
-    const selIds = new Set(selectedPlayers.map(s => parseInt(s, 10)).filter(n => !isNaN(n)));
+    const selIds = new Set(selectedPlayers.map((s) => parseInt(s, 10)).filter((n) => !isNaN(n)));
     for (const pm of validMovesAll) {
       if (selIds.has(pm.player) && pm.moves.length > 0) {
         for (const m of pm.moves) {
@@ -204,65 +268,40 @@ export function DevBoardView() {
     return boards.size > 0 ? [...boards] : [currentBoardIndex];
   }, [selectedPlayers, currentBoardIndex, validMovesAll]);
 
-  // Derive per-slot orientation: selected player's team perspective.
   const orientationByBoard = useMemo((): BoardOrientation[] => {
     const count = variantConfig?.board.count ?? 1;
     const arr = new Array<BoardOrientation>(count).fill("normal");
     const covered = new Set<number>();
-
-    // Determine controlling team from first selected player
     let controllingTeam = 0;
     const firstSel = selectedPlayers[0];
     if (firstSel) {
       const pid = parseInt(firstSel, 10);
       if (!isNaN(pid)) {
-        const cfg = allPlayers.find(p => p.id === pid);
+        const cfg = allPlayers.find((p) => p.id === pid);
         if (cfg) controllingTeam = cfg.team;
       }
     }
-
-    // 1) For each board, find player with same team as controlling player
-    //    Use home_board to assign players to boards (each player has a home board)
     for (const p of allPlayers) {
       const b = p.home_board ?? 0;
       if (covered.has(b)) continue;
-      if (p.team === controllingTeam) {
-        covered.add(b);
-        arr[b] = p.orientation ?? "normal";
-      }
+      if (p.team === controllingTeam) { covered.add(b); arr[b] = p.orientation ?? "normal"; }
     }
-
-    // 2) Remaining boards: first player whose home_board matches
     for (const p of allPlayers) {
       const b = p.home_board ?? 0;
       if (covered.has(b)) continue;
-      covered.add(b);
-      arr[b] = p.orientation ?? "normal";
+      covered.add(b); arr[b] = p.orientation ?? "normal";
     }
-
-    // 3) Local overrides (rotate button) always win
     for (const [board, override] of Object.entries(localOrientationOverride)) {
       if (override) arr[Number(board)] = override;
     }
-
     return arr;
   }, [allPlayers, selectedPlayers, variantConfig?.board.count, localOrientationOverride]);
 
-  // Collect unique orientations from all players + local overrides, sorted clockwise.
   const usedOrientations = useMemo((): BoardOrientation[] => {
-    const clockwiseOrder: BoardOrientation[] = [
-      "normal",
-      "clockwise",
-      "flipped",
-      "counterclockwise",
-    ];
+    const clockwiseOrder: BoardOrientation[] = ["normal", "clockwise", "flipped", "counterclockwise"];
     const unique = new Set<BoardOrientation>();
-    for (const p of allPlayers) {
-      unique.add(p.orientation ?? "normal");
-    }
-    for (const o of Object.values(localOrientationOverride)) {
-      if (o) unique.add(o);
-    }
+    for (const p of allPlayers) unique.add(p.orientation ?? "normal");
+    for (const o of Object.values(localOrientationOverride)) { if (o) unique.add(o); }
     const sorted = clockwiseOrder.filter((o) => unique.has(o));
     return sorted.length > 0 ? sorted : ["normal"];
   }, [allPlayers, localOrientationOverride]);
@@ -270,30 +309,21 @@ export function DevBoardView() {
   const handleRotateBoard = useCallback(
     (boardIndex: number) => {
       setLocalOrientationOverride((prev) => {
-        const current =
-          prev[boardIndex] ??
-          allPlayers.find((p) => p.home_board === boardIndex)?.orientation ??
-          "normal";
+        const current = prev[boardIndex] ?? allPlayers.find((p) => p.home_board === boardIndex)?.orientation ?? "normal";
         const currentIdx = usedOrientations.indexOf(current);
-        const nextIdx =
-          currentIdx >= 0
-            ? (currentIdx + 1) % usedOrientations.length
-            : 0;
+        const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % usedOrientations.length : 0;
         return { ...prev, [boardIndex]: usedOrientations[nextIdx] };
       });
     },
     [allPlayers, usedOrientations],
   );
 
-  // Union valid moves from all selected players for display.
   const displayValidMoves = useMemo((): WasmAction[] => {
     if (selectedPlayers.length <= 1) return validMoves;
     const selectedSet = new Set(selectedPlayers.map(Number));
     const actions: WasmAction[] = [];
     for (const pm of validMovesAll) {
-      if (selectedSet.has(pm.player)) {
-        actions.push(...pm.moves);
-      }
+      if (selectedSet.has(pm.player)) actions.push(...pm.moves);
     }
     return actions;
   }, [validMovesAll, selectedPlayers, validMoves]);
@@ -303,10 +333,7 @@ export function DevBoardView() {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      setContainerSize({
-        w: entry.contentRect.width,
-        h: entry.contentRect.height,
-      });
+      setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -318,29 +345,22 @@ export function DevBoardView() {
     const urlState: UrlState = {};
     if (playerCount) urlState.n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
     if (selectedVariant?.url) urlState.script = selectedVariant.url;
-    if (selectedPlayers.length > 0) {
-      // Store player IDs in URL
-      urlState.sel = selectedPlayers;
-    }
+    if (selectedPlayers.length > 0) urlState.sel = selectedPlayers;
     urlState.panel = drawerOpen ? 1 : 0;
+    urlState.editor = showEditor ? 1 : 0;
 
     next.set("dev", encodeUrlState(urlState));
     // Clean up old individual params
-    next.delete("state");
-    next.delete("script");
-    next.delete("players");
-    next.delete("player");
-    next.delete("panel");
+    next.delete("state"); next.delete("script"); next.delete("players");
+    next.delete("player"); next.delete("panel");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerCount, selectedPlayers, drawerOpen, selectedVariant?.url, allPlayers]);
+  }, [playerCount, selectedPlayers, drawerOpen, showEditor, selectedVariant?.url]);
 
   // ── Bidirectional sync: selectedPlayers[0] ↔ controllingPlayer ──
   useEffect(() => {
     const primary = selectedPlayers[0] || "";
-    if (primary && primary !== controllingPlayer) {
-      setControllingPlayer(primary);
-    }
+    if (primary && primary !== controllingPlayer) setControllingPlayer(primary);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlayers]);
 
@@ -355,29 +375,32 @@ export function DevBoardView() {
   const addLogEntry = useCallback(
     (playerId: number, action: LogAction) => {
       const id = ++logSeq;
-      setLog((prev) => [
-        ...prev,
-        {
-          id,
-          timestamp: new Date().toLocaleTimeString(),
-          player: playerId,
-          action,
-        },
-      ]);
+      setLog((prev) => [...prev, { id, timestamp: new Date().toLocaleTimeString(), player: playerId, action }]);
     },
-    []
+    [],
   );
 
-  // ── loadScript: delegate to hook, then restore Dev-specific URL state ──
-  const loadScript = useCallback(
-    async (url: string, numPlayers: number) => {
+  // ── loadScript: resolve identifier → URL or content → delegate to hook ──
+  const loadScriptById = useCallback(
+    async (scriptId: string, numPlayers: number) => {
       setLog([]);
-      const urlPreselection = readUrlState(searchParams).sel;
       setLocalOrientationOverride({});
-      await loadScriptRaw(url, numPlayers);
+      const urlPreselection = readUrlState(searchParams).sel;
+      const resolved = resolveScript(scriptId, variants);
+
+      if (!resolved) {
+        console.error("[DevBoardView] cannot resolve script:", scriptId);
+        return;
+      }
+
+      if ("content" in resolved) {
+        await loadScriptContentRaw(resolved.content, numPlayers);
+      } else {
+        await loadScriptRaw(resolved.url, numPlayers);
+      }
       await restorePlayersAfterLoad(urlPreselection);
     },
-    [loadScriptRaw, proxyRef, searchParams],
+    [loadScriptRaw, loadScriptContentRaw, proxyRef, searchParams, variants],
   );
 
   const restorePlayersAfterLoad = useCallback(
@@ -389,9 +412,7 @@ export function DevBoardView() {
         proxy.playersJson() as Promise<WasmPlayerConfig[]>,
       ]);
       const active = allValid.filter((pa) => pa.moves.length > 0).map((pa) => pa.player);
-      if (active.length > 0) {
-        setControllingPlayer(String(active[0]));
-      }
+      if (active.length > 0) setControllingPlayer(String(active[0]));
       if (urlPreselection && urlPreselection.length > 0) {
         const idSet = new Set(urlPreselection.map(Number));
         const restored = allP.filter((p) => idSet.has(p.id)).map((p) => String(p.id));
@@ -403,28 +424,16 @@ export function DevBoardView() {
     [proxyRef],
   );
 
-  const loadScriptContent = useCallback(
-    async (script: string, numPlayers: number) => {
+  // Test handler — from the inline editor "Test" button
+  const handleEditorTest = useCallback(
+    (script: string) => {
+      const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
       setLog([]);
       setLocalOrientationOverride({});
-      await loadScriptContentRaw(script, numPlayers);
-      await restorePlayersAfterLoad();
+      loadScriptContentRaw(script, n).then(() => restorePlayersAfterLoad());
     },
-    [loadScriptContentRaw, proxyRef, restorePlayersAfterLoad],
+    [loadScriptContentRaw, playerCount, proxyRef, restorePlayersAfterLoad],
   );
-
-  // Listen for test-script messages from the pop-out variant editor
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return;
-      if (e.data?.type === "cv-test-script" && typeof e.data.script === "string") {
-        const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
-        loadScriptContent(e.data.script, n);
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [loadScriptContent, playerCount]);
 
   // ── Sync when controlling player changes ──
   useEffect(() => {
@@ -437,24 +446,29 @@ export function DevBoardView() {
   // ── Mount: load from URL query param, or default to first variant ──
   useEffect(() => {
     const urlState = readUrlState(searchParams);
-    const scriptUrl = urlState.script;
-    if (scriptUrl) {
-      const variant = variants.find((v) => v.url === scriptUrl);
-      if (variant) {
-        setSelectedVariant(variant);
-        if (lastLoadedUrl.current !== scriptUrl) {
-          lastLoadedUrl.current = scriptUrl;
-          loadScript(scriptUrl, urlState.n ?? 2);
+    const scriptId = urlState.script;
+    if (scriptId) {
+      const resolved = resolveScript(scriptId, variants);
+      if (resolved && lastLoadedScriptId.current !== scriptId) {
+        lastLoadedScriptId.current = scriptId;
+        // Find matching variant entry for the combobox
+        if ("url" in resolved) {
+          const v = variants.find((v2) => v2.url === resolved.url);
+          if (v) setSelectedVariant(v);
+        } else {
+          // localStorage — create a synthetic entry
+          setSelectedVariant({ name: scriptId, url: scriptId });
         }
-        return;
+        loadScriptById(scriptId, urlState.n ?? 2);
       }
+      return;
     }
-    // Fallback: first variant or first official
+    // Fallback: first variant
     const first = variants[0];
-    if (first && lastLoadedUrl.current !== first.url) {
-      lastLoadedUrl.current = first.url;
+    if (first && lastLoadedScriptId.current !== first.url) {
+      lastLoadedScriptId.current = first.url;
       setSelectedVariant(first);
-      loadScript(first.url, urlState.n ?? 2);
+      loadScriptById(first.url, urlState.n ?? 2);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("dev")]);
@@ -468,34 +482,22 @@ export function DevBoardView() {
   };
 
   const handleLoad = () => {
-    const url = selectedVariant?.url;
-    if (!url) return;
-    const n =
-      typeof playerCount === "number"
-        ? playerCount
-        : parseInt(String(playerCount), 10) || 2;
-    loadScript(url, n);
+    const scriptId = selectedVariant?.url;
+    if (!scriptId) return;
+    const n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
+    loadScriptById(scriptId, n);
     closeDrawer();
   };
 
-  // ── Submit an action: resolve actor → log → delegate to hook ──
+  // ── Submit an action ──
   const handleSubmitAction = useCallback(
     async (action: WasmAction) => {
       const proxy = proxyRef.current;
       if (!proxy || selectedPlayers.length === 0) return;
-
-      // Determine which player to act as (find whose valid_moves contain this action)
-      const actor =
-        validMovesAll.length > 0
-          ? getActingPlayer(action, validMovesAll)
-          : null;
+      const actor = validMovesAll.length > 0 ? getActingPlayer(action, validMovesAll) : null;
       const actingPlayer = actor ?? controllingPlayer ?? selectedPlayers[0];
       if (!actingPlayer) return;
-
-      // Resolve acting player's numeric ID for logging
       const actingPlayerId = parseInt(actingPlayer, 10) || -1;
-
-      // Optimistic log entries
       if (action.type === "move") {
         addLogEntry(actingPlayerId, { kind: "move", action });
       } else if (action.type === "interact") {
@@ -505,15 +507,13 @@ export function DevBoardView() {
       } else if (action.type === "cancel") {
         addLogEntry(actingPlayerId, { kind: "ui", elementId: "cancel" });
       }
-
-      // Delegate engine interaction to the hook
       await handleSubmitActionRaw(actingPlayer, action);
     },
-    [proxyRef, selectedPlayers, boardState, allPlayers, controllingPlayer, validMovesAll, addLogEntry, handleSubmitActionRaw],
+    [proxyRef, selectedPlayers, allPlayers, controllingPlayer, validMovesAll, addLogEntry, handleSubmitActionRaw],
   );
 
   const filteredVariants = variants.filter((v) =>
-    v.name.toLowerCase().includes(search.toLowerCase().trim())
+    v.name.toLowerCase().includes(search.toLowerCase().trim()),
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -521,14 +521,7 @@ export function DevBoardView() {
     <Box ref={containerRef} className={style.container}>
       {/* ── Fullscreen Stage — board is centered inside it ── */}
       {loading && (
-        <Box
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-          }}
-        >
+        <Box style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
           <Loader />
         </Box>
       )}
@@ -555,22 +548,12 @@ export function DevBoardView() {
         />
       )}
 
-      {/* ── Piece selection is rendered inside the PixiJS board via derive_ui ── */}
-
-      {/* ── Dev gear button — only shown when drawer is closed (drawer has its own close X) ── */}
+      {/* ── Dev gear button ── */}
       {!drawerOpen && (
         <Tooltip label="Dev controls" position="left" withArrow>
           <ActionIcon
-            variant="filled"
-            color="dark"
-            size="lg"
-            radius="xl"
-            style={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              zIndex: 200,
-            }}
+            variant="filled" color="dark" size="lg" radius="xl"
+            style={{ position: "absolute", top: 8, right: 8, zIndex: 200 }}
             onClick={openDrawer}
           >
             <IconSettings size="1.1rem" />
@@ -581,20 +564,11 @@ export function DevBoardView() {
       {/* ── Dev sidebar panel ── */}
       <Box
         style={{
-          position: "absolute",
-          top: 0,
-          right: drawerOpen ? 0 : -350,
-          width: 330,
-          height: "100%",
-          zIndex: 150,
-          transition: "right 0.25s ease",
+          position: "absolute", top: 0, right: drawerOpen ? 0 : -420,
+          width: 400, height: "100%", zIndex: 150, transition: "right 0.25s ease",
         }}
       >
-        <Paper
-          shadow="lg"
-          withBorder
-          style={{ height: "100%", borderRadius: 0, overflow: "hidden" }}
-        >
+        <Paper shadow="lg" withBorder style={{ height: "100%", borderRadius: 0, overflow: "hidden" }}>
           <ScrollArea h="100%" type="auto" offsetScrollbars>
             <Stack gap="md" p="md">
               <Group justify="space-between" align="center">
@@ -603,355 +577,183 @@ export function DevBoardView() {
                   <IconX size="0.9rem" />
                 </ActionIcon>
               </Group>
-              {/* Variant combobox — like the lobby */}
-          <Combobox
-            store={combobox}
-            withinPortal={false}
-            onOptionSubmit={handleVariantSelect}
-          >
-            <Combobox.Target>
-              <InputBase
-                component="button"
-                type="button"
-                pointer
-                rightSection={<Text size="xs" c="dimmed">▼</Text>}
-                onClick={() => combobox.toggleDropdown()}
-                rightSectionPointerEvents="none"
-                label="Variant"
-                style={{ flex: 1 }}
-              >
-                {selectedVariant ? (
-                  <Group justify="space-between" style={{ width: "100%" }}>
-                    <Text size="sm">{selectedVariant.name}</Text>
-                    <Tooltip label="View Source">
-                      <ActionIcon
-                        variant="transparent"
-                        color="gray"
-                        component="a"
-                        href={getGithubBrowseUrl(selectedVariant.url)}
-                        target="_blank"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.preventDefault()}
-                      >
-                        <IconBrandGithub size="1.2rem" />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    Select a variant…
-                  </Text>
-                )}
-              </InputBase>
-            </Combobox.Target>
 
-            <Combobox.Dropdown>
-              <Combobox.Search
-                value={search}
-                onChange={(event) => setSearch(event.currentTarget.value)}
-                placeholder="Search variants…"
-              />
-              <Combobox.Options>
-                {filteredVariants.length === 0 ? (
-                  <Combobox.Empty>No variants found</Combobox.Empty>
-                ) : (
-                  filteredVariants.map((item) => (
-                    <Combobox.Option value={item.url} key={item.url}>
-                      <Text size="sm">{item.name}</Text>
-                    </Combobox.Option>
-                  ))
-                )}
-              </Combobox.Options>
-            </Combobox.Dropdown>
-          </Combobox>
-
-          <NumberInput
-            label="Players"
-            min={2}
-            max={8}
-            value={playerCount}
-            onChange={setPlayerCount}
-          />
-          <Button
-            leftSection={<IconPlayerSkipBack size="0.85rem" />}
-            onClick={handleLoad}
-            loading={loading}
-            fullWidth
-          >
-            Load / Restart
-          </Button>
-          <Button
-            variant="light"
-            leftSection={<IconCode size="0.85rem" />}
-            onClick={openEditor}
-            fullWidth
-          >
-            Variant Editor
-          </Button>
-
-          <MultiSelect
-            label="Controlling players (local)"
-            data={allPlayers.map((p) => ({
-              value: String(p.id),
-              label: p.name || String(p.id),
-            }))}
-            value={selectedPlayers}
-            onChange={(values) => setSelectedPlayers(values)}
-            clearable
-          />
-
-          {/* ── Action Log (collapsible JSON) ── */}
-          <Box>
-            <Group
-              justify="space-between"
-              align="center"
-              style={{ cursor: "pointer" }}
-              onClick={() => setShowActionLog((s) => !s)}
-            >
-              <Group gap="xs">
-                <Text size="sm" fw={600}>
-                  Action Log
-                </Text>
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLog([]);
-                  }}
-                  title="Clear"
-                >
-                  <IconTrash size="0.85rem" />
-                </ActionIcon>
-              </Group>
-              <Text size="xs" c="dimmed">
-                {showActionLog ? "▼" : "▶"}
-              </Text>
-            </Group>
-            {showActionLog && (
-              <Box
-                mt={4}
-                style={{
-                  minHeight: 60,
-                  maxHeight: 300,
-                  overflow: "auto",
-                  resize: "vertical",
-                  background: "#1a1b1e",
-                  borderRadius: 4,
-                  padding: 8,
-                }}
-              >
-                {log.length === 0 ? (
-                  <Text size="xs" c="dimmed" fs="italic">
-                    No actions yet.
-                  </Text>
-                ) : (
-                  <Text
-                    size="xs"
-                    component="pre"
-                    style={{
-                      margin: 0,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-all",
-                      fontFamily: "monospace",
-                      color: "#c9d1d9",
-                    }}
+              {/* Variant combobox — official + localStorage */}
+              <Combobox store={combobox} withinPortal={false} onOptionSubmit={handleVariantSelect}>
+                <Combobox.Target>
+                  <InputBase
+                    component="button" type="button" pointer
+                    rightSection={<Text size="xs" c="dimmed">▼</Text>}
+                    onClick={() => combobox.toggleDropdown()}
+                    rightSectionPointerEvents="none"
+                    label="Variant"
+                    style={{ flex: 1 }}
                   >
-                    {JSON.stringify(
-                      [...log].reverse().map((entry) => ({
-                        id: entry.id,
-                        timestamp: entry.timestamp,
-                        player: entry.player,
-                        action: entry.action,
-                      })),
-                      null,
-                      2
+                    {selectedVariant ? (
+                      <Group justify="space-between" style={{ width: "100%" }}>
+                        <Text size="sm">{selectedVariant.name}</Text>
+                        {selectedVariant.url && !selectedVariant.url.startsWith("local:") && (
+                          <Tooltip label="View Source">
+                            <ActionIcon
+                              variant="transparent" color="gray"
+                              component="a"
+                              href={getGithubBrowseUrl(selectedVariant.url)}
+                              target="_blank"
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.preventDefault()}
+                            >
+                              <IconBrandGithub size="1.2rem" />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+                      </Group>
+                    ) : (
+                      <Text size="sm" c="dimmed">Select a variant…</Text>
                     )}
-                  </Text>
+                  </InputBase>
+                </Combobox.Target>
+                <Combobox.Dropdown>
+                  <Combobox.Search
+                    value={search}
+                    onChange={(event) => setSearch(event.currentTarget.value)}
+                    placeholder="Search variants…"
+                  />
+                  <Combobox.Options>
+                    {filteredVariants.length === 0 ? (
+                      <Combobox.Empty>No variants found</Combobox.Empty>
+                    ) : (
+                      filteredVariants.map((item) => (
+                        <Combobox.Option value={item.url} key={item.url}>
+                          <Text size="sm">{item.name}</Text>
+                        </Combobox.Option>
+                      ))
+                    )}
+                  </Combobox.Options>
+                </Combobox.Dropdown>
+              </Combobox>
+
+              <NumberInput label="Players" min={2} max={8} value={playerCount} onChange={setPlayerCount} />
+              <Button
+                leftSection={<IconPlayerSkipBack size="0.85rem" />}
+                onClick={handleLoad} loading={loading} fullWidth
+              >
+                Load / Restart
+              </Button>
+
+              <MultiSelect
+                label="Controlling players (local)"
+                data={allPlayers.map((p) => ({ value: String(p.id), label: p.name || String(p.id) }))}
+                value={selectedPlayers}
+                onChange={(values) => setSelectedPlayers(values)}
+                clearable
+              />
+
+              {/* ── Inline editor (collapsible) ── */}
+              <Box>
+                <Group
+                  justify="space-between" align="center"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setShowEditor((s) => !s)}
+                >
+                  <Group gap="xs">
+                    <IconCode size="0.9rem" />
+                    <Text size="sm" fw={600}>Variant Editor</Text>
+                  </Group>
+                  <Text size="xs" c="dimmed">{showEditor ? "▼" : "▶"}</Text>
+                </Group>
+                {showEditor && (
+                  <Box mt="xs" style={{ maxHeight: 400, overflow: "auto" }}>
+                    <VariantEditorContent onTest={handleEditorTest} showPopOut />
+                  </Box>
                 )}
               </Box>
-            )}
-          </Box>
 
-          {/* ── Game State JSON (collapsible) ── */}
-          <Box>
-            <Group
-              justify="space-between"
-              align="center"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!showGameState && !gameStateJson) {
-                  // Fetch on first expand
-                  void proxyRef.current?.stateJson().then(v => {
-                    setGameStateJson(v as object);
-                  }).catch((e) => console.error("[dev] stateJson failed", e));
-                }
-                setShowGameState((s) => !s);
-              }}
-            >
-              <Text size="sm" fw={600}>
-                Game State
-              </Text>
-              <Text size="xs" c="dimmed">
-                {showGameState ? "▼" : "▶"}
-              </Text>
-            </Group>
-            {showGameState && gameStateJson && (
-              <Box
-                mt={4}
-                style={{
-                  minHeight: 80,
-                  maxHeight: 400,
-                  overflow: "auto",
-                  resize: "vertical",
-                  background: "#1a1b1e",
-                  borderRadius: 4,
-                  padding: 8,
-                }}
-              >
-                <Text
-                  size="xs"
-                  component="pre"
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
-                    fontFamily: "monospace",
-                    color: "#c9d1d9",
-                  }}
-                >
-                  {JSON.stringify(gameStateJson, null, 2)}
-                </Text>
+              {/* ── Action Log ── */}
+              <Box>
+                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => setShowActionLog((s) => !s)}>
+                  <Group gap="xs">
+                    <Text size="sm" fw={600}>Action Log</Text>
+                    <ActionIcon variant="subtle" size="sm" onClick={(e) => { e.stopPropagation(); setLog([]); }} title="Clear">
+                      <IconTrash size="0.85rem" />
+                    </ActionIcon>
+                  </Group>
+                  <Text size="xs" c="dimmed">{showActionLog ? "▼" : "▶"}</Text>
+                </Group>
+                {showActionLog && (
+                  <Box mt={4} style={{ minHeight: 60, maxHeight: 300, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
+                    {log.length === 0 ? (
+                      <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>
+                    ) : (
+                      <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
+                        {JSON.stringify([...log].reverse().map((entry) => ({ id: entry.id, timestamp: entry.timestamp, player: entry.player, action: entry.action })), null, 2)}
+                      </Text>
+                    )}
+                  </Box>
+                )}
               </Box>
-            )}
-          </Box>
 
-          {/* ── Variant Config (collapsible) ── */}
-          <Box mt="xs">
-            <Group
-              justify="space-between"
-              align="center"
-              style={{ cursor: "pointer" }}
-              onClick={() => setShowVariantConfig((s) => !s)}
-            >
-              <Text size="sm" fw={600}>
-                Variant Config
-              </Text>
-              <Text size="xs" c="dimmed">
-                {showVariantConfig ? "▼" : "▶"}
-              </Text>
-            </Group>
-            {showVariantConfig && variantConfig && (
-              <Box
-                mt={4}
-                style={{
-                  minHeight: 60,
-                  maxHeight: 300,
-                  overflow: "auto",
-                  resize: "vertical",
-                  background: "#1a1b1e",
-                  borderRadius: 4,
-                  padding: 8,
-                }}
-              >
-                <Text
-                  size="xs"
-                  component="pre"
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
-                    fontFamily: "monospace",
-                    color: "#c9d1d9",
-                  }}
-                >
-                  {JSON.stringify(variantConfig, null, 2)}
-                </Text>
+              {/* ── Game State JSON ── */}
+              <Box>
+                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => {
+                  if (!showGameState && !gameStateJson) {
+                    void proxyRef.current?.stateJson().then((v) => setGameStateJson(v as object))
+                      .catch((e) => console.error("[dev] stateJson failed", e));
+                  }
+                  setShowGameState((s) => !s);
+                }}>
+                  <Text size="sm" fw={600}>Game State</Text>
+                  <Text size="xs" c="dimmed">{showGameState ? "▼" : "▶"}</Text>
+                </Group>
+                {showGameState && gameStateJson && (
+                  <Box mt={4} style={{ minHeight: 80, maxHeight: 400, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
+                    <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
+                      {JSON.stringify(gameStateJson, null, 2)}
+                    </Text>
+                  </Box>
+                )}
               </Box>
-            )}
-          </Box>
 
-          {/* ── Valid Actions JSON (collapsible) ── */}
-          <Box mt="xs">
-            <Group
-              justify="space-between"
-              align="center"
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                if (!showValidMoves && !validMovesJsonStr) {
-                  // Fetch on first expand
-                  void proxyRef.current?.validMovesJson().then(v => {
-                    const mapped = (v as WasmPlayerMoves[]).map(pm => ({
-                      player: pm.player,
-                      moves: pm.moves,
-                    }));
-                    setValidMovesJsonStr(JSON.stringify(mapped, null, 2));
-                  }).catch((e) => console.error("[dev] validMovesJson failed", e));
-                }
-                setShowValidMoves((s) => !s);
-              }}
-            >
-              <Text size="sm" fw={600}>
-                Valid Moves
-              </Text>
-              <Text size="xs" c="dimmed">
-                {showValidMoves ? "▼" : "▶"}
-              </Text>
-            </Group>
-            {showValidMoves && validMovesJsonStr && (
-              <Box
-                mt={4}
-                style={{
-                  minHeight: 80,
-                  maxHeight: 400,
-                  overflow: "auto",
-                  resize: "vertical",
-                  background: "#1a1b1e",
-                  borderRadius: 4,
-                  padding: 8,
-                }}
-              >
-                <Text
-                  size="xs"
-                  component="pre"
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
-                    fontFamily: "monospace",
-                    color: "#c9d1d9",
-                  }}
-                >
-                  {(() => {
-                    try {
-                      return JSON.stringify(
-                        JSON.parse(validMovesJsonStr),
-                        null,
-                        2
-                      );
-                    } catch (e) {
-                      console.error("[DevBoardView] validMoves prettify failed", e);
-                      return validMovesJsonStr;
-                    }
-                  })()}
-                </Text>
+              {/* ── Variant Config ── */}
+              <Box mt="xs">
+                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => setShowVariantConfig((s) => !s)}>
+                  <Text size="sm" fw={600}>Variant Config</Text>
+                  <Text size="xs" c="dimmed">{showVariantConfig ? "▼" : "▶"}</Text>
+                </Group>
+                {showVariantConfig && variantConfig && (
+                  <Box mt={4} style={{ minHeight: 60, maxHeight: 300, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
+                    <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
+                      {JSON.stringify(variantConfig, null, 2)}
+                    </Text>
+                  </Box>
+                )}
               </Box>
-            )}
-          </Box>
+
+              {/* ── Valid Moves ── */}
+              <Box mt="xs">
+                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => {
+                  if (!showValidMoves && !validMovesJsonStr) {
+                    void proxyRef.current?.validMovesJson().then((v) => {
+                      const mapped = (v as WasmPlayerMoves[]).map((pm) => ({ player: pm.player, moves: pm.moves }));
+                      setValidMovesJsonStr(JSON.stringify(mapped, null, 2));
+                    }).catch((e) => console.error("[dev] validMovesJson failed", e));
+                  }
+                  setShowValidMoves((s) => !s);
+                }}>
+                  <Text size="sm" fw={600}>Valid Moves</Text>
+                  <Text size="xs" c="dimmed">{showValidMoves ? "▼" : "▶"}</Text>
+                </Group>
+                {showValidMoves && validMovesJsonStr && (
+                  <Box mt={4} style={{ minHeight: 80, maxHeight: 400, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
+                    <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
+                      {(() => { try { return JSON.stringify(JSON.parse(validMovesJsonStr), null, 2); } catch (e) { console.error("[DevBoardView] validMoves prettify failed", e); return validMovesJsonStr; } })()}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
             </Stack>
           </ScrollArea>
         </Paper>
       </Box>
-
-      {/* Variant Editor Modal */}
-      <VariantEditorModal
-        opened={editorOpen}
-        onClose={closeEditor}
-        onTest={(script) => {
-          const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
-          loadScriptContent(script, n);
-        }}
-      />
     </Box>
   );
 }

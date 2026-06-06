@@ -7,7 +7,6 @@ import CommunityView from "./features/users/CommunityView";
 import SettingsView from "./features/settings/SettingsView";
 import LobbyView from "./features/lobby/LobbyView";
 import DevBoardView from "./features/dev-board/DevBoardView";
-import VariantEditorPage from "./features/variant-editor/VariantEditorPage";
 import ArenaView from "./features/arena/ArenaView";
 import { useSelector } from "react-redux";
 import { selectIsGuest } from "./features/auth/authSlice";
@@ -28,7 +27,6 @@ const AppRoutes = () => {
       <Route path="game/:lobbyId" element={<ArenaView />} />
       <Route path="game/local" element={<ArenaView />} />
       <Route path="dev" element={<DevBoardView />} />
-      <Route path="dev/editor" element={<VariantEditorPage />} />
       <Route path="" element={<PlayView />} />
       <Route path="*" element={<MatchFail />} />
     </Routes>
