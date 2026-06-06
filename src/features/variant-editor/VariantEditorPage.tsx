@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Paper } from "@mantine/core";
+import { Paper, Stack, Title } from "@mantine/core";
 import useConfigureLayout from "../layout/hooks";
 import { VariantEditorContent } from "./VariantEditorContent";
 
@@ -10,11 +10,9 @@ import { VariantEditorContent } from "./VariantEditorContent";
 export default function VariantEditorPage() {
   useConfigureLayout(() => ({ navPinned: false }));
 
-  // Listen for localStorage changes from the main window
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === "cv-editor-draft" && e.newValue) {
-        // The opener saved a draft — reload to pick it up
         window.location.reload();
       }
     };
@@ -33,7 +31,10 @@ export default function VariantEditorPage() {
 
   return (
     <Paper p="md" h="100vh" style={{ borderRadius: 0 }}>
-      <VariantEditorContent onTest={handleTest} />
+      <Stack h="100%" gap="xs">
+        <Title order={3}>Variant Editor</Title>
+        <VariantEditorContent onTest={handleTest} />
+      </Stack>
     </Paper>
   );
 }
