@@ -15,7 +15,9 @@ import {
   WasmAction,
   WasmBoardCoords,
   WasmBoardState,
+  WasmCoords,
   WasmPiece,
+  WasmReserveCoords,
   WasmUiPiecePicker,
   WasmVariantConfig,
   WasmUiMap,
@@ -44,8 +46,25 @@ function coordsEq(a: WasmBoardCoords, b: WasmBoardCoords): boolean {
   return a.row === b.row && a.col === b.col && a.board_index === b.board_index;
 }
 
+function coordsEqual(a: WasmCoords, b: WasmCoords): boolean {
+  if (a.type === "board" && b.type === "board") {
+    return coordsEq(a, b);
+  }
+  if (a.type === "reserve" && b.type === "reserve") {
+    // Reserve coords match by type and board_index — the engine's valid_moves
+    // may use different index values, but any reserve piece can be dropped
+    // on any valid reserve→board target.
+    return a.board_index === b.board_index;
+  }
+  return false;
+}
+
 function mkBoardCoords(row: number, col: number, boardIndex: number): WasmBoardCoords {
   return { type: "board", row, col, board_index: boardIndex };
+}
+
+function mkReserveCoords(index: number, boardIndex: number): WasmReserveCoords {
+  return { type: "reserve", index, board_index: boardIndex };
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -118,7 +137,7 @@ export class PixiBoard {
   private destroyed = false;
 
   // Drag state
-  private dragOrigin: WasmBoardCoords | null = null;
+  private dragOrigin: WasmCoords | null = null;
   private dragCopy: Sprite | null = null;
   private dragPointerMove: ((e: PointerEvent) => void) | null = null;
   private dragPointerUp: ((e: PointerEvent) => void) | null = null;
@@ -536,9 +555,8 @@ export class PixiBoard {
       for (const a of validMoves) {
         if (
           a.type === "move" &&
-          isBoardCoords(a.from) &&
-          coordsEq(a.from, activeSource) &&
-          isBoardCoords(a.to)
+          isBoardCoords(a.to) &&
+          coordsEqual(a.from, activeSource)
         ) {
           validTargets.add(`${a.to.board_index},${a.to.row},${a.to.col}`);
         }
@@ -569,7 +587,7 @@ export class PixiBoard {
             }
           }
 
-          if (activeSource && coordsEq(activeSource, coords)) {
+          if (activeSource && isBoardCoords(activeSource) && coordsEq(activeSource, coords)) {
             this.highlightGraphics
               .rect(x, y, sl.tileSize, sl.tileSize)
               .fill({ color: SELECTED_COLOR, alpha: 0.45 });
@@ -655,6 +673,7 @@ export class PixiBoard {
       const col = Number(m[2]);
       const isDragOrigin =
         this.dragOrigin != null &&
+        this.dragOrigin.type === "board" &&
         this.dragOrigin.board_index === sl.boardIndex &&
         this.dragOrigin.row === row &&
         this.dragOrigin.col === col;
@@ -780,11 +799,15 @@ export class PixiBoard {
 
           const capturedPiece = piece;
           const capturedElementId = elementId;
+          const capturedBoardIdx = boardIdx;
+          const capturedIdx = idx;
           sprite.on("pointerdown", (e: FederatedPointerEvent) => {
             e.stopPropagation();
             this.onSelectReservePiece?.(capturedPiece, capturedElementId);
             this.selected = null;
-            this.rebuildHighlights();
+            // Start drag from reserve pile
+            const origin = mkReserveCoords(capturedIdx, capturedBoardIdx);
+            this.startDrag(sprite, origin, e, sl);
           });
 
           this.reserveLayer.addChild(sprite);
@@ -1163,7 +1186,7 @@ export class PixiBoard {
 
   private startDrag(
     originSprite: Sprite,
-    origin: WasmBoardCoords,
+    origin: WasmCoords,
     e: FederatedPointerEvent,
     sl: SlotLayout
   ): void {
@@ -1222,15 +1245,16 @@ export class PixiBoard {
           const action = this.state.validMoves.find(
             (a): a is Extract<WasmAction, { type: "move" }> =>
               a.type === "move" &&
-              isBoardCoords(a.from) &&
-              coordsEq(a.from, savedOrigin) &&
               isBoardCoords(a.to) &&
+              coordsEqual(a.from, savedOrigin) &&
               coordsEq(a.to, target)
           );
           if (action) {
-            const piece = this.getDisplayPiece(savedOrigin.row, savedOrigin.col, savedOrigin.board_index);
-            if (piece && isBoardCoords(action.to)) {
-              this.onPendingMove({ from: savedOrigin, piece, to: action.to });
+            if (isBoardCoords(savedOrigin)) {
+              const piece = this.getDisplayPiece(savedOrigin.row, savedOrigin.col, savedOrigin.board_index);
+              if (piece) {
+                this.onPendingMove({ from: savedOrigin, piece, to: action.to as WasmBoardCoords });
+              }
             }
             this.onSubmitAction(action);
             originSprite.alpha = 0;
