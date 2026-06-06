@@ -39,6 +39,7 @@ import {
   WasmPlayerMoves,
   WasmUiMap,
   WasmVariantConfig,
+  isBoardCoords,
 } from "../chessboard/types";
 import { useSelector } from "../../app/hooks";
 import { selectAllVariants, VariantEntry } from "../lobby/variantsSlice";
@@ -61,11 +62,26 @@ let logSeq = 0;
 
 /** Determine which selected player should act. Returns first selected player. */
 function getActingPlayer(
-  _action: WasmAction,
-  _boardState: WasmBoardState,
-  selectedPlayers: string[],
+  action: WasmAction,
+  boardState: WasmBoardState,
+  allPlayers: WasmPlayerConfig[],
 ): string | null {
-  return selectedPlayers[0] ?? null;
+  // For move actions, determine the player by the piece at the source square
+  if (action.type === "move" && isBoardCoords(action.from)) {
+    const board = boardState.boards[action.from.board_index ?? 0];
+    if (!board) return null;
+    const piece = board[action.from.row * boardState.cols + action.from.col];
+    if (piece) {
+      const player = allPlayers.find((p) => p.data?.color === piece.color);
+      if (player) return String(player.id);
+    }
+  }
+  // For select_piece actions, use the piece's color
+  if (action.type === "select_piece" && action.piece?.color) {
+    const player = allPlayers.find((p) => p.data?.color === action.piece.color);
+    if (player) return String(player.id);
+  }
+  return null;
 }
 
 // ─── URL State (single JSON query param) ─────────────────────────────────────
@@ -449,8 +465,8 @@ export function DevBoardView() {
 
       // Determine which player to act as (based on the piece being moved)
       const actor =
-        boardState && selectedPlayers.length > 0
-          ? getActingPlayer(action, boardState, selectedPlayers)
+        boardState && allPlayers.length > 0
+          ? getActingPlayer(action, boardState, allPlayers)
           : null;
       const actingPlayer = actor ?? controllingPlayer ?? selectedPlayers[0];
       if (!actingPlayer) return;
