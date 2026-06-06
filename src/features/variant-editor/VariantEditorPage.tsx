@@ -1,26 +1,21 @@
-import { useEffect, useRef } from "react";
 import { Paper, Stack, Title } from "@mantine/core";
 import useConfigureLayout from "../layout/hooks";
 import { VariantEditorContent } from "./VariantEditorContent";
 
 /**
  * Standalone variant editor page (opened via pop-out from DevBoard).
- * Communicates "Test" back to the opener via BroadcastChannel.
+ * Communicates "Test" back to the opener window via postMessage.
  */
 export default function VariantEditorPage() {
   useConfigureLayout(() => ({ navPinned: false }));
-  const bcRef = useRef<BroadcastChannel | null>(null);
-
-  useEffect(() => {
-    bcRef.current = new BroadcastChannel("cv-editor");
-    return () => {
-      bcRef.current?.close();
-      bcRef.current = null;
-    };
-  }, []);
 
   const handleTest = (scriptContent: string) => {
-    bcRef.current?.postMessage({ type: "test", script: scriptContent });
+    if (window.opener) {
+      window.opener.postMessage(
+        { type: "cv-test-script", script: scriptContent },
+        window.location.origin,
+      );
+    }
   };
 
   return (

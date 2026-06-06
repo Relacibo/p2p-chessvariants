@@ -413,16 +413,17 @@ export function DevBoardView() {
     [loadScriptContentRaw, proxyRef, restorePlayersAfterLoad],
   );
 
-  // Listen for test-script messages from the pop-out variant editor (BroadcastChannel)
+  // Listen for test-script messages from the pop-out variant editor
   useEffect(() => {
-    const bc = new BroadcastChannel("cv-editor");
-    bc.onmessage = (e: MessageEvent) => {
-      if (e.data?.type === "test" && typeof e.data.script === "string") {
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "cv-test-script" && typeof e.data.script === "string") {
         const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
         loadScriptContent(e.data.script, n);
       }
     };
-    return () => bc.close();
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, [loadScriptContent, playerCount]);
 
   // ── Sync when controlling player changes ──
