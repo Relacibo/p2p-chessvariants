@@ -1,6 +1,5 @@
 use rhai::{FuncRegistration, Module};
 use std::sync::Mutex;
-use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LogLevel {
@@ -20,7 +19,6 @@ pub fn set_log_level(level: &str) {
         "error" => LogLevel::Error,
         _ => return,
     };
-    // Poisoned mutex is unrecoverable in single-threaded WASM; recover guard.
     *LOG_LEVEL.lock().unwrap_or_else(|e| e.into_inner()) = new_level;
 }
 
@@ -29,11 +27,25 @@ fn log(level: LogLevel, msg: &str) {
     if level < current {
         return;
     }
-    match level {
-        LogLevel::Debug => web_sys::console::debug_1(&JsValue::from_str(msg)),
-        LogLevel::Info => web_sys::console::info_1(&JsValue::from_str(msg)),
-        LogLevel::Warn => web_sys::console::warn_1(&JsValue::from_str(msg)),
-        LogLevel::Error => web_sys::console::error_1(&JsValue::from_str(msg)),
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::prelude::*;
+        match level {
+            LogLevel::Debug => web_sys::console::debug_1(&JsValue::from_str(msg)),
+            LogLevel::Info => web_sys::console::info_1(&JsValue::from_str(msg)),
+            LogLevel::Warn => web_sys::console::warn_1(&JsValue::from_str(msg)),
+            LogLevel::Error => web_sys::console::error_1(&JsValue::from_str(msg)),
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let prefix = match level {
+            LogLevel::Debug => "[DEBUG]",
+            LogLevel::Info => "[INFO]",
+            LogLevel::Warn => "[WARN]",
+            LogLevel::Error => "[ERROR]",
+        };
+        eprintln!("{prefix} {msg}");
     }
 }
 
