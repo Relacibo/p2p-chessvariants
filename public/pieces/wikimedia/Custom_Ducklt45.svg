@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" width="45" height="45">
+  <!-- Body -->
+  <ellipse cx="19" cy="25" rx="12" ry="9" fill="#ffffff" stroke="#333333" stroke-width="1.2"/>
+  <!-- Tail -->
+  <path d="M 8 23 Q 3 18, 7 16 Q 5 20, 9 22" fill="#ffffff" stroke="#333333" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Neck -->
+  <path d="M 20 16 Q 22 10, 26 9" fill="none" stroke="#ffffff" stroke-width="6"/>
+  <path d="M 20 16 Q 22 10, 26 9" fill="none" stroke="#333333" stroke-width="1.2"/>
+  <!-- Head -->
+  <circle cx="28" cy="8" r="5.5" fill="#ffffff" stroke="#333333" stroke-width="1.2"/>
+  <!-- Beak -->
+  <path d="M 33 7 L 39 7 L 33 10 Z" fill="#ffcc00" stroke="#333333" stroke-width="0.8" stroke-linejoin="round"/>
+  <!-- Eye -->
+  <circle cx="30" cy="6.5" r="1.2" fill="#333333"/>
+  <!-- Wing hint -->
+  <path d="M 15 23 Q 20 27, 25 24" fill="none" stroke="#cccccc" stroke-width="1" stroke-linecap="round"/>
+  <!-- Water line (optional, gives context) -->
+  <path d="M 5 33 Q 22 31, 40 33" fill="none" stroke="#88bbdd" stroke-width="0.8" opacity="0.5"/>
+</svg>

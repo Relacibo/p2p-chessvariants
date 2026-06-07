@@ -53,7 +53,15 @@ const PIECE_LETTER: Record<string, string> = {
   empress: "c", // Seirawan: Elephant in some naming, but Chancellor = Rook+Knight
   marshal: "c",
   camel: "Z", // Zebra is closest visually to a camel in this set
-  duck: "", // no visual match — will use fallback rendering
+};
+
+/**
+ * Pieces with custom filenames that don't follow the Chess_{letter}{color}t45 pattern.
+ * Maps piece_type → base filename (without extension). The URL builder appends
+ * {colorLetter}t45.svg based on the naming contained in the base name.
+ */
+const CUSTOM_PIECE_FILE: Record<string, string> = {
+  duck: "Custom_Duck", // hand-drawn duck SVG created for this engine
 };
 
 /**
@@ -87,6 +95,14 @@ export const PIECE_TINT: Record<string, number> = {
  * URL format: /pieces/wikimedia/Chess_{pieceLetter}{colorLetter}t45.svg
  */
 export function getPieceImageUrl(color: string, pieceType: string): string | null {
+  // 1. Check custom filenames first (non-standard naming)
+  const custom = CUSTOM_PIECE_FILE[pieceType];
+  if (custom) {
+    const colorLetter = COLOR_LETTER[color] ?? COLOR_LETTER["white"];
+    return `/pieces/wikimedia/${custom}${colorLetter}t45.svg`;
+  }
+
+  // 2. Standard Wikimedia naming: Chess_{letter}{color}t45.svg
   const letter = PIECE_LETTER[pieceType];
   // Explicitly return null for empty-string mappings (intentionally missing)
   if (letter === undefined || letter === "") return null;
