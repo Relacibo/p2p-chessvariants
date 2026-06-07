@@ -38,14 +38,14 @@ let PIECE_DEFS = PieceDefs([
     #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
     #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
     #{ type: "pawn", color: "white", def: [
-        #{ type: "jump", offsets: [[-1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-        #{ type: "jump", offsets: [[-2, 0]], condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
-        #{ type: "jump", offsets: [[-1,-1],[-1,1]], condition: |s,f,t| { let x = engine::board::get(s.board, t); let y = engine::board::get(s.board, f); x == () || x.color != y.color } },
+        #{ type: "jump", offsets: [[-1, 0]], move_type: "move", condition: |s,f,t| engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[-2, 0]], move_type: "move", condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[-1,-1],[-1,1]], move_type: "capture", condition: |s,f,t| { let x = engine::board::get(s.board, t); let y = engine::board::get(s.board, f); x == () || x.color != y.color } },
     ]},
     #{ type: "pawn", color: "black", def: [
-        #{ type: "jump", offsets: [[1, 0]], condition: |s,f,t| engine::board::get(s.board, t) == () },
-        #{ type: "jump", offsets: [[2, 0]], condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
-        #{ type: "jump", offsets: [[1,-1],[1,1]], condition: |s,f,t| { let x = engine::board::get(s.board, t); let y = engine::board::get(s.board, f); x == () || x.color != y.color } },
+        #{ type: "jump", offsets: [[1, 0]], move_type: "move", condition: |s,f,t| engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[2, 0]], move_type: "move", condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
+        #{ type: "jump", offsets: [[1,-1],[1,1]], move_type: "capture", condition: |s,f,t| { let x = engine::board::get(s.board, t); let y = engine::board::get(s.board, f); x == () || x.color != y.color } },
     ]},
 ]);
 
@@ -56,9 +56,32 @@ fn get_pseudo_dests(board, from, state) {
     if comps == () { return []; }
     let dests = [];
     for comp in comps {
+        let mt = if comp.move_type != () { comp.move_type } else { "both" };
         let raw = switch comp.type {
-            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color),
-            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color),
+            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color, mt),
+            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color, mt),
+            _ => [],
+        };
+        if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
+        for d in raw { dests.push(d); }
+    }
+    dests
+}
+
+// Like get_pseudo_dests but skips components with move_type == "move"
+// (e.g. pawn forward pushes). Used by sq_attacked_by for check detection.
+fn get_attack_dests(board, from, state) {
+    let piece = engine::board::get(board, from);
+    if piece == () { return []; }
+    let comps = PIECE_DEFS.get(piece);
+    if comps == () { return []; }
+    let dests = [];
+    for comp in comps {
+        if comp.move_type == "move" { continue; }
+        let mt = if comp.move_type != () { comp.move_type } else { "both" };
+        let raw = switch comp.type {
+            "jump"  => engine::moves::jump(board, from, comp.offsets, piece.color, mt),
+            "slide" => engine::moves::slide(board, from, comp.dirs, piece.color, mt),
             _ => [],
         };
         if comp.condition != () { raw = raw.filter(|t| comp.condition(state, from, t)); }
@@ -87,7 +110,7 @@ fn sq_attacked_by(board, square, enemy_colors, state) {
     for r in 0..board.rows { for c in 0..board.cols {
         let p = engine::board::get(board, Coords(r,c));
         if p == () || !enemy_colors.contains(p.color) { continue; }
-        let dests = get_pseudo_dests(board, Coords(r,c), state);
+        let dests = get_attack_dests(board, Coords(r,c), state);
         for d in dests { if d == square { return true; } }
     }}
     false

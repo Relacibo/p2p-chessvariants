@@ -52,7 +52,7 @@ fn is_square_attacked(board, square, enemies, state) {
         let pos = Coords(r, c);
         let piece = engine::board::get(board, pos);
         if piece != () && enemies.contains(piece.color) {
-            let dests = get_pseudo_dests(board, pos, state);
+            let dests = get_attack_dests(board, pos, state);
             for d in dests { if d == square { return true; } }
         }
     }}
@@ -143,19 +143,19 @@ let PIECE_DEFS = PieceDefs([
     ]},
     // Pawns — color-specific because direction differs
     #{ type: "pawn", color: "white", def: [
-        #{ type: "jump", offsets: [[-1, 0]],
+        #{ type: "jump", offsets: [[-1, 0]], move_type: "move",
             condition: |s,f,t| is_empty(s.board, t) },
-        #{ type: "jump", offsets: [[-2, 0]],
+        #{ type: "jump", offsets: [[-2, 0]], move_type: "move",
             condition: |s,f,t| f.row == pawn_start_row("white") && path_empty(s.board, f, t) && is_empty(s.board, t) },
-        #{ type: "jump", offsets: [[-1, -1], [-1, 1]],
+        #{ type: "jump", offsets: [[-1, -1], [-1, 1]], move_type: "capture",
             condition: |s,f,t| can_capture(s.board, t, "white") },
     ]},
     #{ type: "pawn", color: "black", def: [
-        #{ type: "jump", offsets: [[1, 0]],
+        #{ type: "jump", offsets: [[1, 0]], move_type: "move",
             condition: |s,f,t| is_empty(s.board, t) },
-        #{ type: "jump", offsets: [[2, 0]],
+        #{ type: "jump", offsets: [[2, 0]], move_type: "move",
             condition: |s,f,t| f.row == pawn_start_row("black") && path_empty(s.board, f, t) && is_empty(s.board, t) },
-        #{ type: "jump", offsets: [[1, -1], [1, 1]],
+        #{ type: "jump", offsets: [[1, -1], [1, 1]], move_type: "capture",
             condition: |s,f,t| can_capture(s.board, t, "black") },
     ]},
 ]);
@@ -184,9 +184,52 @@ fn get_pseudo_dests(board, from, state) {
     let comps = PIECE_DEFS.get(piece);
     if comps != () {
         for comp in comps {
+            let mt = if comp.move_type != () { comp.move_type } else { "both" };
             let raw = switch comp.type {
-                "jump"  => engine::moves::jump(board, from, comp.offsets, color),
-                "slide" => engine::moves::slide(board, from, comp.dirs, color),
+                "jump"  => engine::moves::jump(board, from, comp.offsets, color, mt),
+                "slide" => engine::moves::slide(board, from, comp.dirs, color, mt),
+                _ => [],
+            };
+            if comp.condition != () {
+                raw = raw.filter(|t| comp.condition(state, from, t));
+            }
+            for d in raw { dests.push(d); }
+        }
+    }
+
+    dests
+}
+
+// Like get_pseudo_dests but skips components with move_type == "move"
+// (e.g. pawn forward pushes). Used by is_square_attacked and check detection
+// so that the king does not falsely avoid squares only reachable by non-captures.
+fn get_attack_dests(board, from, state) {
+    let piece = engine::board::get(board, from);
+    if piece == () { return []; }
+
+    let color = piece.color;
+    let dests = [];
+
+    // Standard piece moves (always count as attacks)
+    let standard = switch piece.type {
+        "king"   => engine::moves::king(board, from, color),
+        "queen"  => engine::moves::queen(board, from, color),
+        "rook"   => engine::moves::rook(board, from, color),
+        "bishop" => engine::moves::bishop(board, from, color),
+        "knight" => engine::moves::knight(board, from, color),
+        _ => [],
+    };
+    for d in standard { dests.push(d); }
+
+    // Conditional moves: skip "move"-only components (pawns pushing forward)
+    let comps = PIECE_DEFS.get(piece);
+    if comps != () {
+        for comp in comps {
+            if comp.move_type == "move" { continue; }
+            let mt = if comp.move_type != () { comp.move_type } else { "both" };
+            let raw = switch comp.type {
+                "jump"  => engine::moves::jump(board, from, comp.offsets, color, mt),
+                "slide" => engine::moves::slide(board, from, comp.dirs, color, mt),
                 _ => [],
             };
             if comp.condition != () {
@@ -204,8 +247,8 @@ fn get_pseudo_dests(board, from, state) {
 fn setup_players(variant_config, player_count) {
     #{
         players: [
-            #{ id: 0, name: "White", team: 0, orientations: [#{ board: 0, orientation: "normal"  }], data: #{ color: "white" } },
-            #{ id: 1, name: "Black", team: 1, orientations: [#{ board: 0, orientation: "flipped" }], data: #{ color: "black" } },
+            #{ id: 0, name: "White", team: 0, data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, data: #{ color: "black" } },
         ]
     }
 }

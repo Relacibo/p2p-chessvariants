@@ -7,27 +7,35 @@ let PIECE_DEFS = PieceDefs([
     #{ type: "rook",   def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }] },
     #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
     #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
-    #{ type: "pawn", color: "white", def: [ #{ type:"jump",offsets:[[-1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-2,0]],condition:|s,f,t|f.row==6&&engine::board::get(s.board,Coords(f.row-1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ] },
-    #{ type: "pawn", color: "black", def: [ #{ type:"jump",offsets:[[1,0]],condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[2,0]],condition:|s,f,t|f.row==1&&engine::board::get(s.board,Coords(f.row+1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[1,-1],[1,1]],condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ] },
+    #{ type: "pawn", color: "white", def: [ #{ type:"jump",offsets:[[-1,0]],move_type:"move",condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-2,0]],move_type:"move",condition:|s,f,t|f.row==6&&engine::board::get(s.board,Coords(f.row-1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],move_type:"capture",condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ] },
+    #{ type: "pawn", color: "black", def: [ #{ type:"jump",offsets:[[1,0]],move_type:"move",condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[2,0]],move_type:"move",condition:|s,f,t|f.row==1&&engine::board::get(s.board,Coords(f.row+1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[1,-1],[1,1]],move_type:"capture",condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ] },
 ]);
 
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }
     let comps = PIECE_DEFS.get(piece); if comps == () { return []; }
     let dests = [];
-    for comp in comps { let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color), _=>[] }; if comp.condition!=() { raw=raw.filter(|t|comp.condition(state,from,t)); } for d in raw { dests.push(d); } }
+    for comp in comps { let mt = if comp.move_type != () { comp.move_type } else { "both" }; let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color,mt), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color,mt), _=>[] }; if comp.condition!=() { raw=raw.filter(|t|comp.condition(state,from,t)); } for d in raw { dests.push(d); } }
+    dests
+}
+
+fn get_attack_dests(board, from, state) {
+    let piece = engine::board::get(board, from); if piece == () { return []; }
+    let comps = PIECE_DEFS.get(piece); if comps == () { return []; }
+    let dests = [];
+    for comp in comps { if comp.move_type == "move" { continue; } let mt = if comp.move_type != () { comp.move_type } else { "both" }; let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color,mt), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color,mt), _=>[] }; if comp.condition!=() { raw=raw.filter(|t|comp.condition(state,from,t)); } for d in raw { dests.push(d); } }
     dests
 }
 
 fn sq_attacked_by(board,square,enemy_colors,state) {
     if enemy_colors==()||enemy_colors.len==0 { return false; }
-    for r in 0..board.rows { for c in 0..board.cols { let pos=Coords(r,c);let piece=engine::board::get(board,pos);if piece!=()&&enemy_colors.contains(piece.color) { let dests=get_pseudo_dests(board,pos,state);for d in dests { if d==square {return true;} } } } }
+    for r in 0..board.rows { for c in 0..board.cols { let pos=Coords(r,c);let piece=engine::board::get(board,pos);if piece!=()&&enemy_colors.contains(piece.color) { let dests=get_attack_dests(board,pos,state);for d in dests { if d==square {return true;} } } } }
     false
 }
 
 fn is_in_check(board,king_color,enemy_colors,state) { let k=engine::board::find(board,Piece(king_color,"king"));if k==()||k.len==0 {return false;} sq_attacked_by(board,k[0],enemy_colors,state) }
 
-fn setup_players(variant_config, player_count) { #{ players: [#{id:0,name:"White",team:0,orientations:[#{board:0,orientation:"normal"}],data:#{color:"white"}},#{id:1,name:"Black",team:1,orientations:[#{board:0,orientation:"flipped"}],data:#{color:"black"}}] } }
+fn setup_players(variant_config, player_count) { #{ players: [#{id:0,name:"White",team:0,data:#{color:"white"}},#{id:1,name:"Black",team:1,data:#{color:"black"}}] } }
 
 fn init(variant_config, setup) { #{ board: standard_start_position(), data: #{ turn: 0 } } }
 

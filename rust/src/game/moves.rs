@@ -10,6 +10,45 @@ fn board_piece_color<'a>(board: &'a BoardState, coords: &BoardCoords) -> Option<
     board.get_piece(coords).map(|piece| piece.color_name())
 }
 
+/// Filter destinations by `move_type`:
+/// - `"move"` → only empty squares (non-captures)
+/// - `"capture"` → only enemy-occupied squares (captures)
+/// - anything else (e.g. `"both"`) → either (current behavior, backward compat)
+fn push_if_move_type(
+    board: &BoardState,
+    coords: BoardCoords,
+    color: &str,
+    move_type: &str,
+    result: &mut Vec<BoardCoords>,
+) {
+    if !board.in_bounds(&coords) {
+        return;
+    }
+    let pc = board_piece_color(board, &coords);
+    match move_type {
+        "move" => {
+            if pc.is_none() {
+                push_coord(result, coords);
+            }
+        }
+        "capture" => {
+            if let Some(pc_str) = pc {
+                if pc_str != color {
+                    push_coord(result, coords);
+                }
+            }
+        }
+        _ => {
+            // "both" or anything else — original behavior
+            match pc {
+                None => push_coord(result, coords),
+                Some(pc_str) if pc_str != color => push_coord(result, coords),
+                _ => {}
+            }
+        }
+    }
+}
+
 /// Convert `Vec<BoardCoords>` to an `Array` of `Coords` (board type).
 fn to_array(coords: Vec<BoardCoords>) -> Array {
     coords
@@ -40,6 +79,7 @@ pub fn slides(
     from: &BoardCoords,
     directions: &[(i32, i32)],
     color: &str,
+    move_type: &str,
 ) -> Vec<BoardCoords> {
     if !board.in_bounds(from) {
         return Vec::new();
@@ -55,13 +95,28 @@ pub fn slides(
                 break;
             }
 
-            match board_piece_color(board, &coords) {
-                None => result.push(coords),
-                Some(piece_color) if piece_color != color => {
-                    result.push(coords);
-                    break;
-                }
-                Some(_) => break,
+            let pc = board_piece_color(board, &coords);
+            match move_type {
+                "move" => match pc {
+                    None => result.push(coords),
+                    Some(_) => break, // stop before any piece
+                },
+                "capture" => match pc {
+                    None => {} // skip empty, continue sliding
+                    Some(pc_str) if pc_str != color => {
+                        result.push(coords);
+                        break; // include enemy, then stop
+                    }
+                    Some(_) => break, // own piece, stop
+                },
+                _ => match pc {
+                    None => result.push(coords),
+                    Some(pc_str) if pc_str != color => {
+                        result.push(coords);
+                        break;
+                    }
+                    Some(_) => break,
+                },
             }
 
             row += dr;
@@ -135,7 +190,7 @@ pub fn pawn_dests_generic(
 
 /// Pseudo-legal rook destinations. Takes references to avoid board clones.
 pub(crate) fn rook_dests(board: &BoardState, from: &BoardCoords, color: &str) -> Vec<BoardCoords> {
-    slides(board, from, &[(1, 0), (-1, 0), (0, 1), (0, -1)], color)
+    slides(board, from, &[(1, 0), (-1, 0), (0, 1), (0, -1)], color, "both")
 }
 
 /// Pseudo-legal knight destinations. Takes references to avoid board clones.
@@ -175,7 +230,7 @@ pub(crate) fn bishop_dests(
     from: &BoardCoords,
     color: &str,
 ) -> Vec<BoardCoords> {
-    slides(board, from, &[(1, 1), (1, -1), (-1, 1), (-1, -1)], color)
+    slides(board, from, &[(1, 1), (1, -1), (-1, 1), (-1, -1)], color, "both")
 }
 
 /// Pseudo-legal queen destinations. Takes references to avoid board clones.
@@ -194,6 +249,7 @@ pub(crate) fn queen_dests(board: &BoardState, from: &BoardCoords, color: &str) -
             (-1, -1),
         ],
         color,
+        "both",
     )
 }
 
@@ -221,22 +277,26 @@ pub(crate) fn king_dests(board: &BoardState, from: &BoardCoords, color: &str) ->
 
 /// Pseudo-legal jump destinations (fixed offsets, ignores blocking pieces).
 /// `board_delta` shifts the destination board index relative to `from.board_index`.
+/// `move_type` filters destinations: `"move"` only empty squares, `"capture"` only
+/// enemy-occupied squares, anything else (e.g. `"both"`) includes both.
 pub fn jumps(
     board: &BoardState,
     from: &BoardCoords,
     offsets: &[(i32, i32)],
     color: &str,
     board_delta: i32,
+    move_type: &str,
 ) -> Vec<BoardCoords> {
     if !board.in_bounds(from) {
         return Vec::new();
     }
     let mut result = Vec::new();
     for (dr, dc) in offsets {
-        push_if_targetable(
+        push_if_move_type(
             board,
             BoardCoords::new(from.row + dr, from.col + dc, from.board_index + board_delta),
             color,
+            move_type,
             &mut result,
         );
     }
@@ -258,28 +318,58 @@ fn parse_delta(d: &Dynamic) -> Option<(i32, i32)> {
     None
 }
 
-/// Generic jump (leaper) callable from Rhai scripts.
+/// Generic jump (leaper) callable from Rhai scripts — 4-param backward-compat
+/// signature (move_type defaults to `"both"`).
 /// `offsets` is an array of `[dr, dc]` pairs, e.g. `[[-1,0], [-1,-1], [-1,1]]`.
-/// Only squares that are in-bounds and not occupied by a piece of the same `color`
-/// are returned.
 pub fn rhai_jump(board: BoardState, from: Coords, offsets: Array, color: String) -> Array {
     let Some(from) = from.as_board_coords() else {
         return Array::new();
     };
     let offsets: Vec<(i32, i32)> = offsets.iter().filter_map(parse_delta).collect();
-    to_array(jumps(&board, &from, &offsets, &color, 0))
+    to_array(jumps(&board, &from, &offsets, &color, 0, "both"))
 }
 
-/// Generic slide (rider) callable from Rhai scripts.
+/// Generic jump (leaper) callable from Rhai scripts — 5-param signature with
+/// explicit `move_type` (`"move"`, `"capture"`, or `"both"`).
+pub fn rhai_jump_mt(
+    board: BoardState,
+    from: Coords,
+    offsets: Array,
+    color: String,
+    move_type: String,
+) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    let offsets: Vec<(i32, i32)> = offsets.iter().filter_map(parse_delta).collect();
+    to_array(jumps(&board, &from, &offsets, &color, 0, &move_type))
+}
+
+/// Generic slide (rider) callable from Rhai scripts — 4-param backward-compat
+/// signature (move_type defaults to `"both"`).
 /// `dirs` is an array of `[dr, dc]` direction vectors, e.g. `[[0,1],[1,0],[-1,0],[0,-1]]`.
-/// Rays in each direction stop before a piece of the same `color` and include
-/// the first enemy piece encountered.
 pub fn rhai_slide(board: BoardState, from: Coords, dirs: Array, color: String) -> Array {
     let Some(from) = from.as_board_coords() else {
         return Array::new();
     };
     let dirs: Vec<(i32, i32)> = dirs.iter().filter_map(parse_delta).collect();
-    to_array(slides(&board, &from, &dirs, &color))
+    to_array(slides(&board, &from, &dirs, &color, "both"))
+}
+
+/// Generic slide (rider) callable from Rhai scripts — 5-param signature with
+/// explicit `move_type` (`"move"`, `"capture"`, or `"both"`).
+pub fn rhai_slide_mt(
+    board: BoardState,
+    from: Coords,
+    dirs: Array,
+    color: String,
+    move_type: String,
+) -> Array {
+    let Some(from) = from.as_board_coords() else {
+        return Array::new();
+    };
+    let dirs: Vec<(i32, i32)> = dirs.iter().filter_map(parse_delta).collect();
+    to_array(slides(&board, &from, &dirs, &color, &move_type))
 }
 
 /// Generic pawn push callable from Rhai scripts.

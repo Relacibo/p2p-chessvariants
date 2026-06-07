@@ -77,9 +77,15 @@ pub fn create_moves_submodule() -> Module {
     FuncRegistration::new("jump")
         .with_purity(true)
         .set_into_module(&mut m, move_gen::rhai_jump);
+    FuncRegistration::new("jump")
+        .with_purity(true)
+        .set_into_module(&mut m, move_gen::rhai_jump_mt);
     FuncRegistration::new("slide")
         .with_purity(true)
         .set_into_module(&mut m, move_gen::rhai_slide);
+    FuncRegistration::new("slide")
+        .with_purity(true)
+        .set_into_module(&mut m, move_gen::rhai_slide_mt);
     FuncRegistration::new("pawn_push")
         .with_purity(true)
         .set_into_module(&mut m, move_gen::rhai_pawn_push);
