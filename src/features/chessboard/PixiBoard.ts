@@ -236,23 +236,31 @@ export class PixiBoard {
     this.initDone = true;
   }
 
+  /**
+   * Load a single piece texture on demand if not already cached.
+   * Returns the Texture or null when no image file exists for this piece type.
+   */
+  private async loadPieceTexture(color: string, pieceType: string): Promise<Texture | null> {
+    const url = getPieceImageUrl(color, pieceType);
+    if (!url) return null;
+    if (this.textureCache.has(url)) return this.textureCache.get(url)!;
+    try {
+      const tex = (await Assets.load(url)) as Texture;
+      this.textureCache.set(url, tex);
+      return tex;
+    } catch (e) {
+      // File doesn't exist (404) or load error — cache the null to avoid retries
+      this.textureCache.set(url, null as unknown as Texture);
+      return null;
+    }
+  }
+
+  /**
+   * No longer preloads a hardcoded set. Textures are loaded on-demand
+   * in rebuildPieces() via loadPieceTexture().
+   */
   private async loadTextures(): Promise<void> {
-    const colors = ["white", "black"];
-    const pieceTypes = ["king", "queen", "rook", "bishop", "knight", "pawn"];
-    await Promise.all(
-      colors.flatMap((color) =>
-        pieceTypes.map(async (pieceType) => {
-          const url = getPieceImageUrl(color, pieceType);
-          if (!url || this.textureCache.has(url)) return;
-          try {
-            const tex = (await Assets.load(url)) as Texture;
-            this.textureCache.set(url, tex);
-          } catch (e) {
-            console.error(`[PixiBoard] Failed to load texture ${url}`, e);
-          }
-        })
-      )
-    );
+    // Lazy loading — nothing to preload
   }
 
   destroy(): void {
@@ -621,6 +629,57 @@ export class PixiBoard {
     return piece;
   }
 
+  /**
+   * Creates a fallback texture for piece types that have no SVG file.
+   * Renders a coloured circle with the first 2 letters of the piece type.
+   * The result is cached in textureCache keyed by "__fallback:{color}:{pieceType}".
+   */
+  private getFallbackTexture(color: string, pieceType: string): Texture {
+    const cacheKey = `__fallback:${color}:${pieceType}`;
+    const cached = this.textureCache.get(cacheKey);
+    if (cached) return cached;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 45;
+    canvas.height = 45;
+    const ctx = canvas.getContext("2d")!;
+
+    // Determine if piece is "light" (white, yellow) or "dark" (black, red, blue, green)
+    const isLight = color === "white" || color === "yellow";
+
+    // Background circle
+    ctx.fillStyle = isLight ? "#f0d9b5" : "#444";
+    ctx.beginPath();
+    ctx.arc(22, 22, 20, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Border ring
+    ctx.strokeStyle = isLight ? "#8b7355" : "#888";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // If a PIECE_TINT colour is available, apply a coloured dot in the center
+    const tint = PIECE_TINT[color];
+    if (tint != null) {
+      ctx.fillStyle = `#${tint.toString(16).padStart(6, "0")}`;
+      ctx.beginPath();
+      ctx.arc(22, 22, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Text label — first 1-2 chars uppercase
+    const label = pieceType.substring(0, 2).toUpperCase();
+    ctx.fillStyle = isLight ? "#222" : "#eee";
+    ctx.font = "bold 14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, 22, 22);
+
+    const tex = Texture.from(canvas);
+    this.textureCache.set(cacheKey, tex);
+    return tex;
+  }
+
   private rebuildPieces(): void {
     if (!this.state) return;
     const { validMoves, activeBoardIndices } = this.state;
@@ -663,8 +722,24 @@ export class PixiBoard {
 
     for (const [key, { piece, x, y, canDrag, sl }] of desired) {
       const url = getPieceImageUrl(piece.color, piece.piece_type);
-      const tex = url ? (this.textureCache.get(url) ?? null) : null;
-      if (!tex) continue;
+      let tex: Texture | null = null;
+      if (url) {
+        tex = this.textureCache.get(url) ?? null;
+        if (!tex) {
+          // Try loading synchronously from Assets (may have been preloaded);
+          // if unavailable, kick off async load for future frames.
+          try {
+            tex = Assets.get<Texture>(url);
+            if (tex) this.textureCache.set(url, tex);
+          } catch {
+            // Not loaded yet — trigger async load
+            this.loadPieceTexture(piece.color, piece.piece_type);
+          }
+        }
+      }
+      if (!tex) {
+        tex = this.getFallbackTexture(piece.color, piece.piece_type);
+      }
 
       // Parse row/col from key: "b{boardIndex}_{row},{col}"
       const m = key.match(/^b\d+_(\d+),(\d+)$/);
