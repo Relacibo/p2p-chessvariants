@@ -229,20 +229,6 @@ fn player_field_i32(m: &rhai::Map, key: &str) -> i32 {
     }
 }
 
-fn player_field_string(m: &rhai::Map, key: &str) -> String {
-    match m.get(key).and_then(|v: &Dynamic| v.clone().into_string().ok()) {
-        Some(v) => v,
-        None => {
-            if m.contains_key(key) {
-                crate::logging::log_warn(&format!(
-                    "[rhai] field '{key}' exists but is not a string, using default \"\""
-                ));
-            }
-            String::new()
-        }
-    }
-}
-
 fn player_from_map(m: &rhai::Map) -> Result<Player, CvError> {
     let id = m.get("id")
         .and_then(|v| v.as_int().ok())
@@ -414,7 +400,6 @@ impl StatelessChessvariantEngine {
         board_count: i32,
         teams: Option<&rhai::Array>,
     ) -> Result<(), CvError> {
-        let id = player_field_i32(player, "id");
         let team = player_field_i32(player, "team");
 
         // Collect player-level orientations from script
