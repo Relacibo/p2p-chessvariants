@@ -1,88 +1,62 @@
 /**
- * Maps our engine piece_type string → Wikimedia Commons file letter.
- * See https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces
+ * Direct mapping from piece type + colour → image path.
+ * Just look up the path, no naming convention logic.
  *
- * File pattern: Chess_{PIECE_LETTER}{COLOR_LETTER}t45.svg
- *   {PIECE_LETTER} from this map; {COLOR_LETTER} from COLOR_LETTER below
- *   "t" = transparent background; "45" = 45×45 viewBox
+ * To add a new piece: add entries for both "white" and "black" colours.
+ * If an SVG doesn't exist, the PixiJS fallback renderer (circle + text) is used.
  */
-const PIECE_LETTER: Record<string, string> = {
-  // ── Standard FIDE pieces ──
-  king: "k",
-  queen: "q",
-  rook: "r",
-  bishop: "b",
-  knight: "n",
-  pawn: "p",
 
-  // ── Rotated standard pieces (for 4-player boards etc.) ──
-  king_rotated: "f",
-  queen_rotated: "g",
-  rook_rotated: "m",
-  bishop_rotated: "B",
-  knight_rotated: "N",
-  pawn_rotated: "h",
+type ColorKey = "white" | "black";
+type PiecePathMap = Record<string, Partial<Record<ColorKey, string>>>;
 
-  // ── Fairy pieces ──
-  ferz: "F",
-  wazir: "W",
-  dabbaba: "v",
-  elephant: "e",
-  giraffe: "G",
-  unicorn: "U",
-  zebra: "Z",
-  nightrider: "K",
-  mann: "M",
-  centaur: "C",
-  commoner: "x",
-  champion: "z",
-  wizard: "w",
-  fool: "t",
-  archbishop: "a",
-  chancellor: "c",
-  amazon: "A",
-  dragon: "D",
-  short_rook: "S",
-  boat: "s",
-  ship: "s", // alias for boat
+const W = "/pieces/wikimedia";
 
-  // ── Common variant aliases ──
-  hawk: "a", // Seirawan: Hawk = Archbishop (Bishop+Knight)
-  princess: "a",
-  cardinal: "a",
-  empress: "c", // Seirawan: Elephant in some naming, but Chancellor = Rook+Knight
-  marshal: "c",
-  // camel — no matching SVG yet; renders with fallback circle+label
+const PIECE_PATHS: Record<string, Record<string, string>> = {
+  // ── Standard (from cburnett, copied to wikimedia naming) ──
+  king:   { white: `${W}/Chess_klt45.svg`, black: `${W}/Chess_kdt45.svg` },
+  queen:  { white: `${W}/Chess_qlt45.svg`, black: `${W}/Chess_qdt45.svg` },
+  rook:   { white: `${W}/Chess_rlt45.svg`, black: `${W}/Chess_rdt45.svg` },
+  bishop: { white: `${W}/Chess_blt45.svg`, black: `${W}/Chess_bdt45.svg` },
+  knight: { white: `${W}/Chess_nlt45.svg`, black: `${W}/Chess_ndt45.svg` },
+  pawn:   { white: `${W}/Chess_plt45.svg`, black: `${W}/Chess_pdt45.svg` },
+
+  // ── Fairy pieces (from Wikimedia Commons, downloaded) ──
+  ferz:       { white: `${W}/Chess_Flt45.svg`, black: `${W}/Chess_Fdt45.svg` },
+  wazir:      { white: `${W}/Chess_Wlt45.svg`, black: `${W}/Chess_Wdt45.svg` },
+  dabbaba:    { white: `${W}/Chess_vlt45.svg`, black: `${W}/Chess_vdt45.svg` },
+  elephant:   { white: `${W}/Chess_elt45.svg`, black: `${W}/Chess_edt45.svg` },
+  giraffe:    { white: `${W}/Chess_Glt45.svg`, black: `${W}/Chess_Gdt45.svg` },
+  unicorn:    { white: `${W}/Chess_Ult45.svg`, black: `${W}/Chess_Udt45.svg` },
+  zebra:      { white: `${W}/Chess_Zlt45.svg`, black: `${W}/Chess_Zdt45.svg` },
+  nightrider: { white: `${W}/Chess_Klt45.svg`, black: `${W}/Chess_Kdt45.svg` },
+  mann:       { white: `${W}/Chess_Mlt45.svg`, black: `${W}/Chess_Mdt45.svg` },
+  centaur:    { white: `${W}/Chess_Clt45.svg`, black: `${W}/Chess_Cdt45.svg` },
+  commoner:   { white: `${W}/Chess_xlt45.svg`, black: `${W}/Chess_xdt45.svg` },
+  champion:   { white: `${W}/Chess_zlt45.svg`, black: `${W}/Chess_zdt45.svg` },
+  wizard:     { white: `${W}/Chess_wlt45.svg`, black: `${W}/Chess_wdt45.svg` },
+  fool:       { white: `${W}/Chess_tlt45.svg`, black: `${W}/Chess_tdt45.svg` },
+  archbishop: { white: `${W}/Chess_alt45.svg`, black: `${W}/Chess_adt45.svg` },
+  chancellor: { white: `${W}/Chess_clt45.svg`, black: `${W}/Chess_cdt45.svg` },
+  amazon:     { white: `${W}/Chess_Alt45.svg`, black: `${W}/Chess_Adt45.svg` },
+  dragon:     { white: `${W}/Chess_Dlt45.svg`, black: `${W}/Chess_Ddt45.svg` },
+  short_rook: { white: `${W}/Chess_Slt45.svg`, black: `${W}/Chess_Sdt45.svg` },
+  boat:       { white: `${W}/Chess_slt45.svg`, black: `${W}/Chess_sdt45.svg` },
+  ship:       { white: `${W}/Chess_slt45.svg`, black: `${W}/Chess_sdt45.svg` },
+
+  // ── Aliases ──
+  hawk:     { white: `${W}/Chess_alt45.svg`, black: `${W}/Chess_adt45.svg` },
+  princess: { white: `${W}/Chess_alt45.svg`, black: `${W}/Chess_adt45.svg` },
+  cardinal: { white: `${W}/Chess_alt45.svg`, black: `${W}/Chess_adt45.svg` },
+  empress:  { white: `${W}/Chess_clt45.svg`, black: `${W}/Chess_cdt45.svg` },
+  marshal:  { white: `${W}/Chess_clt45.svg`, black: `${W}/Chess_cdt45.svg` },
+
+  // ── Custom (non-Wikimedia) ──
+  duck: { white: `${W}/Custom_Ducklt45.png`, black: `${W}/Custom_Duckdt45.svg` },
 };
 
 /**
- * Pieces with custom filenames. Each entry optionally overrides the extension
- * per colour. Falls back to .svg when a colour-specific extension is not set.
- */
-const CUSTOM_PIECE_FILE: Record<string, { base: string; extByColor?: Record<string, string> }> = {
-  duck: {
-    base: "Custom_Duck",
-    extByColor: { white: "png", black: "svg" },
-    // Light duck: Gemini-generated PNG; dark duck: engine-generated SVG
-  },
-};
-
-/**
- * Maps colour string → Wikimedia Commons colour letter.
- *   l = light (white), d = dark (black), r = red, g = green, y = yellow, b = blue
- */
-const COLOR_LETTER: Record<string, string> = {
-  white: "l",
-  black: "d",
-  red: "l", // fall back to light SVG + tint (no red SVGs downloaded yet)
-  blue: "l",
-  yellow: "l",
-  green: "l",
-};
-
-/**
- * Hex tint colour applied to sprites for colours that reuse the light SVG.
- * Only needed for colours not available as dedicated SVG files.
+ * Hex tint applied to sprites for non-white/black colours (red, blue, yellow, green).
+ * These colours reuse the white SVG and get tinted in PixiJS.
  */
 export const PIECE_TINT: Record<string, number> = {
   red: 0xff3333,
@@ -91,59 +65,22 @@ export const PIECE_TINT: Record<string, number> = {
   green: 0x33cc33,
 };
 
+/** Colours that don't need tinting (have dedicated files). */
+const DIRECT_COLORS = new Set(["white", "black"]);
+
 /**
- * Returns the URL of the SVG texture for a given piece type and colour,
+ * Returns the image path for a piece type and colour,
  * or `null` when no mapping exists (caller should render a fallback).
- *
- * URL format: /pieces/wikimedia/Chess_{pieceLetter}{colorLetter}t45.svg
  */
 export function getPieceImageUrl(color: string, pieceType: string): string | null {
-  // 1. Check custom filenames first (non-standard naming)
-  const custom = CUSTOM_PIECE_FILE[pieceType];
-  if (custom) {
-    const colorLetter = COLOR_LETTER[color] ?? COLOR_LETTER["white"];
-    const ext = custom.extByColor?.[color] ?? "svg";
-    return `/pieces/wikimedia/${custom.base}${colorLetter}t45.${ext}`;
-  }
+  const paths = PIECE_PATHS[pieceType];
+  if (!paths) return null;
 
-  // 2. Standard Wikimedia naming: Chess_{letter}{color}t45.svg
-  const letter = PIECE_LETTER[pieceType];
-  // Explicitly return null for empty-string mappings (intentionally missing)
-  if (letter === undefined || letter === "") return null;
-  const colorLetter = COLOR_LETTER[color] ?? COLOR_LETTER["white"];
-  return `/pieces/wikimedia/Chess_${letter}${colorLetter}t45.svg`;
-}
+  // Direct colour match
+  if (paths[color]) return paths[color]!;
 
-const imageCache = new Map<string, HTMLImageElement>();
+  // For non-white/black colours (red, blue, etc.), use white path + tint
+  if (paths["white"]) return paths["white"]!;
 
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = url;
-  });
-}
-
-export function getCachedImage(url: string): HTMLImageElement | undefined {
-  return imageCache.get(url);
-}
-
-export async function preloadAllPieceImages(): Promise<void> {
-  const colors = ["white", "black"];
-  const pieceTypes = ["king", "queen", "rook", "bishop", "knight", "pawn"];
-  await Promise.all(
-    colors.flatMap((color) =>
-      pieceTypes.map(async (pieceType) => {
-        const url = getPieceImageUrl(color, pieceType);
-        if (!url || imageCache.has(url)) return;
-        try {
-          const img = await loadImage(url);
-          imageCache.set(url, img);
-        } catch (e) {
-          console.error("[pieceImages] failed to preload piece image", url, e);
-        }
-      })
-    )
-  );
+  return null;
 }

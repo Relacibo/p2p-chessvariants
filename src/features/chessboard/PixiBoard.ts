@@ -256,11 +256,26 @@ export class PixiBoard {
   }
 
   /**
-   * No longer preloads a hardcoded set. Textures are loaded on-demand
-   * in rebuildPieces() via loadPieceTexture().
+   * Preload textures for standard pieces so they're available on first render.
+   * Other pieces load on-demand in rebuildPieces().
    */
   private async loadTextures(): Promise<void> {
-    // Lazy loading — nothing to preload
+    const colors = ["white", "black"];
+    const pieceTypes = ["king", "queen", "rook", "bishop", "knight", "pawn"];
+    await Promise.all(
+      colors.flatMap((color) =>
+        pieceTypes.map(async (pieceType) => {
+          const url = getPieceImageUrl(color, pieceType);
+          if (!url || this.textureCache.has(url)) return;
+          try {
+            const tex = (await Assets.load(url)) as Texture;
+            this.textureCache.set(url, tex);
+          } catch (e) {
+            console.error(`[PixiBoard] Failed to load texture ${url}`, e);
+          }
+        })
+      )
+    );
   }
 
   destroy(): void {
@@ -726,15 +741,8 @@ export class PixiBoard {
       if (url) {
         tex = this.textureCache.get(url) ?? null;
         if (!tex) {
-          // Try loading synchronously from Assets (may have been preloaded);
-          // if unavailable, kick off async load for future frames.
-          try {
-            tex = Assets.get<Texture>(url);
-            if (tex) this.textureCache.set(url, tex);
-          } catch {
-            // Not loaded yet — trigger async load
-            this.loadPieceTexture(piece.color, piece.piece_type);
-          }
+          // Not yet loaded — kick off async load for future frames
+          this.loadPieceTexture(piece.color, piece.piece_type);
         }
       }
       if (!tex) {
