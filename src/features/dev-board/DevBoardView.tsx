@@ -235,12 +235,12 @@ export function DevBoardView() {
     for (const p of allPlayers) {
       const b = p.home_board ?? 0;
       if (covered.has(b)) continue;
-      if (p.team === controllingTeam) { covered.add(b); arr[b] = p.orientation ?? "normal"; }
+      if (p.team === controllingTeam) { covered.add(b); arr[b] = p.orientation; }
     }
     for (const p of allPlayers) {
       const b = p.home_board ?? 0;
       if (covered.has(b)) continue;
-      covered.add(b); arr[b] = p.orientation ?? "normal";
+      covered.add(b); arr[b] = p.orientation;
     }
     for (const [board, override] of Object.entries(localOrientationOverride)) {
       if (override) arr[Number(board)] = override;
@@ -251,7 +251,7 @@ export function DevBoardView() {
   const usedOrientations = useMemo((): BoardOrientation[] => {
     const clockwiseOrder: BoardOrientation[] = ["normal", "clockwise", "flipped", "counterclockwise"];
     const unique = new Set<BoardOrientation>();
-    for (const p of allPlayers) unique.add(p.orientation ?? "normal");
+    for (const p of allPlayers) unique.add(p.orientation);
     for (const o of Object.values(localOrientationOverride)) { if (o) unique.add(o); }
     const sorted = clockwiseOrder.filter((o) => unique.has(o));
     return sorted.length > 0 ? sorted : ["normal"];

@@ -72,7 +72,7 @@ export interface WasmPlayerConfig {
   name: string;
   home_board?: number;
   team: number;
-  orientation?: BoardOrientation;
+  orientation: BoardOrientation; /** Resolved by engine during init — always present. */
   data?: Record<string, unknown>;
 }
 

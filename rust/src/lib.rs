@@ -243,14 +243,20 @@ fn player_field_string(m: &rhai::Map, key: &str) -> String {
     }
 }
 
-fn player_from_map(m: &rhai::Map) -> Player {
-    Player {
-        id: player_field_i32(m, "id"),
-        name: player_field_string(m, "name"),
-        home_board: player_field_i32(m, "home_board"),
-        team: player_field_i32(m, "team"),
-        data: m.get("data").cloned(),
-    }
+fn player_from_map(m: &rhai::Map) -> Result<Player, CvError> {
+    let id = m.get("id")
+        .and_then(|v| v.as_int().ok())
+        .map(|v| v as i32)
+        .ok_or_else(|| CvError::Internal("player entry missing required 'id' field".into()))?;
+    let name = m.get("name")
+        .and_then(|v| v.clone().into_string().ok())
+        .unwrap_or_default();
+    let home_board = player_field_i32(m, "home_board");
+    let team = player_field_i32(m, "team");
+    let orientation = m.get("orientation")
+        .and_then(|v| v.clone().into_string().ok())
+        .ok_or_else(|| CvError::Internal(format!("player {id}: orientation not resolved")))?;
+    Ok(Player { id, name, home_board, team, orientation, data: m.get("data").cloned() })
 }
 
 // ─── Player resolution ───────────────────────────────────────────────────────
@@ -263,7 +269,7 @@ pub fn resolve_player(state: &GameState, player_id: i32) -> Result<Player, CvErr
             continue;
         };
         if player_field_i32(&m, "id") == player_id {
-            return Ok(player_from_map(&m));
+            return player_from_map(&m);
         }
     }
     Err(CvError::Internal(format!(
@@ -381,6 +387,72 @@ impl StatelessChessvariantEngine {
 
 // Internal method — not WASM-exposed (rhai::Map cannot cross the WASM boundary).
 impl StatelessChessvariantEngine {
+    /// Resolve orientation for a single player from the setup data.
+    ///
+    /// Resolution order (first match wins):
+    /// 1. `player["orientation"]` if present in the Rhai map
+    /// 2. `teams[player.team].orientations` matching `player.home_board`
+    /// 3. Default: team 0 → "normal", team 1 → "flipped", others → "normal"
+    fn resolve_orientation(
+        player: &mut rhai::Map,
+        teams: Option<&rhai::Map>,
+    ) -> Result<(), CvError> {
+        let id = player_field_i32(player, "id");
+
+        // 1. Player-level orientation (explicit, from script)
+        if let Some(ori) = player.get("orientation").and_then(|v| v.clone().into_string().ok()) {
+            return Ok(());
+        }
+
+        // 2. Team-level orientation
+        let team = player_field_i32(player, "team");
+        let home_board = player_field_i32(player, "home_board");
+        if let Some(teams_map) = teams {
+            // Teams can be array-style [{id, orientations}] or map-style {0: {...}, 1: {...}}
+            let team_entry = teams_map
+                .get(team.to_string().as_str())
+                .or_else(|| teams_map.get(format!("team_{team}").as_str()))
+                .cloned()
+                .or_else(|| {
+                    // Search array-style
+                    teams_map.values().find_map(|v| {
+                        let m = v.clone().try_cast::<rhai::Map>()?;
+                        (player_field_i32(&m, "id") == team).then(|| v.clone())
+                    })
+                });
+
+            if let Some(entry) = team_entry {
+                if let Some(tm) = entry.clone().try_cast::<rhai::Map>() {
+                    if let Some(orientations) = tm.get("orientations")
+                        .and_then(|v| v.clone().try_cast::<rhai::Array>())
+                    {
+                        for o in orientations {
+                            if let Some(om) = o.clone().try_cast::<rhai::Map>() {
+                                if player_field_i32(&om, "board") == home_board {
+                                    if let Some(ori) = om.get("orientation")
+                                        .and_then(|v| v.clone().into_string().ok())
+                                    {
+                                        player.insert("orientation".into(), Dynamic::from(ori));
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Default per team
+        let default = match team {
+            0 => "normal",
+            1 => "flipped",
+            _ => "normal",
+        };
+        player.insert("orientation".into(), Dynamic::from(default));
+        Ok(())
+    }
+
     /// Init from a pre-built setup map (players + optional teams).
     /// Skips `setup_players()` — used by P2P peers that receive setup from the host.
     pub fn init_with_setup_map(self, setup_map: rhai::Map) -> Result<ChessvariantEngine, CvError> {
@@ -390,7 +462,7 @@ impl StatelessChessvariantEngine {
             variant_config,
         } = self;
 
-        let players = setup_map
+        let players_raw = setup_map
             .get("players")
             .cloned()
             .and_then(|v| v.try_cast::<rhai::Array>())
@@ -400,7 +472,25 @@ impl StatelessChessvariantEngine {
                 )
             })?;
 
-        let teams = setup_map.get("teams").cloned();
+        let teams_raw = setup_map.get("teams").cloned();
+        let teams_map = teams_raw.as_ref().and_then(|v| v.clone().try_cast::<rhai::Map>());
+
+        // Resolve orientation for each player, validate required fields
+        let players: Vec<Dynamic> = players_raw
+            .into_iter()
+            .map(|entry| {
+                let mut m = entry.try_cast::<rhai::Map>()
+                    .ok_or_else(|| CvError::Internal("each player entry must be a map".into()))?;
+                // Validate `id` exists
+                if m.get("id").and_then(|v| v.as_int().ok()).is_none() {
+                    return Err(CvError::Internal("each player entry must have an 'id' field".into()));
+                }
+                Self::resolve_orientation(&mut m, teams_map.as_ref())?;
+                Ok(Dynamic::from(m))
+            })
+            .collect::<Result<_, CvError>>()?;
+
+        let teams = teams_raw;
 
         // Phase 2: init(variant_config, setup) → { board, data: {...} }
         let mut init_scope = Scope::new();
@@ -888,7 +978,7 @@ impl ChessvariantEngine {
                     .clone()
                     .try_cast::<rhai::Map>()
                     .ok_or_else(|| CvError::Internal("player entry is not a map".into()))?;
-                Ok(player_from_map(&pm))
+                player_from_map(&pm)
             })
             .collect()
     }

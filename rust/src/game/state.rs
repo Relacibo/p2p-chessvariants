@@ -338,76 +338,42 @@ pub struct Player {
     /// Team index — populated from state.players after init(). Defaults to 0.
     #[rhai_type(readonly)]
     pub team: i32,
+    /// Board orientation: "normal", "flipped", "clockwise", "counterclockwise".
+    /// Resolved during init: player.orientation > team.orientations > default per team.
+    #[rhai_type(readonly)]
+    pub orientation: String,
     /// Arbitrary script-defined data attached to the player (like `Piece.data`).
-    /// Serialized via `serde_json` — maps/arrays/strings/numbers pass through,
-    /// custom types serialize as their registered type name.
     pub data: Option<Dynamic>,
 }
 
 // Manual PartialEq/Eq/Hash — skip `data` since `Dynamic` does not implement these traits.
 impl PartialEq for Player {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.name == other.name
-            && self.home_board == other.home_board
-            && self.team == other.team
+        self.id == other.id && self.name == other.name && self.home_board == other.home_board
+            && self.team == other.team && self.orientation == other.orientation
     }
 }
-
 impl Eq for Player {}
-
 impl Hash for Player {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-        self.name.hash(state);
-        self.home_board.hash(state);
-        self.team.hash(state);
+        self.id.hash(state); self.name.hash(state);
+        self.home_board.hash(state); self.team.hash(state); self.orientation.hash(state);
     }
 }
 
 impl Player {
     /// Primary constructor: `Player(id)`.
     pub fn new_by_id(id: i32) -> Self {
-        Self {
-            id,
-            name: String::new(),
-            home_board: 0,
-            team: 0,
-            data: None,
-        }
+        Self { id, name: String::new(), home_board: 0, team: 0, orientation: "normal".into(), data: None }
     }
-
-    /// `Player(id, name)` — with display name.
     pub fn new_by_id_name(id: i32, name: String) -> Self {
-        Self {
-            id,
-            name,
-            home_board: 0,
-            team: 0,
-            data: None,
-        }
+        Self { id, name, home_board: 0, team: 0, orientation: "normal".into(), data: None }
     }
-
-    /// `Player(id, name, home_board)` — full constructor.
     pub fn new_full(id: i32, name: String, home_board: i32) -> Self {
-        Self {
-            id,
-            name,
-            home_board,
-            team: 0,
-            data: None,
-        }
+        Self { id, name, home_board, team: 0, orientation: "normal".into(), data: None }
     }
-
-    /// `Player(id, name, home_board, data)` — with arbitrary script data.
     pub fn new_with_data(id: i32, name: String, home_board: i32, data: Dynamic) -> Self {
-        Self {
-            id,
-            name,
-            home_board,
-            team: 0,
-            data: Some(data),
-        }
+        Self { id, name, home_board, team: 0, orientation: "normal".into(), data: Some(data) }
     }
 }
 

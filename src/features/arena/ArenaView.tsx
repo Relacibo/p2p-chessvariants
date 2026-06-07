@@ -164,7 +164,7 @@ export default function ArenaView() {
     if (localPlayerConfigId == null) return arr;
     for (let i = 0; i < count; i++) {
       const p = allPlayers.find((ap) => ap.home_board === i);
-      if (p) arr[i] = p.orientation ?? "normal";
+      if (p) arr[i] = p.orientation;
     }
     // Override boards belonging to local player's team.
     const localPlayer = allPlayers.find(
@@ -173,7 +173,7 @@ export default function ArenaView() {
     if (localPlayer) {
       for (const ap of allPlayers) {
         if (ap.team === localPlayer.team) {
-          arr[ap.home_board ?? 0] = ap.orientation ?? "normal";
+          arr[ap.home_board ?? 0] = ap.orientation;
         }
       }
     }

@@ -119,17 +119,17 @@ Returns the player roster and optional team configurations. Called once during e
 
 ```rhai
 #{
-    players: [
+    players: [   // mandatory — must be a non-empty array
         #{
-            id: i32,
-            name?: string,
-            home_board?: i32,
-            data?: #{},
-            team: i32,
-            orientation?: string,
+            id: i32,                  // mandatory
+            name?: string,            // optional
+            home_board?: i32,         // optional (default 0)
+            data?: #{},               // optional
+            team?: i32,               // optional (default 0)
+            orientation?: string,     // optional — overrides team orientation
         },
     ],
-    teams?: [
+    teams?: [   // optional
         #{ id: i32, orientations: [#{ board: i32, orientation: string }] },
     ],
 }
@@ -144,10 +144,13 @@ Returns the player roster and optional team configurations. Called once during e
 
 **Orientation values:** `"normal"` | `"flipped"` | `"clockwise"` | `"counterclockwise"`
 
-**Resolution order** (highest wins):
-1. `player.orientation` (if present)
-2. `teams[player.team].orientations` entry matching `player.home_board` (if `teams` present and `home_board` set)
+**Orientation is mandatory at runtime.** The engine resolves each player's orientation before `init()`:
+
+1. `player.orientation` — if set explicitly, takes precedence
+2. `teams[player.team].orientations` — matched by `player.home_board`
 3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
+
+At least one of these must produce a valid orientation. If a variant uses team 0/1, the defaults suffice. For team ≠ 0/1, either `player.orientation` or `teams` must be provided.
 
 ### `init(variant_config, setup)`
 
