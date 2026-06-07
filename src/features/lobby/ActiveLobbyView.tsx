@@ -263,7 +263,11 @@ export default function ActiveLobbyView() {
                       <Group gap="xs">
                         {assignedSlot >= 0 ? (
                           <Badge color="teal" size="sm" variant="filled">
-                            Slot {assignedSlot + 1}
+                            {getSlotLabel(
+                              allowedPlayerCount ?? { exact: 2 },
+                              assignedSlot,
+                              colors,
+                            )}
                           </Badge>
                         ) : (
                           <Badge color="gray" size="sm" variant="outline">
@@ -343,11 +347,18 @@ export default function ActiveLobbyView() {
                   >
                     {slotLabel}
                   </Button>
-                  {assignedPlayer && (
-                    <Text size="xs" c="dimmed" maw={80} ta="center" truncate>
-                      {assignedPlayer.name ?? assignedPlayer.userId.slice(0, 8)}
-                    </Text>
-                  )}
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    maw={80}
+                    ta="center"
+                    truncate
+                    style={{ minHeight: "1.2em" }}
+                  >
+                    {assignedPlayer
+                      ? (assignedPlayer.name ?? assignedPlayer.userId.slice(0, 8))
+                      : "\u00A0"}
+                  </Text>
                 </Stack>
               );
             })}
@@ -359,7 +370,7 @@ export default function ActiveLobbyView() {
           </Group>
         </Box>
 
-        <Group justify="center" mt="sm">
+        <Group justify="center" mt="sm" gap="md">
           {isHost && (
             <Button
               color="green"
@@ -378,9 +389,6 @@ export default function ActiveLobbyView() {
               Start Game
             </Button>
           )}
-        </Group>
-
-        <Group justify="center" mt="sm">
           {isHost ? (
             <Button
               variant="subtle"
