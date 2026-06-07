@@ -418,7 +418,6 @@ impl StatelessChessvariantEngine {
         let team = player_field_i32(player, "team");
 
         // Collect player-level orientations from script
-        // Supports both legacy `orientation: "normal"` and new `orientations: [#{board, orientation}]`
         let player_oris: rhai::Map = if let Some(arr) = player.get("orientations")
             .and_then(|v| v.clone().try_cast::<rhai::Array>())
         {
@@ -430,14 +429,6 @@ impl StatelessChessvariantEngine {
                     Some((board.to_string().into(), Dynamic::from(ori)))
                 })
                 .collect()
-        } else if let Some(ori_str) = player.get("orientation")
-            .and_then(|v| v.clone().into_string().ok())
-        {
-            // Legacy shorthand: `orientation: "normal"` → applies to home_board
-            let home_board = player_field_i32(player, "home_board");
-            let mut m = rhai::Map::new();
-            m.insert(home_board.to_string().into(), Dynamic::from(ori_str));
-            m
         } else {
             rhai::Map::new()
         };

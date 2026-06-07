@@ -126,7 +126,6 @@ Returns the player roster and optional team configurations. Called once during e
             home_board?: i32,         // optional (default 0)
             data?: #{},               // optional
             team?: i32,               // optional (default 0)
-            orientation?: string,     // optional — legacy shorthand for single-board (applies to home_board)
             orientations?: [          // optional — per-board overrides
                 #{ board: i32, orientation: string },
             ],
@@ -150,9 +149,8 @@ Returns the player roster and optional team configurations. Called once during e
 **Orientation is resolved per-board during init.** For each board, the engine resolves:
 
 1. `player.orientations` array entry matching the board (explicit, per-board)
-2. `player.orientation` (legacy shorthand — applies to `home_board`)
-3. `teams[player.team].orientations` entry matching the board
-4. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
+2. `teams[player.team].orientations` entry matching the board
+3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
 
 The resolved `orientations` array (one entry per board) is stored in the engine and available via `playersJson()`.
 
@@ -173,13 +171,13 @@ The `board` can be a single `BoardState` or an array of `BoardState` for multi-b
 
 The engine injects `teams` from `setup_players()` into `data["teams"]` so scripts can access `state["teams"]` as before.
 
-**Standard 1v1** — using player-level orientation directly:
+**Standard 1v1** — using player-level orientations directly:
 ```rhai
 fn setup_players(config, player_count) {
     #{
         players: [
-            #{ id: 0, name: "White", team: 0, orientation: "normal",  data: #{ color: "white" } },
-            #{ id: 1, name: "Black", team: 1, orientation: "flipped", data: #{ color: "black" } },
+            #{ id: 0, name: "White", team: 0, orientations: [#{ board: 0, orientation: "normal"  }], data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, orientations: [#{ board: 0, orientation: "flipped" }], data: #{ color: "black" } },
         ]
     }
 }

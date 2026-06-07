@@ -204,8 +204,8 @@ fn get_pseudo_dests(board, from, state) {
 fn setup_players(variant_config, player_count) {
     #{
         players: [
-            #{ id: 0, name: "White", team: 0, orientation: "normal",  data: #{ color: "white" } },
-            #{ id: 1, name: "Black", team: 1, orientation: "flipped", data: #{ color: "black" } },
+            #{ id: 0, name: "White", team: 0, orientations: [#{ board: 0, orientation: "normal"  }], data: #{ color: "white" } },
+            #{ id: 1, name: "Black", team: 1, orientations: [#{ board: 0, orientation: "flipped" }], data: #{ color: "black" } },
         ]
     }
 }
