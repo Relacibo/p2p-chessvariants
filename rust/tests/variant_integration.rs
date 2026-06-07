@@ -406,3 +406,87 @@ fn test_chess_stalemate() {
     assert_eq!(black_king.unwrap().piece_type_name(), "king");
     assert_eq!(black_king.unwrap().color_name(), "black");
 }
+
+// ─── move_type regression: king can move to square reachable only by
+//      pawn forward push (not capture) ──────────────────────────────────────
+//
+// White pawn on d7 attacks c8 and e8 diagonally (captures), but its forward
+// push to d8 is move_type "move" (non-capture). Before the move_type fix,
+// is_square_attacked counted the forward push as an attack, falsely preventing
+// the black king from escaping check to d8. After the fix, d8 is correctly
+// not considered attacked, and Ke8→d8 is a legal escape.
+//
+// Move sequence to reach the position:
+//   1. c4       (white, c2→c4)
+//   2. d5       (black, d7→d5)
+//   3. cxd5     (white, c4×d5)
+//   4. e6       (black, e7→e6  — vacates e7 so queen can pass)
+//   5. d6       (white, d5→d6)
+//   6. Qf6      (black, d8→f6 — queen to f6, path clear)
+//   7. d7       (white, d6→d7 — pawn attacks e8, black king in check)
+//   ... it's black's turn now, king must escape check.
+#[test]
+fn test_king_can_move_to_pawn_push_square() {
+    let mut engine = make_engine("tests/scripts/chess.rhai", 2);
+
+    engine
+        .submit_move(0, coords(6, 2), coords(4, 2))
+        .expect("1. c4");
+    engine
+        .submit_move(1, coords(1, 3), coords(3, 3))
+        .expect("1... d5");
+    engine
+        .submit_move(0, coords(4, 2), coords(3, 3))
+        .expect("2. cxd5");
+    engine
+        .submit_move(1, coords(1, 4), coords(2, 4))
+        .expect("2... e6 — vacate e7");
+    engine
+        .submit_move(0, coords(3, 3), coords(2, 3))
+        .expect("3. d6");
+    engine
+        .submit_move(1, coords(0, 3), coords(2, 5))
+        .expect("3... Qf6");
+    engine
+        .submit_move(0, coords(2, 3), coords(1, 3))
+        .expect("4. d7 — black king now in check from pawn on d7");
+
+    // Verify it's black's turn
+    let active = engine.active_player_ids().expect("active_player_ids");
+    assert!(active.contains(&1), "black should be active (king in check)");
+    assert!(!active.contains(&0), "white should NOT be active");
+
+    // Get valid moves for black
+    let vm_json = engine
+        .valid_moves_for_player_json("1".to_string())
+        .expect("valid_moves_for_player_json for black");
+    let v: serde_json::Value = serde_json::from_str(&vm_json).expect("parse valid_moves JSON");
+    let moves = v["moves"].as_array().expect("black moves array");
+    assert!(!moves.is_empty(), "black should have legal moves (escape check)");
+
+    // King move e8→d8 must be among the legal moves
+    let e8_to_d8 = moves.iter().any(|m| {
+        let from = &m["from"];
+        let to = &m["to"];
+        from["row"].as_i64() == Some(0)
+            && from["col"].as_i64() == Some(4)
+            && to["row"].as_i64() == Some(0)
+            && to["col"].as_i64() == Some(3)
+    });
+    assert!(
+        e8_to_d8,
+        "black king must be able to escape to d8 (only reachable by pawn push, not capture)"
+    );
+
+    // Bonus: d8 must be empty in the current board state
+    let board = state_board(&engine);
+    assert!(
+        board.get_piece(&BoardCoords::new_board_0(0, 3)).is_none(),
+        "d8 should be empty (queen moved to f6)"
+    );
+
+    // Submit the move to confirm it's actually executable
+    engine
+        .submit_move(1, coords(0, 4), coords(0, 3))
+        .expect("Ke8→d8 should succeed");
+}
