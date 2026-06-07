@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Box,
   Button,
   Combobox,
@@ -8,27 +7,20 @@ import {
   Loader,
   MultiSelect,
   NumberInput,
-  Paper,
-  ScrollArea,
-  Stack,
   Text,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import { useCombobox } from "@mantine/core";
 import {
   IconBrandGithub,
   IconCode,
+  IconExternalLink,
   IconPlayerSkipBack,
-  IconSettings,
-  IconTrash,
-  IconX,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
 import useConfigureLayout from "../layout/hooks";
-import { VariantEditorContent } from "../variant-editor/VariantEditorContent";
 import {
   listLocalScripts,
   loadLocalScript,
@@ -89,13 +81,10 @@ function getActingPlayer(
 
 // ─── URL State (single JSON query param) ─────────────────────────────────────
 interface UrlState {
-  /** Script identifier: "chess" (bundled name), "local:foo" (localStorage),
-   *  "/variants/chess.rhai" (legacy path), or full URL. */
+  /** Script identifier */
   script?: string;
   n?: number;       // player count
   sel?: string[];   // selected player IDs
-  panel?: number;   // drawer open: 0 or 1
-  editor?: number;  // editor section open: 0 or 1
 }
 
 function readUrlState(sp: URLSearchParams): UrlState {
@@ -111,13 +100,6 @@ function encodeUrlState(s: UrlState): string {
 
 /**
  * Resolve a script identifier to either a fetchable URL or localStorage content.
- * Supports:
- *   "chess"            → looks up OFFICIAL_VARIANTS by name (case-insensitive)
- *   "local:my-script"  → loads from localStorage
- *   "/variants/x.rhai" → direct URL (legacy)
- *   "https://..."      → direct URL
- * Returns { url: string } for fetchable, or { content: string } for in-memory.
- * Returns null if not found.
  */
 function resolveScript(
   scriptId: string,
@@ -132,19 +114,13 @@ function resolveScript(
     return content ? { content } : null;
   }
 
-  // Bundled name (case-insensitive match against official + custom variants)
+  // Bundled name (case-insensitive)
   const lower = scriptId.toLowerCase();
-  // Check official first
   for (const v of OFFICIAL_VARIANTS) {
-    if (v.name.toLowerCase() === lower || v.url === scriptId) {
-      return { url: v.url };
-    }
+    if (v.name.toLowerCase() === lower || v.url === scriptId) return { url: v.url };
   }
-  // Check all variants (including custom)
   for (const v of bundledVariants) {
-    if (v.name.toLowerCase() === lower || v.url === scriptId) {
-      return { url: v.url };
-    }
+    if (v.name.toLowerCase() === lower || v.url === scriptId) return { url: v.url };
   }
 
   // Direct URL/path
@@ -155,7 +131,6 @@ function resolveScript(
   return null;
 }
 
-/** Build a composite variant list: official + localStorage scripts. */
 function useCompositeVariants(): VariantEntry[] {
   const bundled = useSelector(selectAllVariants);
   return useMemo(() => {
@@ -180,21 +155,15 @@ export function DevBoardView() {
   const initUrl = useMemo(() => readUrlState(searchParams), []);
 
   const [search, setSearch] = useState("");
-
-  const [drawerOpen, { open: openDrawer, close: closeDrawer }] =
-    useDisclosure(initUrl.panel === 1);
-  const [showEditor, setShowEditor] = useState(initUrl.editor === 1);
-
-  const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(
-    null,
-  );
+  const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(null);
   const [playerCount, setPlayerCount] = useState<number | string>(
     () => initUrl.n ?? 2,
   );
   const [controllingPlayer, setControllingPlayer] = useState<string>(
     () => initUrl.sel?.[0] ?? "",
   );
-  // ── Engine state managed by useChessGame hook ──
+
+  // ── Engine state ──
   const {
     proxyRef,
     boardState,
@@ -226,17 +195,11 @@ export function DevBoardView() {
 
   const lastLoadedScriptId = useRef<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [gameStateJson, setGameStateJson] = useState<object | null>(null);
-  const [showGameState, setShowGameState] = useState(false);
-  const [showActionLog, setShowActionLog] = useState(false);
-  const [validMovesJsonStr, setValidMovesJsonStr] = useState<string | null>(null);
-  const [showValidMoves, setShowValidMoves] = useState(false);
-  const [showVariantConfig, setShowVariantConfig] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 
-  // Derive board index from the controlling player's moves in validMovesAll.
+  // Derive board index from the controlling player's moves
   const playerRef = useMemo((): number | null => {
     if (!controllingPlayer) return null;
     const pid = parseInt(controllingPlayer, 10);
@@ -339,23 +302,20 @@ export function DevBoardView() {
     return () => ro.disconnect();
   }, []);
 
-  // ── Sync state to URL as single JSON query param ──
+  // ── Sync state to URL ──
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
     const urlState: UrlState = {};
     if (playerCount) urlState.n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
     if (selectedVariant?.url) urlState.script = selectedVariant.url;
     if (selectedPlayers.length > 0) urlState.sel = selectedPlayers;
-    urlState.panel = drawerOpen ? 1 : 0;
-    urlState.editor = showEditor ? 1 : 0;
 
     next.set("dev", encodeUrlState(urlState));
-    // Clean up old individual params
     next.delete("state"); next.delete("script"); next.delete("players");
     next.delete("player"); next.delete("panel");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerCount, selectedPlayers, drawerOpen, showEditor, selectedVariant?.url]);
+  }, [playerCount, selectedPlayers, selectedVariant?.url]);
 
   // ── Bidirectional sync: selectedPlayers[0] ↔ controllingPlayer ──
   useEffect(() => {
@@ -380,7 +340,7 @@ export function DevBoardView() {
     [],
   );
 
-  // ── loadScript: resolve identifier → URL or content → delegate to hook ──
+  // ── loadScript ──
   const loadScriptById = useCallback(
     async (scriptId: string, numPlayers: number) => {
       setLog([]);
@@ -424,7 +384,7 @@ export function DevBoardView() {
     [proxyRef],
   );
 
-  // Test handler — from the inline editor "Test" button
+  // ── Test handler — from editor popup (postMessage) ──
   const handleEditorTest = useCallback(
     (script: string) => {
       const n = typeof playerCount === "number" ? playerCount : (Number(playerCount) || 2);
@@ -434,6 +394,18 @@ export function DevBoardView() {
     },
     [loadScriptContentRaw, playerCount, proxyRef, restorePlayersAfterLoad],
   );
+
+  // ── Listen for postMessage from editor popup ──
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "test-script" && typeof event.data?.script === "string") {
+        handleEditorTest(event.data.script);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [handleEditorTest]);
 
   // ── Sync when controlling player changes ──
   useEffect(() => {
@@ -451,19 +423,16 @@ export function DevBoardView() {
       const resolved = resolveScript(scriptId, variants);
       if (resolved && lastLoadedScriptId.current !== scriptId) {
         lastLoadedScriptId.current = scriptId;
-        // Find matching variant entry for the combobox
         if ("url" in resolved) {
           const v = variants.find((v2) => v2.url === resolved.url);
           if (v) setSelectedVariant(v);
         } else {
-          // localStorage — create a synthetic entry
           setSelectedVariant({ name: scriptId, url: scriptId });
         }
         loadScriptById(scriptId, urlState.n ?? 2);
       }
       return;
     }
-    // Fallback: first variant
     const first = variants[0];
     if (first && lastLoadedScriptId.current !== first.url) {
       lastLoadedScriptId.current = first.url;
@@ -486,7 +455,11 @@ export function DevBoardView() {
     if (!scriptId) return;
     const n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
     loadScriptById(scriptId, n);
-    closeDrawer();
+  };
+
+  // ── Open editor in popup window ──
+  const handleOpenEditor = () => {
+    window.open("/dev/editor", "cv-editor-popout", "width=1300,height=900");
   };
 
   // ── Submit an action ──
@@ -519,241 +492,142 @@ export function DevBoardView() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Box ref={containerRef} className={style.container}>
-      {/* ── Fullscreen Stage — board is centered inside it ── */}
-      {loading && (
-        <Box style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-          <Loader />
-        </Box>
-      )}
-      {!loading && boardState && variantConfig && containerSize.w > 0 && containerSize.h > 0 && (
-        <Chessboard
-          variantConfig={variantConfig}
-          boardState={boardState}
-          validMoves={displayValidMoves}
-          activeBoardIndex={currentBoardIndex}
-          activeBoardIndices={activeBoardIndices}
-          orientationByBoard={orientationByBoard}
-          onRotateBoard={handleRotateBoard}
-          onReturnHome={() => setLocalOrientationOverride({})}
-          onSubmitAction={handleSubmitAction}
-          lastAction={lastAction}
-          selectedDropPiece={selectedDropPiece}
-          onClearDropPiece={() => setSelectedDropPiece(null)}
-          onSelectReservePiece={(piece) => setSelectedDropPiece(piece)}
-          uiMap={uiElements ?? {}}
-          stageWidth={containerSize.w}
-          stageHeight={containerSize.h}
-          pendingMove={pendingMove}
-          onPendingMove={setPendingMove}
-        />
-      )}
 
-      {/* ── Dev gear button ── */}
-      {!drawerOpen && (
-        <Tooltip label="Dev controls" position="left" withArrow>
-          <ActionIcon
-            variant="filled" color="dark" size="lg" radius="xl"
-            style={{ position: "absolute", top: 8, right: 8, zIndex: 200 }}
-            onClick={openDrawer}
-          >
-            <IconSettings size="1.1rem" />
-          </ActionIcon>
-        </Tooltip>
-      )}
-
-      {/* ── Dev sidebar panel ── */}
-      <Box
-        style={{
-          position: "absolute", top: 0, right: drawerOpen ? 0 : -420,
-          width: 400, height: "100%", zIndex: 150, transition: "right 0.25s ease",
-        }}
-      >
-        <Paper shadow="lg" withBorder style={{ height: "100%", borderRadius: 0, overflow: "hidden" }}>
-          <ScrollArea h="100%" type="auto" offsetScrollbars>
-            <Stack gap="md" p="md">
-              <Group justify="space-between" align="center">
-                <Text fw={600}>Dev controls</Text>
-                <ActionIcon variant="subtle" size="sm" onClick={closeDrawer}>
-                  <IconX size="0.9rem" />
-                </ActionIcon>
-              </Group>
-
-              {/* Variant combobox — official + localStorage */}
-              <Combobox store={combobox} withinPortal={false} onOptionSubmit={handleVariantSelect}>
-                <Combobox.Target>
-                  <InputBase
-                    component="button" type="button" pointer
-                    rightSection={<Text size="xs" c="dimmed">▼</Text>}
-                    onClick={() => combobox.toggleDropdown()}
-                    rightSectionPointerEvents="none"
-                    label="Variant"
-                    style={{ flex: 1 }}
-                  >
-                    {selectedVariant ? (
-                      <Group justify="space-between" style={{ width: "100%" }}>
-                        <Text size="sm">{selectedVariant.name}</Text>
-                        {selectedVariant.url && !selectedVariant.url.startsWith("local:") && (
-                          <Tooltip label="View Source">
-                            <ActionIcon
-                              variant="transparent" color="gray"
-                              component="a"
-                              href={getGithubBrowseUrl(selectedVariant.url)}
-                              target="_blank"
-                              onClick={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.preventDefault()}
-                            >
-                              <IconBrandGithub size="1.2rem" />
-                            </ActionIcon>
-                          </Tooltip>
-                        )}
-                      </Group>
-                    ) : (
-                      <Text size="sm" c="dimmed">Select a variant…</Text>
-                    )}
-                  </InputBase>
-                </Combobox.Target>
-                <Combobox.Dropdown>
-                  <Combobox.Search
-                    value={search}
-                    onChange={(event) => setSearch(event.currentTarget.value)}
-                    placeholder="Search variants…"
-                  />
-                  <Combobox.Options>
-                    {filteredVariants.length === 0 ? (
-                      <Combobox.Empty>No variants found</Combobox.Empty>
-                    ) : (
-                      filteredVariants.map((item) => (
-                        <Combobox.Option value={item.url} key={item.url}>
-                          <Text size="sm">{item.name}</Text>
-                        </Combobox.Option>
-                      ))
-                    )}
-                  </Combobox.Options>
-                </Combobox.Dropdown>
-              </Combobox>
-
-              <NumberInput label="Players" min={2} max={8} value={playerCount} onChange={setPlayerCount} />
-              <Button
-                leftSection={<IconPlayerSkipBack size="0.85rem" />}
-                onClick={handleLoad} loading={loading} fullWidth
+      {/* ── Top toolbar ── */}
+      <Box className={style.toolbar}>
+        <Group gap="sm" wrap="nowrap" align="center">
+          {/* Variant combobox */}
+          <Combobox store={combobox} withinPortal onOptionSubmit={handleVariantSelect}>
+            <Combobox.Target>
+              <InputBase
+                component="button" type="button" pointer
+                rightSection={<Text size="xs" c="dimmed">▼</Text>}
+                onClick={() => combobox.toggleDropdown()}
+                rightSectionPointerEvents="none"
+                style={{ width: 220 }}
               >
-                Load / Restart
-              </Button>
-
-              <MultiSelect
-                label="Controlling players (local)"
-                data={allPlayers.map((p) => ({ value: String(p.id), label: p.name || String(p.id) }))}
-                value={selectedPlayers}
-                onChange={(values) => setSelectedPlayers(values)}
-                clearable
-              />
-
-              {/* ── Inline editor (collapsible) ── */}
-              <Box>
-                <Group
-                  justify="space-between" align="center"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setShowEditor((s) => !s)}
-                >
-                  <Group gap="xs">
-                    <IconCode size="0.9rem" />
-                    <Text size="sm" fw={600}>Variant Editor</Text>
-                  </Group>
-                  <Text size="xs" c="dimmed">{showEditor ? "▼" : "▶"}</Text>
-                </Group>
-                {showEditor && (
-                  <Box mt="xs" style={{ maxHeight: 400, overflow: "auto" }}>
-                    <VariantEditorContent onTest={handleEditorTest} showPopOut />
-                  </Box>
-                )}
-              </Box>
-
-              {/* ── Action Log ── */}
-              <Box>
-                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => setShowActionLog((s) => !s)}>
-                  <Group gap="xs">
-                    <Text size="sm" fw={600}>Action Log</Text>
-                    <ActionIcon variant="subtle" size="sm" onClick={(e) => { e.stopPropagation(); setLog([]); }} title="Clear">
-                      <IconTrash size="0.85rem" />
-                    </ActionIcon>
-                  </Group>
-                  <Text size="xs" c="dimmed">{showActionLog ? "▼" : "▶"}</Text>
-                </Group>
-                {showActionLog && (
-                  <Box mt={4} style={{ minHeight: 60, maxHeight: 300, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
-                    {log.length === 0 ? (
-                      <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>
-                    ) : (
-                      <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
-                        {JSON.stringify([...log].reverse().map((entry) => ({ id: entry.id, timestamp: entry.timestamp, player: entry.player, action: entry.action })), null, 2)}
-                      </Text>
+                {selectedVariant ? (
+                  <Group justify="space-between" style={{ width: "100%" }}>
+                    <Text size="sm" truncate>{selectedVariant.name}</Text>
+                    {selectedVariant.url && !selectedVariant.url.startsWith("local:") && (
+                      <Tooltip label="View Source">
+                        <Box
+                          component="a"
+                          href={getGithubBrowseUrl(selectedVariant.url)}
+                          target="_blank"
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                          onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
+                          style={{ display: "flex", color: "inherit" }}
+                        >
+                          <IconBrandGithub size="1rem" />
+                        </Box>
+                      </Tooltip>
                     )}
-                  </Box>
+                  </Group>
+                ) : (
+                  <Text size="sm" c="dimmed">Select variant…</Text>
                 )}
-              </Box>
+              </InputBase>
+            </Combobox.Target>
+            <Combobox.Dropdown>
+              <Combobox.Search
+                value={search}
+                onChange={(event) => setSearch(event.currentTarget.value)}
+                placeholder="Search variants…"
+              />
+              <Combobox.Options>
+                {filteredVariants.length === 0 ? (
+                  <Combobox.Empty>No variants found</Combobox.Empty>
+                ) : (
+                  filteredVariants.map((item) => (
+                    <Combobox.Option value={item.url} key={item.url}>
+                      <Text size="sm">{item.name}</Text>
+                    </Combobox.Option>
+                  ))
+                )}
+              </Combobox.Options>
+            </Combobox.Dropdown>
+          </Combobox>
 
-              {/* ── Game State JSON ── */}
-              <Box>
-                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => {
-                  if (!showGameState && !gameStateJson) {
-                    void proxyRef.current?.stateJson().then((v) => setGameStateJson(v as object))
-                      .catch((e) => console.error("[dev] stateJson failed", e));
-                  }
-                  setShowGameState((s) => !s);
-                }}>
-                  <Text size="sm" fw={600}>Game State</Text>
-                  <Text size="xs" c="dimmed">{showGameState ? "▼" : "▶"}</Text>
-                </Group>
-                {showGameState && gameStateJson && (
-                  <Box mt={4} style={{ minHeight: 80, maxHeight: 400, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
-                    <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
-                      {JSON.stringify(gameStateJson, null, 2)}
-                    </Text>
-                  </Box>
-                )}
-              </Box>
+          {/* Player count */}
+          <NumberInput
+            label="Players"
+            size="xs"
+            min={2} max={8}
+            value={playerCount}
+            onChange={setPlayerCount}
+            style={{ width: 80 }}
+            styles={{ label: { fontSize: 11 } }}
+          />
 
-              {/* ── Variant Config ── */}
-              <Box mt="xs">
-                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => setShowVariantConfig((s) => !s)}>
-                  <Text size="sm" fw={600}>Variant Config</Text>
-                  <Text size="xs" c="dimmed">{showVariantConfig ? "▼" : "▶"}</Text>
-                </Group>
-                {showVariantConfig && variantConfig && (
-                  <Box mt={4} style={{ minHeight: 60, maxHeight: 300, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
-                    <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
-                      {JSON.stringify(variantConfig, null, 2)}
-                    </Text>
-                  </Box>
-                )}
-              </Box>
+          {/* Load / Restart */}
+          <Button
+            size="xs"
+            leftSection={<IconPlayerSkipBack size="0.85rem" />}
+            onClick={handleLoad}
+            loading={loading}
+          >
+            Load
+          </Button>
 
-              {/* ── Valid Moves ── */}
-              <Box mt="xs">
-                <Group justify="space-between" align="center" style={{ cursor: "pointer" }} onClick={() => {
-                  if (!showValidMoves && !validMovesJsonStr) {
-                    void proxyRef.current?.validMovesJson().then((v) => {
-                      const mapped = (v as WasmPlayerMoves[]).map((pm) => ({ player: pm.player, moves: pm.moves }));
-                      setValidMovesJsonStr(JSON.stringify(mapped, null, 2));
-                    }).catch((e) => console.error("[dev] validMovesJson failed", e));
-                  }
-                  setShowValidMoves((s) => !s);
-                }}>
-                  <Text size="sm" fw={600}>Valid Moves</Text>
-                  <Text size="xs" c="dimmed">{showValidMoves ? "▼" : "▶"}</Text>
-                </Group>
-                {showValidMoves && validMovesJsonStr && (
-                  <Box mt={4} style={{ minHeight: 80, maxHeight: 400, overflow: "auto", resize: "vertical", background: "#1a1b1e", borderRadius: 4, padding: 8 }}>
-                    <Text size="xs" component="pre" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", fontFamily: "monospace", color: "#c9d1d9" }}>
-                      {(() => { try { return JSON.stringify(JSON.parse(validMovesJsonStr), null, 2); } catch (e) { console.error("[DevBoardView] validMoves prettify failed", e); return validMovesJsonStr; } })()}
-                    </Text>
-                  </Box>
-                )}
-              </Box>
-            </Stack>
-          </ScrollArea>
-        </Paper>
+          {/* Controlling players */}
+          <MultiSelect
+            label="Controlling"
+            size="xs"
+            data={allPlayers.map((p) => ({ value: String(p.id), label: p.name || String(p.id) }))}
+            value={selectedPlayers}
+            onChange={(values) => setSelectedPlayers(values)}
+            clearable
+            style={{ width: 220 }}
+            styles={{ label: { fontSize: 11 } }}
+          />
+
+          {/* Open editor in popup */}
+          <Tooltip label="Open variant editor in new window" withArrow>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconCode size="0.9rem" />}
+              rightSection={<IconExternalLink size="0.7rem" />}
+              onClick={handleOpenEditor}
+            >
+              Editor
+            </Button>
+          </Tooltip>
+        </Group>
       </Box>
+
+      {/* ── Board area (fills remaining space) ── */}
+      <Box className={style.boardArea}>
+        {loading && (
+          <Box style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <Loader />
+          </Box>
+        )}
+        {!loading && boardState && variantConfig && containerSize.w > 0 && containerSize.h > 0 && (
+          <Chessboard
+            variantConfig={variantConfig}
+            boardState={boardState}
+            validMoves={displayValidMoves}
+            activeBoardIndex={currentBoardIndex}
+            activeBoardIndices={activeBoardIndices}
+            orientationByBoard={orientationByBoard}
+            onRotateBoard={handleRotateBoard}
+            onReturnHome={() => setLocalOrientationOverride({})}
+            onSubmitAction={handleSubmitAction}
+            lastAction={lastAction}
+            selectedDropPiece={selectedDropPiece}
+            onClearDropPiece={() => setSelectedDropPiece(null)}
+            onSelectReservePiece={(piece) => setSelectedDropPiece(piece)}
+            uiMap={uiElements ?? {}}
+            stageWidth={containerSize.w}
+            stageHeight={containerSize.h}
+            pendingMove={pendingMove}
+            onPendingMove={setPendingMove}
+          />
+        )}
+      </Box>
+
     </Box>
   );
 }
