@@ -52,16 +52,19 @@ const PIECE_LETTER: Record<string, string> = {
   cardinal: "a",
   empress: "c", // Seirawan: Elephant in some naming, but Chancellor = Rook+Knight
   marshal: "c",
-  camel: "Z", // Zebra is closest visually to a camel in this set
+  // camel — no matching SVG yet; renders with fallback circle+label
 };
 
 /**
- * Pieces with custom filenames that don't follow the Chess_{letter}{color}t45 pattern.
- * Maps piece_type → base filename (without extension). The URL builder appends
- * {colorLetter}t45.svg based on the naming contained in the base name.
+ * Pieces with custom filenames. Each entry optionally overrides the extension
+ * per colour. Falls back to .svg when a colour-specific extension is not set.
  */
-const CUSTOM_PIECE_FILE: Record<string, string> = {
-  duck: "Custom_Duck", // hand-drawn duck SVG created for this engine
+const CUSTOM_PIECE_FILE: Record<string, { base: string; extByColor?: Record<string, string> }> = {
+  duck: {
+    base: "Custom_Duck",
+    extByColor: { white: "png", black: "svg" },
+    // Light duck: Gemini-generated PNG; dark duck: engine-generated SVG
+  },
 };
 
 /**
@@ -99,7 +102,8 @@ export function getPieceImageUrl(color: string, pieceType: string): string | nul
   const custom = CUSTOM_PIECE_FILE[pieceType];
   if (custom) {
     const colorLetter = COLOR_LETTER[color] ?? COLOR_LETTER["white"];
-    return `/pieces/wikimedia/${custom}${colorLetter}t45.svg`;
+    const ext = custom.extByColor?.[color] ?? "svg";
+    return `/pieces/wikimedia/${custom.base}${colorLetter}t45.${ext}`;
   }
 
   // 2. Standard Wikimedia naming: Chess_{letter}{color}t45.svg
