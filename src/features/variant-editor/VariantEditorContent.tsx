@@ -177,11 +177,14 @@ export interface VariantEditorContentProps {
   onTest?: (scriptContent: string) => void;
   /** Show a "Pop out →" button (hidden in the pop-out window itself). */
   showPopOut?: boolean;
+  /** Override the Monaco editor height (CSS value). Default: "calc(100vh - 100px)" */
+  editorHeight?: string;
 }
 
 export function VariantEditorContent({
   onTest,
   showPopOut = false,
+  editorHeight,
 }: VariantEditorContentProps) {
   const [scriptContent, setScriptContent] = useState(() => {
     // Restore draft from a previous pop-out or saved state
@@ -329,7 +332,7 @@ export function VariantEditorContent({
 
         {/* Monaco Editor */}
         <Editor
-          height="calc(100vh - 100px)"
+          height={editorHeight ?? "calc(100vh - 100px)"}
           language="rhai"
           theme="vs-dark"
           value={scriptContent}

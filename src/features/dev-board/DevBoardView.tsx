@@ -195,6 +195,7 @@ export function DevBoardView() {
 
   const lastLoadedScriptId = useRef<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const editorPopupRef = useRef<Window | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
@@ -402,10 +403,35 @@ export function DevBoardView() {
       if (event.data?.type === "test-script" && typeof event.data?.script === "string") {
         handleEditorTest(event.data.script);
       }
+      if (event.data?.type === "request-state" && editorPopupRef.current) {
+        void proxyRef.current?.stateJson().then((v) => {
+          editorPopupRef.current?.postMessage(
+            { type: "debug-data", data: { gameState: v } },
+            window.location.origin,
+          );
+        }).catch((e) => console.error("[dev] stateJson failed", e));
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [handleEditorTest]);
+  }, [handleEditorTest, proxyRef]);
+
+  // ── Send debug data to editor popup on every state change ──
+  useEffect(() => {
+    const popup = editorPopupRef.current;
+    if (!popup || popup.closed) {
+      editorPopupRef.current = null;
+      return;
+    }
+    const logStr = JSON.stringify(
+      [...log].reverse().map((entry) => ({ id: entry.id, timestamp: entry.timestamp, player: entry.player, action: entry.action })),
+      null, 2,
+    );
+    const data: Record<string, unknown> = { actionLog: logStr };
+    if (variantConfig) data.variantConfig = variantConfig;
+    data.validMoves = validMovesAll.map((pm) => ({ player: pm.player, moves: pm.moves }));
+    popup.postMessage({ type: "debug-data", data }, window.location.origin);
+  }, [log, variantConfig, validMovesAll]);
 
   // ── Sync when controlling player changes ──
   useEffect(() => {
@@ -459,7 +485,8 @@ export function DevBoardView() {
 
   // ── Open editor in popup window ──
   const handleOpenEditor = () => {
-    window.open("/dev/editor", "cv-editor-popout", "width=1300,height=900");
+    const popup = window.open("/dev/editor", "cv-editor-popout", "width=1300,height=900");
+    if (popup) editorPopupRef.current = popup;
   };
 
   // ── Submit an action ──
