@@ -149,6 +149,9 @@ let PIECE_DEFS = PieceDefs([
             condition: |s,f,t| f.row == pawn_start_row("white") && path_empty(s.board, f, t) && is_empty(s.board, t) },
         #{ type: "jump", offsets: [[-1, -1], [-1, 1]], move_type: "capture",
             condition: |s,f,t| can_capture(s.board, t, "white") },
+        // En passant (destination empty, capture on adjacent square)
+        #{ type: "jump", offsets: [[-1, -1], [-1, 1]], move_type: "move",
+            condition: |s,f,t| s["en_passant"] != () && t == s["en_passant"] },
     ]},
     #{ type: "pawn", color: "black", def: [
         #{ type: "jump", offsets: [[1, 0]], move_type: "move",
@@ -157,6 +160,9 @@ let PIECE_DEFS = PieceDefs([
             condition: |s,f,t| f.row == pawn_start_row("black") && path_empty(s.board, f, t) && is_empty(s.board, t) },
         #{ type: "jump", offsets: [[1, -1], [1, 1]], move_type: "capture",
             condition: |s,f,t| can_capture(s.board, t, "black") },
+        // En passant (destination empty, capture on adjacent square)
+        #{ type: "jump", offsets: [[1, -1], [1, 1]], move_type: "move",
+            condition: |s,f,t| s["en_passant"] != () && t == s["en_passant"] },
     ]},
 ]);
 
