@@ -72,8 +72,19 @@ export interface WasmPlayerConfig {
   name: string;
   home_board?: number;
   team: number;
-  orientation: BoardOrientation; /** Resolved by engine during init — always present. */
+  orientations: WasmOrientationEntry[]; /** One entry per board, resolved by engine during init. */
   data?: Record<string, unknown>;
+}
+
+/** Get the orientation for a specific board from a player's orientations array. */
+export function getPlayerOrientation(player: WasmPlayerConfig, board: number): BoardOrientation {
+  const entry = player.orientations.find((o) => o.board === board);
+  return entry?.orientation ?? "normal";
+}
+
+export interface WasmOrientationEntry {
+  board: number;
+  orientation: BoardOrientation;
 }
 
 export interface WasmVariantConfig {

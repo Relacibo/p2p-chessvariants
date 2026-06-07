@@ -3,6 +3,7 @@ import { notifications } from "@mantine/notifications";
 import { EngineProxy } from "../engine/EngineProxy";
 import {
   GameProgress,
+  getPlayerOrientation,
   PendingMove,
   PlayerRef,
   WasmAction,
@@ -100,12 +101,13 @@ export function useChessGame(options: UseChessGameOptions = {}): UseChessGameRes
   const deriveActivePlayers = useCallback((allActions: WasmPlayerMoves[]): PlayerRef[] => {
     return allActions
       .filter((pa) => pa.moves.length > 0)
-      .map((pa) => ({
-        id: pa.player,
-        orientation: allPlayersRef.current.find(
-          (ap) => ap.id === pa.player,
-        )?.orientation,
-      }));
+      .map((pa) => {
+        const p = allPlayersRef.current.find((ap) => ap.id === pa.player);
+        return {
+          id: pa.player,
+          orientation: p ? getPlayerOrientation(p, p.home_board ?? 0) : undefined,
+        };
+      });
   }, []);
 
   const syncState = useCallback(

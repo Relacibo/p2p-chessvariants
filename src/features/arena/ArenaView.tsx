@@ -15,6 +15,7 @@ import useConfigureLayout from "../layout/hooks";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
 import {
   BoardOrientation,
+  getPlayerOrientation,
   WasmAction,
   WasmPlayerConfig,
 } from "../chessboard/types";
@@ -164,7 +165,7 @@ export default function ArenaView() {
     if (localPlayerConfigId == null) return arr;
     for (let i = 0; i < count; i++) {
       const p = allPlayers.find((ap) => ap.home_board === i);
-      if (p) arr[i] = p.orientation;
+      if (p) arr[i] = getPlayerOrientation(p, i);
     }
     // Override boards belonging to local player's team.
     const localPlayer = allPlayers.find(
@@ -173,7 +174,7 @@ export default function ArenaView() {
     if (localPlayer) {
       for (const ap of allPlayers) {
         if (ap.team === localPlayer.team) {
-          arr[ap.home_board ?? 0] = ap.orientation;
+          arr[ap.home_board ?? 0] = getPlayerOrientation(ap, ap.home_board ?? 0);
         }
       }
     }

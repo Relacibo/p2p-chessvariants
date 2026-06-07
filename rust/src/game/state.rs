@@ -313,67 +313,58 @@ impl BoardCoords {
 }
 
 /// Canonical player identifier.
-///
-/// Scripts use:
-///   `Player(id)`            → minimal player
-///   `Player(id, name)`      → with display name
-///   `Player(id, name, home_board)` → with home board
-///   `Player(id, name, home_board, data)` → with arbitrary data
-///
-/// The engine does not bind a player to a specific board or color —
-/// those are variant-defined and belong in `state.players` (Rhai map).
-/// Equality is registered so `.contains()` works on arrays of Player.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, CustomType)]
 #[serde(rename_all = "snake_case")]
 pub struct Player {
-    /// Canonical player identifier — unique, assigned by script in init().
-    #[rhai_type(readonly)]
     pub id: i32,
-    /// Optional display name (e.g. "Alice").
-    #[rhai_type(readonly)]
     pub name: String,
-    /// Home board — default board when pressing "home". Defaults to 0.
-    #[rhai_type(readonly)]
     pub home_board: i32,
-    /// Team index — populated from state.players after init(). Defaults to 0.
-    #[rhai_type(readonly)]
     pub team: i32,
-    /// Board orientation: "normal", "flipped", "clockwise", "counterclockwise".
-    /// Resolved during init: player.orientation > team.orientations > default per team.
-    #[rhai_type(readonly)]
-    pub orientation: String,
-    /// Arbitrary script-defined data attached to the player (like `Piece.data`).
+    /// Per-board orientation entries resolved during init.
+    /// At least one entry is always present after init (for home_board).
+    /// For multi-board variants, contains one entry per board.
+    pub orientations: Vec<OrientationEntry>,
     pub data: Option<Dynamic>,
 }
 
-// Manual PartialEq/Eq/Hash — skip `data` since `Dynamic` does not implement these traits.
+/// A resolved orientation for a specific board.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct OrientationEntry {
+    pub board: i32,
+    pub orientation: String,
+}
+
+// Manual PartialEq/Eq/Hash — skip `data` and `orientations`
 impl PartialEq for Player {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.name == other.name && self.home_board == other.home_board
-            && self.team == other.team && self.orientation == other.orientation
+            && self.team == other.team
     }
 }
 impl Eq for Player {}
 impl Hash for Player {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state); self.name.hash(state);
-        self.home_board.hash(state); self.team.hash(state); self.orientation.hash(state);
+        self.home_board.hash(state); self.team.hash(state);
     }
 }
 
 impl Player {
-    /// Primary constructor: `Player(id)`.
+    fn default_orientations(home_board: i32) -> Vec<OrientationEntry> {
+        vec![OrientationEntry { board: home_board, orientation: "normal".into() }]
+    }
+
     pub fn new_by_id(id: i32) -> Self {
-        Self { id, name: String::new(), home_board: 0, team: 0, orientation: "normal".into(), data: None }
+        Self { id, name: String::new(), home_board: 0, team: 0, orientations: Self::default_orientations(0), data: None }
     }
     pub fn new_by_id_name(id: i32, name: String) -> Self {
-        Self { id, name, home_board: 0, team: 0, orientation: "normal".into(), data: None }
+        Self { id, name, home_board: 0, team: 0, orientations: Self::default_orientations(0), data: None }
     }
     pub fn new_full(id: i32, name: String, home_board: i32) -> Self {
-        Self { id, name, home_board, team: 0, orientation: "normal".into(), data: None }
+        Self { id, name, home_board, team: 0, orientations: Self::default_orientations(home_board), data: None }
     }
     pub fn new_with_data(id: i32, name: String, home_board: i32, data: Dynamic) -> Self {
-        Self { id, name, home_board, team: 0, orientation: "normal".into(), data: Some(data) }
+        Self { id, name, home_board, team: 0, orientations: Self::default_orientations(home_board), data: Some(data) }
     }
 }
 

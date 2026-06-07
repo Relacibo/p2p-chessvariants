@@ -253,10 +253,24 @@ fn player_from_map(m: &rhai::Map) -> Result<Player, CvError> {
         .unwrap_or_default();
     let home_board = player_field_i32(m, "home_board");
     let team = player_field_i32(m, "team");
-    let orientation = m.get("orientation")
-        .and_then(|v| v.clone().into_string().ok())
-        .ok_or_else(|| CvError::Internal(format!("player {id}: orientation not resolved")))?;
-    Ok(Player { id, name, home_board, team, orientation, data: m.get("data").cloned() })
+    let orientations = m.get("orientations")
+        .and_then(|v| v.clone().try_cast::<rhai::Array>())
+        .map(|arr| {
+            arr.into_iter()
+                .filter_map(|entry| {
+                    let om = entry.clone().try_cast::<rhai::Map>()?;
+                    let board = player_field_i32(&om, "board");
+                    let orientation = om.get("orientation")
+                        .and_then(|v| v.clone().into_string().ok())
+                        .unwrap_or_default();
+                    Some(game::state::OrientationEntry { board, orientation })
+                })
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            vec![game::state::OrientationEntry { board: home_board, orientation: "normal".into() }]
+        });
+    Ok(Player { id, name, home_board, team, orientations, data: m.get("data").cloned() })
 }
 
 // ─── Player resolution ───────────────────────────────────────────────────────
@@ -387,75 +401,114 @@ impl StatelessChessvariantEngine {
 
 // Internal method — not WASM-exposed (rhai::Map cannot cross the WASM boundary).
 impl StatelessChessvariantEngine {
-    /// Resolve orientation for a single player from the setup data.
+    /// Resolve per-board orientations for a player.
     ///
-    /// Resolution order (first match wins):
-    /// 1. `player["orientation"]` if present in the Rhai map
-    /// 2. `teams[player.team].orientations` matching `player.home_board`
+    /// Resolution for each board (first match wins):
+    /// 1. `player["orientations"]` array entry matching the board
+    /// 2. `teams[player.team].orientations` entry matching the board
     /// 3. Default: team 0 → "normal", team 1 → "flipped", others → "normal"
-    fn resolve_orientation(
+    ///
+    /// Stores the resolved `orientations` array back into the player map.
+    fn resolve_orientations(
         player: &mut rhai::Map,
+        board_count: i32,
         teams: Option<&rhai::Map>,
     ) -> Result<(), CvError> {
         let id = player_field_i32(player, "id");
-
-        // 1. Player-level orientation (explicit, from script)
-        if let Some(ori) = player.get("orientation").and_then(|v| v.clone().into_string().ok()) {
-            return Ok(());
-        }
-
-        // 2. Team-level orientation
         let team = player_field_i32(player, "team");
-        let home_board = player_field_i32(player, "home_board");
-        if let Some(teams_map) = teams {
-            // Teams can be array-style [{id, orientations}] or map-style {0: {...}, 1: {...}}
+
+        // Collect player-level orientations from script
+        // Supports both legacy `orientation: "normal"` and new `orientations: [#{board, orientation}]`
+        let player_oris: rhai::Map = if let Some(arr) = player.get("orientations")
+            .and_then(|v| v.clone().try_cast::<rhai::Array>())
+        {
+            arr.into_iter()
+                .filter_map(|entry| {
+                    let m = entry.clone().try_cast::<rhai::Map>()?;
+                    let board = player_field_i32(&m, "board");
+                    let ori = m.get("orientation")?.clone().into_string().ok()?;
+                    Some((board.to_string().into(), Dynamic::from(ori)))
+                })
+                .collect()
+        } else if let Some(ori_str) = player.get("orientation")
+            .and_then(|v| v.clone().into_string().ok())
+        {
+            // Legacy shorthand: `orientation: "normal"` → applies to home_board
+            let home_board = player_field_i32(player, "home_board");
+            let mut m = rhai::Map::new();
+            m.insert(home_board.to_string().into(), Dynamic::from(ori_str));
+            m
+        } else {
+            rhai::Map::new()
+        };
+
+        // Collect team-level orientations
+        let team_oris: rhai::Map = if let Some(teams_map) = teams {
             let team_entry = teams_map
                 .get(team.to_string().as_str())
                 .or_else(|| teams_map.get(format!("team_{team}").as_str()))
                 .cloned()
                 .or_else(|| {
-                    // Search array-style
                     teams_map.values().find_map(|v| {
                         let m = v.clone().try_cast::<rhai::Map>()?;
                         (player_field_i32(&m, "id") == team).then(|| v.clone())
                     })
                 });
+            team_entry
+                .and_then(|entry| entry.try_cast::<rhai::Map>())
+                .and_then(|tm| tm.get("orientations").and_then(|v| v.clone().try_cast::<rhai::Array>()))
+                .map(|arr| {
+                    arr.into_iter()
+                        .filter_map(|entry| {
+                            let m = entry.clone().try_cast::<rhai::Map>()?;
+                            let board = player_field_i32(&m, "board");
+                            let ori = m.get("orientation")?.clone().into_string().ok()?;
+                            Some((board.to_string().into(), Dynamic::from(ori)))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            rhai::Map::new()
+        };
 
-            if let Some(entry) = team_entry {
-                if let Some(tm) = entry.clone().try_cast::<rhai::Map>() {
-                    if let Some(orientations) = tm.get("orientations")
-                        .and_then(|v| v.clone().try_cast::<rhai::Array>())
-                    {
-                        for o in orientations {
-                            if let Some(om) = o.clone().try_cast::<rhai::Map>() {
-                                if player_field_i32(&om, "board") == home_board {
-                                    if let Some(ori) = om.get("orientation")
-                                        .and_then(|v| v.clone().into_string().ok())
-                                    {
-                                        player.insert("orientation".into(), Dynamic::from(ori));
-                                        return Ok(());
-                                    }
-                                }
-                            }
-                        }
+        // Resolve for every board
+        let mut resolved = rhai::Array::new();
+        for board in 0..board_count {
+            // 1. Player-level
+            let ori = player_oris
+                .get(board.to_string().as_str())
+                .and_then(|v| v.clone().into_string().ok())
+                // 2. Team-level
+                .or_else(|| {
+                    team_oris
+                        .get(board.to_string().as_str())
+                        .and_then(|v| v.clone().into_string().ok())
+                })
+                // 3. Default
+                .unwrap_or_else(|| {
+                    match team {
+                        0 => "normal",
+                        1 => "flipped",
+                        _ => "normal",
                     }
-                }
-            }
+                    .into()
+                });
+
+            let mut entry_map = rhai::Map::new();
+            entry_map.insert("board".into(), Dynamic::from(board as i64));
+            entry_map.insert("orientation".into(), Dynamic::from(ori));
+            resolved.push(Dynamic::from(entry_map));
         }
 
-        // 3. Default per team
-        let default = match team {
-            0 => "normal",
-            1 => "flipped",
-            _ => "normal",
-        };
-        player.insert("orientation".into(), Dynamic::from(default));
+        player.insert("orientations".into(), Dynamic::from(resolved));
         Ok(())
     }
 
     /// Init from a pre-built setup map (players + optional teams).
     /// Skips `setup_players()` — used by P2P peers that receive setup from the host.
     pub fn init_with_setup_map(self, setup_map: rhai::Map) -> Result<ChessvariantEngine, CvError> {
+        let board_count = self.variant_config.board.count;
         let StatelessChessvariantEngine {
             engine,
             ast,
@@ -481,11 +534,10 @@ impl StatelessChessvariantEngine {
             .map(|entry| {
                 let mut m = entry.try_cast::<rhai::Map>()
                     .ok_or_else(|| CvError::Internal("each player entry must be a map".into()))?;
-                // Validate `id` exists
                 if m.get("id").and_then(|v| v.as_int().ok()).is_none() {
                     return Err(CvError::Internal("each player entry must have an 'id' field".into()));
                 }
-                Self::resolve_orientation(&mut m, teams_map.as_ref())?;
+                Self::resolve_orientations(&mut m, board_count, teams_map.as_ref())?;
                 Ok(Dynamic::from(m))
             })
             .collect::<Result<_, CvError>>()?;

@@ -174,11 +174,14 @@ export const PlayerConfigSchema = z.object({
   name: z.string(),
   home_board: z.number().optional(),
   team: z.number(),
-  orientation: z.union([
+  orientations: z.array(z.object({
+    board: z.number(),
+    orientation: z.union([
       z.literal("normal"),
       z.literal("flipped"),
       z.literal("clockwise"),
       z.literal("counterclockwise"),
     ]),
+  })),
   data: z.record(z.string(), z.unknown()).optional(),
 });
