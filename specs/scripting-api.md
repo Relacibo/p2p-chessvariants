@@ -339,14 +339,15 @@ A Rust-side custom type exposed as a global constructor `PieceDefs()`. Replaces 
 | `color` | string | optional | Color identifier; if absent, entry applies to all colors |
 | `def` | `[component]` | YES | Array of movement components (see below) |
 
-**Component map format** (`#{ type, offsets?, dirs?, condition? }`):
+**Component map format** (`#{ type, offsets?, dirs?, move_type?, condition? }`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | `"jump"` or `"slide"` | YES | Movement class |
 | `offsets` | `[[i32,i32]]` | for `"jump"` | Leap vectors |
 | `dirs` | `[[i32,i32]]` | for `"slide"` | Direction vectors |
-| `condition` | `\|s, f, t\| -> bool` | optional | Filter destinations via `engine::board::get` and state keys |
+| `move_type` | `"move"` \| `"capture"` \| `"both"` | optional | Filters destinations: `"move"` only empty squares, `"capture"` only enemy-occupied squares; defaults to `"both"` (backward compat) |
+| `condition` | `\|s, f, t\| -> bool` | optional | Further filter destinations; only keep what `move_type` cannot express (state-, path-, or board-dependent rules) |
 
 **Methods:**
 
@@ -370,28 +371,68 @@ let PIECE_DEFS = PieceDefs([
     #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
     #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
 
-    // Color-specific: each color gets its own definition
+    // Color-specific: each color gets its own definition.
+    // move_type handles basic filtering; conditions only for what the engine
+    // cannot express (start row, path clearance, state-dependent rules).
     #{ type: "pawn", color: "white", def: [
-         #{ type: "jump", offsets: [[-1, 0]],        condition: |s,f,t| engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[-2, 0]],        condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () && engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[-1,-1],[-1,1]], condition: |s,f,t| { let target = engine::board::get(s.board, t); let my = engine::board::get(s.board, f); target == () || target.color != my.color } },
+         // Single forward push — empty squares only (non-capture)
+         #{ type: "jump", offsets: [[-1, 0]], move_type: "move" },
+         // Double push from start row — intermediate square must be clear
+         #{ type: "jump", offsets: [[-2, 0]], move_type: "move",
+            condition: |s,f,t| f.row == 6 && engine::board::get(s.board, Coords(f.row-1, f.col)) == () },
+         // Diagonal capture — enemy-occupied squares only
+         #{ type: "jump", offsets: [[-1,-1],[-1,1]], move_type: "capture" },
+         // En passant — destination empty, validated by state
+         #{ type: "jump", offsets: [[-1,-1],[-1,1]], move_type: "move",
+            condition: |s,f,t| s["en_passant"] != () && t == s["en_passant"] },
     ]},
     #{ type: "pawn", color: "black", def: [
-         #{ type: "jump", offsets: [[1, 0]],        condition: |s,f,t| engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[2, 0]],        condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () && engine::board::get(s.board, t) == () },
-         #{ type: "jump", offsets: [[1,-1],[1,1]],  condition: |s,f,t| { let target = engine::board::get(s.board, t); let my = engine::board::get(s.board, f); target == () || target.color != my.color } },
+         #{ type: "jump", offsets: [[1, 0]], move_type: "move" },
+         #{ type: "jump", offsets: [[2, 0]], move_type: "move",
+            condition: |s,f,t| f.row == 1 && engine::board::get(s.board, Coords(f.row+1, f.col)) == () },
+         #{ type: "jump", offsets: [[1,-1],[1,1]], move_type: "capture" },
+         #{ type: "jump", offsets: [[1,-1],[1,1]], move_type: "move",
+            condition: |s,f,t| s["en_passant"] != () && t == s["en_passant"] },
     ]},
 ]);
 
-// Usage in get_pseudo_dests — no helper function needed:
+// Usage in get_pseudo_dests — dispatch with move_type:
 fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from);
     if piece == () { return []; }
+    let color = piece.color;
     let comps = PIECE_DEFS.get(piece);   // ← color-aware lookup, returns () if unknown
     if comps == () { return []; }
-    // ... dispatch comp.type to engine::moves::jump / slide ...
+    let dests = [];
+    for comp in comps {
+        // Default move_type to "both" for backward compat (components without the field)
+        let mt = if comp.move_type != () { comp.move_type } else { "both" };
+        let raw = switch comp.type {
+            "jump"  => engine::moves::jump(board, from, comp.offsets, color, mt),
+            "slide" => engine::moves::slide(board, from, comp.dirs, color, mt),
+            _ => [],
+        };
+        if comp.condition != () {
+            raw = raw.filter(|t| comp.condition(state, from, t));
+        }
+        for d in raw { dests.push(d); }
+    }
+    dests
+}
+
+// For attack / check detection, skip "move"-only components:
+fn get_attack_dests(board, from, state) {
+    // ... same as get_pseudo_dests but:
+    //     if comp.move_type == "move" { continue; }   ← skip non-captures
+    //     let mt = if comp.move_type != () { comp.move_type } else { "both" };
+    //     // dispatch jump/slide with mt …
 }
 ```
+
+The `get_attack_dests` pattern is the recommended convention for `is_square_attacked`
+and king-safety checks: identical to `get_pseudo_dests` except it skips components
+with `move_type == "move"` (e.g. pawn forward pushes) so that only true attacks
+(captures) are considered.
 
 **4-player chess** — each color gets its own pawn direction:
 ```rhai
@@ -597,8 +638,10 @@ The engine provides **unbiased geometry helpers**. All piece-specific rules (paw
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `jump` | `(Board, Coords, [[i32,i32]], color) -> [Coords]` | Generic leaper. Returns in-bounds destination squares not occupied by a same-colored piece. No blocking — each offset is independent. |
-| `slide` | `(Board, Coords, [[i32,i32]], color) -> [Coords]` | Generic rider. Rays in each direction, stops before same-colored piece, includes first enemy. |
+| `jump` | `(Board, Coords, [[i32,i32]], color) -> [Coords]` | Generic leaper (backward compat). Returns in-bounds destinations not occupied by same-colored piece. No blocking — each offset independent. |
+| `jump` | `(Board, Coords, [[i32,i32]], color, move_type) -> [Coords]` | Generic leaper with `move_type` filter (`"move"` only empty, `"capture"` only enemy, `"both"` either). |
+| `slide` | `(Board, Coords, [[i32,i32]], color) -> [Coords]` | Generic rider (backward compat). Rays in each direction, stops before same-colored piece, includes first enemy. |
+| `slide` | `(Board, Coords, [[i32,i32]], color, move_type) -> [Coords]` | Generic rider with `move_type` filter (`"move"` stops before any piece, `"capture"` skips empty and includes only first enemy). |
 | `pawn_push` | `(Board, Coords, color, dr, dc, start_line) -> [Coords]` | Convenience: forward single/double push + diagonal captures perpendicular to `(dr,dc)`. `start_line=-1` disables double push. |
 
 #### Per-type convenience wrappers (optional sugar)
