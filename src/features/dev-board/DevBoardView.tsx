@@ -1,21 +1,11 @@
 import {
   Box,
   Button,
-  Combobox,
-  Group,
-  InputBase,
   Loader,
-  MultiSelect,
-  NumberInput,
-  Text,
   Tooltip,
 } from "@mantine/core";
-import { useCombobox } from "@mantine/core";
 import {
-  IconBrandGithub,
   IconCode,
-  IconExternalLink,
-  IconPlayerSkipBack,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -44,7 +34,6 @@ import {
   VariantEntry,
   OFFICIAL_VARIANTS,
 } from "../lobby/variantsSlice";
-import { getGithubBrowseUrl } from "../lobby/scriptUrl";
 
 // ─── Log entry ───────────────────────────────────────────────────────────────
 
@@ -150,11 +139,9 @@ export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const [searchParams, setSearchParams] = useSearchParams();
   const variants = useCompositeVariants();
-  const combobox = useCombobox();
 
   const initUrl = useMemo(() => readUrlState(searchParams), []);
 
-  const [search, setSearch] = useState("");
   const [selectedVariant, setSelectedVariant] = useState<VariantEntry | null>(null);
   const [playerCount, setPlayerCount] = useState<number | string>(
     () => initUrl.n ?? 2,
@@ -400,9 +387,34 @@ export function DevBoardView() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
+
+      // Test script from editor
       if (event.data?.type === "test-script" && typeof event.data?.script === "string") {
         handleEditorTest(event.data.script);
+        return;
       }
+
+      // Load variant + player count
+      if (event.data?.type === "load-variant" && typeof event.data?.url === "string") {
+        const n = typeof event.data?.players === "number" ? event.data.players : 2;
+        if (event.data.script) {
+          // Content-based (editor Test with saved script)
+          setLog([]);
+          setLocalOrientationOverride({});
+          loadScriptContentRaw(event.data.script, n).then(() => restorePlayersAfterLoad());
+        } else {
+          loadScriptById(event.data.url, n);
+        }
+        return;
+      }
+
+      // Set controlling players
+      if (event.data?.type === "set-controlling-players" && Array.isArray(event.data?.players)) {
+        setSelectedPlayers(event.data.players);
+        return;
+      }
+
+      // Request game state
       if (event.data?.type === "request-state" && editorPopupRef.current) {
         void proxyRef.current?.stateJson().then((v) => {
           editorPopupRef.current?.postMessage(
@@ -410,11 +422,12 @@ export function DevBoardView() {
             window.location.origin,
           );
         }).catch((e) => console.error("[dev] stateJson failed", e));
+        return;
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [handleEditorTest, proxyRef]);
+  }, [handleEditorTest, proxyRef, loadScriptById, loadScriptContentRaw, restorePlayersAfterLoad]);
 
   // ── Send debug data to editor popup on every state change ──
   useEffect(() => {
@@ -432,6 +445,21 @@ export function DevBoardView() {
     data.validMoves = validMovesAll.map((pm) => ({ player: pm.player, moves: pm.moves }));
     popup.postMessage({ type: "debug-data", data }, window.location.origin);
   }, [log, variantConfig, validMovesAll]);
+
+  // ── Notify editor popup when engine state is ready ──
+  useEffect(() => {
+    const popup = editorPopupRef.current;
+    if (!popup || popup.closed) { editorPopupRef.current = null; return; }
+    if (!variantConfig || allPlayers.length === 0) return;
+    popup.postMessage({
+      type: "engine-loaded",
+      variantName: selectedVariant?.name ?? "",
+      variantUrl: selectedVariant?.url ?? "",
+      playerCount: typeof playerCount === "number" ? playerCount : Number(playerCount) || 2,
+      players: allPlayers.map((p) => ({ id: String(p.id), name: p.name ?? String(p.id) })),
+      selectedPlayers,
+    }, window.location.origin);
+  }, [variantConfig, allPlayers, selectedVariant, playerCount, selectedPlayers]);
 
   // ── Sync when controlling player changes ──
   useEffect(() => {
@@ -468,21 +496,6 @@ export function DevBoardView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("dev")]);
 
-  const handleVariantSelect = (url: string) => {
-    const variant = variants.find((v) => v.url === url);
-    if (variant) {
-      setSelectedVariant(variant);
-      combobox.closeDropdown();
-    }
-  };
-
-  const handleLoad = () => {
-    const scriptId = selectedVariant?.url;
-    if (!scriptId) return;
-    const n = typeof playerCount === "number" ? playerCount : parseInt(String(playerCount), 10) || 2;
-    loadScriptById(scriptId, n);
-  };
-
   // ── Open editor in popup window ──
   const handleOpenEditor = () => {
     const popup = window.open("/dev/editor", "cv-editor-popout", "width=1300,height=900");
@@ -512,120 +525,12 @@ export function DevBoardView() {
     [proxyRef, selectedPlayers, allPlayers, controllingPlayer, validMovesAll, addLogEntry, handleSubmitActionRaw],
   );
 
-  const filteredVariants = variants.filter((v) =>
-    v.name.toLowerCase().includes(search.toLowerCase().trim()),
-  );
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Box ref={containerRef} className={style.container}>
 
-      {/* ── Top toolbar ── */}
-      <Box className={style.toolbar}>
-        <Group gap="sm" wrap="nowrap" align="center">
-          {/* Variant combobox */}
-          <Combobox store={combobox} withinPortal onOptionSubmit={handleVariantSelect}>
-            <Combobox.Target>
-              <InputBase
-                component="button" type="button" pointer
-                rightSection={<Text size="xs" c="dimmed">▼</Text>}
-                onClick={() => combobox.toggleDropdown()}
-                rightSectionPointerEvents="none"
-                style={{ width: 220 }}
-              >
-                {selectedVariant ? (
-                  <Group justify="space-between" style={{ width: "100%" }}>
-                    <Text size="sm" truncate>{selectedVariant.name}</Text>
-                    {selectedVariant.url && !selectedVariant.url.startsWith("local:") && (
-                      <Tooltip label="View Source">
-                        <Box
-                          component="a"
-                          href={getGithubBrowseUrl(selectedVariant.url)}
-                          target="_blank"
-                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                          onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
-                          style={{ display: "flex", color: "inherit" }}
-                        >
-                          <IconBrandGithub size="1rem" />
-                        </Box>
-                      </Tooltip>
-                    )}
-                  </Group>
-                ) : (
-                  <Text size="sm" c="dimmed">Select variant…</Text>
-                )}
-              </InputBase>
-            </Combobox.Target>
-            <Combobox.Dropdown>
-              <Combobox.Search
-                value={search}
-                onChange={(event) => setSearch(event.currentTarget.value)}
-                placeholder="Search variants…"
-              />
-              <Combobox.Options>
-                {filteredVariants.length === 0 ? (
-                  <Combobox.Empty>No variants found</Combobox.Empty>
-                ) : (
-                  filteredVariants.map((item) => (
-                    <Combobox.Option value={item.url} key={item.url}>
-                      <Text size="sm">{item.name}</Text>
-                    </Combobox.Option>
-                  ))
-                )}
-              </Combobox.Options>
-            </Combobox.Dropdown>
-          </Combobox>
-
-          {/* Player count */}
-          <NumberInput
-            label="Players"
-            size="xs"
-            min={2} max={8}
-            value={playerCount}
-            onChange={setPlayerCount}
-            style={{ width: 80 }}
-            styles={{ label: { fontSize: 11 } }}
-          />
-
-          {/* Load / Restart */}
-          <Button
-            size="xs"
-            leftSection={<IconPlayerSkipBack size="0.85rem" />}
-            onClick={handleLoad}
-            loading={loading}
-          >
-            Load
-          </Button>
-
-          {/* Controlling players */}
-          <MultiSelect
-            label="Controlling"
-            size="xs"
-            data={allPlayers.map((p) => ({ value: String(p.id), label: p.name || String(p.id) }))}
-            value={selectedPlayers}
-            onChange={(values) => setSelectedPlayers(values)}
-            clearable
-            style={{ width: 220 }}
-            styles={{ label: { fontSize: 11 } }}
-          />
-
-          {/* Open editor in popup */}
-          <Tooltip label="Open variant editor in new window" withArrow>
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconCode size="0.9rem" />}
-              rightSection={<IconExternalLink size="0.7rem" />}
-              onClick={handleOpenEditor}
-            >
-              Editor
-            </Button>
-          </Tooltip>
-        </Group>
-      </Box>
-
-      {/* ── Board area (fills remaining space) ── */}
-      <Box className={style.boardArea}>
+      {/* ── Board area (fills entire space) ── */}
+      <Box style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {loading && (
           <Box style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
             <Loader />
@@ -654,6 +559,21 @@ export function DevBoardView() {
           />
         )}
       </Box>
+
+      {/* ── Floating editor button ── */}
+      <Tooltip label="Open editor & controls" position="left" withArrow>
+        <Button
+          variant="filled" color="dark" size="sm"
+          style={{
+            position: "absolute", bottom: 12, right: 12, zIndex: 200,
+            borderRadius: 20, padding: "4px 12px",
+          }}
+          leftSection={<IconCode size="0.9rem" />}
+          onClick={handleOpenEditor}
+        >
+          Editor
+        </Button>
+      </Tooltip>
 
     </Box>
   );
