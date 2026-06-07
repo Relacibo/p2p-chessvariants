@@ -13,16 +13,6 @@ fn is_empty(board, c) {
     engine::board::get(board, c) == ()
 }
 
-fn is_enemy(board, c, my_color) {
-    let p = engine::board::get(board, c);
-    p != () && p.color != my_color
-}
-
-fn can_capture(board, c, my_color) {
-    let p = engine::board::get(board, c);
-    p == () || p.color != my_color
-}
-
 fn path_empty(board, from, to) {
     let dr = to.row - from.row;
     let dc = to.col - from.col;
@@ -141,26 +131,21 @@ let PIECE_DEFS = PieceDefs([
             }
         },
     ]},
-    // Pawns — color-specific because direction differs
+    // Pawns — color-specific because direction differs.
+    // move_type handles all basic filtering; conditions only for multi-step checks.
     #{ type: "pawn", color: "white", def: [
-        #{ type: "jump", offsets: [[-1, 0]], move_type: "move",
-            condition: |s,f,t| is_empty(s.board, t) },
+        #{ type: "jump", offsets: [[-1, 0]], move_type: "move" },
         #{ type: "jump", offsets: [[-2, 0]], move_type: "move",
-            condition: |s,f,t| f.row == pawn_start_row("white") && path_empty(s.board, f, t) && is_empty(s.board, t) },
-        #{ type: "jump", offsets: [[-1, -1], [-1, 1]], move_type: "capture",
-            condition: |s,f,t| can_capture(s.board, t, "white") },
-        // En passant (destination empty, capture on adjacent square)
+            condition: |s,f,t| f.row == pawn_start_row("white") && path_empty(s.board, f, t) },
+        #{ type: "jump", offsets: [[-1, -1], [-1, 1]], move_type: "capture" },
         #{ type: "jump", offsets: [[-1, -1], [-1, 1]], move_type: "move",
             condition: |s,f,t| s["en_passant"] != () && t == s["en_passant"] },
     ]},
     #{ type: "pawn", color: "black", def: [
-        #{ type: "jump", offsets: [[1, 0]], move_type: "move",
-            condition: |s,f,t| is_empty(s.board, t) },
+        #{ type: "jump", offsets: [[1, 0]], move_type: "move" },
         #{ type: "jump", offsets: [[2, 0]], move_type: "move",
-            condition: |s,f,t| f.row == pawn_start_row("black") && path_empty(s.board, f, t) && is_empty(s.board, t) },
-        #{ type: "jump", offsets: [[1, -1], [1, 1]], move_type: "capture",
-            condition: |s,f,t| can_capture(s.board, t, "black") },
-        // En passant (destination empty, capture on adjacent square)
+            condition: |s,f,t| f.row == pawn_start_row("black") && path_empty(s.board, f, t) },
+        #{ type: "jump", offsets: [[1, -1], [1, 1]], move_type: "capture" },
         #{ type: "jump", offsets: [[1, -1], [1, 1]], move_type: "move",
             condition: |s,f,t| s["en_passant"] != () && t == s["en_passant"] },
     ]},

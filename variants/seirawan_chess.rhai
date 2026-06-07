@@ -7,8 +7,8 @@ let PIECE_DEFS = PieceDefs([
     #{ type: "rook",   def: [#{ type: "slide", dirs: [[0,1],[0,-1],[1,0],[-1,0]] }] },
     #{ type: "bishop", def: [#{ type: "slide", dirs: [[1,1],[1,-1],[-1,1],[-1,-1]] }] },
     #{ type: "knight", def: [#{ type: "jump", offsets: [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]] }] },
-    #{ type: "pawn", color: "white", def: [ #{ type:"jump",offsets:[[-1,0]],move_type:"move",condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-2,0]],move_type:"move",condition:|s,f,t|f.row==6&&engine::board::get(s.board,Coords(f.row-1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],move_type:"capture",condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ] },
-    #{ type: "pawn", color: "black", def: [ #{ type:"jump",offsets:[[1,0]],move_type:"move",condition:|s,f,t|engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[2,0]],move_type:"move",condition:|s,f,t|f.row==1&&engine::board::get(s.board,Coords(f.row+1,f.col))==()&&engine::board::get(s.board,t)==() }, #{ type:"jump",offsets:[[1,-1],[1,1]],move_type:"capture",condition:|s,f,t|{let x=engine::board::get(s.board,t);let y=engine::board::get(s.board,f);x==()||x.color!=y.color} } ] },
+    #{ type: "pawn", color: "white", def: [ #{ type:"jump",offsets:[[-1,0]],move_type:"move" }, #{ type:"jump",offsets:[[-2,0]],move_type:"move",condition:|s,f,t|f.row==6&&engine::board::get(s.board,Coords(f.row-1,f.col))==() }, #{ type:"jump",offsets:[[-1,-1],[-1,1]],move_type:"capture" } ] },
+    #{ type: "pawn", color: "black", def: [ #{ type:"jump",offsets:[[1,0]],move_type:"move" }, #{ type:"jump",offsets:[[2,0]],move_type:"move",condition:|s,f,t|f.row==1&&engine::board::get(s.board,Coords(f.row+1,f.col))==() }, #{ type:"jump",offsets:[[1,-1],[1,1]],move_type:"capture" } ] },
 ]);
 
 fn get_pseudo_dests(board, from, state) {
