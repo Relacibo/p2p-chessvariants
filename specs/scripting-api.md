@@ -5,6 +5,25 @@ All agents (Plan, Build) MUST reference this document.
 
 `api_version` in `config()` must be `1`.
 
+## Contents
+
+The sections fall into three groups — read top to bottom, or jump via the links.
+
+**Reference — the things flowing through the API**
+1. [Data Model](#1-data-model) — objects the engine passes into scripts (State, Player, Piece, Coords, GameProgress)
+4. [Action Types](#4-action-types) — the `action` argument to `handle_action`
+5. [UI Element Types](#5-ui-element-types) — what `derive_ui` returns
+
+**Contract — what a variant script provides**
+2. [Script Functions](#2-script-functions) — the seven functions a variant implements
+3. [Script-Level Declarations](#3-script-level-declarations) — `PieceDefs` and other top-level values
+
+**Engine surface — what scripts may call, and how it all runs**
+6. [Engine Flow](#6-engine-flow) — lifecycle: construction, P2P, action submission
+7. [Built-in Modules](#7-built-in-modules) — engine helpers (`engine::board`, `engine::moves`, constructors, `log`)
+8. [Board Orientation](#8-board-orientation) — orientation values reference
+9. [Guarantees](#9-guarantees) — invariants the engine enforces
+
 ## Conventions
 
 | Rule | Applies to |
@@ -100,18 +119,24 @@ Returned by `derive_game_progress()`. Constructed via `InProgress()`, `Draw()`, 
 | `handle_action(state, player, action)` | YES | `(State, Player, Action) -> State` |
 | `derive_ui(state, player)` | optional | `(State, Player) -> #{}` |
 
+Enforcement nuance: `config`, `setup_players`, `init`, `handle_action`, and `derive_game_progress` are hard-required — a missing one surfaces as an engine error. `valid_moves`, although required by the contract, is treated leniently: if it is absent the engine returns `[]` (no moves) instead of erroring (`lib.rs`). `derive_ui` is genuinely optional and defaults to `#{}`.
+
+The `State`, `Player`, and `GameProgress` arguments and return values are defined in [§1 Data Model](#1-data-model). The `action` passed to `handle_action` is one of the [§4 Action Types](#4-action-types); `derive_ui` returns [§5 UI Element Types](#5-ui-element-types). Move generation typically reads piece movement from the script-level [`PieceDefs`](#3-script-level-declarations).
+
 ### `config()`
 
 Returns the variant configuration map.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `api_version` | i32 | YES | Must be `1` |
-| `name` | string | YES | Variant display name |
-| `version` | string | YES | Variant script version |
-| `colors` | [string] | YES | Player color identifiers |
-| `allowed_player_count` | `i32` \| `[i32]` \| `#{min: i32, max: i32, step?: i32}` | YES | Exact count, list of allowed values, or ranged constraint |
-| `board` | #{type,rows,cols,count?,disabled_rects?} | YES | Board layout config |
+| `name` | string | **enforced** | Variant display name — engine errors if missing |
+| `version` | string | **enforced** | Variant script version — engine errors if missing |
+| `board` | #{type,rows,cols,count?,disabled_rects?} | **enforced** | Board layout config — engine errors if missing |
+| `api_version` | i32 | expected | Should be `1`. Defaults to `1` if absent; the engine does **not** currently reject other values. |
+| `colors` | [string] | expected | Player color identifiers. Defaults to `[]` if absent. |
+| `allowed_player_count` | `i32` \| `[i32]` \| `#{min: i32, max: i32, step?: i32}` | expected | Exact count, list of allowed values, or ranged constraint. Defaults to `Exact(2)` if absent. |
+
+**Required** = *enforced* means construction fails with an error when the field is missing; *expected* fields are part of the contract but currently fall back to a default rather than erroring (`variant_config.rs`).
 
 ### `setup_players(variant_config, player_count)`
 
@@ -131,11 +156,14 @@ Returns the player roster and optional team configurations. Called once during e
             ],
         },
     ],
-    teams?: [   // optional
-        #{ id: i32, orientations: [#{ board: i32, orientation: string }] },
-    ],
+    teams?: #{   // optional — a MAP keyed by team id (string), not an array
+        "0": #{ orientations: [#{ board: i32, orientation: string }] },
+        "1": #{ orientations: [#{ board: i32, orientation: string }] },
+    },
 }
 ```
+
+> **`teams` must be a map, not an array.** The engine resolves a team's entry by looking up, in order: the key `"<team_id>"`, then `"team_<team_id>"`, then any value whose `id` field equals the team. A `teams` value that is a Rhai array fails the map cast and team-level orientation overrides are silently skipped (`lib.rs::resolve_orientations`). The map is injected unchanged into `data["teams"]`, so scripts read it back via `state["teams"]`.
 
 **`variant_config`** is a typed Rhai custom type with property access:
 - `config.name` — variant display name (string)
@@ -149,7 +177,7 @@ Returns the player roster and optional team configurations. Called once during e
 **Orientation is resolved per-board during init.** For each board, the engine resolves:
 
 1. `player.orientations` array entry matching the board (explicit, per-board)
-2. `teams[player.team].orientations` entry matching the board
+2. `teams["<player.team>"].orientations` entry matching the board (team map lookup — see the `teams` note above)
 3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
 
 The resolved `orientations` array (one entry per board) is stored in the engine and available via `playersJson()`.
@@ -447,8 +475,9 @@ Returned by `derive_ui`.
 
 ### `Button`
 ```rhai
-#{ type: "button", label: string, disabled?: bool }
+#{ type: "button", label: string }
 ```
+> The engine currently serializes only `type` and `label` for buttons (`lib.rs`). A `disabled` field set in the script is **silently dropped** — there is no disabled-button support yet.
 
 ### `Banner`
 ```rhai
@@ -477,7 +506,7 @@ new StatelessChessvariantEngine(script)
 → register_builtins() + register_engine_helpers()
 → run_ast_with_scope(scope, AST) — installs fn/let/const declarations into scope
 → extract all scope variables → register as global module   (see §3)
-→ calls config() → validates api_version=1
+→ calls config() → extracts VariantConfig (errors if name/version/board missing; api_version not validated)
 
 .init(player_count)
 → validates player_count against allowed_player_count
@@ -549,7 +578,8 @@ derive_game_progress(new_state, all_valid_moves) → GameProgress
 | `get` | `(Board, Coords) -> Piece \| ()` |
 | `set` | `(Board, Coords, Piece) -> Board` |
 | `move_piece` | `(Board, Coords, Coords) -> Board` |
-| `find` | `(Board, Piece) -> [Coords]` |
+| `empty` | `(rows: i32, cols: i32) -> Board` |
+| `find` | `(Board, Piece) -> [Coords]` — also `(Board, type: string, color: string) -> [Coords]` |
 | `find_by_color` | `(Board, color) -> [#{coords, piece}]` |
 | `rows` | `(Board) -> i32` |
 | `cols` | `(Board) -> i32` |
@@ -562,7 +592,7 @@ derive_game_progress(new_state, all_valid_moves) → GameProgress
 
 ### `engine::moves` — Pure-Geometry Move Generators
 
-The engine provides **unbiased geometry helpers**. All piece-specific rules (pawn direction, capture conditions, en passant) are defined in the script via conditions (see the [`PieceDefs` type](#the-piece_defs-type)).
+The engine provides **unbiased geometry helpers**. All piece-specific rules (pawn direction, capture conditions, en passant) are defined in the script via conditions (see the [`PieceDefs` type](#the-piecedefs-type)).
 
 #### Generic helpers (composable by scripts)
 
@@ -606,8 +636,11 @@ There is **no** `engine::moves::pawn` function. Pawn movement is defined entirel
 | `InProgress()` | `GameProgress::InProgress` |
 | `Draw()` | `GameProgress::Draw` |
 | `Winner(team_id)` | `GameProgress::Decisive` (takes a team ID) |
+| `Rect(r1, c1, r2, c2)` | `#{ r1, c1, r2, c2 }` rectangle map — used for `board.disabled_rects` |
 
 See [Data Model](#1-data-model) for the property getters on `Coords` and the `GameProgress` JSON mapping.
+
+> `merge` and `standard_start_position` are also registered as bare global functions (without the `engine::` prefix) for backward compatibility; prefer the namespaced `engine::` forms.
 
 ### `log`
 

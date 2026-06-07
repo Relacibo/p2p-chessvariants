@@ -412,7 +412,7 @@ impl StatelessChessvariantEngine {
     fn resolve_orientations(
         player: &mut rhai::Map,
         board_count: i32,
-        teams: Option<&rhai::Map>,
+        teams: Option<&rhai::Array>,
     ) -> Result<(), CvError> {
         let id = player_field_i32(player, "id");
         let team = player_field_i32(player, "team");
@@ -434,19 +434,13 @@ impl StatelessChessvariantEngine {
         };
 
         // Collect team-level orientations
-        let team_oris: rhai::Map = if let Some(teams_map) = teams {
-            let team_entry = teams_map
-                .get(team.to_string().as_str())
-                .or_else(|| teams_map.get(format!("team_{team}").as_str()))
-                .cloned()
-                .or_else(|| {
-                    teams_map.values().find_map(|v| {
-                        let m = v.clone().try_cast::<rhai::Map>()?;
-                        (player_field_i32(&m, "id") == team).then(|| v.clone())
-                    })
-                });
-            team_entry
-                .and_then(|entry| entry.try_cast::<rhai::Map>())
+        let team_oris: rhai::Map = if let Some(teams_arr) = teams {
+            teams_arr
+                .iter()
+                .find_map(|entry| {
+                    let m = entry.clone().try_cast::<rhai::Map>()?;
+                    (player_field_i32(&m, "id") == team).then(|| m)
+                })
                 .and_then(|tm| tm.get("orientations").and_then(|v| v.clone().try_cast::<rhai::Array>()))
                 .map(|arr| {
                     arr.into_iter()
@@ -517,7 +511,9 @@ impl StatelessChessvariantEngine {
             })?;
 
         let teams_raw = setup_map.get("teams").cloned();
-        let teams_map = teams_raw.as_ref().and_then(|v| v.clone().try_cast::<rhai::Map>());
+        let teams_arr = teams_raw
+            .as_ref()
+            .and_then(|v| v.clone().try_cast::<rhai::Array>());
 
         // Resolve orientation for each player, validate required fields
         let players: Vec<Dynamic> = players_raw
@@ -528,7 +524,7 @@ impl StatelessChessvariantEngine {
                 if m.get("id").and_then(|v| v.as_int().ok()).is_none() {
                     return Err(CvError::Internal("each player entry must have an 'id' field".into()));
                 }
-                Self::resolve_orientations(&mut m, board_count, teams_map.as_ref())?;
+                Self::resolve_orientations(&mut m, board_count, teams_arr.as_ref())?;
                 Ok(Dynamic::from(m))
             })
             .collect::<Result<_, CvError>>()?;
