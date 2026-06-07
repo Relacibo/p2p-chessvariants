@@ -156,14 +156,13 @@ Returns the player roster and optional team configurations. Called once during e
             ],
         },
     ],
-    teams?: #{   // optional — a MAP keyed by team id (string), not an array
-        "0": #{ orientations: [#{ board: i32, orientation: string }] },
-        "1": #{ orientations: [#{ board: i32, orientation: string }] },
-    },
+    teams?: [   // optional — an array of team entries
+        #{ id: i32, orientations: [#{ board: i32, orientation: string }] },
+    ],
 }
 ```
 
-> **`teams` must be a map, not an array.** The engine resolves a team's entry by looking up, in order: the key `"<team_id>"`, then `"team_<team_id>"`, then any value whose `id` field equals the team. A `teams` value that is a Rhai array fails the map cast and team-level orientation overrides are silently skipped (`lib.rs::resolve_orientations`). The map is injected unchanged into `data["teams"]`, so scripts read it back via `state["teams"]`.
+> **`teams` is an array, not a map.** The engine resolves a team's entry by iterating the array and selecting the entry whose `id` field equals the player's `team`, then reading its `orientations` (`lib.rs::resolve_orientations`). The array is injected unchanged into `data["teams"]`, so scripts read it back via `state["teams"]`.
 
 **`variant_config`** is a typed Rhai custom type with property access:
 - `config.name` — variant display name (string)
@@ -177,7 +176,7 @@ Returns the player roster and optional team configurations. Called once during e
 **Orientation is resolved per-board during init.** For each board, the engine resolves:
 
 1. `player.orientations` array entry matching the board (explicit, per-board)
-2. `teams["<player.team>"].orientations` entry matching the board (team map lookup — see the `teams` note above)
+2. `teams[?].orientations` of the entry whose `id == player.team`, matching the board (see the `teams` note above)
 3. Default: team 0 → `"normal"`, team 1 → `"flipped"`, others → `"normal"`
 
 The resolved `orientations` array (one entry per board) is stored in the engine and available via `playersJson()`.
