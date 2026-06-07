@@ -10,11 +10,13 @@ fn board_piece_color<'a>(board: &'a BoardState, coords: &BoardCoords) -> Option<
     board.get_piece(coords).map(|piece| piece.color_name())
 }
 
-/// Filter destinations by `move_type`:
+/// Push `coords` to `result` if it is a valid destination for the given `move_type`.
+///
+/// `move_type` controls targeting:
 /// - `"move"` → only empty squares (non-captures)
 /// - `"capture"` → only enemy-occupied squares (captures)
-/// - anything else (e.g. `"both"`) → either (current behavior, backward compat)
-fn push_if_move_type(
+/// - anything else (e.g. `"both"`) → either (backward compat)
+fn push_if_targetable(
     board: &BoardState,
     coords: BoardCoords,
     color: &str,
@@ -55,23 +57,6 @@ fn to_array(coords: Vec<BoardCoords>) -> Array {
         .into_iter()
         .map(|bc| Dynamic::from(Coords::from(bc)))
         .collect()
-}
-
-fn push_if_targetable(
-    board: &BoardState,
-    coords: BoardCoords,
-    color: &str,
-    result: &mut Vec<BoardCoords>,
-) {
-    if !board.in_bounds(&coords) {
-        return;
-    }
-
-    match board_piece_color(board, &coords) {
-        None => push_coord(result, coords),
-        Some(piece_color) if piece_color != color => push_coord(result, coords),
-        _ => {}
-    }
 }
 
 pub fn slides(
@@ -218,6 +203,7 @@ pub(crate) fn knight_dests(
             board,
             BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
             color,
+            "both",
             &mut result,
         );
     }
@@ -268,6 +254,7 @@ pub(crate) fn king_dests(board: &BoardState, from: &BoardCoords, color: &str) ->
                 board,
                 BoardCoords::new(from.row + dr, from.col + dc, from.board_index),
                 color,
+                "both",
                 &mut result,
             );
         }
@@ -292,7 +279,7 @@ pub fn jumps(
     }
     let mut result = Vec::new();
     for (dr, dc) in offsets {
-        push_if_move_type(
+        push_if_targetable(
             board,
             BoardCoords::new(from.row + dr, from.col + dc, from.board_index + board_delta),
             color,
