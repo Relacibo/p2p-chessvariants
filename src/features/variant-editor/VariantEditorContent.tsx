@@ -173,18 +173,18 @@ const TEMPLATES: TemplateOption[] = [
 const DRAFT_KEY = "cv-editor-draft";
 
 export interface VariantEditorContentProps {
-  /** If provided, shown in the toolbar instead of the pop-out button. */
   onTest?: (scriptContent: string) => void;
-  /** Show a "Pop out →" button (hidden in the pop-out window itself). */
   showPopOut?: boolean;
-  /** Override the Monaco editor height (CSS value). Default: "calc(100vh - 100px)" */
   editorHeight?: string;
+  /** Extra elements rendered at the right end of the toolbar. */
+  toolbarRight?: React.ReactNode;
 }
 
 export function VariantEditorContent({
   onTest,
   showPopOut = false,
   editorHeight,
+  toolbarRight,
 }: VariantEditorContentProps) {
   const [scriptContent, setScriptContent] = useState(() => {
     // Restore draft from a previous pop-out or saved state
@@ -328,6 +328,9 @@ export function VariantEditorContent({
               Pop out
             </Button>
           )}
+          {/* Spacer + caller extras */}
+          {toolbarRight && <div style={{ marginLeft: "auto" }} />}
+          {toolbarRight}
         </Group>
 
         {/* Monaco Editor */}
