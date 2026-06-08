@@ -192,22 +192,22 @@ export function DevEditorView() {
           </Tabs.List>
 
           <Box className={style.tabContent}>
-            <Tabs.Panel value="log" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Tabs.Panel value="log" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <Box className={style.panel}>{actionLog || <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>}</Box>
             </Tabs.Panel>
-            <Tabs.Panel value="progress" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Tabs.Panel value="progress" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <Box className={style.panel}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "monospace", fontStyle: "normal" }}>{"{\"progress\": \"waiting…\"}"}</Text>}</Box>
             </Tabs.Panel>
-            <Tabs.Panel value="ui" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Tabs.Panel value="ui" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <Box className={style.panel}>{uiElements ?? <Text size="xs" c="dimmed" fs="italic">No UI elements yet.</Text>}</Box>
             </Tabs.Panel>
-            <Tabs.Panel value="state" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Tabs.Panel value="state" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <Box className={style.panel}>{gameState ?? <Text size="xs" c="dimmed" fs="italic">Click State tab to request…</Text>}</Box>
             </Tabs.Panel>
-            <Tabs.Panel value="config" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Tabs.Panel value="config" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <Box className={style.panel}>{variantConfig ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
             </Tabs.Panel>
-            <Tabs.Panel value="moves" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+            <Tabs.Panel value="moves" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <Box className={style.panel}>{validMoves ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
             </Tabs.Panel>
           </Box>

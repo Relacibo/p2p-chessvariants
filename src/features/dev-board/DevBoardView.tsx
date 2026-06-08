@@ -533,7 +533,8 @@ export function DevBoardView() {
       const actor = validMovesAll.length > 0 ? getActingPlayer(action, validMovesAll) : null;
       const actingPlayer = actor ?? controllingPlayer ?? selectedPlayers[0];
       if (!actingPlayer) return;
-      const actingPlayerId = parseInt(actingPlayer, 10) || -1;
+      const actingPlayerId = parseInt(actingPlayer, 10);
+      if (isNaN(actingPlayerId)) throw new Error(`[DevBoardView] failed to parse acting player ID: "${actingPlayer}"`);
       if (action.type === "move") {
         addLogEntry(actingPlayerId, { kind: "move", action });
       } else if (action.type === "interact") {
