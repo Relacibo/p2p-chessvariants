@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { useSelector } from "../../app/hooks";
+import { selectDarkmodeActive } from "../darkmode/darkmodeSlice";
 import { PixiBoard, SceneState } from "./PixiBoard";
 import type {
   BoardOrientation,
@@ -34,8 +36,6 @@ export type PixiChessboardProps = {
   stageHeight?: number;
   pendingMove?: PendingMove | null;
   onPendingMove?: (move: PendingMove | null) => void;
-  /** Whether the app is in dark mode — controls canvas background. */
-  darkMode?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -58,11 +58,11 @@ export function PixiChessboard({
   stageHeight = 480,
   pendingMove = null,
   onPendingMove,
-  darkMode = true,
 }: PixiChessboardProps) {
   const sw = stageWidth;
   const sh = stageHeight;
 
+  const darkMode = useSelector(selectDarkmodeActive);
   const containerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<PixiBoard | null>(null);
 
@@ -97,8 +97,6 @@ export function PixiChessboard({
   onRotateBoardRef.current = onRotateBoard;
   const onReturnHomeRef = useRef(onReturnHome);
   onReturnHomeRef.current = onReturnHome;
-  const darkModeRef = useRef(darkMode);
-  darkModeRef.current = darkMode;
 
   // ── Mount / unmount ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -114,7 +112,7 @@ export function PixiChessboard({
     board.onRotateBoard = (boardIndex) => onRotateBoardRef.current?.(boardIndex);
     board.onReturnHome = () => onReturnHomeRef.current?.();
     boardRef.current = board;
-    board.setDarkMode(darkModeRef.current);
+    board.setDarkMode(darkMode);
 
     board
       .init(containerRef.current, sw, sh)
