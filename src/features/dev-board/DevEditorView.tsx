@@ -165,7 +165,7 @@ export function DevEditorView() {
               <MultiSelect size="xs"
                 data={players.map((p) => ({ value: p.id, label: p.name }))}
                 value={selectedPlayers} onChange={(values) => handlePlayersChange(values)}
-                clearable style={{ width: 220 }} placeholder="Control"
+                clearable style={{ width: 300 }} placeholder="Control"
               />
             </Group>
           }
