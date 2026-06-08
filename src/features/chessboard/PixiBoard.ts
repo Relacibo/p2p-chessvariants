@@ -697,16 +697,9 @@ export class PixiBoard {
 
   private rebuildPieces(): void {
     if (!this.state) return;
-    const { validMoves, activeBoardIndices } = this.state;
     const disabled = this.disabledSet();
 
-    const pickable = new Set<string>();
-    for (const a of validMoves) {
-      if (a.type === "move" && isBoardCoords(a.from))
-        pickable.add(`${a.from.board_index},${a.from.row},${a.from.col}`);
-    }
-
-    type DesiredEntry = { piece: WasmPiece; x: number; y: number; canDrag: boolean; sl: SlotLayout };
+    type DesiredEntry = { piece: WasmPiece; x: number; y: number; sl: SlotLayout };
     const desired = new Map<string, DesiredEntry>();
     for (const sl of this.slotLayouts) {
       for (let row = 0; row < sl.rows; row++) {
@@ -719,8 +712,6 @@ export class PixiBoard {
             piece,
             x,
             y,
-            canDrag: activeBoardIndices.includes(sl.boardIndex) &&
-              pickable.has(`${sl.boardIndex},${row},${col}`),
             sl,
           });
         }
@@ -735,7 +726,7 @@ export class PixiBoard {
       }
     }
 
-    for (const [key, { piece, x, y, canDrag, sl }] of desired) {
+    for (const [key, { piece, x, y, sl }] of desired) {
       const url = getPieceImageUrl(piece.color, piece.piece_type);
       let tex: Texture | null = null;
       if (url) {
@@ -777,20 +768,18 @@ export class PixiBoard {
       sprite.width = sl.tileSize;
       sprite.height = sl.tileSize;
       sprite.alpha = isDragOrigin ? GHOST_ALPHA : 1;
-      sprite.eventMode = canDrag ? "static" : "none";
-      sprite.cursor = canDrag ? "grab" : "default";
+      sprite.eventMode = "static";
+      sprite.cursor = "grab";
 
-      if (canDrag) {
-        sprite.removeAllListeners();
-        const r = row;
-        const c = col;
-        const boardIdx = sl.boardIndex;
-        sprite.on("pointerdown", (e: FederatedPointerEvent) => {
-          e.stopPropagation();
-          this.selected = mkBoardCoords(r, c, boardIdx);
-          this.startDrag(sprite!, mkBoardCoords(r, c, boardIdx), e, sl);
-        });
-      }
+      sprite.removeAllListeners();
+      const r = row;
+      const c = col;
+      const boardIdx = sl.boardIndex;
+      sprite.on("pointerdown", (e: FederatedPointerEvent) => {
+        e.stopPropagation();
+        this.selected = mkBoardCoords(r, c, boardIdx);
+        this.startDrag(sprite!, mkBoardCoords(r, c, boardIdx), e, sl);
+      });
     }
   }
 
