@@ -15,7 +15,7 @@ fn get_pseudo_dests(board, from, state) {
     let piece = engine::board::get(board, from); if piece == () { return []; }
     let comps = PIECE_DEFS.get(piece); if comps == () { return []; }
     let dests = [];
-    for comp in comps { let mt = if comp.move_type != () { comp.move_type } else { "both" }; let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color,mt), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color,mt), _=>[] }; if comp.condition!=() { raw=raw.filter(|t|comp.condition(state,from,t)); } for d in raw { dests.push(d); } }
+    for comp in comps { let mt = comp.move_type; let raw = switch comp.type { "jump"=>engine::moves::jump(board,from,comp.offsets,piece.color,mt), "slide"=>engine::moves::slide(board,from,comp.dirs,piece.color,mt), _=>[] }; if comp.condition!=() { raw=raw.filter(|t|comp.condition(state,from,t)); } for d in raw { dests.push(d); } }
     dests
 }
 

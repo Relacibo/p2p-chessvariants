@@ -46,6 +46,20 @@ fn rhai_err(msg: impl Into<String>) -> Box<rhai::EvalAltResult> {
     ))
 }
 
+/// Ensure every component map in a `def` array has a `move_type` field.
+/// If absent, defaults to `"both"` so scripts never need to check `!= ()`.
+fn normalize_move_type(def: &mut Dynamic) {
+    if let Some(mut arr) = def.write_lock::<rhai::Array>() {
+        for comp in arr.iter_mut() {
+            if let Some(mut map) = comp.write_lock::<rhai::Map>() {
+                if !map.contains_key("move_type") {
+                    map.insert("move_type".into(), Dynamic::from("both"));
+                }
+            }
+        }
+    }
+}
+
 impl PieceDefs {
     // ── Constructors ────────────────────────────────────────────────────────
 
@@ -97,7 +111,7 @@ impl PieceDefs {
                     rhai_err(format!("entry #{idx}: missing 'type' field"))
                 })?;
 
-            let def = entry_map
+            let mut def = entry_map
                 .get("def")
                 .cloned()
                 .ok_or_else(|| {
@@ -111,6 +125,8 @@ impl PieceDefs {
                     "'def' for '{piece_type}' (entry #{idx}) must be an array"
                 )));
             }
+
+            normalize_move_type(&mut def);
 
             let color: Option<String> = entry_map
                 .get("color")
@@ -220,11 +236,12 @@ impl PieceDefs {
     /// Insert color-agnostic movement components for a piece type.
     /// Overwrites any existing type-only entry for the same type.
     /// Errors if the type already has color-specific entries.
-    pub fn insert_type(&mut self, piece_type: &str, def: Dynamic) {
+    pub fn insert_type(&mut self, piece_type: &str, mut def: Dynamic) {
         let piece_type_clean = piece_type.trim();
         if piece_type_clean.is_empty() {
             return;
         }
+        normalize_move_type(&mut def);
         Self::do_insert(&mut self.data, piece_type_clean, None, def);
     }
 
@@ -235,13 +252,14 @@ impl PieceDefs {
         &mut self,
         piece_type: &str,
         color: &str,
-        def: Dynamic,
+        mut def: Dynamic,
     ) {
         let piece_type_clean = piece_type.trim();
         let color_clean = color.trim();
         if piece_type_clean.is_empty() || color_clean.is_empty() {
             return;
         }
+        normalize_move_type(&mut def);
         Self::do_insert(&mut self.data, piece_type_clean, Some(color_clean), def);
     }
 
