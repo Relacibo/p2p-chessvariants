@@ -395,15 +395,19 @@ export function DevBoardView() {
         return;
       }
 
-      // Load variant + player count
+      // Load variant + player count (from editor Test button or pop-up)
       if (event.data?.type === "load-variant" && typeof event.data?.url === "string") {
         const n = typeof event.data?.players === "number" ? event.data.players : 2;
         if (event.data.script) {
           // Content-based (editor Test with saved script)
+          setSelectedVariant({ name: "Editor Test", url: event.data.url });
           setLog([]);
           setLocalOrientationOverride({});
           loadScriptContentRaw(event.data.script, n).then(() => restorePlayersAfterLoad());
         } else {
+          const v = variants.find((v2) => v2.url === event.data.url);
+          if (v) setSelectedVariant(v);
+          else setSelectedVariant({ name: event.data.url, url: event.data.url });
           loadScriptById(event.data.url, n);
         }
         return;
@@ -412,6 +416,22 @@ export function DevBoardView() {
       // Set controlling players
       if (event.data?.type === "set-controlling-players" && Array.isArray(event.data?.players)) {
         setSelectedPlayers(event.data.players);
+        return;
+      }
+
+      // Editor script identity changed — sync URL without reloading
+      if (event.data?.type === "editor-script-change") {
+        const tmpl = event.data?.template as string | null;
+        const name = String(event.data?.name ?? "");
+        if (tmpl && tmpl !== "__empty__") {
+          const v = variants.find((v2) => v2.url === tmpl);
+          if (v) setSelectedVariant(v);
+          else if (tmpl.startsWith("local:")) setSelectedVariant({ name: tmpl, url: tmpl });
+        } else if (name) {
+          setSelectedVariant({ name, url: `local:${name}` });
+        } else {
+          setSelectedVariant(null);
+        }
         return;
       }
 
@@ -428,7 +448,7 @@ export function DevBoardView() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [handleEditorTest, proxyRef, loadScriptById, loadScriptContentRaw, restorePlayersAfterLoad]);
+  }, [handleEditorTest, proxyRef, loadScriptById, loadScriptContentRaw, restorePlayersAfterLoad, variants]);
 
   // ── Send debug data to editor popup on every state change ──
   useEffect(() => {

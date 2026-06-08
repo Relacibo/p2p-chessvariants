@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Box, Group, MultiSelect, NumberInput, Tabs, Text,
+  Box, Group, MultiSelect, Select, Tabs, Text,
 } from "@mantine/core";
 import { VariantEditorContent } from "../variant-editor/VariantEditorContent";
 import useConfigureLayout from "../layout/hooks";
@@ -26,6 +26,7 @@ const panelStyle: React.CSSProperties = {
   fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-all",
   padding: 8, overflow: "auto", minHeight: 60,
 };
+const PLAYER_COUNT_OPTIONS = ["2","3","4","5","6","7","8"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ export function DevEditorView() {
   const [playerCount, setPlayerCount] = useState<number | string>(2);
   const [players, setPlayers] = useState<PlayerEntry[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [initialTemplate, setInitialTemplate] = useState<string | null>(null);
+  const [initialName, setInitialName] = useState("");
 
   // ── Editor pane height ──
   const [editorHeight, setEditorHeight] = useState<number | null>(null);
@@ -70,6 +73,13 @@ export function DevEditorView() {
     setSelectedPlayers(values);
     postToOpener({ type: "set-controlling-players", players: values });
   }, [postToOpener]);
+
+  const handleScriptChange = useCallback(
+    (info: { name: string; template: string | null }) => {
+      postToOpener({ type: "editor-script-change", name: info.name, template: info.template });
+    },
+    [postToOpener],
+  );
 
   const handleTest = useCallback((scriptContent: string) => {
     const n = typeof playerCount === "number" ? playerCount : 2;
@@ -102,6 +112,9 @@ export function DevEditorView() {
             setSelectedPlayers([pl[0].id]);
           }
         }
+        // Sync template/name from main window
+        if (event.data.variantUrl) setInitialTemplate(event.data.variantUrl);
+        if (event.data.variantName) setInitialName(event.data.variantName);
         return;
       }
     };
@@ -146,12 +159,19 @@ export function DevEditorView() {
       }}>
         <VariantEditorContent
           onTest={handleTest}
+          onScriptChange={handleScriptChange}
+          initialTemplate={initialTemplate}
+          initialName={initialName}
           showPopOut={false}
           editorHeight="100%"
           toolbarRight={
             <Group gap="sm" wrap="nowrap">
-              <NumberInput size="xs" min={2} max={8} value={playerCount} onChange={setPlayerCount}
-                style={{ width: 65 }} />
+              <Select size="xs"
+                data={PLAYER_COUNT_OPTIONS}
+                value={String(playerCount)}
+                onChange={(v) => v && setPlayerCount(Number(v))}
+                style={{ width: 65 }}
+              />
               <MultiSelect size="xs"
                 data={players.map((p) => ({ value: p.id, label: p.name }))}
                 value={selectedPlayers} onChange={(values) => handlePlayersChange(values)}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Button,
   Group,
@@ -12,9 +12,11 @@ import { notifications } from "@mantine/notifications";
 import { Editor } from "@monaco-editor/react";
 import {
   IconDeviceFloppy,
+  IconDownload,
   IconExternalLink,
   IconFolderOpen,
   IconPlayerPlay,
+  IconUpload,
 } from "@tabler/icons-react";
 import { registerRhaiLanguage } from "./rhaiLanguage";
 import {
@@ -201,6 +203,12 @@ const DRAFT_KEY = "cv-editor-draft";
 
 export interface VariantEditorContentProps {
   onTest?: (scriptContent: string) => void;
+  /** Called when the script source, name, or template changes. */
+  onScriptChange?: (info: { name: string; template: string | null }) => void;
+  /** Initial template URL to set on mount (for sync from parent). */
+  initialTemplate?: string | null;
+  /** Initial script name to set on mount (for sync from parent). */
+  initialName?: string;
   showPopOut?: boolean;
   editorHeight?: string;
   /** Extra elements rendered at the right end of the toolbar. */
@@ -209,6 +217,9 @@ export interface VariantEditorContentProps {
 
 export function VariantEditorContent({
   onTest,
+  onScriptChange,
+  initialTemplate,
+  initialName,
   showPopOut = false,
   editorHeight,
   toolbarRight,
@@ -224,8 +235,14 @@ export function VariantEditorContent({
     } catch { /* ignore */ }
     return EMPTY_TEMPLATE;
   });
-  const [scriptName, setScriptName] = useState("");
-  const [template, setTemplate] = useState<string | null>("__empty__");
+  const [scriptName, setScriptName] = useState(initialName ?? "");
+  const [template, setTemplate] = useState<string | null>(initialTemplate ?? "__empty__");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Notify parent when script identity changes ──
+  useEffect(() => {
+    onScriptChange?.({ name: scriptName, template });
+  }, [scriptName, template, onScriptChange]);
 
   useEffect(() => {
     if (!template) return;
@@ -266,6 +283,38 @@ export function VariantEditorContent({
       color: "green",
     });
   }, [scriptName, scriptContent]);
+
+  const handleDownload = useCallback(() => {
+    const name = scriptName.trim() || "variant";
+    const blob = new Blob([scriptContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.rhai`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [scriptName, scriptContent]);
+
+  const handleUpload = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        setScriptContent(String(reader.result ?? ""));
+        setScriptName(file.name.replace(/\.rhai$/, ""));
+        setTemplate(null);
+      };
+      reader.readAsText(file);
+      // Reset so the same file can be re-uploaded
+      e.target.value = "";
+    },
+    [],
+  );
 
   const handleTest = useCallback(() => {
     if (!scriptContent.trim()) return;
@@ -309,6 +358,7 @@ export function VariantEditorContent({
       <Stack h="100%" gap="xs">
         {/* Toolbar */}
         <Group wrap="nowrap">
+          {/* Left group: template + name */}
           <Select
             data={TEMPLATES}
             value={template}
@@ -321,8 +371,10 @@ export function VariantEditorContent({
             placeholder="Script name"
             value={scriptName}
             onChange={(e) => setScriptName(e.currentTarget.value)}
-            style={{ width: 180 }}
+            style={{ width: 160 }}
           />
+
+          {/* File operations */}
           <Button
             variant="light"
             leftSection={<IconDeviceFloppy size="1.1rem" />}
@@ -337,6 +389,30 @@ export function VariantEditorContent({
           >
             Load
           </Button>
+          <Button
+            variant="light"
+            leftSection={<IconDownload size="1.1rem" />}
+            onClick={handleDownload}
+          >
+            Download
+          </Button>
+          <Button
+            variant="light"
+            leftSection={<IconUpload size="1.1rem" />}
+            onClick={handleUpload}
+          >
+            Upload
+          </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".rhai"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
+
+          {/* Right group: test + popout + caller extras */}
+          <div style={{ marginLeft: "auto" }} />
           {onTest && (
             <Button
               variant="filled"
@@ -355,8 +431,6 @@ export function VariantEditorContent({
               Pop out
             </Button>
           )}
-          {/* Spacer + caller extras */}
-          {toolbarRight && <div style={{ marginLeft: "auto" }} />}
           {toolbarRight}
         </Group>
 
