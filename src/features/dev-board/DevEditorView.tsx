@@ -160,12 +160,12 @@ export function DevEditorView() {
                 data={PLAYER_COUNT_OPTIONS}
                 value={String(playerCount)}
                 onChange={(v) => v && setPlayerCount(Number(v))}
-                style={{ width: 65 }}
+                style={{ width: 62 }}
               />
               <MultiSelect size="xs"
                 data={players.map((p) => ({ value: p.id, label: p.name }))}
                 value={selectedPlayers} onChange={(values) => handlePlayersChange(values)}
-                clearable style={{ width: 170 }} placeholder="Control"
+                clearable style={{ width: 220 }} placeholder="Control"
               />
             </Group>
           }
