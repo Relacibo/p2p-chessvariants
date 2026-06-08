@@ -464,8 +464,10 @@ export function DevBoardView() {
     const data: Record<string, unknown> = { actionLog: logStr };
     if (variantConfig) data.variantConfig = variantConfig;
     data.validMoves = validMovesAll.map((pm) => ({ player: pm.player, moves: pm.moves }));
+    data.gameProgress = gameOver ?? { progress: "in_progress" };
+    if (uiElements) data.uiElements = uiElements;
     popup.postMessage({ type: "debug-data", data }, window.location.origin);
-  }, [log, variantConfig, validMovesAll]);
+  }, [log, variantConfig, validMovesAll, gameOver, uiElements]);
 
   // ── Notify editor popup when engine state is ready ──
   useEffect(() => {

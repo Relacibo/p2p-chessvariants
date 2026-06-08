@@ -24,7 +24,7 @@ const RESIZE_HANDLE_H = 5;
 const panelStyle: React.CSSProperties = {
   background: "#1a1b1e", color: "#c9d1d9", fontFamily: "monospace",
   fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-all",
-  padding: 8, overflow: "auto", minHeight: 60,
+  padding: 8, overflow: "auto", height: "100%",
 };
 const PLAYER_COUNT_OPTIONS = ["2","3","4","5","6","7","8"];
 
@@ -209,7 +209,7 @@ export function DevEditorView() {
               <Box style={panelStyle}>{actionLog || <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="progress" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic">In progress…</Text>}</Box>
+              <Box style={panelStyle}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "monospace", fontStyle: "normal" }}>{"{\"progress\": \"waiting…\"}"}</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="ui" style={{ height: "100%" }}>
               <Box style={panelStyle}>{uiElements ?? <Text size="xs" c="dimmed" fs="italic">No UI elements yet.</Text>}</Box>
