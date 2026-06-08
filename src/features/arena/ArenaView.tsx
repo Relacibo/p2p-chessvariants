@@ -10,6 +10,7 @@ import {
   selectLobbyPlayers,
 } from "../lobby/lobbySlice";
 import { PixiChessboard as Chessboard } from "../chessboard/PixiChessboard";
+import { selectDarkmodeActive } from "../darkmode/darkmodeSlice";
 import { useChessGame } from "../chessboard/useChessGame";
 import useConfigureLayout from "../layout/hooks";
 import * as p2pLobbyService from "../../api/p2pLobbyService";
@@ -31,6 +32,7 @@ export default function ArenaView() {
   const scriptUrl = useSelector(selectLobbyScriptUrl);
   const playerAssignments = useSelector(selectPlayerAssignments);
   const players = useSelector(selectLobbyPlayers);
+  const darkMode = useSelector(selectDarkmodeActive);
 
   // Redirect to lobby if game hasn't started (e.g. page refresh).
   useEffect(() => {
@@ -242,6 +244,7 @@ export default function ArenaView() {
           stageHeight={containerSize.h}
           pendingMove={pendingMove}
           onPendingMove={setPendingMove}
+          darkMode={darkMode}
         />
       )}
     </Box>

@@ -35,6 +35,7 @@ import {
   VariantEntry,
   OFFICIAL_VARIANTS,
 } from "../lobby/variantsSlice";
+import { selectDarkmodeActive } from "../darkmode/darkmodeSlice";
 
 // ─── Log entry ───────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ export function DevBoardView() {
   useConfigureLayout(() => ({ navPinned: false }));
   const [searchParams, setSearchParams] = useSearchParams();
   const variants = useCompositeVariants();
+  const darkMode = useSelector(selectDarkmodeActive);
 
   const initUrl = useMemo(() => readUrlState(searchParams), []);
 
@@ -579,6 +581,7 @@ export function DevBoardView() {
             stageHeight={containerSize.h}
             pendingMove={pendingMove}
             onPendingMove={setPendingMove}
+            darkMode={darkMode}
           />
         )}
       </Box>

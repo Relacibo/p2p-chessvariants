@@ -35,6 +35,8 @@ const SELECTED_COLOR = 0x1478ff;
 const VALID_MOVE_COLOR = 0x00b400;
 const LAST_MOVE_COLOR = 0xffd700;
 const GHOST_ALPHA = 0.35;
+const CANVAS_BG_DARK = 0x2d2d2d;
+const CANVAS_BG_LIGHT = 0xe8e8e8;
 // Gap between board slots as a fraction of stageWidth
 const SLOT_GAP_RATIO = 0.08;
 // Reserve panel width as a fraction of stageWidth (when reserves exist)
@@ -135,6 +137,7 @@ export class PixiBoard {
   private textureCache = new Map<string, Texture>();
   private initDone = false;
   private destroyed = false;
+  private darkMode = true;
 
   // Drag state
   private dragOrigin: WasmCoords | null = null;
@@ -180,7 +183,7 @@ export class PixiBoard {
       await app.init({
         width: Math.max(width, 1),
         height: Math.max(height, 1),
-        backgroundColor: 0x2d2d2d,
+        backgroundColor: this.darkMode ? CANVAS_BG_DARK : CANVAS_BG_LIGHT,
         antialias: true,
         resolution: window.devicePixelRatio ?? 1,
         autoDensity: true,
@@ -373,6 +376,15 @@ export class PixiBoard {
 
   getZoomMode(): ZoomMode {
     return this.currentZoomMode;
+  }
+
+  /** Update the canvas background color based on the current color scheme. */
+  setDarkMode(dark: boolean): void {
+    if (this.darkMode === dark) return;
+    this.darkMode = dark;
+    if (this.app) {
+      this.app.renderer.background.color = dark ? CANVAS_BG_DARK : CANVAS_BG_LIGHT;
+    }
   }
 
   // ─── Slot layout ───────────────────────────────────────────────────────────

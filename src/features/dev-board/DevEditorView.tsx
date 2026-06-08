@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, Group, MultiSelect, Select, Tabs, Text,
 } from "@mantine/core";
+import { useMantineColorScheme } from "@mantine/core";
 import { VariantEditorContent } from "../variant-editor/VariantEditorContent";
 import useConfigureLayout from "../layout/hooks";
 
@@ -21,12 +22,17 @@ interface PlayerEntry { id: string; name: string }
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const RESIZE_HANDLE_H = 5;
-const panelStyle: React.CSSProperties = {
-  background: "#1a1b1e", color: "#c9d1d9", fontFamily: "monospace",
-  fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-all",
-  padding: 8, overflow: "auto", height: "100%",
-};
 const PLAYER_COUNT_OPTIONS = ["2","3","4","5","6","7","8"];
+
+function panelStyle(dark: boolean): React.CSSProperties {
+  return {
+    background: dark ? "#1a1b1e" : "#f8f9fa",
+    color: dark ? "#c9d1d9" : "#212529",
+    fontFamily: "monospace",
+    fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-all",
+    padding: 8, overflow: "auto", height: "100%",
+  };
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -39,6 +45,9 @@ function formatJson(obj: unknown): string {
 
 export function DevEditorView() {
   useConfigureLayout(() => ({ navPinned: false }));
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+  const pStyle = useMemo(() => panelStyle(isDark), [isDark]);
 
   // ── Dev control state ──
   const [playerCount, setPlayerCount] = useState<number | string>(2);
@@ -148,22 +157,23 @@ export function DevEditorView() {
     <Box style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
       display: "flex", flexDirection: "column", overflow: "hidden",
-      background: "var(--mantine-color-dark-9)",
+      background: isDark ? "var(--mantine-color-dark-9)" : "var(--mantine-color-gray-0)",
     }}>
       {/* ── Single toolbar: editor controls + dev controls ── */}
       {/* Dev controls are rendered as toolbarRight inside VariantEditorContent's toolbar */}
       <Box style={{
         flex: "none", height: editorHeight ?? "55vh",
         overflow: "hidden", position: "relative",
-        borderBottom: "1px solid var(--mantine-color-dark-4)",
+          borderBottom: isDark ? "1px solid var(--mantine-color-dark-4)" : "1px solid var(--mantine-color-gray-3)",
       }}>
         <VariantEditorContent
           onTest={handleTest}
           onScriptChange={handleScriptChange}
           initialTemplate={initialTemplate}
           initialName={initialName}
-          showPopOut={false}
-          editorHeight="100%"
+            showPopOut={false}
+            darkMode={isDark}
+            editorHeight="100%"
           toolbarRight={
             <Group gap="sm" wrap="nowrap">
               <Select size="xs"
@@ -185,7 +195,7 @@ export function DevEditorView() {
       {/* ── Resize handle ── */}
       <Box style={{
         flex: "none", height: RESIZE_HANDLE_H, cursor: "row-resize",
-        background: "var(--mantine-color-dark-4)", transition: "background 0.15s",
+          background: isDark ? "var(--mantine-color-dark-4)" : "var(--mantine-color-gray-3)", transition: "background 0.15s",
       }}
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}
@@ -206,22 +216,22 @@ export function DevEditorView() {
 
           <Box style={{ flex: 1, overflow: "hidden", position: "relative" }}>
             <Tabs.Panel value="log" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{actionLog || <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>}</Box>
+              <Box style={pStyle}>{actionLog || <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="progress" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "monospace", fontStyle: "normal" }}>{"{\"progress\": \"waiting…\"}"}</Text>}</Box>
+              <Box style={pStyle}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "monospace", fontStyle: "normal" }}>{"{\"progress\": \"waiting…\"}"}</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="ui" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{uiElements ?? <Text size="xs" c="dimmed" fs="italic">No UI elements yet.</Text>}</Box>
+              <Box style={pStyle}>{uiElements ?? <Text size="xs" c="dimmed" fs="italic">No UI elements yet.</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="state" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{gameState ?? <Text size="xs" c="dimmed" fs="italic">Click State tab to request…</Text>}</Box>
+              <Box style={pStyle}>{gameState ?? <Text size="xs" c="dimmed" fs="italic">Click State tab to request…</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="config" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{variantConfig ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
+              <Box style={pStyle}>{variantConfig ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="moves" style={{ height: "100%" }}>
-              <Box style={panelStyle}>{validMoves ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
+              <Box style={pStyle}>{validMoves ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
             </Tabs.Panel>
           </Box>
         </Tabs>
