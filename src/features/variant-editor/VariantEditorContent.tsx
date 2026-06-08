@@ -7,6 +7,7 @@ import {
   Stack,
   TextInput,
 } from "@mantine/core";
+import { useMantineColorScheme } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { Editor } from "@monaco-editor/react";
@@ -213,8 +214,6 @@ export interface VariantEditorContentProps {
   editorHeight?: string;
   /** Extra elements rendered at the right end of the toolbar. */
   toolbarRight?: React.ReactNode;
-  /** Whether the app is in dark mode — controls Monaco editor theme. */
-  darkMode?: boolean;
 }
 
 export function VariantEditorContent({
@@ -225,8 +224,8 @@ export function VariantEditorContent({
   showPopOut = false,
   editorHeight,
   toolbarRight,
-  darkMode = true,
 }: VariantEditorContentProps) {
+  const { colorScheme } = useMantineColorScheme();
   const [scriptContent, setScriptContent] = useState(() => {
     // Restore draft from a previous pop-out or saved state
     try {
@@ -441,7 +440,7 @@ export function VariantEditorContent({
         <Editor
           height={editorHeight ?? "calc(100vh - 100px)"}
           language="rhai"
-          theme={darkMode ? "vs-dark" : "vs"}
+          theme={colorScheme === "dark" ? "vs-dark" : "vs"}
           value={scriptContent}
           onChange={(v) => setScriptContent(v ?? "")}
           beforeMount={(monaco) => registerRhaiLanguage(monaco)}

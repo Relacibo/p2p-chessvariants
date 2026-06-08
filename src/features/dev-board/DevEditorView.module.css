@@ -1,0 +1,73 @@
+/* ── Outer container (full viewport, flex column) ── */
+.container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--mantine-color-gray-0);
+}
+
+[data-mantine-color-scheme="dark"] .container {
+  background: var(--mantine-color-dark-9);
+}
+
+/* ── Editor pane (top section with Monaco) ── */
+.editorPane {
+  flex: none;
+  overflow: hidden;
+  position: relative;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+}
+
+[data-mantine-color-scheme="dark"] .editorPane {
+  border-bottom-color: var(--mantine-color-dark-4);
+}
+
+/* ── Resize handle ── */
+.resizeHandle {
+  flex: none;
+  cursor: row-resize;
+  background: var(--mantine-color-gray-3);
+  transition: background 0.15s;
+}
+
+[data-mantine-color-scheme="dark"] .resizeHandle {
+  background: var(--mantine-color-dark-4);
+}
+
+/* ── Debug panel tab content boxes ── */
+.panel {
+  background: var(--mantine-color-gray-0);
+  color: var(--mantine-color-gray-9);
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 8px;
+  overflow: auto;
+  height: 100%;
+}
+
+[data-mantine-color-scheme="dark"] .panel {
+  background: var(--mantine-color-dark-9);
+  color: var(--mantine-color-dark-0);
+}
+
+/* ── Debug panel wrapper ── */
+.debugWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 80px;
+}
+
+.tabContent {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}

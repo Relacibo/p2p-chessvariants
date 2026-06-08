@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box, Group, MultiSelect, Select, Tabs, Text,
 } from "@mantine/core";
-import { useMantineColorScheme } from "@mantine/core";
 import { VariantEditorContent } from "../variant-editor/VariantEditorContent";
 import useConfigureLayout from "../layout/hooks";
+import style from "./DevEditorView.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -24,16 +24,6 @@ interface PlayerEntry { id: string; name: string }
 const RESIZE_HANDLE_H = 5;
 const PLAYER_COUNT_OPTIONS = ["2","3","4","5","6","7","8"];
 
-function panelStyle(dark: boolean): React.CSSProperties {
-  return {
-    background: dark ? "#1a1b1e" : "#f8f9fa",
-    color: dark ? "#c9d1d9" : "#212529",
-    fontFamily: "monospace",
-    fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-all",
-    padding: 8, overflow: "auto", height: "100%",
-  };
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatJson(obj: unknown): string {
@@ -45,9 +35,6 @@ function formatJson(obj: unknown): string {
 
 export function DevEditorView() {
   useConfigureLayout(() => ({ navPinned: false }));
-  const { colorScheme } = useMantineColorScheme();
-  const isDark = colorScheme === "dark";
-  const pStyle = useMemo(() => panelStyle(isDark), [isDark]);
 
   // ── Dev control state ──
   const [playerCount, setPlayerCount] = useState<number | string>(2);
@@ -154,17 +141,11 @@ export function DevEditorView() {
 
   // ── Render ──
   return (
-    <Box style={{
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      display: "flex", flexDirection: "column", overflow: "hidden",
-      background: isDark ? "var(--mantine-color-dark-9)" : "var(--mantine-color-gray-0)",
-    }}>
+    <Box className={style.container}>
       {/* ── Single toolbar: editor controls + dev controls ── */}
       {/* Dev controls are rendered as toolbarRight inside VariantEditorContent's toolbar */}
-      <Box style={{
-        flex: "none", height: editorHeight ?? "55vh",
-        overflow: "hidden", position: "relative",
-          borderBottom: isDark ? "1px solid var(--mantine-color-dark-4)" : "1px solid var(--mantine-color-gray-3)",
+      <Box className={style.editorPane} style={{
+        height: editorHeight ?? "55vh",
       }}>
         <VariantEditorContent
           onTest={handleTest}
@@ -172,7 +153,6 @@ export function DevEditorView() {
           initialTemplate={initialTemplate}
           initialName={initialName}
             showPopOut={false}
-            darkMode={isDark}
             editorHeight="100%"
           toolbarRight={
             <Group gap="sm" wrap="nowrap">
@@ -193,16 +173,13 @@ export function DevEditorView() {
       </Box>
 
       {/* ── Resize handle ── */}
-      <Box style={{
-        flex: "none", height: RESIZE_HANDLE_H, cursor: "row-resize",
-          background: isDark ? "var(--mantine-color-dark-4)" : "var(--mantine-color-gray-3)", transition: "background 0.15s",
-      }}
+      <Box className={style.resizeHandle} style={{ height: RESIZE_HANDLE_H }}
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}
       />
 
       {/* ── Debug panel ── */}
-      <Box style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 80 }}>
+      <Box className={style.debugWrap}>
         <Tabs value={activeTab} onChange={setActiveTab}
           style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <Tabs.List>
@@ -214,24 +191,24 @@ export function DevEditorView() {
             <Tabs.Tab value="moves"><Text size="xs">Moves</Text></Tabs.Tab>
           </Tabs.List>
 
-          <Box style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+          <Box className={style.tabContent}>
             <Tabs.Panel value="log" style={{ height: "100%" }}>
-              <Box style={pStyle}>{actionLog || <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>}</Box>
+              <Box className={style.panel}>{actionLog || <Text size="xs" c="dimmed" fs="italic">No actions yet.</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="progress" style={{ height: "100%" }}>
-              <Box style={pStyle}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "monospace", fontStyle: "normal" }}>{"{\"progress\": \"waiting…\"}"}</Text>}</Box>
+              <Box className={style.panel}>{gameProgress ?? <Text size="xs" c="dimmed" fs="italic" style={{ fontFamily: "monospace", fontStyle: "normal" }}>{"{\"progress\": \"waiting…\"}"}</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="ui" style={{ height: "100%" }}>
-              <Box style={pStyle}>{uiElements ?? <Text size="xs" c="dimmed" fs="italic">No UI elements yet.</Text>}</Box>
+              <Box className={style.panel}>{uiElements ?? <Text size="xs" c="dimmed" fs="italic">No UI elements yet.</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="state" style={{ height: "100%" }}>
-              <Box style={pStyle}>{gameState ?? <Text size="xs" c="dimmed" fs="italic">Click State tab to request…</Text>}</Box>
+              <Box className={style.panel}>{gameState ?? <Text size="xs" c="dimmed" fs="italic">Click State tab to request…</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="config" style={{ height: "100%" }}>
-              <Box style={pStyle}>{variantConfig ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
+              <Box className={style.panel}>{variantConfig ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
             </Tabs.Panel>
             <Tabs.Panel value="moves" style={{ height: "100%" }}>
-              <Box style={pStyle}>{validMoves ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
+              <Box className={style.panel}>{validMoves ?? <Text size="xs" c="dimmed" fs="italic">Loading…</Text>}</Box>
             </Tabs.Panel>
           </Box>
         </Tabs>

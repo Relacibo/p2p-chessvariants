@@ -37,6 +37,18 @@ const LAST_MOVE_COLOR = 0xffd700;
 const GHOST_ALPHA = 0.35;
 const CANVAS_BG_DARK = 0x2d2d2d;
 const CANVAS_BG_LIGHT = 0xe8e8e8;
+// Overlay UI colors for dark / light themes
+const OVERLAY_CARD_DARK = 0x1a1a1a;
+const OVERLAY_CARD_LIGHT = 0xffffff;
+const OVERLAY_CARD_ALPHA = 0.92;
+const OVERLAY_BG_DARK = 0x000000;
+const OVERLAY_BG_LIGHT = 0x000000;
+const OVERLAY_BG_ALPHA_DARK = 0.55;
+const OVERLAY_BG_ALPHA_LIGHT = 0.15;
+const OVERLAY_TEXT_DARK = 0xffffff;
+const OVERLAY_TEXT_LIGHT = 0x212529;
+const OVERLAY_HINT_DARK = 0x999999;
+const OVERLAY_HINT_LIGHT = 0x6c757d;
 // Gap between board slots as a fraction of stageWidth
 const SLOT_GAP_RATIO = 0.08;
 // Reserve panel width as a fraction of stageWidth (when reserves exist)
@@ -384,6 +396,13 @@ export class PixiBoard {
     this.darkMode = dark;
     if (this.app) {
       this.app.renderer.background.color = dark ? CANVAS_BG_DARK : CANVAS_BG_LIGHT;
+    }
+    // Redraw overlays that use theme-dependent colors
+    if (this.state) {
+      this.rebuildReservePiles();
+      this.rebuildPiecePicker();
+      this.rebuildUiButtons(this.state);
+      this.rebuildSlotButtons(this.state);
     }
   }
 
@@ -823,8 +842,8 @@ export class PixiBoard {
     }
 
     // Card style — matching piece picker panel design
-    const cardColor = 0x1a1a1a;
-    const cardAlpha = 0.92;
+    const cardColor = this.darkMode ? OVERLAY_CARD_DARK : OVERLAY_CARD_LIGHT;
+    const cardAlpha = OVERLAY_CARD_ALPHA;
     const cardRadius = 12;
 
     for (const [boardIdx, piles] of pilesByBoard) {
@@ -956,7 +975,7 @@ export class PixiBoard {
     // Semi-transparent fullscreen backdrop
     const bg = new Graphics()
       .rect(0, 0, stageWidth, stageHeight)
-      .fill({ color: 0x000000, alpha: 0.4 });
+      .fill({ color: OVERLAY_BG_DARK, alpha: this.darkMode ? 0.4 : 0.15 });
     bg.eventMode = "none";
     this.piecePickerLayer.addChild(bg);
 
@@ -978,7 +997,7 @@ export class PixiBoard {
     // Card background
     const card = new Graphics()
       .roundRect(cardX, cardY, cardW, cardH, 12)
-      .fill({ color: 0x1a1a1a, alpha: 0.92 });
+      .fill({ color: this.darkMode ? OVERLAY_CARD_DARK : OVERLAY_CARD_LIGHT, alpha: OVERLAY_CARD_ALPHA });
     card.eventMode = "none";
     this.piecePickerLayer.addChild(card);
 
@@ -987,7 +1006,7 @@ export class PixiBoard {
     if (title) {
       const titleText = new Text({
         text: title,
-        style: { fontSize: 16, fill: 0xffffff, fontFamily: "Arial", fontWeight: "bold" },
+        style: { fontSize: 16, fill: this.darkMode ? OVERLAY_TEXT_DARK : OVERLAY_TEXT_LIGHT, fontFamily: "Arial", fontWeight: "bold" },
       });
       titleText.anchor.set(0.5, 0);
       titleText.position.set(stageWidth / 2, currentY);
@@ -999,7 +1018,7 @@ export class PixiBoard {
     if (showCancel) {
       const cancelText = new Text({
         text: "right-click / tap away to cancel",
-        style: { fontSize: 11, fill: 0x999999, fontFamily: "Arial" },
+        style: { fontSize: 11, fill: this.darkMode ? OVERLAY_HINT_DARK : OVERLAY_HINT_LIGHT, fontFamily: "Arial" },
       });
       cancelText.anchor.set(0.5, 0);
       cancelText.position.set(stageWidth / 2, currentY);
@@ -1050,9 +1069,9 @@ export class PixiBoard {
     const btnH = 28;
     const gap = 8;
     const rightMargin = 4;
-    const bgColor = 0x000000;
-    const bgAlpha = 0.55;
-    const textColor = 0xffffff;
+    const bgColor = this.darkMode ? OVERLAY_BG_DARK : OVERLAY_CARD_LIGHT;
+    const bgAlpha = this.darkMode ? OVERLAY_BG_ALPHA_DARK : 0.85;
+    const textColor = this.darkMode ? OVERLAY_TEXT_DARK : OVERLAY_TEXT_LIGHT;
     const radius = 6;
 
     const hasMultiBoard = s.variantConfig.board.count > 1;
@@ -1147,9 +1166,9 @@ export class PixiBoard {
     const btnH = 28;
     const btnGapFromBoard = 16;
     const radius = 6;
-    const bgColor = 0x000000;
-    const bgAlpha = 0.55;
-    const textColor = 0xffffff;
+    const bgColor = this.darkMode ? OVERLAY_BG_DARK : OVERLAY_CARD_LIGHT;
+    const bgAlpha = this.darkMode ? OVERLAY_BG_ALPHA_DARK : 0.85;
+    const textColor = this.darkMode ? OVERLAY_TEXT_DARK : OVERLAY_TEXT_LIGHT;
 
     const textStyle = new TextStyle({
       fontSize: 20,
