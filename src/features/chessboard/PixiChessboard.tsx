@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useSelector } from "../../app/hooks";
-import { selectDarkmodeActive } from "../darkmode/darkmodeSlice";
+import { useMantineColorScheme } from "@mantine/core";
 import { PixiBoard, SceneState } from "./PixiBoard";
 import type {
   BoardOrientation,
@@ -62,7 +61,8 @@ export function PixiChessboard({
   const sw = stageWidth;
   const sh = stageHeight;
 
-  const darkMode = useSelector(selectDarkmodeActive);
+  const { colorScheme } = useMantineColorScheme();
+  const darkMode = colorScheme === "dark";
   const containerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<PixiBoard | null>(null);
 
